@@ -866,7 +866,7 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
             return {'success': False, 'error': 'Admin access required'}
 
         # Tier → amount mapping (Silver is free — caller should not invoke for Silver)
-        TIER_AMOUNTS = {'GOLD': 999, 'DIAMOND': 1299}
+        TIER_AMOUNTS = {'GOLD': 999, 'DIAMOND': 1399}
         base_amount = TIER_AMOUNTS.get(tier)
         if not base_amount:
             return {

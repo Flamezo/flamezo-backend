@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:code",
+ "autoname": "format:{restaurant}-{code}",
  "creation": "2025-01-15 10:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -54,10 +54,10 @@
    "fieldname": "offer_type",
    "fieldtype": "Select",
    "label": "Offer Type",
-   "options": "coupon\nauto\ncombo",
+   "options": "coupon\nauto\ncombo\ndelivery",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing"
+   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing | Delivery: Delivery fee discount"
   },
   {
    "fieldname": "code",
@@ -65,7 +65,6 @@
    "in_list_view": 1,
    "label": "Coupon Code",
    "reqd": 1,
-   "unique": 1,
    "search_index": 1
   },
   {
@@ -73,7 +72,7 @@
    "fieldname": "discount_type",
    "fieldtype": "Select",
    "label": "Discount Type",
-   "options": "flat\npercent",
+   "options": "flat\npercent\ndelivery",
    "reqd": 1
   },
   {
@@ -229,7 +228,7 @@
  "modified_by": "Administrator",
  "module": "Dinematters",
  "name": "Coupon",
- "naming_rule": "By fieldname",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

@@ -398,13 +398,22 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 
 
 @frappe.whitelist(allow_guest=True)
-def update_customer_profile(phone, customer_name=None, email=None, date_of_birth=None):
+def update_customer_profile(**kwargs):
 	"""
 	Called from ONO Menu Profile page. Lets a verified customer update their
 	own name, email and date_of_birth (for birthday marketing triggers).
 	Auth: X-Customer-Token session header must match the phone number.
 	"""
+	# Get parameters from kwargs or form_dict
+	phone = kwargs.get("phone") or frappe.form_dict.get("phone")
+	customer_name = kwargs.get("customer_name") or frappe.form_dict.get("customer_name")
+	email = kwargs.get("email") or frappe.form_dict.get("email")
+	date_of_birth = kwargs.get("date_of_birth") or frappe.form_dict.get("date_of_birth")
+
 	try:
+		if not phone:
+			return {"success": False, "error": "Phone number is required"}
+			
 		from dinematters.dinematters.utils.customer_helpers import normalize_phone
 		normalized = normalize_phone(phone)
 		if not normalized:
@@ -412,7 +421,21 @@ def update_customer_profile(phone, customer_name=None, email=None, date_of_birth
 
 		# Validate session
 		customer_token = frappe.get_request_header("X-Customer-Token")
+		if not customer_token and frappe.request:
+			customer_token = frappe.request.headers.get("X-Customer-Token")
+			if not customer_token:
+				# Try lowercase just in case
+				customer_token = frappe.request.headers.get("x-customer-token")
+			
 		if not customer_token:
+			# Log headers for debugging if auth fails
+			headers_dump = {}
+			if frappe.request:
+				headers_dump = dict(frappe.request.headers)
+			
+			# Truncate headers dump to avoid CharacterLengthExceededError
+			dump_str = str(headers_dump)[:2000]
+			frappe.log_error("Auth Error", f"Auth failed for {phone}. Headers: {dump_str}"[:5000])
 			return {"success": False, "error": "Authentication required"}
 
 		from dinematters.dinematters.api.otp import check_session
@@ -466,6 +489,7 @@ def update_customer_profile(phone, customer_name=None, email=None, date_of_birth
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"update_customer_profile error: {e}", "Customer_API")
-		return {"success": False, "error": str(e)}
+		msg = str(e)[:1000]
+		frappe.log_error("Customer API Error", f"update_customer_profile error: {msg}"[:5000])
+		return {"success": False, "error": "Internal server error"}
 

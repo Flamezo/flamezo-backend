@@ -25,7 +25,6 @@ import {
   Power, 
   PowerOff, 
   Trash2, 
-  Activity, 
   Coins, 
   Settings, 
   Zap, 
@@ -35,6 +34,8 @@ import {
   Scale,
   Inbox,
   ClipboardCopy,
+  Gem,
+  Trophy,
   ExternalLink
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
@@ -601,7 +602,7 @@ export default function AdminRestaurantManagement() {
               <NumberInput
                 
                 value={coinAmount}
-                onChange={(e) => setCoinAmount(e.target.value)}
+                onChange={(e: any) => setCoinAmount(e.target.value)}
                 placeholder="0.00"
                 className="h-11 rounded-xl border-slate-300 focus-visible:ring-amber-500 font-bold text-lg bg-background text-foreground"
               />
@@ -610,7 +611,7 @@ export default function AdminRestaurantManagement() {
               <Label className="text-xs font-semibold text-muted-foreground">Reason for Audit Trail</Label>
               <Input
                 value={coinReason}
-                onChange={(e) => setCoinReason(e.target.value)}
+                onChange={(e: any) => setCoinReason(e.target.value)}
                 placeholder="e.g., Marketing promotion"
                 className="h-11 rounded-xl border-slate-300 bg-background text-foreground"
               />
@@ -649,11 +650,11 @@ export default function AdminRestaurantManagement() {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-muted-foreground ml-1">Trade Name</Label>
-                <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
+                <Input value={editName} onChange={(e: any) => setEditName(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-muted-foreground ml-1">Controller Email</Label>
-                <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
+                <Input value={editEmail} onChange={(e: any) => setEditEmail(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
               </div>
             </div>
 
@@ -671,11 +672,11 @@ export default function AdminRestaurantManagement() {
                   <Label className="text-xs font-semibold text-muted-foreground ml-1">
                     Monthly Floor (₹)
                   </Label>
-                  <NumberInput  value={editMonthlyMinimum} onChange={(e) => setEditMonthlyMinimum(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
+                  <NumberInput  value={editMonthlyMinimum} onChange={(e: any) => setEditMonthlyMinimum(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-muted-foreground ml-1">Network Fee (%)</Label>
-                  <NumberInput  value={editPlatformFee} onChange={(e) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
+                  <NumberInput  value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
                 </div>
               </div>
             </div>
@@ -686,9 +687,15 @@ export default function AdminRestaurantManagement() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <Scale className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-bold">Daily Floor Recovery</Label>
+                    <Label className="text-sm font-bold">
+                      {selectedRestaurant?.plan_type === 'DIAMOND' ? 'Monthly Floor Guarantee' : 'Daily Floor Recovery'}
+                    </Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-medium">Control automatic nightly minimum fee deductions</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    {selectedRestaurant?.plan_type === 'DIAMOND' 
+                      ? 'Control automatic monthly minimum fee deductions' 
+                      : 'Control automatic nightly minimum fee deductions'}
+                  </p>
                 </div>
                 <Switch
                   checked={editFloorRecovery}
@@ -699,7 +706,7 @@ export default function AdminRestaurantManagement() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
                   <Zap className="h-3 w-3 text-amber-600 mt-0.5" />
                   <p className="text-[9px] text-amber-700 font-bold leading-tight uppercase">
-                    Billing Alert: Nightly floor deduction is PAUSED for this restaurant.
+                    Billing Alert: {selectedRestaurant?.plan_type === 'DIAMOND' ? 'Monthly' : 'Nightly'} floor deduction is PAUSED for this restaurant.
                   </p>
                 </div>
               )}
@@ -713,28 +720,61 @@ export default function AdminRestaurantManagement() {
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Platform Access Tier</span>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                {['SILVER', 'GOLD', 'DIAMOND'].map((tier) => {
-                  const isActive = selectedRestaurant?.plan_type === tier;
-                  return (
-                    <button
-                      key={tier}
-                      type="button"
-                      onClick={() => handlePlanChange(selectedRestaurant!.name, tier as any)}
-                      className={cn(
-                        "flex flex-col items-center justify-center py-4 px-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border-2 transition-all",
-                        isActive
-                          ? "bg-primary/5 text-primary border-primary shadow-sm"
-                          : "bg-white border-muted/60 text-muted-foreground hover:border-primary/20 hover:text-primary/70"
-                      )}
-                      disabled={updating === selectedRestaurant?.name}
+              
+              <Select 
+                value={selectedRestaurant?.plan_type} 
+                onValueChange={(value) => handlePlanChange(selectedRestaurant!.restaurant_id, value as any)}
+                disabled={updating === selectedRestaurant?.name}
+              >
+                <SelectTrigger className="h-14 rounded-2xl border-2 border-primary/20 bg-background hover:border-primary/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "p-2 rounded-lg",
+                      selectedRestaurant?.plan_type === 'DIAMOND' ? "bg-blue-500/10 text-blue-600" :
+                      selectedRestaurant?.plan_type === 'GOLD' ? "bg-amber-500/10 text-amber-600" :
+                      "bg-slate-500/10 text-slate-600"
+                    )}>
+                      {selectedRestaurant?.plan_type === 'DIAMOND' ? <Gem className="h-4 w-4" /> :
+                       selectedRestaurant?.plan_type === 'GOLD' ? <Trophy className="h-4 w-4" /> :
+                       <Shield className="h-4 w-4" />}
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-black uppercase tracking-widest">{selectedRestaurant?.plan_type}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Current Active Plan</span>
+                    </div>
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
+                  {[
+                    { id: 'SILVER', label: 'Silver Tier', icon: Shield, color: 'text-slate-500', desc: 'Basic Digital Menu' },
+                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: '₹999/mo Minimum Floor' },
+                    { id: 'DIAMOND', label: 'Diamond Tier', icon: Gem, color: 'text-blue-500', desc: '1.5% Success Share (₹399 Floor)' }
+                  ].map((tier) => (
+                    <SelectItem 
+                      key={tier.id} 
+                      value={tier.id}
+                      className="rounded-xl py-3 focus:bg-primary/5 cursor-pointer"
                     >
-                      {isActive && <div className="p-1 bg-primary text-white rounded-full mb-2"><Activity className="h-3 w-3" /></div>}
-                      {tier}
-                    </button>
-                  )
-                })}
-              </div>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("p-1.5 rounded-md bg-muted/50", tier.color)}>
+                          <tier.icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold uppercase tracking-wider">{tier.label}</span>
+                          <span className="text-[9px] text-muted-foreground font-medium">{tier.desc}</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {updating === selectedRestaurant?.name && (
+                <div className="flex items-center gap-2 px-1 text-[10px] font-bold text-primary animate-pulse">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  PROCESSING TIER TRANSITION...
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter className="p-4 bg-muted/30 border-t flex flex-row gap-2 sm:justify-end">

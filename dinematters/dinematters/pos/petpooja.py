@@ -3,6 +3,7 @@ import requests
 import json
 from frappe.utils import now_datetime
 from dinematters.dinematters.pos.base import POSProvider
+from dinematters.dinematters.utils.common import safe_log_error
 
 class PetpoojaProvider(POSProvider):
     def __init__(self, restaurant_doc):
@@ -22,7 +23,7 @@ class PetpoojaProvider(POSProvider):
         """
         # In actual Petpooja implementation, this often requires hitting /get_menus
         # For now, we provide the template for the 'Price Override' sync logic
-        frappe.log_error(f"Pull Menu triggered for {self.restaurant.name}", "Petpooja Sync")
+        safe_log_error("Petpooja Sync", f"Pull Menu triggered for {self.restaurant.name}")
         
         # This would be the mapping logic once response is received:
         # 1. Resolve Category
@@ -61,7 +62,7 @@ class PetpoojaProvider(POSProvider):
                 return {"status": "error", "message": result.get("message", "Unknown Petpooja error")}
 
         except Exception as e:
-            frappe.log_error(frappe.get_traceback(), "Petpooja Order Push Error")
+            safe_log_error("Petpooja Order Push Error", frappe.get_traceback())
             return {"status": "error", "message": str(e)}
 
     def handle_callback(self, data):
@@ -83,11 +84,11 @@ class PetpoojaProvider(POSProvider):
 
         # Production Security: Validate App Key if provided
         if app_key and app_key != self.settings.get("app_key"):
-            frappe.log_error(f"Petpooja callback invalid app_key: {app_key}", "Petpooja Webhook Auth Error")
+            safe_log_error("Petpooja Webhook Auth Error", f"Petpooja callback invalid app_key: {app_key}")
             return
 
         if not client_order_id:
-            frappe.log_error(f"Petpooja callback missing order identifiers: {json.dumps(data)}", "Petpooja Webhook Error")
+            safe_log_error("Petpooja Webhook Error", f"Petpooja callback missing order identifiers: {json.dumps(data)}")
             return
 
         try:
@@ -96,7 +97,7 @@ class PetpoojaProvider(POSProvider):
             # Map Petpooja status to DineMatters status
             new_status = self.map_status(petpooja_status)
             if not new_status:
-                frappe.log_error(f"Received unknown Petpooja status: {petpooja_status} for order {client_order_id}", "Petpooja Sync Warning")
+                safe_log_error("Petpooja Sync Warning", f"Received unknown Petpooja status: {petpooja_status} for order {client_order_id}")
                 return
 
             # Status Transition Safety: Don't move backwards
@@ -133,9 +134,9 @@ class PetpoojaProvider(POSProvider):
             frappe.logger().info(f"Petpooja Sync: Order {order.name} status updated to {new_status} (Petpooja: {petpooja_status})")
 
         except frappe.DoesNotExistError:
-            frappe.log_error(f"Petpooja callback for non-existent order: {client_order_id}", "Petpooja Webhook Error")
+            safe_log_error("Petpooja Webhook Error", f"Petpooja callback for non-existent order: {client_order_id}")
         except Exception as e:
-            frappe.log_error(f"Error handling Petpooja status callback: {str(e)}\n{frappe.get_traceback()}", "Petpooja Sync Error")
+            safe_log_error("Petpooja Sync Error", f"Error handling Petpooja status callback: {str(e)}\n{frappe.get_traceback()}")
 
     def handle_menu_push(self, data):
         """
@@ -161,7 +162,7 @@ class PetpoojaProvider(POSProvider):
             return {"status": "success", "message": "Menu synced successfully"}
 
         except Exception as e:
-            frappe.log_error(frappe.get_traceback(), "Petpooja Menu Sync Error")
+            safe_log_error("Petpooja Menu Sync Error", frappe.get_traceback())
             return {"status": "error", "message": str(e)}
 
     def _sync_category(self, cat_data):
@@ -280,7 +281,7 @@ class PetpoojaProvider(POSProvider):
             
             return {"status": "success", "message": "Rider info updated"}
         except Exception as e:
-            frappe.log_error(frappe.get_traceback(), "Petpooja Rider Update Error")
+            safe_log_error("Petpooja Rider Update Error", frappe.get_traceback())
             return {"status": "error", "message": str(e)}
 
     def map_status(self, provider_status):

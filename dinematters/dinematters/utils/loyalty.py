@@ -20,8 +20,11 @@ def get_loyalty_balance(customer, restaurant, include_pending=False):
 	if not include_pending:
 		filters["is_settled"] = 1
 	
-	# Only include non-expired entries
-	filters["expiry_date"] = [">=", today()]
+	# Only include non-expired entries or those without an expiry date
+	filters["or"] = [
+		["expiry_date", ">=", today()],
+		["expiry_date", "is", "not set"]
+	]
 	
 	entries = frappe.get_all(
 		"Restaurant Loyalty Entry",

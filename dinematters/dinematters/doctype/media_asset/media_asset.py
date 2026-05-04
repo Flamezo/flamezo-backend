@@ -4,6 +4,7 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
+from dinematters.dinematters.media.utils import get_allowed_roles, get_actual_media_role, get_restaurant_from_owner
 import hashlib
 
 
@@ -32,15 +33,11 @@ class MediaAsset(Document):
 	
 	def validate_media_role_for_doctype(self):
 		"""Validate that media_role is allowed for owner_doctype"""
-		allowed_roles = {
-			"Menu Product": ["product_image", "product_video", "product_video_poster"],
-			"Restaurant": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image"],
-			"Restaurant Config": ["restaurant_config_logo", "restaurant_config_hero_video", "apple_touch_icon"],
-			"Menu Image Extractor": ["category_image"]
-		}
+		allowed_roles = get_allowed_roles()
 		
 		if self.owner_doctype in allowed_roles:
-			if self.media_role not in allowed_roles[self.owner_doctype]:
+			actual_role = get_actual_media_role(self.owner_doctype, self.media_role)
+			if actual_role not in allowed_roles[self.owner_doctype]:
 				frappe.throw(
 					f"Media role '{self.media_role}' is not allowed for {self.owner_doctype}. "
 					f"Allowed roles: {', '.join(allowed_roles[self.owner_doctype])}"
@@ -52,14 +49,7 @@ class MediaAsset(Document):
 			return
 		
 		# Get restaurant from owner document
-		owner_restaurant = None
-		
-		if self.owner_doctype == "Menu Product":
-			owner_restaurant = frappe.db.get_value("Menu Product", self.owner_name, "restaurant")
-		elif self.owner_doctype == "Restaurant":
-			owner_restaurant = self.owner_name
-		elif self.owner_doctype == "Restaurant Config":
-			owner_restaurant = frappe.db.get_value("Restaurant Config", self.owner_name, "restaurant")
+		owner_restaurant = get_restaurant_from_owner(self.owner_doctype, self.owner_name)
 		
 		if owner_restaurant and owner_restaurant != self.restaurant:
 			frappe.throw(

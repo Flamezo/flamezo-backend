@@ -2,6 +2,7 @@ import frappe
 import requests
 import json
 from dinematters.dinematters.pos.base import POSProvider
+from dinematters.dinematters.utils.common import safe_log_error
 
 class RestroworksProvider(POSProvider):
     def __init__(self, restaurant_doc):
@@ -92,7 +93,7 @@ class RestroworksProvider(POSProvider):
 
         except Exception as e:
             self._log_sync_status("ERROR", f"Pull Sync Failed: {str(e)}")
-            frappe.log_error(frappe.get_traceback(), "Restroworks Pull Error")
+            safe_log_error("Restroworks Pull Error", frappe.get_traceback())
             return False
 
     def push_order(self, order_doc):
@@ -119,11 +120,11 @@ class RestroworksProvider(POSProvider):
             }
             
             # In production: requests.post(f"{self.base_url}/orders", json=payload, headers=self.headers)
-            frappe.log_error(json.dumps(payload), "Restroworks Order Payload (Mock)")
+            safe_log_error("Restroworks Order Payload (Mock)", json.dumps(payload))
             return True
             
         except Exception as e:
-            frappe.log_error(str(e), "Restroworks Push Order Error")
+            safe_log_error("Restroworks Push Order Error", str(e))
             return False
 
     def handle_callback(self, data):

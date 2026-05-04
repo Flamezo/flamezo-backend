@@ -71,100 +71,104 @@ function AppContent() {
 						{/* Protected routes */}
 						<Route element={<ProtectedRoute />}>
 							<Route path="/" element={<Navigate to="/dashboard" replace />} />
-							<Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-							<Route path="/account" element={<Layout><MyAccount /></Layout>} />
 							<Route path="/feature-locked" element={<FeatureLocked />} />
-							<Route path="/setup" element={<Layout><TieredSetupWizard /></Layout>} />
-							<Route path="/setup/:stepId" element={<Layout><TieredSetupWizard /></Layout>} />
+							
+							{/* Routes using the shared Layout */}
+							<Route element={<Layout />}>
+								<Route path="/dashboard" element={<Dashboard />} />
+								<Route path="/account" element={<MyAccount />} />
+								<Route path="/setup" element={<TieredSetupWizard />} />
+								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />
 
-							<Route path="/Home Feature" element={<Navigate to="/home-features" replace />} />
-							<Route path="/Home%20Feature" element={<Navigate to="/home-features" replace />} />
+								<Route path="/Home Feature" element={<Navigate to="/home-features" replace />} />
+								<Route path="/Home%20Feature" element={<Navigate to="/home-features" replace />} />
 
-							<Route path="/admin/restaurants" element={<Layout><AdminRestaurantManagement /></Layout>} />
-							<Route path="/admin/restaurants/:id" element={<Layout><AdminRestaurantDetailsPage /></Layout>} />
+								<Route path="/admin/restaurants" element={<AdminRestaurantManagement />} />
+								<Route path="/admin/restaurants/:id" element={<AdminRestaurantDetailsPage />} />
 
-							<Route element={<FeatureProtectedRoute feature="ordering" />}>
-								<Route path="/orders" element={<Layout><Orders /></Layout>} />
-								<Route path="/accept-orders" element={<Layout><AcceptOrders /></Layout>} />
-								<Route path="/orders/:orderId" element={<Layout><OrderDetail /></Layout>} />
-								<Route path="/past-orders" element={<Layout><PastOrders /></Layout>} />
+								<Route element={<FeatureProtectedRoute feature="ordering" />}>
+									<Route path="/orders" element={<Orders />} />
+									<Route path="/accept-orders" element={<AcceptOrders />} />
+									<Route path="/orders/:orderId" element={<OrderDetail />} />
+									<Route path="/past-orders" element={<PastOrders />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="coupons" />}>
+									<Route path="/coupons" element={<Coupons />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="ordering" />}>
+									<Route path="/pos-integration" element={<POSIntegration />} />
+									<Route path="/frontend-ordering" element={<OrderSettings />} />
+									<Route path="/order-settings" element={<OrderSettings />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
+									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
+									<Route path="/loyalty-insights" element={<CustomerInsights />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="tableBooking" />}>
+									<Route path="/bookings" element={<Bookings />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="events" />}>
+									<Route path="/events" element={<Events />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="ordering" />}>
+									<Route path="/customers" element={<Customers />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute feature="aiRecommendations" />}>
+									<Route path="/recommendations-engine" element={<RecommendationsEngine />} />
+								</Route>
+
+								<Route element={<FeatureProtectedRoute requireGold />}>
+									<Route path="/whatsapp-orders" element={<WhatsAppOrders />} />
+								</Route>
+
+								{/* Marketing Studio (DIAMOND only) */}
+								<Route element={<FeatureProtectedRoute feature="marketing_studio" />}>
+									<Route path="/marketing" element={<MarketingOverview />} />
+									<Route path="/marketing/campaigns" element={<MarketingCampaigns />} />
+									<Route path="/marketing/campaigns/:id" element={<MarketingCampaigns />} />
+									<Route path="/marketing/automation" element={<MarketingAutomation />} />
+									<Route path="/marketing/segments" element={<MarketingSegments />} />
+									<Route path="/marketing/analytics" element={<MarketingAnalytics />} />
+								</Route>
+								
+								{/* Google Growth (GOLD/DIAMOND) */}
+								<Route element={<FeatureProtectedRoute feature="google_growth" />}>
+									<Route path="/google-growth" element={<GoogleGrowth />} />
+									<Route path="/google-growth/sync" element={<GoogleGrowthSync />} />
+									<Route path="/google-growth/reviews" element={<GoogleGrowthReviews />} />
+								</Route>
+
+								<Route path="/billing" element={<PaymentSettings />} />
+								<Route path="/billing/configure" element={<PaymentConfiguration />} />
+								<Route path="/ledger" element={<LedgerPage />} />
+								<Route path="/autopay-setup" element={<AutopaySetupPage />} />
+								<Route path="/team" element={<TeamManagement />} />
+
+								<Route path="/menu" element={<MenuManagement />} />
+								<Route path="/qr-codes" element={<QRCodes />} />
+
+								<Route path="/home-features" element={<HomeFeaturesManager />} />
+
+								<Route path="/ai-enhancements" element={<AIEnhancementPage />} />
+								<Route path="/ai-gallery" element={<AIGalleryPage />} />
+								<Route path="/ai-menu-theme-background" element={<AIMenuThemeBackgroundPage />} />
+								<Route path="/ai-menu-theme-history" element={<AIMenuThemeHistoryPage />} />
+
+								<Route path="/Legacy Content" element={<LegacyContent />} />
+								<Route path="/Legacy Signature Dish" element={<LegacySignatureDish />} />
+								<Route path="/logistics-hub" element={<LogisticsHub />} />
+								<Route path="/restaurant/:restaurantId/payment" element={<Payment />} />
+								<Route path="/restaurant/:restaurantId/billing" element={<PaymentSettings />} />
+								<Route path="/restaurant/:restaurantId/billing/configure" element={<PaymentConfiguration />} />
+								<Route path="/:doctype/:docname" element={<ModuleDetail />} />
 							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="coupons" />}>
-								<Route path="/coupons" element={<Layout><Coupons /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="ordering" />}>
-								<Route path="/pos-integration" element={<Layout><POSIntegration /></Layout>} />
-								<Route path="/frontend-ordering" element={<Layout><OrderSettings /></Layout>} />
-								<Route path="/order-settings" element={<Layout><OrderSettings /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="loyalty" />}>
-								<Route path="/loyalty-settings" element={<Layout><LoyaltySettings /></Layout>} />
-								<Route path="/loyalty-insights" element={<Layout><CustomerInsights /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="tableBooking" />}>
-								<Route path="/bookings" element={<Layout><Bookings /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="events" />}>
-								<Route path="/events" element={<Layout><Events /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="ordering" />}>
-								<Route path="/customers" element={<Layout><Customers /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute feature="aiRecommendations" />}>
-								<Route path="/recommendations-engine" element={<Layout><RecommendationsEngine /></Layout>} />
-							</Route>
-
-							<Route element={<FeatureProtectedRoute requireGold />}>
-								<Route path="/whatsapp-orders" element={<Layout><WhatsAppOrders /></Layout>} />
-							</Route>
-
-							{/* Marketing Studio (DIAMOND only) */}
-							<Route element={<FeatureProtectedRoute feature="marketing_studio" />}>
-								<Route path="/marketing" element={<Layout><MarketingOverview /></Layout>} />
-								<Route path="/marketing/campaigns" element={<Layout><MarketingCampaigns /></Layout>} />
-								<Route path="/marketing/campaigns/:id" element={<Layout><MarketingCampaigns /></Layout>} />
-								<Route path="/marketing/automation" element={<Layout><MarketingAutomation /></Layout>} />
-								<Route path="/marketing/segments" element={<Layout><MarketingSegments /></Layout>} />
-								<Route path="/marketing/analytics" element={<Layout><MarketingAnalytics /></Layout>} />
-							</Route>
-                            
-                            {/* Google Growth (GOLD/DIAMOND) */}
-                            <Route element={<FeatureProtectedRoute feature="google_growth" />}>
-                                <Route path="/google-growth" element={<Layout><GoogleGrowth /></Layout>} />
-                                <Route path="/google-growth/sync" element={<Layout><GoogleGrowthSync /></Layout>} />
-                                <Route path="/google-growth/reviews" element={<Layout><GoogleGrowthReviews /></Layout>} />
-                            </Route>
-
-							<Route path="/billing" element={<Layout><PaymentSettings /></Layout>} />
-							<Route path="/billing/configure" element={<Layout><PaymentConfiguration /></Layout>} />
-							<Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
-							<Route path="/autopay-setup" element={<Layout><AutopaySetupPage /></Layout>} />
-							<Route path="/team" element={<Layout><TeamManagement /></Layout>} />
-
-							<Route path="/menu" element={<Layout><MenuManagement /></Layout>} />
-							<Route path="/qr-codes" element={<Layout><QRCodes /></Layout>} />
-
-							<Route path="/home-features" element={<Layout><HomeFeaturesManager /></Layout>} />
-
-							<Route path="/ai-enhancements" element={<Layout><AIEnhancementPage /></Layout>} />
-							<Route path="/ai-gallery" element={<Layout><AIGalleryPage /></Layout>} />
-							<Route path="/ai-menu-theme-background" element={<Layout><AIMenuThemeBackgroundPage /></Layout>} />
-							<Route path="/ai-menu-theme-history" element={<Layout><AIMenuThemeHistoryPage /></Layout>} />
-
-							<Route path="/Legacy Content" element={<Layout><LegacyContent /></Layout>} />
-							<Route path="/Legacy Signature Dish" element={<Layout><LegacySignatureDish /></Layout>} />
-							<Route path="/logistics-hub" element={<Layout><LogisticsHub /></Layout>} />
-							<Route path="/restaurant/:restaurantId/payment" element={<Layout><Payment /></Layout>} />
-							<Route path="/restaurant/:restaurantId/billing" element={<Layout><PaymentSettings /></Layout>} />
-							<Route path="/restaurant/:restaurantId/billing/configure" element={<Layout><PaymentConfiguration /></Layout>} />
-							<Route path="/:doctype/:docname" element={<Layout><ModuleDetail /></Layout>} />
 						</Route>
 					</Routes>
 				</Suspense>

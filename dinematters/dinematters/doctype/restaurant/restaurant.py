@@ -104,6 +104,9 @@ class Restaurant(Document):
 			else:
 				frappe.msgprint(_("Warning: Invalid referral code {0} ignored.").format(self.referred_by_restaurant_code))
 		
+		# Ensure floor recovery dates are initialized
+		self.handle_floor_recovery_activation()
+		
 		# Prevent non-admin reactivation if suspended for billing
 		self.validate_billing_reactivation()
 	
@@ -131,7 +134,7 @@ class Restaurant(Document):
 			# Auto-set billing defaults for the new plan
 			settings = frappe.get_single("Dinematters Settings")
 			if self.plan_type == "DIAMOND":
-				self.monthly_minimum = settings.diamond_monthly_floor or 1350.0
+				self.monthly_minimum = settings.diamond_monthly_floor or 399.0
 				self.platform_fee_percent = settings.diamond_commission_percent or 1.5
 			elif self.plan_type == "GOLD":
 				self.monthly_minimum = settings.gold_monthly_fee or 999.0
@@ -139,6 +142,20 @@ class Restaurant(Document):
 			elif self.plan_type == "SILVER":
 				self.monthly_minimum = 0.0
 				self.platform_fee_percent = 0.0
+			
+			# Waiver individual feature fees for GOLD/DIAMOND (they are included)
+			if self.plan_type in ["GOLD", "DIAMOND"]:
+				frappe.db.set_value("Restaurant Config", {"restaurant": self.name}, "menu_theme_paid_until", None)
+
+	def handle_floor_recovery_activation(self):
+		"""Ensure dates are set when floor recovery is enabled"""
+		if self.enable_floor_recovery:
+			if not self.floor_recovery_activated_on:
+				self.floor_recovery_activated_on = frappe.utils.today()
+			
+			if not self.last_floor_recovery_date:
+				# Initialize to today so the first 30-day window starts now
+				self.last_floor_recovery_date = frappe.utils.today()
 			
 			# Waiver individual feature fees for GOLD/DIAMOND (they are included)
 			if self.plan_type in ["GOLD", "DIAMOND"]:

@@ -132,23 +132,21 @@ export function useDataTable(options: UseDataTableOptions) {
     }, debugId ? `${debugId}-${page}-${pageSize}-${JSON.stringify(listFilters)}-${JSON.stringify(orFilters)}` : null)
 
     // Fetch count separately
-    const { data: countData } = useFrappeGetCall('frappe.client.get_count', {
+    const { data: countData, mutate: refreshCount } = useFrappeGetCall('frappe.client.get_count', {
       doctype,
       filters: JSON.stringify(listFilters),
       or_filters: orFilters.length > 0 ? JSON.stringify(orFilters) : undefined
     }, doctype ? `count-${doctype}-${JSON.stringify(listFilters)}-${JSON.stringify(orFilters)}` : null)
-    
+
     data = listData || []
     totalCount = (countData as any)?.message || 0
     isLoading = loading
-    mutate = refresh
+    mutate = () => { refresh(); refreshCount() }
   }
 
   // Sync internal filters with initialFilters when they change (e.g. restaurant switch)
   useEffect(() => {
-    if (initialFilters.length > 0) {
-      setFilters(initialFilters)
-    }
+    setFilters(initialFilters)
   }, [JSON.stringify(initialFilters)])
 
   return {

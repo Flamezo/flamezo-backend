@@ -10,6 +10,8 @@ from io import BytesIO
 
 import frappe
 from frappe.utils import get_url
+from frappe import _
+from dinematters.dinematters.utils.common import safe_log_error, resolve_and_fetch_media
 
 
 def normalize_qr_color(color):
@@ -136,71 +138,43 @@ def read_logo_bytes(logo_url):
 
 	try:
 		from PIL import Image
-		from dinematters.dinematters.media.storage import download_object
-		from dinematters.dinematters.media.config import get_cdn_config
 		
-		# Handle CDN URLs by downloading from R2
-		cdn_config = get_cdn_config()
-		cdn_base = cdn_config["base_url"]
-		if logo_url.startswith(cdn_base):
-			# Extract object key from CDN URL
-			object_key = logo_url[len(cdn_base):].lstrip('/')
-			# Download from R2 to temp file
-			with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-				temp_path = temp_file.name
-			try:
-				download_object(object_key, temp_path)
-				# Check if it's an SVG file
-				if object_key.endswith('.svg') or temp_path.endswith('.svg'):
-					return convert_svg_to_png(temp_path)
+		# Handle local file paths
+		if logo_url.startswith("/"):
+			if os.path.exists(logo_url):
+				if logo_url.endswith('.svg'):
+					return convert_svg_to_png(logo_url)
 				else:
-					with Image.open(temp_path) as img:
+					with Image.open(logo_url) as img:
 						img = img.convert("RGBA")
 						img.thumbnail((320, 320), Image.Resampling.LANCZOS)
 						buffer = BytesIO()
 						img.save(buffer, format="PNG")
 						return buffer.getvalue()
+			else:
+				logo_url = get_url(logo_url)
+
+		# Use unified media fetcher (handles CDN/R2 and HTTP with User-Agent)
+		content = resolve_and_fetch_media(logo_url)
+		
+		if logo_url.endswith('.svg') or b'<svg' in content[:100]:
+			with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as temp_file:
+				temp_file.write(content)
+				temp_path = temp_file.name
+			try:
+				return convert_svg_to_png(temp_path)
 			finally:
 				if os.path.exists(temp_path):
 					os.remove(temp_path)
-		
-		# Handle local file paths
-		resolved_url = logo_url
-		if resolved_url.startswith("/"):
-			if os.path.exists(resolved_url):
-				if resolved_url.endswith('.svg'):
-					return convert_svg_to_png(resolved_url)
-				else:
-					with Image.open(resolved_url) as img:
-						img = img.convert("RGBA")
-						img.thumbnail((320, 320), Image.Resampling.LANCZOS)
-						buffer = BytesIO()
-						img.save(buffer, format="PNG")
-						return buffer.getvalue()
-			else:
-				resolved_url = get_url(resolved_url)
-
-		# Handle HTTP URLs (for localhost or other accessible URLs)
-		with urllib.request.urlopen(resolved_url, timeout=10) as response:
-			content = response.read()
-			if resolved_url.endswith('.svg') or b'<svg' in content[:100]:
-				with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as temp_file:
-					temp_file.write(content)
-					temp_path = temp_file.name
-				try:
-					return convert_svg_to_png(temp_path)
-				finally:
-					if os.path.exists(temp_path):
-						os.remove(temp_path)
-			else:
-				with Image.open(BytesIO(content)) as img:
-					img = img.convert("RGBA")
-					img.thumbnail((320, 320), Image.Resampling.LANCZOS)
-					buffer = BytesIO()
-					img.save(buffer, format="PNG")
-					return buffer.getvalue()
+		else:
+			with Image.open(BytesIO(content)) as img:
+				img = img.convert("RGBA")
+				img.thumbnail((320, 320), Image.Resampling.LANCZOS)
+				buffer = BytesIO()
+				img.save(buffer, format="PNG")
+				return buffer.getvalue()
 	except Exception as e:
-		frappe.log_error(f"Error reading logo {logo_url}: {e}", "QR Logo Read Error")
+		safe_log_error("QR Logo Error", f"Error reading logo {logo_url}: {e}")
 		return None
 
 
@@ -247,53 +221,28 @@ def read_background_image_bytes(image_url, size=(940, 980)):
 		if image_url.startswith("/"):
 			if os.path.exists(image_url):
 				with Image.open(image_url) as img:
+					img = ImageOps.exif_transpose(img)
 					img = img.convert("RGB")
-					img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.78))
+					img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
 					img = ImageEnhance.Brightness(img).enhance(0.75)
 					buffer = BytesIO()
 					img.save(buffer, format="JPEG", quality=75, optimize=True)
 					return buffer.getvalue()
 			else:
-				image_url = get_url(image_url) if image_url.startswith("/") else image_url
-		
-		# For non-local files, try CDN/HTTP handling
-		try:
-			from dinematters.dinematters.media.storage import download_object
-			from dinematters.dinematters.media.config import get_cdn_config
-			
-			cdn_config = get_cdn_config()
-			cdn_base = cdn_config["base_url"]
-			if image_url.startswith(cdn_base):
-				object_key = image_url[len(cdn_base):].lstrip('/')
-				with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-					temp_path = temp_file.name
-				try:
-					download_object(object_key, temp_path)
-					with Image.open(temp_path) as img:
-						img = img.convert("RGB")
-						img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.78))
-						img = ImageEnhance.Brightness(img).enhance(0.75)
-						buffer = BytesIO()
-						img.save(buffer, format="JPEG", quality=75, optimize=True)
-						return buffer.getvalue()
-				finally:
-					if os.path.exists(temp_path):
-						os.remove(temp_path)
-		except Exception:
-			pass
-		
-		# Handle HTTP URLs
-		resolved_url = get_url(image_url) if image_url.startswith("/") else image_url
-		with urllib.request.urlopen(resolved_url, timeout=10) as response:
-			with Image.open(BytesIO(response.read())) as img:
-				img = img.convert("RGB")
-				img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.78))
-				img = ImageEnhance.Brightness(img).enhance(0.75)
-				buffer = BytesIO()
-				img.save(buffer, format="JPEG", quality=75, optimize=True)
-				return buffer.getvalue()
+				image_url = get_url(image_url)
+
+		# Use unified media fetcher
+		content = resolve_and_fetch_media(image_url)
+		with Image.open(BytesIO(content)) as img:
+			img = ImageOps.exif_transpose(img)
+			img = img.convert("RGB")
+			img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+			img = ImageEnhance.Brightness(img).enhance(0.75)
+			buffer = BytesIO()
+			img.save(buffer, format="JPEG", quality=75, optimize=True)
+			return buffer.getvalue()
 	except Exception as e:
-		frappe.log_error(f"Error reading image {image_url}: {e}", "QR Background Image Error")
+		safe_log_error("QR Background Error", f"Error reading background image {image_url}: {e}")
 		return None
 
 
@@ -425,8 +374,9 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	draw = ImageDraw.Draw(canvas)
 	if background_image_bytes:
 		with Image.open(BytesIO(background_image_bytes)) as bg_img:
+			bg_img = ImageOps.exif_transpose(bg_img)
 			bg_img = bg_img.convert("RGBA")
-			bg_img = ImageOps.fit(bg_img, (1096, 1496), method=Image.Resampling.LANCZOS, centering=(0.5, 0.78))
+			bg_img = ImageOps.fit(bg_img, (1096, 1496), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
 			canvas.paste(bg_img, (52, 52), bg_img)
 	else:
 		draw.rounded_rectangle((52, 52, 1148, 1548), radius=56, fill="white")
@@ -445,36 +395,22 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	title_w, _ = measure_text(draw, title_text, title_font)
 	draw.text(((1200 - title_w) / 2, 110), title_text, fill=brand_color, font=title_font)
 
-	# Generate QR code with logo embedded if both logo and background exist
-	qr_img = None
-	logo_applied_in_qr = False
-	
-	if logo_bytes and background_image_bytes:
-		try:
-			qr_img = build_artistic_qr_image(qr_data, logo_bytes, background_image_bytes)
-			qr_img = qr_img.resize((520, 520), Image.Resampling.LANCZOS)
-			logo_applied_in_qr = True
-		except Exception as e:
-			frappe.log_error(f"Artistic QR failed: {e}", "QR Artistic Generation")
-			qr_img = None
-	
-	# Fallback to regular QR if artistic failed or no logo/background
-	if qr_img is None:
-		qr = qrcode.QRCode(
-			version=None,
-			error_correction=qrcode.constants.ERROR_CORRECT_H,
-			box_size=20,
-			border=4,
-		)
-		qr.add_data(qr_data)
-		qr.make(fit=True)
-		qr_img = qr.make_image(fill_color=brand_color, back_color="white").convert("RGBA")
-		qr_img = qr_img.resize((520, 520), Image.Resampling.NEAREST)
-	
+	# Generate QR code (always use the clean qrcode approach for consistent quality)
+	qr = qrcode.QRCode(
+		version=None,
+		error_correction=qrcode.constants.ERROR_CORRECT_H,
+		box_size=20,
+		border=4,
+	)
+	qr.add_data(qr_data)
+	qr.make(fit=True)
+	qr_img = qr.make_image(fill_color=brand_color, back_color="white").convert("RGBA")
+	qr_img = qr_img.resize((520, 520), Image.Resampling.NEAREST)
+
 	# Paste QR on canvas
 	canvas.paste(qr_img, (340, 570), qr_img if qr_img.mode == 'RGBA' else None)
 
-	if logo_bytes and not logo_applied_in_qr and not background_image_bytes:
+	if logo_bytes:
 		with Image.open(BytesIO(logo_bytes)) as logo_img:
 			logo_img = logo_img.convert("RGBA")
 			logo_img.thumbnail((130, 130), Image.Resampling.LANCZOS)

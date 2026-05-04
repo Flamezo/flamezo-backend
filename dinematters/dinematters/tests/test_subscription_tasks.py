@@ -63,8 +63,8 @@ class TestDailySubscriptionFloors(unittest.TestCase):
     Validates the nightly billing task that recovers daily minimum fees.
 
     GOLD  — flat ₹33.30/day (999 / 30), regardless of order commissions.
-    DIAMOND — floor recovery: (monthly_min/30) - today's commission deductions.
-              If commissions already cover the floor, nothing is charged.
+    DIAMOND — monthly guarantee recovery: (monthly_min) - total commissions in 30 days.
+              Checked and charged only every 30 days.
     """
 
     @classmethod
@@ -133,51 +133,39 @@ class TestDailySubscriptionFloors(unittest.TestCase):
 
     # ── DIAMOND: floor recovery ──
 
-    def test_diamond_floor_recovery_when_commission_below_target(self):
+    def test_diamond_monthly_floor_recovery_at_end_of_cycle(self):
         """
-        DIAMOND monthly_minimum=1299. Daily target=₹43.30.
-        Only ₹20 in commissions paid today → shortfall = 43.30 - 20 = 23.30.
+        DIAMOND monthly_minimum=399. After 30 days, if only ₹200 commissions paid,
+        shortfall = 399 - 200 = 199.
         """
         d = self._diamond_name()
-        make_restaurant(d, plan="DIAMOND", balance=500.0, monthly_minimum=1299.0,
-                        enable_floor_recovery=1)
+        # Mock a 30-day old cycle
+        activation_date = add_days(today(), -30)
+        make_restaurant(d, plan="DIAMOND", balance=2000.0, monthly_minimum=399.0,
+                        enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
+                        last_floor_recovery_date=activation_date)
         clear_transactions(d)
-        make_coin_transaction(d, "Commission Deduction", 20.0, "partial commission")
+        make_coin_transaction(d, "Commission Deduction", 200.0, "partial monthly commissions")
 
         self.run_floors()
 
-        txn = get_latest_transaction(d, "Daily DIAMOND Floor")
-        self.assertIsNotNone(txn, "DIAMOND floor transaction must be created")
-        self.assertAlmostEqual(abs(txn.amount), 23.30, places=2)
+        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        self.assertIsNotNone(txn, "DIAMOND monthly floor must be triggered")
+        self.assertAlmostEqual(abs(txn.amount), 199.0, places=2)
 
-    def test_diamond_no_floor_when_commission_covers_target(self):
-        """
-        DIAMOND daily target=₹43.30. Commission paid=₹50 (> target).
-        No floor transaction should be created.
-        """
+    def test_diamond_skips_floor_mid_cycle(self):
+        """DIAMOND at day 15: no charge yet."""
         d = self._diamond_name()
-        make_restaurant(d, plan="DIAMOND", balance=500.0, monthly_minimum=1299.0,
-                        enable_floor_recovery=1)
-        clear_transactions(d)
-        make_coin_transaction(d, "Commission Deduction", 50.0, "full commission")
-
-        self.run_floors()
-
-        txn = get_latest_transaction(d, "Daily DIAMOND Floor")
-        self.assertIsNone(txn, "DIAMOND floor must not be charged when commissions exceed target")
-
-    def test_diamond_full_floor_when_no_commission(self):
-        """DIAMOND with no orders: full ₹43.30 is charged."""
-        d = self._diamond_name()
-        make_restaurant(d, plan="DIAMOND", balance=500.0, monthly_minimum=1299.0,
-                        enable_floor_recovery=1)
+        activation_date = add_days(today(), -15)
+        make_restaurant(d, plan="DIAMOND", balance=2000.0, monthly_minimum=399.0,
+                        enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
+                        last_floor_recovery_date=activation_date)
         clear_transactions(d)
 
         self.run_floors()
 
-        txn = get_latest_transaction(d, "Daily DIAMOND Floor")
-        self.assertIsNotNone(txn)
-        self.assertAlmostEqual(abs(txn.amount), 43.30, places=2)
+        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        self.assertIsNone(txn, "DIAMOND must skip monthly check during the cycle")
 
     # ── Idempotency ──
 

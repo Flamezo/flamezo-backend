@@ -10,6 +10,7 @@ import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 from .config import get_r2_config, get_cdn_config, get_environment
+from dinematters.dinematters.utils.common import safe_log_error
 import hashlib
 import os
 
@@ -115,7 +116,7 @@ def generate_signed_upload_url(object_key, content_type, expiration=600):
 			"expires_in": expiration
 		}
 	except ClientError as e:
-		frappe.log_error(f"Error generating signed upload URL: {str(e)}", "R2 Upload URL Generation")
+		safe_log_error("R2 Upload URL Generation", str(e))
 		frappe.throw(f"Failed to generate upload URL: {str(e)}")
 
 
@@ -140,7 +141,7 @@ def verify_object_exists(object_key):
 		if e.response['Error']['Code'] == '404':
 			return {"exists": False}
 		else:
-			frappe.log_error(f"Error verifying object: {str(e)}", "R2 Object Verification")
+			safe_log_error("R2 Object Verification", str(e))
 			frappe.throw(f"Failed to verify object: {str(e)}")
 
 
@@ -161,7 +162,7 @@ def download_object(object_key, local_path):
 		
 		return local_path
 	except ClientError as e:
-		frappe.log_error(f"Error downloading object: {str(e)}", "R2 Object Download")
+		safe_log_error("R2 Object Download", str(e))
 		frappe.throw(f"Failed to download object: {str(e)}")
 
 
@@ -196,7 +197,7 @@ def upload_object(local_path, object_key, content_type=None, metadata=None):
 		return get_cdn_url(object_key)
 	except ClientError as e:
 		error_msg = f"Error uploading object: {str(e)}"
-		frappe.log_error(title="R2 Object Upload", message=error_msg)
+		safe_log_error("R2 Object Upload", error_msg)
 		frappe.throw(error_msg)
 
 
@@ -213,7 +214,7 @@ def delete_object(object_key):
 		
 		return True
 	except ClientError as e:
-		frappe.log_error(f"Error deleting object: {str(e)}", "R2 Object Deletion")
+		safe_log_error("R2 Object Deletion", str(e))
 		return False
 
 

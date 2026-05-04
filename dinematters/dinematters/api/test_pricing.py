@@ -61,11 +61,11 @@ def test_it():
             "is_active": 1,
             "coins_balance": 5000,
             "timezone": "UTC",
-            "monthly_minimum": 1299,
+            "monthly_minimum": 399,
             "tax_rate": 0.0
         }).insert(ignore_permissions=True)
     else:
-        frappe.db.set_value("Restaurant", diamond_name, {"plan_type": "DIAMOND", "coins_balance": 5000, "monthly_minimum": 1299, "tax_rate": 0.0})
+        frappe.db.set_value("Restaurant", diamond_name, {"plan_type": "DIAMOND", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
 
     # Clear today's data to start fresh
     today_start = getdate().strftime("%Y-%m-%d 00:00:00")
@@ -138,8 +138,8 @@ def test_it():
     assert abs(gold_comm) < 0.01, f"GOLD should not pay order commission! Got {abs(gold_comm)}"
 
     print("\n[SCENARIO 3: DAILY FLOOR RECOVERY]")
-    # DIAMOND has paid ₹45 commission. Daily target is ₹43.30 (1299/30). 
-    # Floor Recovery should be 43.30 - 45.00 = 0 (No negative recovery)
+    # DIAMOND has paid ₹45 commission. Daily target is ₹13.30 (399/30). 
+    # Floor Recovery should be 13.30 - 45.00 = 0 (No negative recovery)
     # GOLD daily target is flat ₹33.30 (999/30). 
     
     process_daily_subscription_floors()

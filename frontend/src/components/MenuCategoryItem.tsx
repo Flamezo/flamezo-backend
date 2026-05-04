@@ -61,7 +61,7 @@ export const MenuCategoryItem: React.FC<MenuCategoryItemProps> = ({
       <div className="flex-1 min-w-0">
         <p className={cn(
           "text-sm font-medium truncate",
-          isActive ? "text-white" : "text-foreground"
+          isActive ? "text-accent-foreground" : "text-foreground"
         )}>
           {category.display_name || category.category_name || category.name}
         </p>

@@ -178,8 +178,11 @@ class ContentGenerator:
         return response.choices[0].message.content.strip()
 
     def _build_seo_prompt(self, keyword, title, length, style, client_context=None, client_links=None, media_urls=None, menu_context=None):
-        base_prompt = f"""You are a master SEO strategist. Write an industry-leading, premium article for "{keyword}".
-        Requirements: Length {max(1500, length)} words, Tone: Authoritative, Professional, and Engaging.
+        menu_json = json.dumps(menu_context) if menu_context else "Use generic CTAs for Dinematters."
+        media_str = "\n".join(media_urls) if media_urls else "No images provided - use text only."
+        
+        base_prompt = """You are a master SEO strategist. Write an industry-leading, premium article for "{keyword}".
+        Requirements: Length {length} words, Tone: Authoritative, Professional, and Engaging.
         Structure:
         - H1 Title: Extremely compelling and SEO-optimized.
         - H2 & H3: Use semantic hierarchy.
@@ -192,17 +195,22 @@ class ContentGenerator:
         IMPORTANT: Use the year 2026 as the current context.
         
         CONVERSION HOOKS (Inject these naturally):
-        {json.dumps(menu_context) if menu_context else "Use generic CTAs for Dinematters."}
+        {menu_json}
         
         IMAGE INJECTION:
         I am providing a list of real restaurant images. You MUST inject AT LEAST 3 and AT MOST 5 of these images strategically into the sections using standard Markdown: ![Descriptive, SEO-rich Alt Text](URL).
         Available Imagery:
-        {"\n".join(media_urls) if media_urls else "No images provided - use text only."}
+        {media_str}
         
         Content Goals:
         - Hook the reader in the first 50 words with a compelling local Mumbai/India statistic.
         - Provide actionable steps for restaurant owners or foodies.
-        - Maintain high keyword density (1.5-2%) naturally."""
+        - Maintain high keyword density (1.5-2%) naturally.""".format(
+            keyword=keyword,
+            length=max(1500, length),
+            menu_json=menu_json,
+            media_str=media_str
+        )
         
         if client_context: base_prompt += f"\n\nContext & Full Menu: {client_context[:5000]}"
         if client_links: base_prompt += f"\n\nLinks: {json.dumps(client_links)}"

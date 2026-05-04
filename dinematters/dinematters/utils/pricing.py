@@ -249,10 +249,10 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, deliv
 	if offer.valid_time_start or offer.valid_time_end:
 		current_time = now_datetime().time()
 		if offer.valid_time_start:
-			start = datetime.strptime(str(offer.valid_time_start), "%H:%M:%S").time()
+			start = datetime.strptime(str(offer.valid_time_start).split(".")[0], "%H:%M:%S").time()
 			if current_time < start: return {"success": False}
 		if offer.valid_time_end:
-			end = datetime.strptime(str(offer.valid_time_end), "%H:%M:%S").time()
+			end = datetime.strptime(str(offer.valid_time_end).split(".")[0], "%H:%M:%S").time()
 			if current_time > end: return {"success": False}
 
 	# 5. Usage Limits

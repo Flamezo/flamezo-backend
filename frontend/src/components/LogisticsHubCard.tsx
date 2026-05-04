@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Truck, Navigation, IndianRupee, Clock, Activity } from 'lucide-react'
 import { useCurrency } from '@/hooks/useCurrency'
 import { Progress } from '@/components/ui/progress'
+import { EmptyState } from '@/components/EmptyState'
 
 interface Order {
   name: string
@@ -90,10 +91,13 @@ export function LogisticsHubCard({ orders, isLoading }: LogisticsHubCardProps) {
             <Progress value={45} className="h-1 bg-white/10" />
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-zinc-500 italic text-[11px] py-2">
-            <Clock className="h-3 w-3" />
-            No active courier movements
-          </div>
+          <EmptyState 
+            variant="compact"
+            title="No Active Movements"
+            description="Real-time courier tracking will appear here."
+            icon={Clock}
+            className="border-none bg-white/5 py-3"
+          />
         )}
       </CardContent>
     </Card>

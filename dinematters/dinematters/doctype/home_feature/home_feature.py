@@ -87,6 +87,7 @@ class HomeFeature(Document):
 				# Create a new Media Asset record
 				media_asset = frappe.get_doc({
 					"doctype": "Media Asset",
+					"restaurant": self.restaurant,
 					"owner_doctype": "Home Feature",
 					"owner_name": self.name,
 					"media_role": "home_feature_image",

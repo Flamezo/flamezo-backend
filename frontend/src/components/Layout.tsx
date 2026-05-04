@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, MessageSquare, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper } from 'lucide-react'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappeGetDoc, useFrappePostCall, useFrappeAuth } from '@/lib/frappe'
@@ -27,7 +27,7 @@ import { SuspendedOverlay } from './SuspendedOverlay'
 import { normalizePhone } from '@/utils/otpStorage'
 
 interface LayoutProps {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 function UserProfileDropdown() {
@@ -718,34 +718,27 @@ export default function Layout({ children }: LayoutProps) {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-auto py-1.5 px-2 border-0 bg-transparent hover:bg-sidebar-accent shadow-none focus:ring-0 focus:ring-offset-0 w-full justify-between data-[state=open]:bg-sidebar-accent [&>svg:last-child]:hidden">
-                        <div className="flex items-center min-w-0 flex-1 max-w-[calc(100%-2rem)]">
-                          <div className="min-w-0 flex-1 overflow-hidden">
-                            <SelectValue className="text-sm font-semibold text-sidebar-foreground block">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="inline-block truncate whitespace-nowrap overflow-hidden text-ellipsis">
-                                  {restaurantDoc?.restaurant_name || currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
-                                </span>
-                                {isDiamond ? (
-                                  <span className="inline-flex items-center px-1.5 py-0 text-[10px] font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md border border-white/20 rounded-full flex-shrink-0 animate-pulse-subtle">
-                                    <Crown className="h-2.5 w-2.5 mr-1 text-white" />
-                                    DIAMOND
-                                  </span>
-                                ) : isGold ? (
-                                  <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm rounded-full flex-shrink-0">
-                                    <Crown className="h-2.5 w-2.5 mr-1" />
-                                    GOLD
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full flex-shrink-0">
-                                    SILVER
-                                  </span>
-                                )}
-                              </div>
-                            </SelectValue>
-                          </div>
+                      <SelectTrigger className="h-auto py-1.5 px-2 border-0 bg-transparent hover:bg-sidebar-accent shadow-none focus:ring-0 focus:ring-offset-0 w-full data-[state=open]:bg-sidebar-accent">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-semibold text-sidebar-foreground truncate whitespace-nowrap overflow-hidden max-w-[100px]">
+                            {restaurantDoc?.restaurant_name || currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
+                          </span>
+                          {isDiamond ? (
+                            <span className="inline-flex items-center px-1.5 py-0 text-[10px] font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md border border-white/20 rounded-full flex-shrink-0 animate-pulse-subtle">
+                              <Crown className="h-2.5 w-2.5 mr-1 text-white" />
+                              DIAMOND
+                            </span>
+                          ) : isGold ? (
+                            <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm rounded-full flex-shrink-0">
+                              <Crown className="h-2.5 w-2.5 mr-1" />
+                              GOLD
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full flex-shrink-0">
+                              SILVER
+                            </span>
+                          )}
                         </div>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2 opacity-70" />
                       </SelectTrigger>
                       <SelectContent
                         className="min-w-[220px] max-h-[450px] z-[60]"
@@ -1024,7 +1017,7 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
-                            const isChildActive = location.pathname === child.href || (child.href !== '/' && location.pathname.startsWith(child.href + '/'))
+                            const isChildActive = location.pathname === child.href || (child.href !== '/' && child.href !== '/google-growth' && location.pathname.startsWith(child.href + '/'))
 
                             // Unified child locking logic
                             const childStatus = getFeatureStatus(child.feature)
@@ -1126,7 +1119,7 @@ export default function Layout({ children }: LayoutProps) {
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
                             const isChildActive = location.pathname === child.href ||
-                              (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && location.pathname.startsWith(child.href + '/'))
+                              (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && location.pathname.startsWith(child.href + '/'))
                             const childBadgeCount = child.badgeHref === '/orders'
                               ? pendingOrders
                               : child.badgeHref === '/accept-orders'
@@ -1561,7 +1554,7 @@ export default function Layout({ children }: LayoutProps) {
             ) : (
                <>
                  {location.pathname !== '/account' && location.pathname !== '/menu' && <Breadcrumb />}
-                 {children}
+                 {children || <Outlet />}
                </>
             )}
           </div>

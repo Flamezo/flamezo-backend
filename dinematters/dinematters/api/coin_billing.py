@@ -363,7 +363,7 @@ def get_coin_billing_info(restaurant):
         "plan_defaults": {
             "silver_monthly": 0.0,
             "pro_monthly": float(settings.gold_monthly_fee or 999.0),       # GOLD monthly min
-            "lux_monthly": float(settings.diamond_monthly_floor or 1350.0), # DIAMOND monthly min (₹45/day)
+            "lux_monthly": float(settings.diamond_monthly_floor or 399.0), # DIAMOND monthly min
             "lux_commission": float(settings.diamond_commission_percent or 1.5),
             "lux_barrier": float(settings.diamond_upgrade_barrier or 1299.0) # DIAMOND upgrade balance requirement
         }

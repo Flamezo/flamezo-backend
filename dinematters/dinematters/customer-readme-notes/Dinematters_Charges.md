@@ -11,20 +11,27 @@ DineMatters offers three distinct tiers designed to grow with your restaurant.
 | :--- | :--- | :--- |
 | **SILVER** | **₹0 / Month** | Start-ups digitizing their menu for the first time. |
 | **PRO (GOLD)** | **₹999 / Month** | Established dine-in restaurants needing QR ordering & branding. ₹33.30/day |
-| **DIAMOND** | **₹45 Floor / Day** <br> OR **1.5% Commission** | High-volume restaurants requiring full automation & marketing. |
+| DIAMOND | **1.5% Commission** <br> (₹399 Monthly Floor) | High-volume restaurants requiring full automation & marketing. |
 
-### 💎 The Diamond Pricing Model (Daily)
-The Diamond tier ensures you only pay more when you earn significantly more. Each day, we calculate your commission (1.5%). If it's less than ₹45, you pay the floor price of ₹45. If it's more, you only pay the commission.
+### 💎 The Diamond Pricing Model (Monthly Floor)
+The Diamond tier is a "Growth Success Partner" model. It is designed so that DineMatters only earns when you earn.
 
-> **Example A: Average Day**
-> - Daily Revenue: ₹2,000
-> - 1.5% Commission: ₹30
-> - **Daily Platform Charge: ₹45** (Floor applies)
+- **1.5% Commission**: Deducted straight from every order.
+- **₹399 Monthly Floor**: We guarantee our platform services for a minimum of ₹399 per month. 
+- **The Guarantee Check**: At the end of your billing month (starting from when you enabled floor recovery), we check your total commissions.
+    - If your commissions exceed ₹399, you pay **₹0 extra**.
+    - If your commissions are below ₹399, we only deduct the **shortfall**.
+
+> **Example A: Active Month**
+> - Monthly Revenue: ₹50,000
+> - 1.5% Commission Paid: ₹750
+> - **End-of-Month Charge: ₹0** (You crossed the ₹399 floor)
 >
-> **Example B: High Volume Day**
-> - Daily Revenue: ₹10,000
-> - 1.5% Commission: ₹150
-> - **Daily Platform Charge: ₹150** (Commission applies)
+> **Example B: Slow Month**
+> - Monthly Revenue: ₹10,000
+> - 1.5% Commission Paid: ₹150
+> - **End-of-Month Charge: ₹249** (To meet the ₹399 minimum guarantee)
+> - **Total DineMatters Cost: ₹399** (Effective ~3.9%)
 
 ---
 

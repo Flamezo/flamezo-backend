@@ -28,7 +28,7 @@ def make_restaurant(name, plan="GOLD", balance=5000.0, **kwargs):
         "is_active": 1,
         "monthly_minimum": (
             999.0 if plan == "GOLD" else
-            1299.0 if plan == "DIAMOND" else
+            399.0 if plan == "DIAMOND" else
             0.0
         ),
         "enable_floor_recovery": 1,

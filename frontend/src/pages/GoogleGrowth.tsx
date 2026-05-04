@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
+import { EmptyState } from '@/components/EmptyState'
 
 export default function GoogleGrowth() {
   const { selectedRestaurant, isDiamond } = useRestaurant()
@@ -139,6 +140,13 @@ export default function GoogleGrowth() {
           <CardContent className="h-[350px] pt-4">
             {loading ? (
               <Skeleton className="h-full w-full" />
+            ) : chartData.length === 0 || chartData.every((d: any) => d.views === 0) ? (
+              <EmptyState 
+                variant="chart"
+                title="No Discovery Data"
+                description="Once your Google Business Profile starts getting traffic, we will show your performance trends here."
+                icon={Search}
+              />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -168,31 +176,44 @@ export default function GoogleGrowth() {
 
         {/* Local SEO Audit Card */}
         <div className="space-y-6">
-          <Card className="border-none shadow-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
+          <Card className={`border-none shadow-xl transition-all duration-500 ${isConnected ? 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 text-white' : 'bg-muted/30 dark:bg-slate-900/40 border border-muted/50 text-muted-foreground'}`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" /> Local SEO Score
+                <Sparkles className={`h-5 w-5 ${isConnected ? 'text-indigo-200 animate-pulse' : 'text-muted-foreground'}`} /> Local SEO Score
               </CardTitle>
-              <CardDescription className="text-indigo-100">Audit of your online presence</CardDescription>
+              <CardDescription className={isConnected ? 'text-indigo-100/80' : 'text-muted-foreground/60'}>
+                {isConnected ? 'Audit of your online presence' : 'Connect GMB to see your score'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-col items-center justify-center py-4">
-                <div className="relative h-24 w-24">
-                  <svg className="h-24 w-24 -rotate-90">
-                    <circle className="text-white/20" strokeWidth="8" stroke="currentColor" fill="transparent" r="40" cx="48" cy="48" />
-                    <circle className="text-white" strokeWidth="8" strokeDasharray={251.2} strokeDashoffset={251.2 * (1 - 0.78)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="40" cx="48" cy="48" />
+                <div className="relative h-28 w-28">
+                  <svg className="h-28 w-28 -rotate-90">
+                    <circle className={isConnected ? "text-white/10" : "text-muted/10"} strokeWidth="10" stroke="currentColor" fill="transparent" r="48" cx="56" cy="56" />
+                    <circle className={isConnected ? "text-white" : "text-muted-foreground/30"} strokeWidth="10" strokeDasharray={301.6} strokeDashoffset={301.6 * (1 - (isConnected ? 0.78 : 0))} strokeLinecap="round" stroke="currentColor" fill="transparent" r="48" cx="56" cy="56" />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center font-bold text-2xl">78%</div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-black text-3xl tracking-tighter">
+                      {isConnected ? '78' : '--'}
+                    </span>
+                    {isConnected && <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Percent</span>}
+                  </div>
                 </div>
-                <p className="mt-4 text-sm text-indigo-100 italic">"Your profile visibility is great! Focus on review replies."</p>
+                {isConnected && (
+                    <p className="mt-6 text-sm text-indigo-100/90 italic text-center px-4 font-medium leading-relaxed">
+                      "Your profile visibility is great! <span className="underline decoration-indigo-300 underline-offset-4">Focus on review replies</span> to boost ranking."
+                    </p>
+                )}
               </div>
-              <div className="space-y-3">
-                <AuditItem label="GMB Profile Completion" score={100} />
-                <AuditItem label="Menu Synchronization" score={45} warning />
-                <AuditItem label="Review Response Rate" score={32} warning />
-                <AuditItem label="Keyword Optimization" score={85} />
+              <div className="space-y-4 pt-2">
+                <AuditItem label="GMB Profile Completion" score={isConnected ? 100 : 0} isConnected={isConnected} />
+                <AuditItem label="Menu Synchronization" score={isConnected ? 45 : 0} isConnected={isConnected} warning={isConnected} />
+                <AuditItem label="Review Response Rate" score={isConnected ? 32 : 0} isConnected={isConnected} warning={isConnected} />
+                <AuditItem label="Keyword Optimization" score={isConnected ? 85 : 0} isConnected={isConnected} />
               </div>
-              <Button className="w-full bg-white text-indigo-600 hover:bg-white/90 font-bold">Boost Score Now</Button>
+              {!isConnected && (
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-500/20" onClick={handleConnect}>Connect Google Business</Button>
+              )}
             </CardContent>
           </Card>
 
@@ -237,14 +258,14 @@ function StatCard({ title, value, change, icon, description }: any) {
   )
 }
 
-function AuditItem({ label, score, warning }: any) {
+function AuditItem({ label, score, warning, isConnected }: any) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider">
-        <span className="text-indigo-100">{label}</span>
-        <span>{score}%</span>
+        <span className={isConnected ? "text-indigo-100" : "text-muted-foreground"}>{label}</span>
+        <span>{isConnected ? `${score}%` : '--'}</span>
       </div>
-      <Progress value={score} className={warning ? "h-1.5 bg-white/20" : "h-1.5 bg-white/20"} />
+      <Progress value={score} className={isConnected ? "h-1.5 bg-white/20" : "h-1.5 bg-muted"} />
     </div>
   )
 }

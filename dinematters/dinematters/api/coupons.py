@@ -30,12 +30,6 @@ def get_coupons(restaurant_id, active_only=True):
 		
 		if active_only:
 			filters["is_active"] = 1
-			# Check validity dates (only if dates are set)
-			today_date = today()
-			# Build date filters - only apply if dates exist
-			date_filters = []
-			# Get all active coupons first, then filter in Python
-			# This is more flexible than SQL filters for optional dates
 		
 		# Get coupons
 		coupons = frappe.get_all(
@@ -46,6 +40,7 @@ def get_coupons(restaurant_id, active_only=True):
 				"discount_value as discount",
 				"min_order_amount",
 				"discount_type as type",
+				"offer_type",
 				"category",
 				"description",
 				"detailed_description",
@@ -77,9 +72,10 @@ def get_coupons(restaurant_id, active_only=True):
 				"discount": flt(coupon["discount"]),
 				"minOrderAmount": flt(coupon.get("min_order_amount", 0)),
 				"type": coupon.get("type", "flat"),
+				"offerType": coupon.get("offer_type", "coupon"),
 				"isActive": bool(coupon.get("is_active", False))
 			}
-			
+
 			if coupon.get("category"):
 				coupon_data["category"] = coupon["category"]
 			if coupon.get("description"):
@@ -123,8 +119,8 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 			"name", "code", "discount_value", "min_order_amount", "discount_type", 
 			"category", "is_active", "valid_from", "valid_until", "max_uses", 
 			"usage_count", "max_uses_per_user", "offer_type", "valid_days_of_week",
-			"valid_time_start", "valid_time_end", "max_discount_cap", "required_items",
-			"combo_price", "priority", "can_stack"
+			"valid_time_start", "valid_time_end", "max_discount_cap",
+			"priority", "can_stack"
 		],
 		as_dict=True
 	)
@@ -174,39 +170,19 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 	if coupon.valid_time_start or coupon.valid_time_end:
 		current_time = now_datetime().time()
 		if coupon.valid_time_start:
-			start = datetime.strptime(str(coupon.valid_time_start), "%H:%M:%S").time()
+			start = datetime.strptime(str(coupon.valid_time_start).split(".")[0], "%H:%M:%S").time()
 			if current_time < start:
 				return {"success": False, "error_code": "INVALID_TIME", "message": f"This offer is valid from {coupon.valid_time_start}"}
 		if coupon.valid_time_end:
-			end = datetime.strptime(str(coupon.valid_time_end), "%H:%M:%S").time()
+			end = datetime.strptime(str(coupon.valid_time_end).split(".")[0], "%H:%M:%S").time()
 			if current_time > end:
 				return {"success": False, "error_code": "INVALID_TIME", "message": f"This offer is valid until {coupon.valid_time_end}"}
 
-	# Combo checks...
-	if coupon.offer_type == "combo" and coupon.required_items:
-		try:
-			required = json.loads(coupon.required_items) if isinstance(coupon.required_items, str) else coupon.required_items
-			if required and isinstance(required, list):
-				if not cart_items:
-					return {"success": False, "error_code": "COMBO_ITEMS_MISSING", "message": "Cart items required for combo validation"}
-				
-				cart_dish_ids = []
-				for item in (cart_items or []):
-					if isinstance(item, dict):
-						cart_dish_ids.append(item.get("dishId") or item.get("dish_id"))
-					else:
-						cart_dish_ids.append(str(item))
-				
-				missing = [i for i in required if i not in cart_dish_ids]
-				if missing:
-					return {"success": False, "error_code": "COMBO_INCOMPLETE", "message": "Add required items to get this combo offer"}
-		except: pass
+
 
 	# Calculate discount amount
 	discount_amount = flt(coupon.discount_value)
-	if coupon.offer_type == "combo" and coupon.combo_price:
-		discount_amount = max(0, cart_total - flt(coupon.combo_price))
-	elif coupon.discount_type == "percent":
+	if coupon.discount_type == "percent":
 		discount_amount = (cart_total * flt(coupon.discount_value)) / 100
 		if coupon.max_discount_cap and discount_amount > flt(coupon.max_discount_cap):
 			discount_amount = flt(coupon.max_discount_cap)
@@ -216,7 +192,12 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 		"coupon_name": coupon.name,
 		"coupon_code": coupon.code,
 		"discount_amount": discount_amount,
+		"discount_value": flt(coupon.discount_value),
+		"min_order_amount": flt(coupon.min_order_amount or 0),
 		"type": coupon.discount_type or "flat",
+		"offer_type": coupon.offer_type or "coupon",
+		"category": coupon.category or "",
+		"description": coupon.description or "",
 		"priority": coupon.priority or 0,
 		"can_stack": bool(coupon.can_stack)
 	}
@@ -249,7 +230,13 @@ def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, 
 				"coupon": {
 					"id": result["coupon_name"],
 					"code": result["coupon_code"],
+					"discount": result["discount_value"],
 					"discountAmount": result["discount_amount"],
+					"minOrderAmount": result["min_order_amount"],
+					"type": result["type"],
+					"offerType": result["offer_type"],
+					"category": result["category"],
+					"description": result["description"],
 					"isEligible": True
 				}
 			}
@@ -299,8 +286,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			fields=[
 				"name", "code", "discount_value", "min_order_amount", "discount_type",
 				"offer_type", "valid_from", "valid_until", "max_uses", "usage_count",
-				"max_uses_per_user", "valid_days_of_week", "valid_time_start", "valid_time_end",
-				"max_discount_cap", "required_items", "combo_price", "priority", "can_stack",
+				"max_discount_cap", "priority", "can_stack",
 				"category", "description", "detailed_description"
 			],
 			order_by="priority desc, discount_value desc"
@@ -359,7 +345,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			# Check time of day
 			if offer.valid_time_start:
 				try:
-					start_time = datetime.strptime(str(offer.valid_time_start), "%H:%M:%S").time()
+					start_time = datetime.strptime(str(offer.valid_time_start).split(".")[0], "%H:%M:%S").time()
 					if current_time < start_time:
 						is_eligible = False
 						ineligibility_reasons.append({
@@ -372,7 +358,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					pass
 			if offer.valid_time_end:
 				try:
-					end_time = datetime.strptime(str(offer.valid_time_end), "%H:%M:%S").time()
+					end_time = datetime.strptime(str(offer.valid_time_end).split(".")[0], "%H:%M:%S").time()
 					if current_time > end_time:
 						is_eligible = False
 						ineligibility_reasons.append({
@@ -423,36 +409,13 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 						"maxUses": offer.max_uses_per_user
 					})
 			
-			# Check combo requirements
-			missing_items = []
-			if offer.offer_type == "combo" and offer.required_items:
-				try:
-					required_items = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
-					if required_items and isinstance(required_items, list):
-						missing_items = [item for item in required_items if item not in cart_dish_ids]
-						if missing_items:
-							is_eligible = False
-							ineligibility_reasons.append({
-								"code": "COMBO_INCOMPLETE",
-								"message": f"Add {len(missing_items)} more item(s) to unlock combo",
-								"type": "combo",
-								"requiredItems": required_items,
-								"missingItems": missing_items,
-								"itemsInCart": cart_dish_ids
-							})
-				except:
-					pass
+
 			
 			# Calculate discount (even for ineligible to show potential savings)
 			discount_amount = flt(offer.discount_value)
 			potential_discount = discount_amount  # What they could save
 			
-			if offer.offer_type == "combo" and offer.combo_price:
-				# For combo, calculate based on min order amount or current cart
-				calc_total = max(cart_total, flt(offer.min_order_amount or 0))
-				discount_amount = max(0, calc_total - flt(offer.combo_price))
-				potential_discount = discount_amount
-			elif offer.discount_type == "percent":
+			if offer.discount_type == "percent":
 				# Calculate based on current cart or min order amount
 				calc_total = max(cart_total, flt(offer.min_order_amount or 0))
 				discount_amount = (calc_total * flt(offer.discount_value)) / 100
@@ -460,11 +423,9 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					discount_amount = flt(offer.max_discount_cap)
 			
 			if is_delivery_offer:
-				# For display, if we don't have fee, use potential full discount
 				if offer.discount_type == 'delivery':
-					# Assume delivery fee might be around 50 for display if not known
-					discount_amount = flt(offer.discount_value) or 50 
-				potential_discount = discount_amount
+					# "Free delivery" — actual saving depends on order-time fee; show 0 until applied
+					discount_amount = 0
 				potential_discount = discount_amount
 			
 			# Build offer data
@@ -490,24 +451,9 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				offer_data["ineligibilityReasons"] = ineligibility_reasons
 				# Add primary reason (most actionable)
 				if ineligibility_reasons:
-					# Prioritize cart value and combo reasons (actionable)
-					actionable_reasons = [r for r in ineligibility_reasons if r["type"] in ["cart_value", "combo"]]
-					if actionable_reasons:
-						offer_data["primaryReason"] = actionable_reasons[0]
-					else:
-						offer_data["primaryReason"] = ineligibility_reasons[0]
+					offer_data["primaryReason"] = ineligibility_reasons[0]
 			
-			# Add combo-specific fields
-			if offer.offer_type == "combo":
-				if offer.required_items:
-					try:
-						required_items = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
-						offer_data["requiredItems"] = required_items or []
-					except:
-						offer_data["requiredItems"] = []
-				
-				if offer.combo_price:
-					offer_data["comboPrice"] = flt(offer.combo_price)
+
 			
 			# Add to appropriate list
 			if is_eligible:
@@ -539,3 +485,6 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"message": str(e)
 			}
 		}
+
+
+

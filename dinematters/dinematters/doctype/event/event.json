@@ -101,9 +101,8 @@
   },
   {
    "fieldname": "category",
-   "fieldtype": "Select",
-   "label": "Category",
-   "options": "Coffee\nParty\nMusic\nHoliday\nFestival"
+   "fieldtype": "Data",
+   "label": "Category"
   },
   {
    "default": "0",

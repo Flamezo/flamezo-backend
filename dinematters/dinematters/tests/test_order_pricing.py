@@ -357,6 +357,8 @@ class TestProcessLoyaltyAndCouponsIdempotency(unittest.TestCase):
         order.platform_customer = self._customer.name
         order.loyalty_coins_redeemed = coins_redeemed
         order.total = total
+        order.coupon = None   # prevent MagicMock auto-attr from corrupting SQL
+        order.discount = 0.0
         return order
 
     def test_redemption_is_idempotent(self):
@@ -443,6 +445,7 @@ class TestVerifyPaymentIdempotency(unittest.TestCase):
 
     def _create_test_order(self, rzp_order_id):
         """Insert a bare Order document in the DB for testing."""
+        product = make_menu_product(self._res, f"VPI-PROD-{frappe.generate_hash(length=6)}", price=500.0)
         order = frappe.get_doc({
             "doctype": "Order",
             "order_id": frappe.generate_hash(length=10),
@@ -455,8 +458,16 @@ class TestVerifyPaymentIdempotency(unittest.TestCase):
             "total": 500.0,
             "subtotal": 500.0,
             "loyalty_coins_redeemed": 0,
+            "order_items": [{
+                "product": product.name,
+                "product_name": product.product_name,
+                "quantity": 1,
+                "unit_price": 500.0,
+                "total_price": 500.0,
+            }],
         })
-        order.insert(ignore_permissions=True)
+        with patch("dinematters.dinematters.api.realtime.notify_new_order_to_merchant"):
+            order.insert(ignore_permissions=True)
         frappe.db.commit()
         return order
 

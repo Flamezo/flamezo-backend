@@ -114,8 +114,7 @@ export function SubscriptionComparisonModal({
                </Button>
             </div>
             {/* Gold */}
-            <div className="text-center space-y-3 p-3 rounded-2xl bg-primary/5 border border-primary/10 relative">
-               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[8px] font-black tracking-tighter px-2 py-0.5 rounded-full">POPULAR</div>
+            <div className="text-center space-y-3 p-3 rounded-2xl bg-muted/5 border border-muted/10 relative">
                <div className="space-y-1">
                   <p className="text-sm font-bold uppercase tracking-tighter text-primary">Gold</p>
                   <p className="text-2xl font-black">₹{planDefaults.pro_monthly}</p>
@@ -132,11 +131,12 @@ export function SubscriptionComparisonModal({
                 </Button>
             </div>
             {/* Diamond */}
-            <div className="text-center space-y-3 p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
+            <div className="text-center space-y-3 p-3 rounded-2xl bg-primary/5 border border-primary/20 relative shadow-sm">
+               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[8px] font-black tracking-tighter px-2 py-0.5 rounded-full">POPULAR</div>
                <div className="space-y-1">
                   <p className="text-sm font-bold uppercase tracking-tighter text-indigo-600">Diamond</p>
                   <p className="text-2xl font-black">{planDefaults.lux_commission}%</p>
-                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">₹45/Day Floor + Success Share</p>
+                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">₹399/Month Guarantee + Success Share</p>
                </div>
                <Button 
                 size="sm" 
@@ -161,11 +161,11 @@ export function SubscriptionComparisonModal({
                        <td className="py-4 text-center">
                           {renderCell(feature.silver)}
                        </td>
-                       <td className="py-4 text-center bg-primary/[0.02]">
-                          {renderCell(feature.gold, true)}
-                       </td>
                        <td className="py-4 text-center">
-                          {renderCell(feature.diamond)}
+                          {renderCell(feature.gold)}
+                       </td>
+                       <td className="py-4 text-center bg-primary/[0.03]">
+                          {renderCell(feature.diamond, true)}
                        </td>
                     </tr>
                  ))}

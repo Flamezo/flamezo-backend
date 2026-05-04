@@ -64,6 +64,21 @@ def get_loyalty_summary(restaurant_id, phone):
 		return {"success": False, "error": {"code": "LOYALTY_FETCH_ERROR", "message": str(e)}}
 
 @frappe.whitelist(allow_guest=True)
+def get_loyalty_config(restaurant_id):
+	"""Get loyalty configurations for admin and cart"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		if not frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
+			return {"success": True, "data": None}
+			
+		prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
+		config = frappe.get_doc("Restaurant Loyalty Config", prog_name)
+		return {"success": True, "data": config}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Loyalty Get Config Error")
+		return {"success": False, "error": str(e)}
+
+@frappe.whitelist(allow_guest=True)
 @require_plan('DIAMOND')
 def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 	"""
@@ -311,20 +326,6 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 	else:
 		return redeem_loyalty_coins(customer, restaurant, coins, reason, ref_doctype, ref_name)
 
-@frappe.whitelist()
-def get_loyalty_config(restaurant_id):
-	"""Get loyalty configurations for admin"""
-	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
-		if not frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
-			return {"success": True, "data": None}
-			
-		prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
-		config = frappe.get_doc("Restaurant Loyalty Config", prog_name)
-		return {"success": True, "data": config}
-	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Loyalty Get Config Error")
-		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
 @require_plan('DIAMOND')

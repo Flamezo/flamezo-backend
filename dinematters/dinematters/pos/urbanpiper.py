@@ -2,6 +2,7 @@ import frappe
 import requests
 import json
 from dinematters.dinematters.pos.base import POSProvider
+from dinematters.dinematters.utils.common import safe_log_error
 
 class UrbanPiperProvider(POSProvider):
     def __init__(self, restaurant_doc):
@@ -120,11 +121,11 @@ class UrbanPiperProvider(POSProvider):
             if response.status_code in [200, 201]:
                 return True
             else:
-                frappe.log_error(f"UrbanPiper Order Push Failed: {response.text}", "POS Error")
+                safe_log_error("POS Error", f"UrbanPiper Order Push Failed: {response.text}")
                 return False
 
         except Exception as e:
-            frappe.log_error(f"UrbanPiper Order Push Exception: {str(e)}", "POS Error")
+            safe_log_error("POS Error", f"UrbanPiper Order Push Exception: {str(e)}")
             return False
 
     def handle_callback(self, data):
@@ -173,4 +174,4 @@ class UrbanPiperProvider(POSProvider):
             "pos_last_sync_at": frappe.utils.now_datetime(),
             "pos_sync_status": f"[{status}] {message}"
         })
-        frappe.log_error(f"POS Sync {status} for {self.restaurant.name}: {message}", "POS Sync Info")
+        safe_log_error("POS Sync Info", f"POS Sync {status} for {self.restaurant.name}: {message}")

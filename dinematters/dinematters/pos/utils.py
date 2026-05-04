@@ -1,5 +1,6 @@
 import frappe
 from dinematters.dinematters.pos.base import get_pos_provider
+from dinematters.dinematters.utils.common import safe_log_error
 
 def handle_order_update(doc, method):
     """
@@ -54,10 +55,10 @@ def push_order_to_pos_job(order_name):
             }, update_modified=False)
             
             # Log success
-            frappe.log_error(f"Order {order_name} pushed to {restaurant.pos_provider}. POS ID: {pos_id}", "POS Push Success")
+            safe_log_error("POS Push Success", f"Order {order_name} pushed to {restaurant.pos_provider}. POS ID: {pos_id}")
         else:
             # Log failure for retry
-            frappe.log_error(f"Failed to push order {order_name} to {restaurant.pos_provider}: {result.get('message')}", "POS Push Failure")
+            safe_log_error("POS Push Failure", f"Failed to push order {order_name} to {restaurant.pos_provider}: {result.get('message')}")
             
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "POS Push Job Error")
+        safe_log_error("POS Push Job Error", frappe.get_traceback())

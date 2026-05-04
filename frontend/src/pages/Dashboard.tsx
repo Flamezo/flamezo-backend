@@ -38,6 +38,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { EmptyState } from '@/components/EmptyState'
 
 // Enhanced Stat Card with Trends
 function StatCard({ 
@@ -102,7 +103,16 @@ function StatCard({
 
 // Custom SVG Line Chart for Revenue
 function RevenueTrendChart({ data }: { data: number[] }) {
-  if (!data || data.length === 0) return null
+  if (!data || data.length === 0 || data.every(v => v === 0)) {
+    return (
+      <EmptyState 
+        variant="chart"
+        title="No Revenue Data"
+        description="Waiting for your first few orders to generate growth insights."
+        icon={TrendingUp}
+      />
+    )
+  }
   
   const max = Math.max(...data) || 1
   const height = 100
@@ -139,6 +149,16 @@ function RevenueTrendChart({ data }: { data: number[] }) {
 
 // Bar Chart for Top Products
 function TopProductsChart({ products }: { products: { name: string, count: number, total: number }[] }) {
+  if (!products || products.length === 0 || products.every(p => p.count === 0)) {
+    return (
+      <EmptyState 
+        variant="chart"
+        title="No Sales Yet"
+        description="Your best-selling dishes will appear here once guests start ordering."
+        icon={Package}
+      />
+    )
+  }
   const max = Math.max(...products.map(p => p.count)) || 1
   
   return (
@@ -163,7 +183,16 @@ function TopProductsChart({ products }: { products: { name: string, count: numbe
 
 // Menu Heatmap Table (Views vs Orders Gap)
 function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
-  if (!heatmap || heatmap.length === 0) return null
+  if (!heatmap || heatmap.length === 0) {
+    return (
+      <EmptyState 
+        variant="chart"
+        title="Analysis Pending"
+        description="We need more guest interactions to identify friction in your menu."
+        icon={Activity}
+      />
+    )
+  }
   
   return (
     <div className="space-y-6 mt-4">
@@ -230,7 +259,16 @@ function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
 
 // QR ROAS Breakdown with Donut Chart
 function QRRoasSection({ roas }: { roas: any[] }) {
-  if (!roas || roas.length === 0) return null
+  if (!roas || roas.length === 0) {
+    return (
+      <EmptyState 
+        variant="chart"
+        title="No Attribution Data"
+        description="Orders tracked back to specific physical QR scans will show up here."
+        icon={QrCode}
+      />
+    )
+  }
   const { formatAmountNoDecimals } = useCurrency()
   
   const COLORS = ['#6366f1', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b']
@@ -250,7 +288,7 @@ function QRRoasSection({ roas }: { roas: any[] }) {
               dataKey="revenue"
               nameKey="source"
             >
-              {roas.map((entry, index) => (
+              {roas.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -758,13 +796,13 @@ export default function Dashboard() {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-12 px-6">
-                  <div className="h-14 w-14 bg-muted/40 rounded-full flex items-center justify-center mx-auto mb-4 border border-border/40">
-                    <ShoppingCart className="h-6 w-6 text-muted-foreground opacity-30" />
-                  </div>
-                  <h4 className="text-sm font-bold text-muted-foreground/60 mb-1">No Orders Today</h4>
-                  <p className="text-xs text-muted-foreground/40 italic">Waiting for your first scan of the day...</p>
-                </div>
+                <EmptyState 
+                  variant="chart"
+                  title="No Orders Today"
+                  description="Waiting for your first scan of the day..."
+                  icon={ShoppingCart}
+                  className="py-12"
+                />
               )}
             </div>
           </CardContent>

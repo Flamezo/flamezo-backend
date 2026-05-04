@@ -245,15 +245,15 @@ class TestRecordTransaction(unittest.TestCase):
             self.record_transaction(self._res_name, "AI Deduction", 500.0)
             mock_suspend.assert_called_once()
 
-    def test_suspension_not_triggered_when_balance_stays_above_negative_300(self):
-        """If new balance is -299, suspension must NOT be triggered."""
+    def test_suspension_not_triggered_when_balance_stays_above_negative_100(self):
+        """If new balance is -99, suspension must NOT be triggered."""
         reset_restaurant_balance(self._res_name, 1.0)
         with patch.object(
             frappe.get_doc("Restaurant", self._res_name).__class__,
             "suspend_restaurant_billing",
             return_value=None
         ) as mock_suspend:
-            self.record_transaction(self._res_name, "AI Deduction", 299.0)
+            self.record_transaction(self._res_name, "AI Deduction", 99.0)
             mock_suspend.assert_not_called()
 
     # ── auto-recharge trigger ──
@@ -407,7 +407,7 @@ class TestCreditAutoPayCoinsIdempotency(unittest.TestCase):
 
 class TestDeductCoins(unittest.TestCase):
     """
-    deduct_coins() enforces a fail_below of -300 (the grace limit).
+    deduct_coins() enforces a fail_below of -100 (the grace limit).
     Below that, the deduction must raise ValidationError.
     """
 
@@ -432,41 +432,41 @@ class TestDeductCoins(unittest.TestCase):
         cleanup_restaurant(self._res_name)
 
     def test_deduction_succeeds_within_grace_limit(self):
-        """Balance 0 → deduct 299 → new balance -299 (still above -300 limit)."""
+        """Balance 0 → deduct 99 → new balance -99 (still above -100 grace limit)."""
         reset_restaurant_balance(self._res_name, 0.0)
         new_bal = self.deduct_coins(
             restaurant=self._res_name,
-            amount=299.0,
+            amount=99.0,
             type="AI Deduction",
             description="within grace"
         )
-        self.assertAlmostEqual(new_bal, -299.0, places=2)
+        self.assertAlmostEqual(new_bal, -99.0, places=2)
 
     def test_deduction_succeeds_exactly_at_grace_limit(self):
-        """Balance 0 → deduct 300 → new balance exactly -300 (boundary, allowed)."""
+        """Balance 0 → deduct 100 → new balance exactly -100 (boundary, allowed)."""
         reset_restaurant_balance(self._res_name, 0.0)
         new_bal = self.deduct_coins(
             restaurant=self._res_name,
-            amount=300.0,
+            amount=100.0,
             type="AI Deduction",
             description="at grace boundary"
         )
-        self.assertAlmostEqual(new_bal, -300.0, places=2)
+        self.assertAlmostEqual(new_bal, -100.0, places=2)
 
     def test_deduction_fails_beyond_grace_limit(self):
-        """Balance 0 → deduct 301 → would be -301 < -300 → ValidationError."""
+        """Balance 0 → deduct 101 → would be -101 < -100 → ValidationError."""
         reset_restaurant_balance(self._res_name, 0.0)
         with self.assertRaises(frappe.ValidationError):
             self.deduct_coins(
                 restaurant=self._res_name,
-                amount=301.0,
+                amount=101.0,
                 type="AI Deduction",
                 description="beyond grace"
             )
 
     def test_deduction_fails_when_already_at_grace_limit(self):
-        """Balance already -300 → any further deduction must fail."""
-        reset_restaurant_balance(self._res_name, -300.0)
+        """Balance already -100 → any further deduction must fail."""
+        reset_restaurant_balance(self._res_name, -100.0)
         clear_transactions(self._res_name)
         with self.assertRaises(frappe.ValidationError):
             self.deduct_coins(

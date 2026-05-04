@@ -19,6 +19,7 @@ export default function GoogleGrowthReviews() {
 
   const { call: fetchReviews } = useFrappePostCall('dinematters.dinematters.api.google_business.get_google_reviews')
   const { call: generateReply } = useFrappePostCall('dinematters.dinematters.api.google_business.generate_review_reply')
+  const { call: postReply } = useFrappePostCall('dinematters.dinematters.api.google_business.post_review_reply')
 
   useEffect(() => {
     if (selectedRestaurant) {
@@ -55,9 +56,32 @@ export default function GoogleGrowthReviews() {
     }
   }
 
-  const handlePostReply = async (_reviewId: string) => {
-    // In production, call API to post to GMB
-    toast.success("Reply posted to Google Business Profile!")
+  const handlePostReply = async (review: any) => {
+    const replyText = replies[review.reviewId]
+    if (!replyText) return
+
+    try {
+      const res = await postReply({
+        restaurant_id: selectedRestaurant,
+        review_name: review.name, // This is the full Google resource name
+        reply_text: replyText
+      })
+      
+      if (res.message?.success) {
+        toast.success("Reply posted to Google Business Profile!")
+        // Mark as replied in UI
+        setReviews(prev => prev.map(r => 
+          r.reviewId === review.reviewId ? { ...r, reviewReply: { comment: replyText } } : r
+        ))
+        setReplies(prev => {
+          const n = { ...prev }; delete n[review.reviewId]; return n;
+        })
+      } else {
+        toast.error(res.message?.message || "Failed to post reply")
+      }
+    } catch (err) {
+      toast.error("An error occurred while posting the reply")
+    }
   }
 
   return (
@@ -97,15 +121,15 @@ export default function GoogleGrowthReviews() {
                 </CardContent>
             </Card>
 
-            <Card className="border-none shadow-lg bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30">
+            <Card className="border-none shadow-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800/20">
                <CardHeader className="pb-2">
-                   <CardTitle className="text-sm flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
+                   <CardTitle className="text-sm flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
                     <Sparkles className="h-4 w-4" /> AI Efficiency
                    </CardTitle>
                </CardHeader>
                <CardContent className="space-y-4">
                    <div className="text-3xl font-bold text-indigo-900 dark:text-indigo-100">84%</div>
-                   <p className="text-xs text-indigo-700/70 dark:text-indigo-300/70 font-medium">Your AI response rate. Keeping it above 80% boosts local search ranking by 1.4x.</p>
+                   <p className="text-xs text-indigo-700/70 dark:text-indigo-300/60 font-medium">Your AI response rate. Keeping it above 80% boosts local search ranking by 1.4x.</p>
                </CardContent>
             </Card>
          </div>
@@ -148,11 +172,20 @@ export default function GoogleGrowthReviews() {
                                     "{review.comment}"
                                 </div>
 
-                                {!replies[review.reviewId] ? (
+                                {review.reviewReply ? (
+                                    <div className="pt-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase text-emerald-500 mb-1.5">
+                                            <Send className="h-3 w-3" /> Your Reply
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                            {review.reviewReply.comment}
+                                        </p>
+                                    </div>
+                                ) : !replies[review.reviewId] ? (
                                     <Button 
                                         variant="outline" 
                                         size="sm" 
-                                        className={`gap-2 text-xs font-bold tracking-tight ${!isDiamond ? 'opacity-70 grayscale' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}
+                                        className={`gap-2 text-xs font-bold tracking-tight ${!isDiamond ? 'opacity-70 grayscale' : 'border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
                                         onClick={() => handleGenerateReply(review)}
                                         disabled={generatingFor === review.reviewId}
                                     >
@@ -168,7 +201,7 @@ export default function GoogleGrowthReviews() {
                                         <Textarea 
                                             value={replies[review.reviewId]} 
                                             onChange={(e) => setReplies(prev => ({ ...prev, [review.reviewId]: e.target.value }))}
-                                            className="text-xs min-h-[80px] bg-slate-50 border-indigo-100 focus-visible:ring-indigo-500"
+                                            className="text-xs min-h-[80px] bg-slate-50 dark:bg-slate-900/20 border-indigo-100 dark:border-indigo-900/30 focus-visible:ring-indigo-500"
                                         />
                                         <div className="flex justify-end mt-3 gap-2">
                                             <Button variant="ghost" size="sm" className="text-xs" onClick={() => setReplies(prev => {
@@ -177,7 +210,7 @@ export default function GoogleGrowthReviews() {
                                             <Button 
                                                 size="sm" 
                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-bold"
-                                                onClick={() => handlePostReply(review.reviewId)}
+                                                onClick={() => handlePostReply(review)}
                                             >
                                                 <Send className="h-3.5 w-3.5" /> Post Reply to Google
                                             </Button>

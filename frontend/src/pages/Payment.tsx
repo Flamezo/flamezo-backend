@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useFrappeGetDoc, useFrappePostCall } from '@/lib/frappe';
-import Layout from '../components/Layout';
+// import Layout from '../components/Layout';
 import RazorpayCheckout from '../components/RazorpayCheckout';
 import { OTPVerification } from '../components/OTPVerification';
 import AddressAutocomplete from '../components/ui/AddressAutocomplete';
@@ -205,20 +205,17 @@ const Payment: React.FC = () => {
 
   if (!restaurant) {
     return (
-      <Layout>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <h2 className="text-xl font-semibold mb-2">Loading...</h2>
             <p className="text-gray-600">Please wait while we load the restaurant details.</p>
           </div>
         </div>
-      </Layout>
     );
   }
 
   if (orderItems.length === 0) {
     return (
-      <Layout>
         <div className="container mx-auto px-4 py-8">
           <Card className="max-w-md mx-auto">
             <CardHeader className="text-center">
@@ -238,12 +235,10 @@ const Payment: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-      </Layout>
     );
   }
 
   return (
-    <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -443,7 +438,6 @@ const Payment: React.FC = () => {
           </div>
         </div>
       </div>
-    </Layout>
   );
 };
 

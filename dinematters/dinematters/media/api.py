@@ -9,8 +9,9 @@ import frappe
 from frappe import _
 from .config import get_allowed_mime_types, get_max_upload_size
 from .storage import generate_object_key, generate_signed_upload_url, verify_object_exists
-from .utils import get_allowed_roles, get_actual_media_role
+from .utils import get_allowed_roles, get_actual_media_role, get_restaurant_from_owner
 from dinematters.dinematters.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES
+from dinematters.dinematters.utils.common import safe_log_error
 import os
 
 
@@ -99,7 +100,7 @@ def request_upload_session(owner_doctype, owner_name, media_role, filename, cont
 		upload_session.insert(ignore_permissions=True)
 	except Exception as e:
 		# Upload session is optional, log but don't fail
-		frappe.log_error(f"Failed to create upload session: {str(e)}", "Upload Session Creation")
+		safe_log_error("Upload Session Creation", str(e))
 	
 	return {
 		"upload_id": media_id,
@@ -298,50 +299,6 @@ def delete_media_asset(media_id):
 
 # Helper functions
 
-def get_restaurant_from_owner(owner_doctype, owner_name):
-	"""Get restaurant from owner document"""
-	if owner_doctype == "Menu Product":
-		return frappe.db.get_value("Menu Product", owner_name, "restaurant")
-	elif owner_doctype == "Menu Category":
-		return frappe.db.get_value("Menu Category", owner_name, "restaurant")
-	elif owner_doctype == "Home Feature":
-		return frappe.db.get_value("Home Feature", owner_name, "restaurant")
-	elif owner_doctype == "Restaurant":
-		return owner_name
-	elif owner_doctype == "Restaurant Config":
-		return frappe.db.get_value("Restaurant Config", owner_name, "restaurant")
-	elif owner_doctype == "Menu Image Extractor":
-		return frappe.db.get_value("Menu Image Extractor", owner_name, "restaurant")
-	elif owner_doctype == "Event":
-		return frappe.db.get_value("Event", owner_name, "restaurant")
-	elif owner_doctype == "Offer":
-		return frappe.db.get_value("Offer", owner_name, "restaurant")
-	elif owner_doctype == "Legacy Content":
-		return frappe.db.get_value("Legacy Content", owner_name, "restaurant")
-	elif owner_doctype == "Legacy Member":
-		# Legacy Member is a child table, get restaurant from parent
-		parent = frappe.db.get_value("Legacy Member", owner_name, "parent")
-		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
-	elif owner_doctype == "Legacy Testimonial":
-		# Legacy Testimonial is a child table, get restaurant from parent
-		parent = frappe.db.get_value("Legacy Testimonial", owner_name, "parent")
-		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
-	elif owner_doctype == "Legacy Gallery Image":
-		# Legacy Gallery Image is a child table, get restaurant from parent
-		parent = frappe.db.get_value("Legacy Gallery Image", owner_name, "parent")
-		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
-	elif owner_doctype == "Legacy Testimonial Image":
-		# Legacy Testimonial Image is a child table, get restaurant from parent
-		parent = frappe.db.get_value("Legacy Testimonial Image", owner_name, "parent")
-		if parent:
-			parent_testimonial = frappe.db.get_value("Legacy Testimonial", parent, "parent")
-			if parent_testimonial:
-				return frappe.db.get_value("Legacy Content", parent_testimonial, "restaurant")
-	else:
-		frappe.throw(_(f"Unsupported owner doctype: {owner_doctype}"))
 
 
 def validate_restaurant_access(restaurant):

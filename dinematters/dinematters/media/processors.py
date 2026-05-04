@@ -9,6 +9,7 @@ import os
 import subprocess
 from PIL import Image
 import frappe
+from dinematters.dinematters.utils.common import safe_log_error
 
 
 class ImageProcessor:
@@ -67,7 +68,7 @@ class ImageProcessor:
 				return data_uri
 		
 		except Exception as e:
-			frappe.log_error(f"Error generating blur placeholder: {str(e)}", "Blur Placeholder Error")
+			safe_log_error("Blur Placeholder Error", str(e))
 			return None
 	
 	def create_variant(self, variant_name, max_size, quality=75):
@@ -127,7 +128,7 @@ class ImageProcessor:
 				return output_path
 		
 		except Exception as e:
-			frappe.log_error(f"Error creating image variant {variant_name}: {str(e)}", "Image Processing Error")
+			safe_log_error(f"Image Processing Error - {variant_name}", str(e))
 			return None
 
 
@@ -166,7 +167,7 @@ class VideoProcessor:
 			return {}
 		
 		except Exception as e:
-			frappe.log_error(f"Error getting video metadata: {str(e)}", "Video Metadata Error")
+			safe_log_error("Video Metadata Error", str(e))
 			return {}
 	
 	def create_720p_variant(self):
@@ -193,10 +194,10 @@ class VideoProcessor:
 			return output_path
 		
 		except subprocess.CalledProcessError as e:
-			frappe.log_error(f"FFmpeg error creating 720p variant: {e.stderr.decode()}", "Video Processing Error")
+			safe_log_error("Video Processing Error - FFmpeg", e.stderr.decode() if e.stderr else str(e))
 			return None
 		except Exception as e:
-			frappe.log_error(f"Error creating 720p variant: {str(e)}", "Video Processing Error")
+			safe_log_error("Video Processing Error", str(e))
 			return None
 	
 	def create_poster(self, timestamp=1.0):
@@ -253,10 +254,10 @@ class VideoProcessor:
 			return output_path
 		
 		except subprocess.CalledProcessError as e:
-			frappe.log_error(f"FFmpeg error creating poster: {e.stderr.decode()}", "Video Poster Error")
+			safe_log_error("Video Poster Error - FFmpeg", e.stderr.decode() if e.stderr else str(e))
 			return None
 		except Exception as e:
-			frappe.log_error(f"Error creating poster: {str(e)}", "Video Poster Error")
+			safe_log_error("Video Poster Error", str(e))
 			return None
 
 

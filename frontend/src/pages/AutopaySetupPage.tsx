@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { SetStateAction, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useRestaurant } from '@/contexts/RestaurantContext'
@@ -64,7 +64,7 @@ export default function AutopaySetupPage() {
   const [isChangingPlan, setIsChangingPlan] = useState(false)
   const [isSettingUpMandate, setIsSettingUpMandate] = useState(false)
   const [showRecharge, setShowRecharge] = useState(false)
-  
+
   // Local form state
   const [enabled, setEnabled] = useState(false)
   const [threshold, setThreshold] = useState('200')
@@ -114,7 +114,7 @@ export default function AutopaySetupPage() {
   useEffect(() => {
     loadInfo()
   }, [selectedRestaurant])
-  
+
   // Auto-trigger recharge modal if buy=true is in the URL
   useEffect(() => {
     if (searchParams.get('buy') === 'true') {
@@ -127,7 +127,7 @@ export default function AutopaySetupPage() {
 
   const handlePlanToggle = async (newPlan: 'SILVER' | 'GOLD' | 'DIAMOND') => {
     if (!selectedRestaurant || newPlan === planType) return
-    
+
     // 1. Check for pending changes
     if (billingInfo?.deferred_plan_type) {
       toast.error('A plan change is already scheduled for tomorrow.')
@@ -145,7 +145,7 @@ export default function AutopaySetupPage() {
       setShowRecharge(true)
       return
     }
-    
+
     if (newPlan === 'DIAMOND' && (billingInfo?.coins_balance || 0) < luxBarrier) {
       toast.error('Insufficient Balance', {
         description: `You need at least ₹${luxBarrier} in your wallet to upgrade to DIAMOND.`
@@ -162,20 +162,20 @@ export default function AutopaySetupPage() {
 
   const confirmPlanChange = async () => {
     if (!selectedRestaurant || !newPlanSelection) return
-    
+
     setIsChangingPlan(true)
     try {
       const res = await updatePlan({
         restaurant: selectedRestaurant,
         plan_type: newPlanSelection
       })
-      
+
       if (res.message?.success) {
         toast.success(`Success! Plan change scheduled.`, {
           description: res.message.message
         })
       }
-      
+
       await loadInfo()
       await refreshConfig()
     } catch (error: any) {
@@ -291,24 +291,24 @@ export default function AutopaySetupPage() {
           <p className="text-sm text-muted-foreground">Manage your DineMatters tier, wallet balance and automatic top-ups.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2 border-primary/20 text-primary hover:bg-primary/5" 
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
             onClick={() => {
               window.open('/api/method/dinematters.dinematters.api.payments.download_guide?guide_name=Dinematters_Charges', '_blank')
             }}
           >
-             <Download className="h-4 w-4" />
-             Download Guide
+            <Download className="h-4 w-4" />
+            Download Guide
           </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/ledger')}>
-             <History className="h-4 w-4" />
-             Ledger
+            <History className="h-4 w-4" />
+            Ledger
           </Button>
           <Button size="sm" className="gap-2 bg-primary text-white" onClick={() => setShowRecharge(true)}>
-             <Plus className="h-4 w-4" />
-             Top up Wallet
+            <Plus className="h-4 w-4" />
+            Top up Wallet
           </Button>
         </div>
       </div>
@@ -316,21 +316,21 @@ export default function AutopaySetupPage() {
       {/* Pending Change Alert */}
       {billingInfo?.deferred_plan_type && (
         <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 overflow-hidden animate-in slide-in-from-top-4 duration-500">
-           <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                 <Loader2 className="h-5 w-5 text-primary animate-spin" />
-              </div>
-              <div className="flex-1">
-                 <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Your {billingInfo.deferred_plan_type} plan will be effective from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>. 
-                    {(billingInfo.deferred_plan_type === 'GOLD' || billingInfo.deferred_plan_type === 'DIAMOND') && " Premium features will unlock then."}
-                  </p>
-              </div>
-              <Badge variant="outline" className="border-primary/30 text-primary">
-                 Effective {new Date(billingInfo.plan_change_date!).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </Badge>
-           </CardContent>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
+              <p className="text-xs text-muted-foreground">
+                Your {billingInfo.deferred_plan_type} plan will be effective from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
+                {(billingInfo.deferred_plan_type === 'GOLD' || billingInfo.deferred_plan_type === 'DIAMOND') && " Premium features will unlock then."}
+              </p>
+            </div>
+            <Badge variant="outline" className="border-primary/30 text-primary">
+              Effective {new Date(billingInfo.plan_change_date!).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </Badge>
+          </CardContent>
         </Card>
       )}
 
@@ -338,81 +338,83 @@ export default function AutopaySetupPage() {
       <Card className="border-none shadow-xl bg-card overflow-hidden ring-1 ring-border/50 relative">
         <div className={cn(
           "absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full",
-          planType === 'DIAMOND' ? "bg-indigo-500" : 
-          planType === 'GOLD' ? "bg-primary" : "bg-muted"
+          planType === 'DIAMOND' ? "bg-indigo-500" :
+            planType === 'GOLD' ? "bg-primary" : "bg-muted"
         )} />
-        
+
         <CardContent className="p-0 relative z-10">
-           <div className="flex flex-col md:flex-row items-center divide-y md:divide-y-0 md:divide-x divide-border/40">
-              {/* Plan Info Section */}
-              <div className="flex-1 p-5 flex items-center gap-4 w-full">
-                 <div className={cn(
-                   "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md",
-                   planType === 'DIAMOND' ? "bg-indigo-500 text-white" : 
-                   planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                 )}>
-                    {planType === 'DIAMOND' ? <Gem className="h-6 w-6" /> : 
-                     planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
-                 </div>
-                 
-                 <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                       <h3 className="text-xl font-black tracking-tight truncate">{planType} PLAN</h3>
-                       <Badge className={cn(
-                         "px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0",
-                         planType === 'DIAMOND' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" : 
-                         planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
-                       )} variant="outline">
-                          Active
-                       </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground font-medium truncate max-w-[280px]">
-                      {planType === 'DIAMOND' ? 'Elite business automation & logistics.' : 
-                       planType === 'GOLD' ? 'Professional digital growth tools.' : 
-                       'Essential digital presence.'}
-                    </p>
-                 </div>
+          <div className="flex flex-col md:flex-row items-center divide-y md:divide-y-0 md:divide-x divide-border/40">
+            {/* Plan Info Section */}
+            <div className="flex-1 p-5 flex items-center gap-4 w-full">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md",
+                planType === 'DIAMOND' ? "bg-indigo-500 text-white" :
+                  planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+              )}>
+                {planType === 'DIAMOND' ? <Gem className="h-6 w-6" /> :
+                  planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
               </div>
 
-              {/* Investment Section */}
-              <div className="p-5 flex flex-col justify-center min-w-[160px] w-full md:w-auto">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Daily Floor</p>
-                 <p className="text-base font-bold">
-                    {planType === 'SILVER' ? '₹0' : 
-                     planType === 'GOLD' ? `₹${((billingInfo?.plan_defaults?.pro_monthly ?? 999) / 30).toFixed(0)}` : 
-                     `₹45`}
-                 </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="text-xl font-black tracking-tight truncate">{planType} PLAN</h3>
+                  <Badge className={cn(
+                    "px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0",
+                    planType === 'DIAMOND' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" :
+                      planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
+                  )} variant="outline">
+                    Active
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium truncate max-w-[280px]">
+                  {planType === 'DIAMOND' ? 'Elite business automation & logistics.' :
+                    planType === 'GOLD' ? 'Professional digital growth tools.' :
+                      'Essential digital presence.'}
+                </p>
               </div>
-              
-              {/* Status Section */}
-              <div className="p-5 flex flex-col justify-center min-w-[120px] w-full md:w-auto">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Status</p>
-                 <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    <span className="text-xs">Verified</span>
-                 </div>
+            </div>
+
+            {/* Investment Section */}
+            <div className="p-5 flex flex-col justify-center min-w-[160px] w-full md:w-auto">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                {planType === 'DIAMOND' ? 'Monthly Floor Guarantee' : 'Daily Floor'}
+              </p>
+              <p className="text-base font-bold">
+                {planType === 'SILVER' ? '₹0' :
+                  planType === 'GOLD' ? `₹${((billingInfo?.plan_defaults?.pro_monthly ?? 999) / 30).toFixed(0)}` :
+                    `₹${billingInfo?.plan_defaults?.lux_monthly ?? 399}`}
+              </p>
+            </div>
+
+            {/* Status Section */}
+            <div className="p-5 flex flex-col justify-center min-w-[120px] w-full md:w-auto">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Status</p>
+              <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span className="text-xs">Verified</span>
               </div>
-              
-              {/* Action Section */}
-              <div className="p-5 flex items-center justify-center bg-muted/30 w-full md:w-auto">
-                 <div className="flex flex-col items-center gap-2">
-                    <Button 
-                      onClick={() => setShowComparison(true)}
-                      size="sm"
-                      className="gap-2 bg-foreground text-background hover:bg-foreground/90 font-bold px-6 h-9 rounded-lg shadow-sm"
-                    >
-                       <Zap className="h-3.5 w-3.5" />
-                       Manage Plan
-                    </Button>
-                    <button 
-                      onClick={() => setShowComparison(true)}
-                      className="text-[9px] text-muted-foreground hover:text-foreground font-bold uppercase tracking-widest transition-colors"
-                    >
-                       Compare Tiers
-                    </button>
-                 </div>
+            </div>
+
+            {/* Action Section */}
+            <div className="p-5 flex items-center justify-center bg-muted/30 w-full md:w-auto">
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  onClick={() => setShowComparison(true)}
+                  size="sm"
+                  className="gap-2 bg-foreground text-background hover:bg-foreground/90 font-bold px-6 h-9 rounded-lg shadow-sm"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  Manage Plan
+                </Button>
+                <button
+                  onClick={() => setShowComparison(true)}
+                  className="text-[9px] text-muted-foreground hover:text-foreground font-bold uppercase tracking-widest transition-colors"
+                >
+                  Compare Tiers
+                </button>
               </div>
-           </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -425,7 +427,7 @@ export default function AutopaySetupPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <Wallet className="h-8 w-8 text-primary" />
-              <div className="text-4xl font-bold tracking-tighter">₹{billingInfo?.coins_balance.toLocaleString()}</div>
+              <div className="text-4xl font-bold tracking-tighter">₹{(billingInfo?.coins_balance ?? 0).toLocaleString()}</div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">Universal wallet balance for all platform charges.</p>
           </CardContent>
@@ -444,14 +446,14 @@ export default function AutopaySetupPage() {
               <div>
                 <p className="font-bold text-lg">{billingInfo?.mandate_active ? 'Active' : 'Not Setup'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {billingInfo?.mandate_active 
-                    ? 'Your account is linked for automatic top-ups.' 
+                  {billingInfo?.mandate_active
+                    ? 'Your account is linked for automatic top-ups.'
                     : 'Mandate required for automatic threshold-based recharging.'}
                 </p>
               </div>
             </div>
-            <Button 
-              variant={billingInfo?.mandate_active ? "outline" : "default"} 
+            <Button
+              variant={billingInfo?.mandate_active ? "outline" : "default"}
               onClick={handleSetupMandate}
               disabled={isSettingUpMandate}
             >
@@ -492,15 +494,15 @@ export default function AutopaySetupPage() {
                 <Label className="text-sm font-bold">Auto Top-up Threshold (₹)</Label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <NumberInput 
-                     
+                  <NumberInput
+
                     min="300"
                     className={cn(
                       "pl-9 bg-muted/30 border-transparent focus:bg-background focus:border-primary",
                       parseFloat(threshold) < 300 && "border-destructive focus:border-destructive"
-                    )} 
-                    value={threshold} 
-                    onChange={e => setThreshold(e.target.value)}
+                    )}
+                    value={threshold}
+                    onChange={(e: { target: { value: SetStateAction<string> } }) => setThreshold(e.target.value)}
                   />
                 </div>
                 {parseFloat(threshold) < 300 ? (
@@ -517,15 +519,15 @@ export default function AutopaySetupPage() {
                 <Label className="text-sm font-bold">Top-up Amount (₹)</Label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <NumberInput 
-                     
+                  <NumberInput
+
                     min="500"
                     className={cn(
                       "pl-9 bg-muted/30 border-transparent focus:bg-background focus:border-primary",
                       parseFloat(amount) < 500 && "border-destructive focus:border-destructive"
-                    )} 
-                    value={amount} 
-                    onChange={e => setAmount(e.target.value)}
+                    )}
+                    value={amount}
+                    onChange={(e: { target: { value: SetStateAction<string> } }) => setAmount(e.target.value)}
                   />
                 </div>
                 {parseFloat(amount) < 500 ? (
@@ -543,17 +545,17 @@ export default function AutopaySetupPage() {
               <div className="rounded-xl border p-4 bg-muted/20 space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold uppercase text-muted-foreground">Daily Safety Limit</Label>
-                  <Badge variant="secondary">₹{billingInfo?.daily_limit.toLocaleString()}</Badge>
+                  <Badge variant="secondary">₹{(billingInfo?.daily_limit ?? 0).toLocaleString()}</Badge>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span>Used Today: ₹{billingInfo?.current_daily_vol.toLocaleString()}</span>
-                    <span>Remaining: ₹{(billingInfo?.daily_limit! - billingInfo?.current_daily_vol!).toLocaleString()}</span>
+                    <span>Used Today: ₹{(billingInfo?.current_daily_vol ?? 0).toLocaleString()}</span>
+                    <span>Remaining: ₹{((billingInfo?.daily_limit ?? 0) - (billingInfo?.current_daily_vol ?? 0)).toLocaleString()}</span>
                   </div>
                   <div className="h-1.5 w-full bg-background rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all" 
-                      style={{ width: `${(billingInfo?.current_daily_vol! / billingInfo?.daily_limit!) * 100}%` }} 
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${((billingInfo?.current_daily_vol ?? 0) / (billingInfo?.daily_limit ?? 1)) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -567,12 +569,12 @@ export default function AutopaySetupPage() {
 
           <div className="flex items-center justify-between border-t pt-6">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-               <ShieldCheck className="h-4 w-4 text-emerald-500" />
-               PCI-DSS Compliant • SSL Encrypted • Razorpay Secure
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              PCI-DSS Compliant • SSL Encrypted • Razorpay Secure
             </div>
-            <Button 
-              className="gap-2" 
-              onClick={handleSaveSettings} 
+            <Button
+              className="gap-2"
+              onClick={handleSaveSettings}
               disabled={isUpdating || (enabled && (parseFloat(threshold) < 300 || parseFloat(amount) < 500))}
             >
               {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -590,15 +592,15 @@ export default function AutopaySetupPage() {
         isChangingPlan={isChangingPlan}
         planDefaults={{
           pro_monthly: billingInfo?.plan_defaults.pro_monthly || 999,
-          lux_monthly: billingInfo?.plan_defaults.lux_monthly || 1299,
+          lux_monthly: billingInfo?.plan_defaults.lux_monthly || 399,
           lux_commission: billingInfo?.plan_defaults.lux_commission || 1.5,
         }}
       />
 
-      <AiRechargeModal 
-        open={showRecharge} 
-        onClose={() => setShowRecharge(false)} 
-        restaurant={selectedRestaurant!} 
+      <AiRechargeModal
+        open={showRecharge}
+        onClose={() => setShowRecharge(false)}
+        restaurant={selectedRestaurant!}
         onSuccess={loadInfo}
       />
 

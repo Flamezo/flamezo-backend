@@ -7,6 +7,7 @@ Background jobs for media processing
 
 import frappe
 from frappe.utils import now_datetime
+from dinematters.dinematters.utils.common import safe_log_error
 from .storage import download_object, upload_object, delete_object, get_cdn_url, calculate_file_hash, generate_object_key
 from .processors import process_image, process_video
 import os
@@ -58,7 +59,7 @@ def process_media_asset(media_asset_name):
 		frappe.logger().info(f"Successfully processed media asset {asset.media_id}")
 		
 	except Exception as e:
-		frappe.log_error(title="Media Processing Error", message=f"Error processing media asset {media_asset_name}: {str(e)}")
+		safe_log_error("Media Processing Error", f"Error processing media asset {media_asset_name}: {str(e)}")
 		
 		# Mark as failed
 		try:
@@ -120,10 +121,7 @@ def sync_media_asset_to_owner(asset):
 		frappe.db.commit()
 	
 	except Exception as e:
-		frappe.log_error(
-			title="Media Owner Sync Error",
-			message=f"Failed to sync media asset {asset.name} to owner {asset.owner_doctype} {asset.owner_name}: {str(e)}"
-		)
+		safe_log_error("Media Owner Sync Error", f"Failed to sync media asset {asset.name} to owner {asset.owner_doctype} {asset.owner_name}: {str(e)}")
 
 
 def process_image_asset(asset, raw_file_path, temp_dir):
@@ -344,7 +342,7 @@ def cleanup_deleted_media(media_asset_name):
 		frappe.logger().info(f"Cleaned up deleted media asset {asset.media_id}")
 		
 	except Exception as e:
-		frappe.log_error(title="Media Cleanup Error", message=f"Error cleaning up media asset {media_asset_name}: {str(e)}")
+		safe_log_error("Media Cleanup Error", f"Error cleaning up media asset {media_asset_name}: {str(e)}")
 
 
 def get_image_variant_configs(media_role):
