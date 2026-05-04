@@ -8,7 +8,11 @@ Customer APIs for cross-restaurant analytics.
 import frappe
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
 from dinematters.dinematters.utils.permission_helpers import get_user_restaurant_ids
-from dinematters.dinematters.utils.customer_helpers import normalize_phone
+from dinematters.dinematters.utils.customer_helpers import (
+	normalize_phone, 
+	get_customer_token,
+	validate_customer_session
+)
 from dinematters.dinematters.utils.feature_gate import require_plan
 from dinematters.dinematters.utils.roles import is_supervisor, is_global_admin
 
@@ -38,14 +42,11 @@ def get_customer_by_phone(phone, restaurant_id):
 			if is_supervisor() or restaurant in restaurant_ids:
 				is_authorized = True
 		
-		# If Guest, check X-Customer-Token
+		# If Guest, check customer token
 		if not is_authorized:
-			customer_token = frappe.get_request_header("X-Customer-Token")
-			if customer_token:
-				from dinematters.dinematters.api.otp import check_session
-				session_res = check_session(customer_token)
-				if session_res.get("success") and normalize_phone(session_res.get("phone")) == normalized:
-					is_authorized = True
+			customer_token = get_customer_token()
+			if validate_customer_session(normalized, customer_token):
+				is_authorized = True
 
 		if not is_authorized:
 			return {"success": False, "error": "Permission denied. Valid session required."}
@@ -63,7 +64,7 @@ def get_customer_by_phone(phone, restaurant_id):
 		c = frappe.db.get_value(
 			"Customer",
 			customer_id,
-			["name", "phone", "customer_name", "email", "verified_at"],
+			["name", "phone", "customer_name", "email", "verified_at", "date_of_birth"],
 			as_dict=True
 		)
 		if not c:
@@ -111,6 +112,7 @@ def get_customer_by_phone(phone, restaurant_id):
 				"phone": ph,
 				"customerName": c.customer_name,
 				"email": c.email,
+				"birthday": str(c.date_of_birth) if c.date_of_birth else None,
 				"verifiedAt": str(c.verified_at) if c.verified_at else None,
 				"lastVisited": str(last_visited) if last_visited else None,
 				"orders": orders,
@@ -244,6 +246,7 @@ def get_customer_profile(customer_id, restaurant_id=None):
 					"phone": customer.phone,
 					"customerName": customer.customer_name,
 					"email": customer.email,
+					"birthday": str(customer.date_of_birth) if customer.date_of_birth else None,
 					"verifiedAt": str(customer.verified_at) if customer.verified_at else None
 				},
 				"restaurants": restaurants
@@ -270,8 +273,9 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 		page_size = max(1, min(100, int(page_size)))
 		limit_start = (page - 1) * page_size
 		
-		# Collect all distinct platform customers with activity at this restaurant
-		# Using frappe.get_all is the most robust and compatible way.
+		# Collect all distinct customers for this restaurant from two sources:
+		# 1. Activity-based: customers who have orders/bookings at this restaurant
+		# 2. Import-based: customers explicitly imported for this restaurant
 		customer_ids = set()
 		for doctype in ["Order", "Table Booking", "Banquet Booking"]:
 			rows = frappe.get_all(
@@ -280,6 +284,24 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 				pluck="platform_customer"
 			)
 			customer_ids.update(row for row in rows if row)
+
+		# Also include customers imported for this restaurant (no orders yet)
+		if frappe.db.has_column("Customer", "imported_restaurants"):
+			imported = frappe.db.sql("""
+				SELECT name FROM `tabCustomer`
+				WHERE imported_restaurants LIKE %s
+				  AND (imported_restaurants = %s
+				       OR imported_restaurants LIKE %s
+				       OR imported_restaurants LIKE %s
+				       OR imported_restaurants LIKE %s)
+			""", (
+				f"%{restaurant}%",
+				restaurant,
+				f"{restaurant},%",
+				f"%,{restaurant}",
+				f"%,{restaurant},%",
+			), as_dict=True)
+			customer_ids.update(r.name for r in imported)
 
 		if not customer_ids:
 			return {"success": True, "data": {"customers": [], "isAdmin": "System Manager" in frappe.get_roles(), "totalCount": 0}}
@@ -299,7 +321,7 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 			"Customer",
 			filters=customer_filters,
 			or_filters=customer_or_filters if customer_or_filters else None,
-			fields=["name", "phone", "customer_name", "verified_at"]
+			fields=["name", "phone", "customer_name", "verified_at", "date_of_birth", "imported_restaurants"]
 		)
 
 		# Get last visited date for each customer efficiently using bulk queries
@@ -327,9 +349,14 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 			cid = c.get("name")
 			last_visited = activity_map.get(cid)
 			
+			# Check if imported for this restaurant
+			imported_restaurants = c.get("imported_restaurants") or ""
+			is_imported = restaurant in {r.strip() for r in imported_restaurants.split(",") if r.strip()}
+
 			enriched_customers.append({
 				**c,
-				"last_visited": last_visited
+				"last_visited": last_visited,
+				"is_imported": is_imported
 			})
 
 		# Sort by last_visited
@@ -383,7 +410,9 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 				"phone": phone,
 				"customerName": c.get("customer_name"),
 				"verifiedAt": str(c.get("verified_at")) if c.get("verified_at") else None,
+				"birthday": str(c.get("date_of_birth")) if c.get("date_of_birth") else None,
 				"lastVisited": str(c.get("last_visited")) if c.get("last_visited") else None,
+				"isImported": c.get("is_imported"),
 				"orders": orders,
 				"tableBookings": table_bookings,
 				"banquetBookings": banquet_bookings
@@ -394,6 +423,207 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 		return {"success": True, "data": {"customers": final_customers, "isAdmin": is_admin, "totalCount": total_count}}
 	except Exception as e:
 		frappe.log_error(f"get_restaurant_customers error: {e}", f"Customer_API_{restaurant_id}")
+		return {"success": False, "error": str(e)}
+
+
+def _link_customer_to_restaurant(customer_id: str, restaurant: str, updates: dict):
+	"""
+	Ensure `restaurant` is recorded in the Customer's `imported_restaurants` field.
+	Mutates `updates` dict in-place so the caller can batch it into a single set_value call.
+	"""
+	if not frappe.db.has_column("Customer", "imported_restaurants"):
+		return
+	current = frappe.db.get_value("Customer", customer_id, "imported_restaurants") or ""
+	existing = {r.strip() for r in current.split(",") if r.strip()}
+	if restaurant not in existing:
+		existing.add(restaurant)
+		updates["imported_restaurants"] = ",".join(sorted(existing))
+
+
+@frappe.whitelist()
+@require_plan('DIAMOND')
+def import_customers(restaurant_id, rows):
+	"""
+	Bulk import customers for a restaurant.
+
+	Accepts a JSON list of row dicts, each with keys:
+	  phone (required), name, email, birthday (YYYY-MM-DD)
+
+	For every row:
+	  - Phone is normalized via normalize_phone().
+	  - If a Customer with that phone already exists → update name/email (birthday only
+	    if not already set).
+	  - Otherwise → create a new Customer record.
+
+	Returns per-row results plus aggregate counts so the UI can show a summary
+	and a downloadable error list.
+
+	Permissions: supervisor or user with access to restaurant_id. DIAMOND plan required.
+	"""
+	import json
+	import re
+
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant_ids = get_user_restaurant_ids(frappe.session.user)
+		if not is_supervisor() and restaurant not in restaurant_ids:
+			return {"success": False, "error": "Permission denied"}
+
+		# rows may arrive as a JSON string (form_dict) or already a list
+		if isinstance(rows, str):
+			try:
+				rows = json.loads(rows)
+			except Exception:
+				return {"success": False, "error": "Invalid rows format — expected a JSON array"}
+
+		if not isinstance(rows, list):
+			return {"success": False, "error": "rows must be a list"}
+
+		if len(rows) > 5000:
+			return {"success": False, "error": "Maximum 5000 rows per import"}
+
+		from dinematters.dinematters.utils.customer_helpers import (
+			normalize_phone,
+			get_or_create_customer,
+		)
+
+		def _sanitize_raw_phone(raw: str) -> str:
+			"""
+			Undo Excel corruption before normalize_phone() sees the value:
+			  - Scientific notation: '9.19877E+11' → '919877000000'
+			  - Float suffix: '9876543210.0' → '9876543210'
+			Both are caused by Excel treating phone columns as numbers.
+			"""
+			import math
+			s = raw.strip()
+			# Detect scientific notation (e.g. 9.19877E+11 or 9.19877e+11)
+			if re.match(r'^[+\-]?\d+\.?\d*[eE][+\-]?\d+$', s):
+				try:
+					n = float(s)
+					if not math.isnan(n) and math.isfinite(n) and n > 0:
+						s = str(int(round(n)))
+				except (ValueError, OverflowError):
+					pass
+			# Strip trailing .0 / .00 (float suffix)
+			s = re.sub(r'\.0+$', '', s)
+			return s
+
+		results = []      # per-row outcome for the UI
+		imported = 0      # net-new customers created
+		updated  = 0      # existing customers updated
+		skipped  = 0      # rows we could not process
+
+		# Track phones we've already processed in THIS batch to skip within-file dupes
+		seen_phones: set = set()
+
+		for idx, row in enumerate(rows):
+			row_num = idx + 1  # 1-based for human display
+
+			# ── 1. Extract & validate phone ──────────────────────────────────────
+			raw_phone = _sanitize_raw_phone(str(row.get("phone") or ""))
+			if not raw_phone:
+				results.append({"row": row_num, "status": "skipped", "reason": "Phone number is missing"})
+				skipped += 1
+				continue
+
+			normalized = normalize_phone(raw_phone)
+			if not normalized or len(normalized) != 10:
+				results.append({"row": row_num, "phone": raw_phone, "status": "skipped",
+								"reason": f"Invalid phone number: '{raw_phone}'"})
+				skipped += 1
+				continue
+
+			if normalized in seen_phones:
+				results.append({"row": row_num, "phone": normalized, "status": "skipped",
+								"reason": "Duplicate phone number in file — already processed"})
+				skipped += 1
+				continue
+
+			seen_phones.add(normalized)
+
+			# ── 2. Extract optional fields ────────────────────────────────────────
+			raw_name  = str(row.get("name") or "").strip()[:100] or None
+			raw_email = str(row.get("email") or "").strip() or None
+			raw_dob   = str(row.get("birthday") or "").strip() or None
+
+			# Validate birthday format if provided
+			dob_value = None
+			if raw_dob:
+				if re.match(r"^\d{4}-\d{2}-\d{2}$", raw_dob):
+					dob_value = raw_dob
+				else:
+					# best-effort: skip birthday but don't fail the row
+					raw_dob = None
+
+			# ── 3. Upsert customer ────────────────────────────────────────────────
+			try:
+				existing_id = frappe.db.get_value("Customer", {"phone": normalized}, "name")
+				if not existing_id:
+					# Try phone variants in case it was saved in a non-normalized form
+					for variant in [f"0{normalized}", f"+91{normalized}", f"91{normalized}"]:
+						existing_id = frappe.db.get_value("Customer", {"phone": variant}, "name")
+						if existing_id:
+							break
+
+				if existing_id:
+					# ── UPDATE existing customer ──────────────────────────────
+					updates = {"phone": normalized}  # always normalize stored phone
+
+					if raw_name:
+						updates["customer_name"] = raw_name
+
+					if raw_email is not None:
+						updates["email"] = raw_email
+
+					if dob_value:
+						current_dob = frappe.db.get_value("Customer", existing_id, "date_of_birth")
+						if not current_dob:
+							updates["date_of_birth"] = dob_value
+						# if already set, silently skip (per product policy)
+
+					# Track which restaurants have imported this customer
+					_link_customer_to_restaurant(existing_id, restaurant, updates)
+
+					frappe.db.set_value("Customer", existing_id, updates)
+					updated += 1
+					results.append({"row": row_num, "phone": normalized,
+									"name": raw_name, "status": "updated"})
+				else:
+					# ── CREATE new customer ───────────────────────────────────
+					customer_doc = get_or_create_customer(normalized, raw_name, raw_email)
+					if customer_doc:
+						new_updates = {}
+						if dob_value:
+							new_updates["date_of_birth"] = dob_value
+						_link_customer_to_restaurant(customer_doc.name, restaurant, new_updates)
+						if new_updates:
+							frappe.db.set_value("Customer", customer_doc.name, new_updates)
+					imported += 1
+					results.append({"row": row_num, "phone": normalized,
+									"name": raw_name, "status": "imported"})
+
+			except Exception as row_err:
+				frappe.log_error(f"import_customers row {row_num} error: {row_err}", "Customer_Import")
+				results.append({"row": row_num, "phone": normalized,
+								"status": "skipped", "reason": f"Internal error: {str(row_err)[:120]}"})
+				skipped += 1
+
+		# Single commit after all rows
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"data": {
+				"imported": imported,
+				"updated":  updated,
+				"skipped":  skipped,
+				"total":    len(rows),
+				"results":  results,
+			}
+		}
+
+	except Exception as e:
+		frappe.log_error(f"import_customers error: {e}", "Customer_Import")
 		return {"success": False, "error": str(e)}
 
 
@@ -414,33 +644,13 @@ def update_customer_profile(**kwargs):
 		if not phone:
 			return {"success": False, "error": "Phone number is required"}
 			
-		from dinematters.dinematters.utils.customer_helpers import normalize_phone
 		normalized = normalize_phone(phone)
 		if not normalized:
 			return {"success": False, "error": "Invalid phone number"}
 
 		# Validate session
-		customer_token = frappe.get_request_header("X-Customer-Token")
-		if not customer_token and frappe.request:
-			customer_token = frappe.request.headers.get("X-Customer-Token")
-			if not customer_token:
-				# Try lowercase just in case
-				customer_token = frappe.request.headers.get("x-customer-token")
-			
-		if not customer_token:
-			# Log headers for debugging if auth fails
-			headers_dump = {}
-			if frappe.request:
-				headers_dump = dict(frappe.request.headers)
-			
-			# Truncate headers dump to avoid CharacterLengthExceededError
-			dump_str = str(headers_dump)[:2000]
-			frappe.log_error("Auth Error", f"Auth failed for {phone}. Headers: {dump_str}"[:5000])
-			return {"success": False, "error": "Authentication required"}
-
-		from dinematters.dinematters.api.otp import check_session
-		session_res = check_session(customer_token)
-		if not session_res.get("success") or normalize_phone(session_res.get("phone")) != normalized:
+		customer_token = get_customer_token()
+		if not validate_customer_session(normalized, customer_token):
 			return {"success": False, "error": "Session invalid or phone mismatch"}
 
 		# Find customer
@@ -460,16 +670,26 @@ def update_customer_profile(**kwargs):
 			updates["customer_name"] = str(customer_name)[:100].strip()
 		if email is not None:
 			updates["email"] = str(email).strip() or None
+		
 		if date_of_birth is not None:
-			# Accept YYYY-MM-DD or empty string (clear)
-			import re
-			dob = str(date_of_birth).strip()
-			if dob == "":
-				updates["date_of_birth"] = None
-			elif re.match(r"^\d{4}-\d{2}-\d{2}$", dob):
-				updates["date_of_birth"] = dob
+			# "Date of birth can only be inserted once and can not be updated"
+			current_dob = frappe.db.get_value("Customer", customer_id, "date_of_birth")
+			
+			if current_dob:
+				# If already set, we ignore the update unless it's the same value
+				# User specifically asked to "make sure it can not be updated"
+				if date_of_birth and str(date_of_birth) != str(current_dob):
+					return {"success": False, "error": "Birthday is already set and cannot be changed."}
 			else:
-				return {"success": False, "error": "date_of_birth must be YYYY-MM-DD format"}
+				# Accept YYYY-MM-DD or empty string (clear)
+				import re
+				dob = str(date_of_birth).strip()
+				if dob == "":
+					updates["date_of_birth"] = None
+				elif re.match(r"^\d{4}-\d{2}-\d{2}$", dob):
+					updates["date_of_birth"] = dob
+				else:
+					return {"success": False, "error": "date_of_birth must be YYYY-MM-DD format"}
 
 		if not updates:
 			return {"success": True, "message": "Nothing to update"}

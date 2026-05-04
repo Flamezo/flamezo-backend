@@ -2,18 +2,19 @@ import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, Plus, Trash2, RefreshCw, X, Check, Loader2, Edit2, Search, UserX, ChevronRight, Calculator } from 'lucide-react'
+import { Users, Plus, Trash2, RefreshCw, X, Check, Loader2, Edit2, Search, UserX, ChevronRight, Calculator, UserPlus, UserMinus, Award, Zap, Cake, List, Database } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 interface Segment {
   name: string;
@@ -27,26 +28,63 @@ interface Segment {
   min_total_spent: number;
 }
 
-const CRITERIA_DESCRIPTIONS: Record<string, string> = {
-  'All Customers': 'Everyone who has ever ordered at your restaurant.',
-  'New Customers': 'Customers who placed their first order in the last 14 days.',
-  'At-Risk': 'Customers who haven\'t ordered in N days.',
-  'Loyal Regulars': 'Customers who have visited at least N times.',
-  'High Spenders': 'Customers whose lifetime spend exceeds ₹N.',
-  'Birthday This Month': 'Customers whose birthday falls this calendar month.',
-  'Manual': 'Hand-pick specific phone numbers.',
-  'Custom SQL': 'Advanced: custom SQL WHERE clause on tabCustomer.',
-}
-
-const CRITERIA_COLOR: Record<string, string> = {
-  'All Customers': 'bg-blue-100 text-blue-700',
-  'New Customers': 'bg-green-100 text-green-700',
-  'At-Risk': 'bg-red-100 text-red-700',
-  'Loyal Regulars': 'bg-purple-100 text-purple-700',
-  'High Spenders': 'bg-amber-100 text-amber-700',
-  'Birthday This Month': 'bg-pink-100 text-pink-700',
-  'Manual': 'bg-slate-100 text-slate-700',
-  'Custom SQL': 'bg-orange-100 text-orange-700',
+const CRITERIA_DATA: Record<string, { description: string; icon: any; color: string; bgColor: string; label: string }> = {
+  'All Customers': { 
+    label: 'Global Audience',
+    description: 'Target every customer in your database. Best for general announcements and major updates.', 
+    icon: Users, 
+    color: 'text-blue-600', 
+    bgColor: 'bg-blue-50' 
+  },
+  'New Customers': { 
+    label: 'Recent Signups',
+    description: 'Guests who joined in the last 14 days. Ideal for welcome offers and first-visit follow-ups.', 
+    icon: UserPlus, 
+    color: 'text-emerald-600', 
+    bgColor: 'bg-emerald-50' 
+  },
+  'At-Risk': { 
+    label: 'Win-Back List',
+    description: 'Customers slipping away. Re-engage them with special offers before they churn.', 
+    icon: UserMinus, 
+    color: 'text-rose-600', 
+    bgColor: 'bg-rose-50' 
+  },
+  'Loyal Regulars': { 
+    label: 'VIP Regulars',
+    description: 'Your most frequent guests. Build exclusive loyalty programs and reward your advocates.', 
+    icon: Award, 
+    color: 'text-violet-600', 
+    bgColor: 'bg-violet-50' 
+  },
+  'High Spenders': { 
+    label: 'Top Spenders',
+    description: 'Premium audience with high lifetime value. Perfect for luxury experience invites.', 
+    icon: Zap, 
+    color: 'text-amber-600', 
+    bgColor: 'bg-amber-50' 
+  },
+  'Birthday This Month': { 
+    label: 'Birthday Stars',
+    description: 'Celebrate special days. Automate rewards for guests celebrating their birthday this month.', 
+    icon: Cake, 
+    color: 'text-pink-600', 
+    bgColor: 'bg-pink-50' 
+  },
+  'Manual': { 
+    label: 'Custom List',
+    description: 'Precision targeting. Manually paste a list of phone numbers for a hyper-targeted broadcast.', 
+    icon: List, 
+    color: 'text-slate-600', 
+    bgColor: 'bg-slate-100' 
+  },
+  'Custom SQL': { 
+    label: 'Advanced Logic',
+    description: 'Power users only. Define granular segments using advanced SQL filtering logic.', 
+    icon: Database, 
+    color: 'text-orange-600', 
+    bgColor: 'bg-orange-50' 
+  },
 }
 
 export default function MarketingSegments() {
@@ -207,116 +245,155 @@ export default function MarketingSegments() {
       </div>
 
       {showBuilder ? (
-        <Card className="border-2 border-primary/20 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-          <CardHeader className="bg-primary/5 border-b">
+        <Card className="border shadow-lg animate-in fade-in slide-in-from-top-2 duration-300 overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b py-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-bold">{editingName ? 'Edit' : 'Create'} Segment</CardTitle>
-                <p className="text-sm text-muted-foreground">Define who you want to reach with this group.</p>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                   <Users className="h-5 w-5 text-primary" />
+                   {editingName ? 'Edit Segment' : 'Create New Segment'}
+                </CardTitle>
+                <CardDescription>Define target criteria for your audience segment.</CardDescription>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setShowBuilder(false)}>
+              <Button variant="ghost" size="icon" onClick={() => setShowBuilder(false)} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            <form onSubmit={handleSave} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left Column: Details */}
+                <div className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="segment_name" className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Segment Name</Label>
+                    <Label htmlFor="segment_name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Segment Name *</Label>
                     <Input 
                       id="segment_name" 
-                      placeholder="e.g. High Value Customers" 
+                      placeholder="e.g. VIP Regulars" 
                       value={form.segment_name}
                       onChange={e => setForm(f => ({ ...f, segment_name: e.target.value }))}
                       required 
-                      className="h-12 text-lg font-medium"
+                      className="h-10"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description" className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Description</Label>
+                    <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
                     <Textarea 
                       id="description" 
-                      placeholder="Optional: what is this group for?" 
+                      placeholder="Optional: Internal notes about this segment..." 
                       value={form.description}
                       onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                       className="min-h-[100px] resize-none"
                     />
                   </div>
+
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Calculator className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Est. Reach</p>
+                        <p className="text-lg font-bold text-primary">{previewing ? '...' : (previewCount !== null ? `${previewCount} customers` : '—')}</p>
+                      </div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={handlePreview} disabled={previewing} className="h-8 text-xs font-bold">
+                      {previewing ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <RefreshCw className="h-3 w-3 mr-2" />}
+                      Update
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="space-y-4 bg-muted/30 p-6 rounded-xl border">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Selection Criteria</Label>
-                    <Select 
-                      value={form.criteria_type}
-                      onValueChange={v => setForm(f => ({ ...f, criteria_type: v }))}
-                    >
-                      <SelectTrigger className="h-12 bg-background border-2 border-primary/10">
-                        <SelectValue placeholder="Select logic" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.keys(CRITERIA_DESCRIPTIONS).map(type => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1 px-1">
-                      {CRITERIA_DESCRIPTIONS[form.criteria_type]}
-                    </p>
-                  </div>
-
-                  {form.criteria_type === 'Loyal Regulars' && (
-                    <div className="space-y-2 animate-in fade-in zoom-in-95">
-                      <Label className="text-xs font-bold uppercase text-muted-foreground">Minimum Visits</Label>
-                      <NumberInput  value={form.min_visit_count} onChange={e => setForm(f => ({ ...f, min_visit_count: parseInt(e.target.value) }))} className="bg-background" />
-                    </div>
-                  )}
-
-                  {form.criteria_type === 'At-Risk' && (
-                    <div className="space-y-2 animate-in fade-in zoom-in-95">
-                      <Label className="text-xs font-bold uppercase text-muted-foreground">Days Since Last Visit</Label>
-                      <NumberInput  value={form.days_since_last_visit} onChange={e => setForm(f => ({ ...f, days_since_last_visit: parseInt(e.target.value) }))} className="bg-background" />
-                    </div>
-                  )}
-
-                  {form.criteria_type === 'High Spenders' && (
-                    <div className="space-y-2 animate-in fade-in zoom-in-95">
-                      <Label className="text-xs font-bold uppercase text-muted-foreground">Minimum Lifetime Spend (₹)</Label>
-                      <NumberInput  value={form.min_total_spent} onChange={e => setForm(f => ({ ...f, min_total_spent: parseInt(e.target.value) }))} className="bg-background" />
-                    </div>
-                  )}
-
-                  {form.criteria_type === 'Manual' && (
-                    <div className="space-y-2 animate-in fade-in zoom-in-95">
-                      <Label className="text-xs font-bold uppercase text-muted-foreground">Customer IDs/Phones (comma separated)</Label>
-                      <Textarea value={form.customer_ids} onChange={e => setForm(f => ({ ...f, customer_ids: e.target.value }))} className="bg-background min-h-[80px]" placeholder="+919876543210, +918888888888..." />
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t flex items-center justify-between">
-                    <div>
-                      {previewCount !== null && (
-                        <div className="text-sm font-black text-primary flex items-center gap-1">
-                          <Users className="h-3 w-3" />
-                          Est. Reach: {previewCount} customers
+                {/* Right Column: Logic */}
+                <div className="space-y-4">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selection Logic *</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(CRITERIA_DATA).map(([type, data]) => {
+                      const Icon = data.icon;
+                      const isSelected = form.criteria_type === type;
+                      return (
+                        <div
+                          key={type}
+                          onClick={() => setForm(f => ({ ...f, criteria_type: type }))}
+                          className={cn(
+                            "group p-3 border rounded-xl cursor-pointer transition-all relative overflow-hidden",
+                            isSelected 
+                              ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                              : "bg-muted/10 hover:border-primary/50 hover:bg-muted/20"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 mb-1.5">
+                            <Icon className={cn("h-4 w-4", isSelected ? data.color : "text-muted-foreground")} />
+                            <p className="text-sm font-bold truncate">{type}</p>
+                            {isSelected && <Check className="h-3 w-3 text-primary ml-auto" />}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2">
+                            {data.description}
+                          </p>
                         </div>
-                      )}
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={handlePreview} disabled={previewing} className="text-[10px] uppercase font-black tracking-widest px-2 h-7">
-                      {previewing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Calculator className="h-3 w-3 mr-1" />}
-                      Refresh Estimate
-                    </Button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
 
+              {/* Dynamic Logic Parameters */}
+              {(form.criteria_type === 'Loyal Regulars' || form.criteria_type === 'At-Risk' || form.criteria_type === 'High Spenders' || form.criteria_type === 'Manual') && (
+                <div className="p-6 rounded-xl bg-muted/20 border border-dashed animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Parameters for {form.criteria_type}</p>
+                  </div>
+
+                  {form.criteria_type === 'Loyal Regulars' && (
+                    <div className="flex items-center gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">Minimum Visit Count</Label>
+                        <NumberInput value={form.min_visit_count} onChange={(e: any) => setForm(f => ({ ...f, min_visit_count: parseInt(e.target.value) }))} className="h-10 w-32" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-6">Includes customers who have visited at least {form.min_visit_count} times.</p>
+                    </div>
+                  )}
+
+                  {form.criteria_type === 'At-Risk' && (
+                    <div className="flex items-center gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">Days of Inactivity</Label>
+                        <NumberInput value={form.days_since_last_visit} onChange={(e: any) => setForm(f => ({ ...f, days_since_last_visit: parseInt(e.target.value) }))} className="h-10 w-32" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-6">Targets customers who haven't visited for {form.days_since_last_visit} days.</p>
+                    </div>
+                  )}
+
+                  {form.criteria_type === 'High Spenders' && (
+                    <div className="flex items-center gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">Minimum Lifetime Spend (₹)</Label>
+                        <NumberInput value={form.min_total_spent} onChange={(e: any) => setForm(f => ({ ...f, min_total_spent: parseInt(e.target.value) }))} className="h-10 w-40" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-6">Targets customers with spend exceeding ₹{form.min_total_spent.toLocaleString()}.</p>
+                    </div>
+                  )}
+
+                  {form.criteria_type === 'Manual' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Phone Number List (comma separated)</Label>
+                      <Textarea 
+                         value={form.customer_ids} 
+                         onChange={e => setForm(f => ({ ...f, customer_ids: e.target.value }))} 
+                         className="bg-background min-h-[80px]" 
+                         placeholder="+919876543210, +918888888888" 
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-6 border-t">
-                <Button type="button" variant="outline" onClick={() => setShowBuilder(false)}>Cancel</Button>
-                <Button type="submit" disabled={saving} className="min-w-[140px] font-bold">
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingName ? 'Update Segment' : 'Create Segment'}
+                <Button type="button" variant="outline" onClick={() => setShowBuilder(false)} className="h-10 font-bold">Cancel</Button>
+                <Button type="submit" disabled={saving} className="min-w-[140px] h-10 font-bold">
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {editingName ? 'Update Segment' : 'Save Segment'}
                 </Button>
               </div>
             </form>
@@ -364,15 +441,15 @@ export default function MarketingSegments() {
                   </div>
                 </Card>
               ) : (
-                filteredSegments.map(seg => (
-                  <Card key={seg.name} className="group hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-md border-muted">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${CRITERIA_COLOR[seg.criteria_type] || 'bg-slate-100 text-slate-700'}`}>
+                filteredSegments.map((seg: Segment) => (
+                  <Card key={seg.name} className="group hover:shadow-md transition-all duration-300 border bg-card">
+                    <CardHeader className="pb-3 border-b bg-muted/5">
+                      <div className="flex justify-between items-start">
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight bg-background">
                           {seg.criteria_type}
-                        </span>
+                        </Badge>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => {
                             setEditingName(seg.name)
                             setForm({
                               segment_name: seg.segment_name,
@@ -387,28 +464,26 @@ export default function MarketingSegments() {
                           }}>
                             <Edit2 className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete({ open: true, name: seg.name, label: seg.segment_name })}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete({ open: true, name: seg.name, label: seg.segment_name })}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
-                      <CardTitle className="text-lg font-black mt-2">{seg.segment_name}</CardTitle>
+                      <CardTitle className="text-base font-bold mt-2 truncate">{seg.segment_name}</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-2 min-h-[40px]">{seg.description || 'No description provided.'}</p>
-                      <div className="mt-6 pt-4 border-t flex items-center justify-between">
+                    <CardContent className="pt-4">
+                      <p className="text-xs text-muted-foreground line-clamp-2 min-h-[32px] mb-4">{seg.description || 'No description provided.'}</p>
+                      <div className="flex items-center justify-between pt-3 border-t">
                         <div className="flex items-center gap-2">
-                          <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-primary" />
-                          </div>
+                          <Users className="h-4 w-4 text-primary" />
                           <div>
-                            <div className="text-lg font-black leading-none">{seg.estimated_reach}</div>
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Reach</div>
+                            <div className="text-sm font-bold leading-none">{seg.estimated_reach.toLocaleString()}</div>
+                            <div className="text-[9px] uppercase font-bold text-muted-foreground">Reach</div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[9px] uppercase font-black text-muted-foreground">Computed</div>
-                          <div className="text-[11px] font-medium">{seg.last_computed_at ? new Date(seg.last_computed_at).toLocaleDateString() : 'Never'}</div>
+                          <div className="text-[9px] uppercase font-bold text-muted-foreground">Updated</div>
+                          <div className="text-[10px] font-medium">{seg.last_computed_at ? new Date(seg.last_computed_at).toLocaleDateString() : 'Never'}</div>
                         </div>
                       </div>
                     </CardContent>

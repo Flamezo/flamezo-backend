@@ -26,6 +26,7 @@ from dinematters.dinematters.utils.customer_helpers import (
 	_find_customer_by_normalized_phone,
 	get_phone_variants_for_lookup,
 	is_phone_verified,
+	get_customer_token,
 )
 import json
 import random
@@ -116,8 +117,8 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			# Check if verification is active for this restaurant
 			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
 			if config:
-				# Secure Session Check: Validate the X-Customer-Token from headers
-				session_token = frappe.request.headers.get("X-Customer-Token") if frappe.request else None
+				# Secure Session Check: Validate the customer token from headers
+				session_token = get_customer_token()
 				if not validate_customer_session(phone, session_token):
 					return {
 						"success": False,
@@ -678,7 +679,9 @@ def get_customer_orders(restaurant_id, phone, page=1, limit=20, include_items=Fa
 		#   The DB check acts as a grace fallback for expired tokens (e.g. after Redis restart).
 		#   This prevents the "keeps verifying my user" loop while maintaining security.
 		# - When verify_my_user=OFF: skip auth entirely — any phone can retrieve their order history.
-		session_token = frappe.request.headers.get("X-Customer-Token") if frappe.request else None
+		# Robust token detection: Check X-Customer-Token, x-customer-token, and Authorization header
+		session_token = get_customer_token()
+		
 		verify_required = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
 		
 		# Bypass strict auth for recent WhatsApp shadow orders to allow guest tracking

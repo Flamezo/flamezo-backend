@@ -173,6 +173,7 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 			"success": True,
 			"verified": True,
 			"customer_id": customer.name,
+			"customer_name": customer.customer_name,
 			"session_token": session_token
 		}
 	except Exception as e:
@@ -201,10 +202,14 @@ def check_session(session_token):
 			frappe.cache().delete_value(f"customer_session:{session_token}")
 			return {"success": True, "verified": False}
 
+		# Fetch customer name
+		customer_name = frappe.db.get_value("Customer", customer_id, "customer_name")
+
 		return {
 			"success": True,
 			"verified": True, 
 			"customer_id": customer_id,
+			"customer_name": customer_name,
 			"phone": session.get("phone")
 		}
 	except Exception as e:

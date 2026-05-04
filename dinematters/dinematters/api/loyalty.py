@@ -6,7 +6,12 @@ from frappe import _
 from frappe.utils import flt, cint, now_datetime, get_datetime_str
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
 from dinematters.dinematters.utils.feature_gate import require_plan
-from dinematters.dinematters.utils.customer_helpers import normalize_phone, get_or_create_customer
+from dinematters.dinematters.utils.customer_helpers import (
+	normalize_phone, 
+	get_or_create_customer,
+	get_customer_token,
+	validate_customer_session
+)
 import json
 import random
 import string
@@ -23,6 +28,11 @@ def get_loyalty_summary(restaurant_id, phone):
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
 			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+		
+		# Production Auth Gate
+		session_token = get_customer_token()
+		if not validate_customer_session(normalized_phone, session_token):
+			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 		
 		customer = get_or_create_customer(normalized_phone)
 		
@@ -88,9 +98,13 @@ def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
 		normalized_phone = normalize_phone(phone)
-		
 		if not normalized_phone:
 			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+			
+		# Production Auth Gate
+		session_token = get_customer_token()
+		if not validate_customer_session(normalized_phone, session_token):
+			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 		
 		customer = get_or_create_customer(normalized_phone)
 		
@@ -437,6 +451,7 @@ def get_customer_insights(restaurant_id, search_query=None):
 				"id": customer.name,
 				"name": customer.customer_name or customer.name,
 				"phone": customer.phone,
+				"birthday": str(customer.date_of_birth) if customer.date_of_birth else None,
 				"balance": balance,
 				"referral_opens": int(referral_stats.total_opens or 0),
 				"cycle_opens": int(referral_stats.cycle_opens or 0),

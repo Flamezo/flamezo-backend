@@ -963,7 +963,7 @@ def create_default_home_features(self):
 			 "image_src": "/files/book-table.svg", "route": "/book-table", "size": "small", "is_mandatory": 0},
 			{"feature_id": "legacy", "title": "The Place", "subtitle": "& it's legacy",
 			 "image_src": "/files/legacy.svg", "route": "/legacy", "size": "small", "is_mandatory": 1},
-			{"feature_id": "offers-events", "title": "Offers & Events", "subtitle": "Treasure mine.",
+			{"feature_id": "offers-events", "title": "Events", "subtitle": "Treasure mine.",
 			 "image_src": "/files/events-offers.svg", "route": "/events", "size": "small", "is_mandatory": 0},
 			{"feature_id": "dine-play", "title": "Dine & Play", "subtitle": "Enjoy your bites",
 			 "image_src": "/files/experience-lounge.svg", "route": "/experience-lounge-splash", "size": "small", "is_mandatory": 0}

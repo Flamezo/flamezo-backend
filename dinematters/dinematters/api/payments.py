@@ -9,7 +9,14 @@ import math
 from datetime import datetime
 from frappe import _
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
-from dinematters.dinematters.utils.customer_helpers import require_verified_phone, get_or_create_customer, validate_customer_session, is_phone_verified, normalize_phone
+from dinematters.dinematters.utils.customer_helpers import (
+	require_verified_phone, 
+	get_or_create_customer, 
+	validate_customer_session, 
+	is_phone_verified, 
+	normalize_phone,
+	get_customer_token
+)
 from dinematters.dinematters.utils.razorpay_utils import get_razorpay_config, get_razorpay_client, get_or_create_razorpay_customer
 
 def get_or_create_mandate_plan(client):
@@ -83,7 +90,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		if customer_phone:
 			config = frappe.db.get_value("Restaurant Config", {"restaurant": _restaurant_name}, "verify_my_user")
 			if config:
-				session_token = frappe.request.headers.get("X-Customer-Token") if frappe.request else None
+				session_token = get_customer_token()
 				normalized = normalize_phone(customer_phone)
 				has_valid_session = validate_customer_session(normalized, session_token) if session_token else False
 				has_verified_phone = is_phone_verified(normalized)

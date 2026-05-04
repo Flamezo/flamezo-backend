@@ -10,7 +10,12 @@ import frappe
 from frappe import _
 from frappe.utils import flt, get_datetime_str, getdate, today
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
-from dinematters.dinematters.utils.customer_helpers import require_verified_phone, get_or_create_customer
+from dinematters.dinematters.utils.customer_helpers import (
+	require_verified_phone, 
+	get_or_create_customer,
+	get_customer_token,
+	validate_customer_session
+)
 from dinematters.dinematters.utils.feature_gate import require_plan
 from dinematters.dinematters.utils.roles import is_supervisor, is_global_admin
 import json
@@ -34,13 +39,17 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
 		
-		# OTP gate: require verified phone when verify_my_user is on
+		# Production Auth Gate: require valid session token when verify_my_user is on
 		phone = customer_info.get("phone")
-		if phone and not require_verified_phone(restaurant_id, phone):
-			return {
-				"success": False,
-				"error": {"code": "PHONE_NOT_VERIFIED", "message": "Please verify your phone with OTP first"}
-			}
+		if phone:
+			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "verify_my_user")
+			if config:
+				session_token = get_customer_token()
+				if not validate_customer_session(phone, session_token):
+					return {
+						"success": False,
+						"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
+					}
 		
 		# Get platform customer for linking
 		platform_customer = None
@@ -310,13 +319,17 @@ def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, ti
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
 		
-		# OTP gate: require verified phone when verify_my_user is on
+		# Production Auth Gate: require valid session token when verify_my_user is on
 		phone = customer_info.get("phone")
-		if phone and not require_verified_phone(restaurant_id, phone):
-			return {
-				"success": False,
-				"error": {"code": "PHONE_NOT_VERIFIED", "message": "Please verify your phone with OTP first"}
-			}
+		if phone:
+			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "verify_my_user")
+			if config:
+				session_token = get_customer_token()
+				if not validate_customer_session(phone, session_token):
+					return {
+						"success": False,
+						"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
+					}
 		
 		# Get platform customer for linking
 		platform_customer = None

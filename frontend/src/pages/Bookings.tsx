@@ -87,10 +87,7 @@ export default function Bookings() {
   }
 
   const loadBookings = async () => {
-    if (!selectedRestaurant) {
-      console.log('[Bookings] No restaurant selected')
-      return
-    }
+    if (!selectedRestaurant) return
     
     try {
       setLoading(true)
@@ -109,13 +106,6 @@ export default function Bookings() {
         date_to = formatDateForAPI(nextYear)
       }
 
-      console.log('[Bookings] Fetching bookings:', {
-        restaurant_id: selectedRestaurant,
-        date_from,
-        date_to,
-        status: statusFilter === 'all' ? undefined : statusFilter
-      })
-      
       const response = await fetchBookings({
         restaurant_id: selectedRestaurant,
         date_from,
@@ -125,20 +115,17 @@ export default function Bookings() {
         limit: 200
       })
       
-      console.log('[Bookings] API Response:', response)
+      
       
       // Handle Frappe's response wrapper - response can be wrapped in 'message'
       const data = response?.message?.data || response?.data
       
       if (data?.bookings) {
-        console.log('[Bookings] Setting bookings:', data.bookings.length)
         setBookings(data.bookings)
       } else {
-        console.log('[Bookings] No bookings in response', { response, data })
         setBookings([])
       }
     } catch (error) {
-      console.error('[Bookings] Failed to load bookings:', error)
       toast.error('Failed to load bookings')
       setBookings([])
     } finally {

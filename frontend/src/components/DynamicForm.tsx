@@ -26,13 +26,13 @@ import ProductMediaTable from './ProductMediaTable'
 import CustomizationQuestionsTable from './CustomizationQuestionsTable'
 import ProductRecommendationsTable from './ProductRecommendationsTable'
 import { uploadToR2 } from '@/lib/r2Upload'
-import { 
-  FileText, 
-  Tag, 
-  Image as ImageIcon, 
-  Settings, 
-  Layers, 
-  Globe, 
+import {
+  FileText,
+  Tag,
+  Image as ImageIcon,
+  Settings,
+  Layers,
+  Globe,
   Info,
   DollarSign
 } from 'lucide-react'
@@ -176,7 +176,7 @@ export default function DynamicForm({
     //    background revalidation of the SAME document.
     if (docData && mode !== 'create' && (lastHydratedKeyRef.current !== currentDocKey || !formDataInitialized)) {
       const mergedData = { ...docData }
-      
+
       // DEEP HYDRATION: Standard Frappe get_doc (used by useFrappeGetDoc) only returns 1 level 
       // of child tables. It DOES NOT return child-of-child tables (e.g. customizations -> options).
       // If we have deeper data in initialData (passed from a custom API like get_products),
@@ -185,17 +185,17 @@ export default function DynamicForm({
         Object.keys(initialDataRef.current).forEach(key => {
           const initVal = initialDataRef.current[key]
           const serverVal = mergedData[key]
-          
+
           // If both are arrays (likely child tables)
           if (Array.isArray(initVal) && Array.isArray(serverVal)) {
             // If initialData has nested content but serverData doesn't, prefer initialData
-            const initHasNested = initVal.some(item => 
+            const initHasNested = initVal.some(item =>
               Object.values(item).some(val => Array.isArray(val) && val.length > 0)
             )
-            const serverHasNested = serverVal.some(item => 
+            const serverHasNested = serverVal.some(item =>
               Object.values(item).some(val => Array.isArray(val) && val.length > 0)
             )
-            
+
             if (initHasNested && !serverHasNested) {
               mergedData[key] = initVal
             }
@@ -221,7 +221,7 @@ export default function DynamicForm({
       readOnlyFields.forEach(fieldname => {
         const overrideValue = initialData[fieldname] || initialDataRef.current[fieldname]
         const currentValue = mergedData[fieldname]
-        
+
         const isCurrency = typeof overrideValue === 'string' && /^[A-Z]{3}$/.test(overrideValue)
         const hasValidCurrent = currentValue && currentValue !== '' && !(/^[A-Z]{3}$/.test(String(currentValue)))
 
@@ -532,7 +532,7 @@ export default function DynamicForm({
       if (mode !== 'create') {
         try {
           await refreshDoc();
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (onSave) {
@@ -1018,16 +1018,16 @@ export default function DynamicForm({
               {field.required && <span className="text-destructive">*</span>}
               {isLatLngField && addressLatLngLocked && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                   Auto-filled
                 </span>
               )}
             </Label>
             <NumberInput
               id={field.fieldname}
-              
+
               value={value}
-              onChange={(e) => handleFieldChange(field.fieldname, parseFloat(e.target.value) || 0)}
+              onChange={(e: { target: { value: string } }) => handleFieldChange(field.fieldname, parseFloat(e.target.value) || 0)}
               readOnly={isEffectivelyReadOnly}
               required={field.required}
               className={isLatLngField && addressLatLngLocked ? 'bg-muted opacity-70 cursor-not-allowed' : ''}
@@ -1174,7 +1174,7 @@ export default function DynamicForm({
                         handleFieldChange(field.fieldname, uploadedUrl)
 
                         // Auto-save the field to database immediately
-                        // console.log Removed - Production Build
+
                         if (docname && uploadedUrl) {
                           try {
                             await updateDoc({
@@ -1240,15 +1240,13 @@ export default function DynamicForm({
                     handleFieldChange(field.fieldname, uploadedUrl)
 
                     // Auto-save the field to database immediately
-                    console.log('[DynamicForm] Auto-saving file upload:', { doctype, docname, field: field.fieldname, uploadedUrl })
                     if (docname && uploadedUrl) {
                       try {
-                        const saveResult = await updateDoc({
+                        await updateDoc({
                           doctype,
                           name: docname,
                           doc_data: { [field.fieldname]: uploadedUrl }
                         })
-                        console.log('[DynamicForm] Auto-save result:', saveResult)
                         toast.success('File uploaded and saved successfully')
                         // Refresh the document to show updated data
                         if (refreshDoc) {
@@ -1318,7 +1316,7 @@ export default function DynamicForm({
         if (field.fieldname === 'customization_questions' && field.options === 'Customization Question') {
           return (
             <div key={field.fieldname} className="space-y-2">
-              <CustomizationQuestionsTable 
+              <CustomizationQuestionsTable
                 value={Array.isArray(value) ? value : []}
                 onChange={(questions) => handleFieldChange(field.fieldname, questions)}
                 disabled={isReadOnly}
@@ -1681,14 +1679,14 @@ function LinkFieldReadOnly({
 }) {
   const linkedDoctype = field.options || ''
   const { selectedRestaurant, restaurants, isLoading: contextLoading } = useRestaurant()
-  
+
   // 1. Fetch the actual linked record (for non-restaurant links or for full resolution)
   const { data: linkedRecord } = useFrappeGetDoc(linkedDoctype, value || '', {
     enabled: !!value && !!linkedDoctype
   })
 
   // 2. Resolve the display value
-  const displayValue = (function() {
+  const displayValue = (function () {
     // Priority 1: Use full linked record if available
     if (linkedRecord) {
       if (linkedDoctype === 'Restaurant' && linkedRecord.restaurant_name) {
@@ -1700,10 +1698,10 @@ function LinkFieldReadOnly({
     // Priority 2: If it's a Restaurant link, try to find it in the global context list
     if (linkedDoctype === 'Restaurant') {
       const isCurrency = typeof value === 'string' && /^[A-Z]{3}$/.test(value)
-      
+
       // If the value is a currency code (leak), or if it matches a known restaurant
-      const matchingRestaurant = restaurants.find(r => 
-        r.name === value || 
+      const matchingRestaurant = restaurants.find(r =>
+        r.name === value ||
         r.restaurant_id === value ||
         (isCurrency && (r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant))
       )

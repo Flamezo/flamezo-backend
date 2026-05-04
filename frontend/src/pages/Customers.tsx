@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck } from 'lucide-react'
+import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import } from 'lucide-react'
+import CustomerImportModal from '@/components/CustomerImportModal'
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
@@ -40,7 +41,9 @@ interface RestaurantCustomer {
   phone: string | null
   customerName: string
   verifiedAt: string | null
+  birthday: string | null
   lastVisited: string | null
+  isImported?: boolean
   orders: OrderItem[]
   tableBookings: unknown[]
   banquetBookings: unknown[]
@@ -57,7 +60,7 @@ interface RestaurantData {
 interface CustomerProfileData {
   success: boolean
   data?: {
-    customer: { id: string; phone: string; customerName: string; email?: string; verifiedAt?: string }
+    customer: { id: string; phone: string; customerName: string; email?: string; birthday?: string; verifiedAt?: string }
     restaurants: RestaurantData[]
   }
   error?: string
@@ -71,6 +74,7 @@ export default function Customers() {
   const [profileData, setProfileData] = useState<CustomerProfileData | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [isUpdatingVerify, setIsUpdatingVerify] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const {
     data: fetchedCustomers,
@@ -81,7 +85,8 @@ export default function Customers() {
     setPageSize,
     totalCount,
     searchQuery,
-    setSearchQuery
+    setSearchQuery,
+    mutate: refreshCustomers
   } = useDataTable({
     customEndpoint: 'dinematters.dinematters.api.customers.get_restaurant_customers',
     customParams: { restaurant_id: selectedRestaurant },
@@ -186,6 +191,15 @@ export default function Customers() {
             Build and manage your loyal customer base
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 h-9 rounded-xl border-dashed self-start sm:self-auto"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="h-4 w-4" />
+          Import Customers
+        </Button>
       </div>
 
       <Card>
@@ -264,7 +278,22 @@ export default function Customers() {
                                 </Button>
                               )}
                             </TableCell>
-                            <TableCell className="font-medium">{c.customerName || '—'}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {c.customerName || '—'}
+                                {c.isImported && (
+                                  <div className="relative group inline-flex items-center">
+                                    <Import className="h-3 w-3 text-blue-500 cursor-default" />
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100]">
+                                      <div className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-xl whitespace-nowrap font-medium ring-1 ring-white/10">
+                                        Imported by restaurant
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell>{c.phone || '—'}</TableCell>
                             <TableCell className="text-muted-foreground">
                               {c.lastVisited ? formatDate(c.lastVisited) : '—'}
@@ -357,6 +386,16 @@ export default function Customers() {
         </CardContent>
       </Card>
 
+      <CustomerImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        restaurantId={selectedRestaurant}
+        onImportComplete={() => {
+          setImportOpen(false)
+          refreshCustomers()
+        }}
+      />
+
       {/* Admin: Full Customer Profile Dialog */}
       <Dialog open={!!profileCustomerId} onOpenChange={(open) => !open && setProfileCustomerId(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border-none shadow-2xl p-0">
@@ -383,6 +422,12 @@ export default function Customers() {
                       <span>{profileData.data.customer.phone}</span>
                       {profileData.data.customer.email && <span>•</span>}
                       {profileData.data.customer.email && <span>{profileData.data.customer.email}</span>}
+                      {profileData.data.customer.birthday && <span>•</span>}
+                      {profileData.data.customer.birthday && (
+                        <span className="flex items-center gap-1">
+                          <span className="text-primary/70">🎂</span> {formatDate(profileData.data.customer.birthday)}
+                        </span>
+                      )}
                     </DialogDescription>
                   ) : (
                     <DialogDescription className="text-xs">
