@@ -11,6 +11,7 @@ from frappe import _
 from frappe.utils import flt, getdate, today, now_datetime, get_datetime
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api, get_restaurant_from_id
 from dinematters.dinematters.utils.feature_gate import require_plan
+from dinematters.dinematters.utils.customer_helpers import get_customer_token, get_customer_from_token
 import json
 from datetime import datetime
 
@@ -208,10 +209,11 @@ def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, 
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
 		
-		# Parse cart_items if provided as string
-		if isinstance(cart_items, str):
-			try: cart_items = json.loads(cart_items)
-			except: cart_items = None
+		# Production Auth: Prioritize identity from session token for secure usage limit checks
+		token = get_customer_token()
+		token_customer_id = get_customer_from_token(token)
+		if token_customer_id:
+			customer_id = token_customer_id
 			
 		result = get_coupon_details(restaurant, coupon_code, cart_total, customer_id, cart_items)
 		
@@ -263,12 +265,11 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 		# Validate restaurant
 		restaurant = validate_restaurant_for_api(restaurant_id)
 		
-		# Parse cart_items if string
-		if isinstance(cart_items, str):
-			try:
-				cart_items = json.loads(cart_items)
-			except:
-				cart_items = []
+		# Production Auth: Prioritize identity from session token for secure usage limit checks
+		token = get_customer_token()
+		token_customer_id = get_customer_from_token(token)
+		if token_customer_id:
+			customer_id = token_customer_id
 		
 		cart_total = flt(cart_total)
 		

@@ -79,10 +79,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
     // 2. Only sync to local state if the data from server matches our selected restaurant
     // This prevents "flickering" or syncing stale data from the previous step/restaurant
     if (legacyContent && legacyContent.name === selectedRestaurant) {
-      console.log(`[LegacySync] SYNCING DATA for ${selectedRestaurant}`, {
-        hero_title: legacyContent.hero_title,
-        has_content: !!legacyContent.hero_title
-      })
       
       setHeroData({
         hero_media_type: legacyContent.hero_media_type || 'image',
@@ -92,7 +88,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
         paragraph_2: legacyContent.paragraph_2 || ''
       })
     } else if (legacyContent) {
-      console.log(`[LegacySync] IGNORING STALE DATA: expected ${selectedRestaurant}, got ${legacyContent.name}`)
+      
     }
   }, [selectedRestaurant, legacyContent, mutateContent])
 

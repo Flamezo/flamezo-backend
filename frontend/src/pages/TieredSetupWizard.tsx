@@ -111,14 +111,8 @@ export default function TieredSetupWizard() {
 
   const currentStep = steps[currentStepIndex] || steps[0]
 
-  console.log(`[Wizard] Rendering Step ${currentStepIndex} (${currentStep.id})`, {
-    selectedRestaurant,
-    doctype: currentStep.doctype,
-    mode: ((currentStep.id === 'restaurant' || currentStep.id === 'config') && selectedRestaurant) ? 'edit' : 'create'
-  })
-
   const handleNext = () => {
-    console.log(`[Wizard] NEXT clicked. Current step: ${currentStep.id}`)
+    
     if (currentStepIndex < steps.length - 1) {
       const nextIndex = currentStepIndex + 1
       navigate(`/setup/${stepIdToSlug(steps[nextIndex].id)}`)
@@ -131,7 +125,7 @@ export default function TieredSetupWizard() {
   }
 
   const handlePrevious = () => {
-    console.log(`[Wizard] PREVIOUS clicked. Moving from ${currentStep.id}`)
+    
     if (currentStepIndex > 0) {
       const prevIndex = currentStepIndex - 1
       navigate(`/setup/${stepIdToSlug(steps[prevIndex].id)}`)

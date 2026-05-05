@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, SetStateAction } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,9 +43,9 @@ export default function CustomerInsights() {
     if (!selectedRestaurant) return
     setLoading(true)
     try {
-      const res: any = await getInsights({ 
+      const res: any = await getInsights({
         restaurant_id: selectedRestaurant,
-        search_query: searchQuery 
+        search_query: searchQuery
       })
       if (res.message?.success) {
         setCustomers(res.message.data || [])
@@ -63,7 +63,7 @@ export default function CustomerInsights() {
 
   const handleAdjustPoints = async () => {
     if (!selectedRestaurant || !selectedCustomer || !adjustAmount) return
-    
+
     setAdjusting(true)
     try {
       const res: any = await adjustPoints({
@@ -154,6 +154,7 @@ export default function CustomerInsights() {
                 <TableRow>
                   <TableHead>Customer</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Birthday</TableHead>
                   <TableHead>Points Balance</TableHead>
                   <TableHead>Referral Opens</TableHead>
                   <TableHead className="w-[120px]">Cycle Rewards</TableHead>
@@ -164,17 +165,20 @@ export default function CustomerInsights() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading customers...</TableCell>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading customers...</TableCell>
                   </TableRow>
                 ) : customers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No customers found with loyalty history.</TableCell>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No customers found with loyalty history.</TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer) => (
                     <TableRow key={customer.id}>
                       <TableCell className="font-medium text-sm">{customer.name}</TableCell>
                       <TableCell className="text-sm">{customer.phone || 'N/A'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {customer.birthday ? new Date(customer.birthday).toLocaleDateString() : '—'}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={customer.balance > 0 ? "default" : "secondary"} className="gap-1">
                           {customer.balance} Points
@@ -189,8 +193,8 @@ export default function CustomerInsights() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-[60px]">
-                            <div 
-                              className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all duration-500"
                               style={{ width: `${(customer.cycle_opens / 7) * 100}%` }}
                             />
                           </div>
@@ -202,18 +206,18 @@ export default function CustomerInsights() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                           <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="h-8 gap-1"
                             onClick={() => fetchHistory(customer)}
                           >
                             <History className="w-3.5 h-3.5" />
                             History
                           </Button>
-                           <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="h-8 gap-1"
                             onClick={() => {
                               setSelectedCustomer(customer)
@@ -224,9 +228,9 @@ export default function CustomerInsights() {
                             <PlusCircle className="w-3.5 h-3.5" />
                             Give Points
                           </Button>
-                           <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="h-8 gap-1 text-destructive hover:text-destructive"
                             onClick={() => {
                               setSelectedCustomer(customer)
@@ -247,14 +251,14 @@ export default function CustomerInsights() {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Adjustment Modal */}
       <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{adjustType === 'Earn' ? 'Give Points' : 'Deduct Points'}</DialogTitle>
             <DialogDescription>
-              {adjustType === 'Earn' 
+              {adjustType === 'Earn'
                 ? `Reward points to ${selectedCustomer?.name}.`
                 : `Manually deduct points from ${selectedCustomer?.name}.`
               }
@@ -265,10 +269,10 @@ export default function CustomerInsights() {
               <Label htmlFor="amount">Number of Points</Label>
               <NumberInput
                 id="amount"
-                
+
                 placeholder="e.g. 50"
                 value={adjustAmount}
-                onChange={(e) => setAdjustAmount(e.target.value)}
+                onChange={(e: { target: { value: SetStateAction<string> } }) => setAdjustAmount(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
@@ -283,8 +287,8 @@ export default function CustomerInsights() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjustModalOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={handleAdjustPoints} 
+            <Button
+              onClick={handleAdjustPoints}
               disabled={adjusting || !adjustAmount}
               variant={adjustType === 'Redeem' ? 'destructive' : 'default'}
             >
@@ -306,7 +310,7 @@ export default function CustomerInsights() {
               Detailed loyalty point logs for {selectedCustomer?.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="border rounded-lg overflow-hidden">
               <Table>
@@ -341,8 +345,8 @@ export default function CustomerInsights() {
                           {new Date(tx.creation).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant={tx.transaction_type === 'Earn' ? 'default' : 'destructive'} 
+                          <Badge
+                            variant={tx.transaction_type === 'Earn' ? 'default' : 'destructive'}
                             className="text-[10px] h-5 px-1.5 uppercase font-bold"
                           >
                             {tx.transaction_type === 'Earn' ? (
@@ -366,7 +370,7 @@ export default function CustomerInsights() {
               </Table>
             </div>
           </div>
-          
+
           <DialogFooter className="p-6 pt-2 bg-muted/20 border-t">
             <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>Close</Button>
           </DialogFooter>

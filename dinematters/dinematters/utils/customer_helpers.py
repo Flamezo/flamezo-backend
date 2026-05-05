@@ -9,6 +9,25 @@ SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 _SESSION_DOCTYPE = "Customer Session"
 
 
+def get_customer_token():
+	"""
+	Centralized utility to extract customer session token from request headers.
+	Checks: X-Customer-Token, x-customer-token, and Authorization (Bearer).
+	"""
+	if not frappe.request:
+		return None
+	
+	headers = frappe.request.headers
+	token = headers.get("X-Customer-Token") or headers.get("x-customer-token")
+	
+	if not token and headers.get("Authorization"):
+		auth_val = headers.get("Authorization")
+		if auth_val.startswith("Bearer "):
+			token = auth_val.replace("Bearer ", "", 1)
+			
+	return token
+
+
 def normalize_phone(phone: str) -> str:
 	if not phone:
 		return ""
@@ -177,9 +196,12 @@ def validate_customer_session(phone: str, session_token: str, slide_expiry: bool
 		if not session:
 			session = _restore_session_from_db(session_token)
 			if not session:
+				frappe.log_error(title="Session Validation Failed", message=f"No session found for token: {session_token[:10]}...")
 				return False
+		
 		if session.get("phone") != normalized:
 			return False
+		
 		customer_id = session.get("customer_id")
 		if not customer_id or not frappe.db.exists("Customer", customer_id):
 			_hard_revoke(session_token)
@@ -190,18 +212,43 @@ def validate_customer_session(phone: str, session_token: str, slide_expiry: bool
 					f"customer_session:{session_token}", session,
 					expires_in_sec=SESSION_TTL_SECONDS
 				)
-				if _session_doctype_exists():
-					new_exp = frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=SESSION_TTL_SECONDS)
-					frappe.db.set_value(
-						_SESSION_DOCTYPE, {"session_token": session_token},
-						{"expires_at": new_exp, "last_used_at": frappe.utils.now_datetime()}
-					)
-					frappe.db.commit()
+				# Skip DB update for now to avoid performance bottlenecks
+				# if _session_doctype_exists():
+				# 	new_exp = frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=SESSION_TTL_SECONDS)
+				# 	frappe.db.set_value(
+				# 		_SESSION_DOCTYPE, {"session_token": session_token},
+				# 		{"expires_at": new_exp, "last_used_at": frappe.utils.now_datetime()}
+				# 	)
+				# 	frappe.db.commit()
 			except Exception:
 				pass
 		return True
 	except Exception:
 		return False
+
+
+def get_customer_from_token(session_token: str) -> str:
+	"""
+	Securely retrieves the customer_id associated with a session token.
+	Verifies against Cache/DB and ensures session is NOT revoked.
+	"""
+	if not session_token:
+		return None
+		
+	# 1. Check Cache
+	session = frappe.cache().get_value(f"customer_session:{session_token}")
+	if not session:
+		# 2. Try DB Restore
+		session = _restore_session_from_db(session_token)
+	
+	if not session:
+		return None
+		
+	customer_id = session.get("customer_id")
+	if not customer_id or not frappe.db.exists("Customer", customer_id):
+		return None
+		
+	return customer_id
 
 
 def _hard_revoke(session_token: str):
@@ -218,26 +265,34 @@ def _hard_revoke(session_token: str):
 
 
 def revoke_customer_session(session_token: str) -> bool:
+	"""Hard logout: clears Redis and marks DB session as revoked."""
 	if not session_token:
 		return False
+	
 	existed = False
+	# 1. Clear from Memory (Redis)
 	try:
 		if frappe.cache().get_value(f"customer_session:{session_token}"):
 			existed = True
-		frappe.cache().delete_value(f"customer_session:{session_token}")
+			frappe.cache().delete_value(f"customer_session:{session_token}")
 	except Exception as e:
 		frappe.log_error(f"Redis revoke failed: {e}", "Session_Revoke")
+	
+	# 2. Mark as Revoked in DB
 	if _session_doctype_exists():
 		try:
-			if frappe.db.exists(_SESSION_DOCTYPE, {"session_token": session_token, "revoked": 0}):
+			# Check if it exists and isn't already revoked
+			session_id = frappe.db.get_value(_SESSION_DOCTYPE, {"session_token": session_token, "revoked": 0}, "name")
+			if session_id:
 				existed = True
 				frappe.db.set_value(
-					_SESSION_DOCTYPE, {"session_token": session_token},
+					_SESSION_DOCTYPE, session_id,
 					{"revoked": 1, "last_used_at": frappe.utils.now_datetime()}
 				)
 				frappe.db.commit()
 		except Exception as e:
 			frappe.log_error(f"DB revoke failed: {e}", "Session_Revoke_DB")
+	
 	return existed
 
 
