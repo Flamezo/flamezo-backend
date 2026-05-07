@@ -8,6 +8,7 @@
  "field_order": [
   "referral_link",
   "is_unique",
+  "status",
   "timestamp",
   "column_break_1",
   "ip_address",
@@ -27,6 +28,14 @@
    "fieldname": "is_unique",
    "fieldtype": "Check",
    "label": "Is Unique"
+  },
+  {
+   "default": "Visited",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Visited\nConverted"
   },
   {
    "fieldname": "timestamp",

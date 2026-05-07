@@ -138,7 +138,7 @@
    "label": "AI Theme Background"
   },
   {
-   "default": "1",
+   "default": "0",
    "fieldname": "menu_theme_background_enabled",
    "fieldtype": "Check",
    "label": "Enable Theme Background"

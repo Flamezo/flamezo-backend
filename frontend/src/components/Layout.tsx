@@ -131,6 +131,7 @@ const navigation: NavItem[] = [
       { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'ordering' },
       { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
       { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
+      { name: 'Gallery Management', href: '/gallery-management', icon: Star },
     ],
   },
   { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },

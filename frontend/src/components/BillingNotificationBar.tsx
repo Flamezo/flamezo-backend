@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -28,7 +28,30 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
   const isDiamond = planType === 'DIAMOND'
   const isPremium = isGold || isDiamond
   const navigate = useNavigate()
-  if (!billingInfo) return null
+  const [isDismissed, setIsDismissed] = useState(false)
+
+  // Check for dismissal on mount
+  useEffect(() => {
+    const dismissedUntil = localStorage.getItem('billing_bar_dismissed_until')
+    if (dismissedUntil) {
+      const expiration = parseInt(dismissedUntil, 10)
+      if (Date.now() < expiration) {
+        setIsDismissed(true)
+      } else {
+        localStorage.removeItem('billing_bar_dismissed_until')
+      }
+    }
+  }, [])
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Dismiss for 24 hours
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000
+    localStorage.setItem('billing_bar_dismissed_until', expiresAt.toString())
+    setIsDismissed(true)
+  }
+
+  if (!billingInfo || isDismissed) return null
 
   // When restaurant is inactive, show deactivation notice as highest priority
   if (!isActive) {
@@ -223,6 +246,15 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
             <ArrowRight className="h-3 w-3" />
           </button>
         )}
+
+        <button
+          onClick={handleDismiss}
+          className="p-1 hover:bg-white/20 rounded-full transition-colors shrink-0 ml-1"
+          title="Dismiss for 24h"
+          aria-label="Close notification"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
     </div>
   )

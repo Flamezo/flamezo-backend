@@ -33,7 +33,7 @@ export default function SilverMediaUpload({
   disabled = false,
   className 
 }: SilverMediaUploadProps) {
-  const { isSilver, isGold, selectedRestaurant } = useRestaurant()
+  const { isSilver, isGold, isDiamond, selectedRestaurant } = useRestaurant()
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
 
@@ -237,7 +237,7 @@ export default function SilverMediaUpload({
                 Choose Images
               </Button>
               
-              {isGold && (
+              {(isGold || isDiamond) && (
                 <Button 
                   variant="outline" 
                   size="sm"

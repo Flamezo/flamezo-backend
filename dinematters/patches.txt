@@ -8,3 +8,4 @@ dinematters.dinematters.patches.sync_primary_color_from_palette
 dinematters.dinematters.patches.add_otp_and_customer_schema
 dinematters.dinematters.patches.sync_mobile_no_to_phone
 dinematters.dinematters.patches.initialize_ai_credits
+dinematters.dinematters.patches.add_referral_visit_unique_index

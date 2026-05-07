@@ -933,6 +933,7 @@ def create_restaurant_config(self):
 			"enable_offers": 1 if self.plan_type == "DIAMOND" else 0,
 			"enable_coupons": 1 if self.plan_type == "DIAMOND" else 0,
 			"enable_experience_lounge": 1 if self.plan_type == "DIAMOND" else 0,
+			"menu_theme_background_enabled": 0,
 			"verify_my_user": 0,
 			"google_review_link": "",
 			"instagram_profile_link": "",

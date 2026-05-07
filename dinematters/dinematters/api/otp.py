@@ -118,7 +118,9 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 
 @frappe.whitelist(allow_guest=True)
 def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral_id=None):
-	"""Verify OTP. On success, create/update Customer and award Instant Welcome Bonus if referred."""
+	"""Verify OTP. On success, create/update Customer and return session token.
+	referral_id is accepted for API compatibility but no longer acted on here —
+	the Welcome Bonus is claimed explicitly via claim_referral_reward() in the UI."""
 	try:
 		normalized = normalize_phone(phone)
 		if not normalized or len(normalized) != 10:
@@ -161,10 +163,11 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 				frappe.db.set_value("Customer", customer.name, "phone", normalized)
 		frappe.db.commit()
 		
-		# Award Instant Welcome Bonus if referred
-		if referral_id:
-			from dinematters.dinematters.api.loyalty import process_referral_welcome_bonus
-			process_referral_welcome_bonus(customer.name, restaurant_id, referral_id)
+		# NOTE: Welcome Bonus is NOT awarded here anymore.
+		# It is awarded when the user clicks "Claim X Coins" in the welcome modal,
+		# which calls claim_referral_reward() post-OTP. This prevents silent
+		# background grants that conflict with the explicit Claim UX.
+		# Fallback: if user skips the modal and places an order, orders.py awards it.
 
 		# Generate session token using specialized helper (ensures DB persistence)
 		session_token = create_customer_session(phone=normalized, customer_id=customer.name)

@@ -56,6 +56,7 @@ const GoogleGrowthSync = lazy(() => import('./pages/GoogleGrowthSync'))
 const GoogleGrowthReviews = lazy(() => import('./pages/GoogleGrowthReviews'))
 const TeamManagement = lazy(() => import('./pages/TeamManagement'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
+const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
 
 
 function AppContent() {
@@ -155,6 +156,7 @@ function AppContent() {
 								<Route path="/qr-codes" element={<QRCodes />} />
 
 								<Route path="/home-features" element={<HomeFeaturesManager />} />
+								<Route path="/gallery-management" element={<GalleryManagement />} />
 
 								<Route path="/ai-enhancements" element={<AIEnhancementPage />} />
 								<Route path="/ai-gallery" element={<AIGalleryPage />} />

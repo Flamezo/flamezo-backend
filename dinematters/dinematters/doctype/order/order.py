@@ -103,8 +103,27 @@ class Order(Document):
                         # Autopay should eventually recover this
                         frappe.log_error(f"Commission deduction failed for {self.name}: {str(e)}", "Commission Error")
 
+            # ── 2. Loyalty Settlement ─────────────────────────────────────────────
+            # Update pending loyalty entries to 'is_settled=1' so they become spendable
+            frappe.db.sql("""
+                UPDATE `tabRestaurant Loyalty Entry`
+                SET is_settled = 1
+                WHERE customer = %s AND restaurant = %s 
+                  AND reference_doctype = 'Order' AND reference_name = %s
+                  AND is_settled = 0
+            """, (self.platform_customer, self.restaurant, self.name))
+
         # Handle Cancellations (Refund if already charged)
         if self.status == "cancelled":
+            # ── 1. Revert Earned Loyalty Coins ───────────────────────────────────
+            # If the order is cancelled, the earned coins should be removed/reverted
+            frappe.db.sql("""
+                DELETE FROM `tabRestaurant Loyalty Entry`
+                WHERE reference_doctype = 'Order' AND reference_name = %s
+                  AND transaction_type = 'Earn'
+            """, (self.name,))
+
+            # ── 2. Commission Refund ─────────────────────────────────────────────
             # Check if deduction exists
             deduction_txn = frappe.db.get_value("Coin Transaction", {
                 "reference_doctype": "Order",

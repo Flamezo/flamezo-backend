@@ -263,6 +263,10 @@ scheduler_events = {
         "0 1 * * *": [
             "dinematters.dinematters.api.google_business.fetch_all_restaurant_insights"
         ],
+		# Loyalty: grant birthday bonus coins at 08:00 daily
+		"0 8 * * *": [
+			"dinematters.dinematters.tasks.loyalty_tasks.grant_birthday_bonuses"
+		],
 		# Storage Maintenance: run weekly cleanup
 		"0 4 * * 0": [
 			"dinematters.dinematters.media.r2_cleanup.run_r2_cleanup"

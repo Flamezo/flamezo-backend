@@ -209,7 +209,7 @@
    "default": "0",
    "fieldname": "loyalty_coins_redeemed",
    "fieldtype": "Int",
-   "label": "Loyalty Coins Redeemed"
+   "label": "Loyalty Cash Redeemed"
   },
   {
    "default": "0",
@@ -221,7 +221,7 @@
    "default": "0",
    "fieldname": "coins_earned",
    "fieldtype": "Int",
-   "label": "Coins Earned"
+   "label": "Cash Earned"
   },
   {
    "fieldname": "referral_link",
@@ -598,6 +598,18 @@
    "create": 1,
    "read": 1,
    "role": "All",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DineMatters Supervisor",
+   "share": 1,
    "write": 1
   }
  ],

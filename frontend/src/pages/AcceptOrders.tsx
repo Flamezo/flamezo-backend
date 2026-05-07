@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { Eye, Clock, User, Phone, Banknote, CheckCircle2 } from 'lucide-react'
+import { Eye, Clock, User, Phone, Banknote, CheckCircle2, Edit3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useRestaurant } from '@/contexts/RestaurantContext'
@@ -49,6 +49,7 @@ const ACCEPTED_COLUMN_ID = 'accepted' // Droppable zone id for "Accepted" column
 function OrderCard({
   order,
   onViewDetails,
+  onEdit,
   onAccept,
   onReject,
   isDragging = false,
@@ -56,6 +57,7 @@ function OrderCard({
 }: {
   order: Order
   onViewDetails: (id: string) => void
+  onEdit?: (id: string) => void
   onAccept?: (id: string) => void
   onReject?: (id: string) => void
   isDragging?: boolean
@@ -139,44 +141,57 @@ function OrderCard({
           {onAccept && !isOverlay && (
             <Button
               size="sm"
-              onClick={(e) => {
+              variant="default"
+              className="flex-1 text-[10px] font-black uppercase h-8"
+              onClick={e => {
                 e.stopPropagation()
                 onAccept(order.name)
               }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="flex-1 h-8 text-xs bg-[#107c10] hover:bg-[#0d5d0d] dark:bg-[#81c784] dark:hover:bg-[#4caf50]"
             >
-              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
               Accept
             </Button>
           )}
           {onReject && !isOverlay && (
             <Button
               size="sm"
-              variant="destructive"
-              onClick={(e) => {
+              variant="outline"
+              className="flex-1 text-[10px] font-black uppercase h-8 border-2"
+              onClick={e => {
                 e.stopPropagation()
                 onReject(order.name)
               }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="flex-1 h-8 text-xs text-white"
             >
               Cancel
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              onViewDetails(order.name)
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={onAccept && !isOverlay ? 'h-8 text-xs' : 'w-full h-8 text-xs'}
-          >
-            <Eye className="h-3.5 w-3.5 mr-1" />
-            View
-          </Button>
+          <div className="flex gap-1">
+            {onEdit && !isOverlay && (
+              <Button
+                size="icon"
+                variant="outline"
+                className="w-8 h-8 rounded-lg border-2"
+                onClick={e => {
+                  e.stopPropagation()
+                  onEdit(order.name)
+                }}
+                title="Edit Order"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-8 h-8 rounded-lg border-2"
+              onClick={e => {
+                e.stopPropagation()
+                onViewDetails(order.name)
+              }}
+              title="View Details"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -188,6 +203,7 @@ function DroppableColumn({
   title,
   orders,
   onViewDetails,
+  onEdit,
   onAccept,
   onReject,
   activeId,
@@ -196,6 +212,7 @@ function DroppableColumn({
   title: string
   orders: Order[]
   onViewDetails: (id: string) => void
+  onEdit?: (id: string) => void
   onAccept?: (id: string) => void
   onReject?: (id: string) => void
   activeId: string | null
@@ -248,6 +265,7 @@ function DroppableColumn({
               <OrderCard
                 order={order}
                 onViewDetails={onViewDetails}
+                onEdit={onEdit}
                 onAccept={onAccept}
                 onReject={onReject}
               />
@@ -265,6 +283,7 @@ export default function AcceptOrders() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [startInEditMode, setStartInEditMode] = useState(false)
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
   const { data: orders, isLoading, mutate } = useFrappeGetDocList(
@@ -352,8 +371,15 @@ export default function AcceptOrders() {
     }
   }
 
-  const handleViewDetails = (orderId: string) => {
-    setSelectedOrderId(orderId)
+  const handleViewDetails = (id: string) => {
+    setStartInEditMode(false)
+    setSelectedOrderId(id)
+    setDialogOpen(true)
+  }
+
+  const handleEditOrder = (id: string) => {
+    setStartInEditMode(true)
+    setSelectedOrderId(id)
     setDialogOpen(true)
   }
 
@@ -444,6 +470,7 @@ export default function AcceptOrders() {
                   title="Pending Verification"
                   orders={pendingOrders}
                   onViewDetails={handleViewDetails}
+                  onEdit={handleEditOrder}
                   onAccept={handleAccept}
                   onReject={handleReject}
                   activeId={activeId}
@@ -453,6 +480,7 @@ export default function AcceptOrders() {
                   title="Accepted (push to KOT)"
                   orders={[]}
                   onViewDetails={handleViewDetails}
+                  onEdit={handleEditOrder}
                   activeId={activeId}
                 />
               </div>
@@ -481,6 +509,7 @@ export default function AcceptOrders() {
         orderId={selectedOrderId}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        startInEditMode={startInEditMode}
       />
 
       {ConfirmDialogComponent}

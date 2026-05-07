@@ -262,3 +262,136 @@ def list_restaurants(active_only=True):
 				"message": str(e)
 			}
 		}
+
+@frappe.whitelist(allow_guest=True)
+def get_restaurant_gallery(restaurant_id):
+	"""
+	Get selected gallery items for a restaurant (max 25)
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		
+		items = frappe.get_all(
+			"Restaurant Gallery Item",
+			filters={
+				"restaurant": restaurant,
+				"is_selected": 1
+			},
+			fields=["url", "media_type as type", "title", "sort_order"],
+			order_by="sort_order asc",
+			limit=25
+		)
+		
+		return {
+			"success": True,
+			"data": {
+				"items": items
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_restaurant_gallery: {str(e)}")
+		return {
+			"success": False,
+			"error": {
+				"code": "GALLERY_FETCH_ERROR",
+				"message": str(e)
+			}
+		}
+
+@frappe.whitelist()
+def get_restaurant_media_pool(restaurant_id):
+	"""
+	Collect all media used by the restaurant across the app
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		media_pool = []
+		seen_urls = set()
+		
+		# 0. Restaurant Branding
+		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		if restaurant_doc.get("logo"):
+			media_pool.append({
+				"url": restaurant_doc.logo,
+				"type": "image",
+				"source_title": "Restaurant Logo",
+				"source_type": "Branding",
+				"category": "Branding"
+			})
+			seen_urls.add(restaurant_doc.logo)
+
+		# 1. Menu Product Media
+		product_media = frappe.db.sql("""
+			SELECT pm.media_url as url, pm.media_type as type, p.product_name as source_title, 'Menu Product' as source_type
+			FROM `tabProduct Media` pm
+			JOIN `tabMenu Product` p ON pm.parent = p.name
+			WHERE p.restaurant = %s
+		""", (restaurant,), as_dict=1)
+		
+		for m in product_media:
+			if m.url and m.url not in seen_urls:
+				m['category'] = "Food & Menu"
+				media_pool.append(m)
+				seen_urls.add(m.url)
+
+		# 2. Events
+		events = frappe.get_all(
+			"Event",
+			filters={"restaurant": restaurant, "image_src": ["is", "set"]},
+			fields=["image_src as url", "title as source_title"]
+		)
+		
+		for e in events:
+			if e.url and e.url not in seen_urls:
+				media_pool.append({
+					"url": e.url,
+					"type": "image",
+					"source_title": e.source_title,
+					"source_type": "Event",
+					"category": "Events"
+				})
+				seen_urls.add(e.url)
+
+		# 3. Existing Gallery Items (both selected and unselected)
+		gallery_items = frappe.get_all(
+			"Restaurant Gallery Item",
+			filters={"restaurant": restaurant},
+			fields=["name", "url", "media_type as type", "title as source_title", "is_selected"]
+		)
+		
+		for g in gallery_items:
+			if g.url and g.url not in seen_urls:
+				media_pool.append({
+					"url": g.url,
+					"type": g.type.lower(),
+					"source_title": g.source_title,
+					"source_type": "Gallery",
+					"category": "Gallery Uploads",
+					"is_in_gallery": True,
+					"is_selected": g.is_selected,
+					"gallery_item_name": g.name
+				})
+				seen_urls.add(g.url)
+			elif g.url in seen_urls:
+				# Mark as already in gallery if it exists there
+				for item in media_pool:
+					if item['url'] == g.url:
+						item['is_in_gallery'] = True
+						item['is_selected'] = g.is_selected
+						item['gallery_item_name'] = g.name
+
+		return {
+			"success": True,
+			"data": {
+				"media": media_pool
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_restaurant_media_pool: {str(e)}")
+		return {
+			"success": False,
+			"error": {
+				"code": "MEDIA_POOL_ERROR",
+				"message": str(e)
+			}
+		}

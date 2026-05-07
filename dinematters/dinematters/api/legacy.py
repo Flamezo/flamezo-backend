@@ -138,9 +138,30 @@ def get_legacy_content(restaurant_id):
 				"displayOrder": member.display_order
 			})
 		
-		# Format gallery with Media Asset data
+		# Format gallery - merge items from Restaurant Gallery and Legacy Content
 		gallery_images = []
-		# Handle new table structure
+		seen_urls = set()
+
+		# 1. Fetch selected items from the new Restaurant Gallery Dashboard (Primary Source)
+		selected_gallery_items = frappe.get_all(
+			"Restaurant Gallery Item",
+			filters={"restaurant": restaurant, "is_selected": 1},
+			fields=["url", "title", "media_type", "sort_order"],
+			order_by="sort_order asc",
+			limit=25
+		)
+		
+		for item in selected_gallery_items:
+			url = item.url
+			if url and url not in seen_urls:
+				gallery_images.append({
+					"src": url,
+					"title": item.title or "",
+					"type": item.media_type or "Image"
+				})
+				seen_urls.add(url)
+
+		# 2. Add images from Legacy Content (backward compatibility / additional curated images)
 		if hasattr(legacy_doc, 'gallery_featured_images') and legacy_doc.gallery_featured_images:
 			for img_row in legacy_doc.gallery_featured_images:
 				# Get gallery image from Media Asset or fallback
@@ -150,17 +171,22 @@ def get_legacy_content(restaurant_id):
 					"legacy_gallery_image",
 					img_row.image
 				)
-				if gallery_media["url"]:
+				if gallery_media["url"] and gallery_media["url"] not in seen_urls:
 					gallery_images.append({
 						"src": gallery_media["url"],
 						"blurPlaceholder": gallery_media.get("blur_placeholder"),
 						"title": img_row.title or ""
 					})
+					seen_urls.add(gallery_media["url"])
 		# Fallback: handle old JSON format for backward compatibility
 		elif hasattr(legacy_doc, 'gallery_featured_images') and isinstance(legacy_doc.gallery_featured_images, str):
 			try:
 				img_list = json.loads(legacy_doc.gallery_featured_images)
-				gallery_images = [{"src": get_url(img) if img.startswith("/files/") else img, "title": ""} for img in img_list]
+				for img in img_list:
+					url = get_url(img) if img.startswith("/files/") else img
+					if url and url not in seen_urls:
+						gallery_images.append({"src": url, "title": ""})
+						seen_urls.add(url)
 			except:
 				pass
 		
