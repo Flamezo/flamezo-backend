@@ -68,7 +68,7 @@
    "fieldname": "coins",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Coins",
+   "label": "Cash",
    "reqd": 1
   },
   {

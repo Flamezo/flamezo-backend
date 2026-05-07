@@ -8,35 +8,43 @@ def is_loyalty_enabled(restaurant):
 		return False
 	return frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
 
-def get_loyalty_balance(customer, restaurant, include_pending=False):
+def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	"""
-	Calculate current loyalty coin balance for a customer at a restaurant.
-	Filters by is_settled=1 and expiry_date >= today by default.
+	Calculate current loyalty coin balance for a customer.
+	Now centralized: Sums all entries across all restaurants if restaurant is None.
+	Filters by is_settled=1 and expiry_date >= today for Earn entries.
 	"""
-	if not customer or not restaurant:
+	if not customer:
 		return 0
 		
-	filters = {"customer": customer, "restaurant": restaurant}
+	filters = {"customer": customer}
+	if restaurant:
+		# If restaurant is provided, we can still filter if needed, 
+		# but for the universal wallet, we usually want the global sum.
+		# For now, let's keep the option but default to global if restaurant is None.
+		filters["restaurant"] = restaurant
+
 	if not include_pending:
 		filters["is_settled"] = 1
 
 	entries = frappe.get_all(
 		"Restaurant Loyalty Entry",
 		filters=filters,
-		or_filters=[
-			["expiry_date", ">=", today()],
-			["expiry_date", "is", "not set"]
-		],
-		fields=["transaction_type", "coins"]
+		fields=["transaction_type", "coins", "expiry_date"]
 	)
 	
 	balance = 0
+	curr_today = today()
 	for entry in entries:
 		if entry.transaction_type == "Earn":
-			balance += entry.coins
+			# Only count Earn entries that haven't expired
+			if not entry.expiry_date or str(entry.expiry_date) >= str(curr_today):
+				balance += entry.coins
 		else:
+			# Redemptions always deduct from balance
 			balance -= entry.coins
-	return max(0, balance)  # Never return negative balance
+
+	return max(0, balance)
 
 def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_doctype=None, ref_name=None):
 	"""
@@ -50,9 +58,9 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	if not is_loyalty_enabled(restaurant):
 		return None
 		
-	# For reverts, we allow redeeming from pending points
+	# Use global balance for redemption (Universal Wallet)
 	include_pending = reason == "Cancellation Revert"
-	balance = get_loyalty_balance(customer, restaurant, include_pending=include_pending)
+	balance = get_loyalty_balance(customer, include_pending=include_pending)
 	
 	if coins > balance:
 		frappe.log_error(
@@ -82,6 +90,10 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None, ref_name=None):
 	"""
 	Calculate and credit loyalty coins based on restaurant config.
+	Supports two earn modes:
+	  - "Percentage of Bill": coins = amount_paid * (earn_percentage / 100)
+	  - "Flat Coins per Order": coins = earn_flat_coins (fixed per qualifying order)
+	Both modes respect min_order_to_earn and max_coins_per_order guardrails.
 	Sets is_settled=0 initially if reference is an Order.
 	"""
 	if not customer or not restaurant or not amount_paid or amount_paid <= 0:
@@ -90,14 +102,46 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	if not is_loyalty_enabled(restaurant):
 		return 0
 	
-	# Get loyalty config
-	config = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, ["points_per_inr", "loyalty_expiry_months"], as_dict=True)
-	
-	points_per_inr = flt(config.points_per_inr) if config else 0.1
-	expiry_months = cint(config.loyalty_expiry_months) if config else 12
-	
-	coins_earned = int(flt(amount_paid) * points_per_inr)
-	
+	# Get loyalty config — fetch all earn-related fields in one query
+	config = frappe.db.get_value(
+		"Restaurant Loyalty Config",
+		{"restaurant": restaurant, "is_active": 1},
+		[
+			"earn_type", "earn_percentage", "earn_flat_coins",
+			"min_order_to_earn", "max_coins_per_order",
+			"points_per_inr", "loyalty_expiry_months"
+		],
+		as_dict=True
+	)
+
+	if not config:
+		return 0
+
+	expiry_months = cint(config.loyalty_expiry_months) if config.loyalty_expiry_months else 12
+
+	# ── Minimum Order Check ───────────────────────────────────────────────────
+	min_order = flt(config.min_order_to_earn or 0)
+	if min_order > 0 and flt(amount_paid) < min_order:
+		return 0  # Order doesn't qualify for earning
+
+	# ── Coin Calculation by Earn Mode ─────────────────────────────────────────
+	earn_type = (config.earn_type or "Percentage of Bill")
+
+	if earn_type == "Flat Coins per Order":
+		coins_earned = cint(config.earn_flat_coins or 50)
+	else:
+		# Default: Percentage of Bill
+		# Use earn_percentage if set; fallback to legacy points_per_inr for migration safety
+		if config.earn_percentage:
+			rate = flt(config.earn_percentage) / 100
+		else:
+			rate = flt(config.points_per_inr or 0.05)
+		coins_earned = int(flt(amount_paid) * rate)
+
+	# ── Max Coins Per Order Cap ───────────────────────────────────────────────
+	max_cap = cint(config.max_coins_per_order or 500)
+	coins_earned = min(coins_earned, max_cap)
+
 	if coins_earned <= 0:
 		return 0
 		
@@ -131,6 +175,7 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		)
 
 	return coins_earned
+
 
 def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None):
 	"""
@@ -282,35 +327,34 @@ def handle_loyalty_settlement(doc, method=None):
 	# If payment is completed, we always settle regardless of order status
 	if doc.payment_status == "completed" or current_status == settle_on or current_status == "billed" or (settle_on == "confirmed" and current_status in ["confirmed", "completed", "billed"]):
 		settle_loyalty_points(doc.name)
+		
+		# Reset referral cycle so user can earn sharing rewards again
+		from dinematters.dinematters.api.loyalty import reset_referral_cycle
+		reset_referral_cycle(doc.platform_customer, doc.restaurant)
 
 
-def get_loyalty_tier(customer, restaurant):
+def get_loyalty_tier(customer, restaurant=None):
 	"""
-	Calculate the customer's tier based on LIFETIME Earn coins at this restaurant.
-	Tiers: Bronze (default) → Silver → Gold → Platinum
-	Thresholds come from Restaurant Loyalty Config.
+	Calculate the customer's tier based on GLOBAL LIFETIME Earn coins.
+	Tiers are now platform-wide DineMatters tiers.
+	Thresholds: Bronze (default) → Silver (500) → Gold (2000) → Platinum (5000)
 	"""
-	if not customer or not restaurant:
+	if not customer:
 		return "Bronze"
 
+	# Calculate lifetime coins across ALL restaurants for the centralized wallet vision
 	result = frappe.db.sql("""
 		SELECT COALESCE(SUM(coins), 0) AS lifetime_coins
 		FROM `tabRestaurant Loyalty Entry`
-		WHERE customer = %s AND restaurant = %s AND transaction_type = 'Earn'
-	""", (customer, restaurant), as_dict=True)
+		WHERE customer = %s AND transaction_type = 'Earn' AND is_settled = 1
+	""", (customer,), as_dict=True)
 
 	lifetime_coins = result[0].lifetime_coins if result else 0
 
-	config = frappe.db.get_value(
-		"Restaurant Loyalty Config",
-		{"restaurant": restaurant, "is_active": 1},
-		["tier_silver_threshold", "tier_gold_threshold", "tier_platinum_threshold"],
-		as_dict=True
-	)
-
-	silver = int(config.tier_silver_threshold or 500) if config else 500
-	gold   = int(config.tier_gold_threshold or 2000)  if config else 2000
-	plat   = int(config.tier_platinum_threshold or 5000) if config else 5000
+	# Platform-standard thresholds
+	silver = 500
+	gold   = 2000
+	plat   = 5000
 
 	if lifetime_coins >= plat:   return "Platinum"
 	if lifetime_coins >= gold:   return "Gold"

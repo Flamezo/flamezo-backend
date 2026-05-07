@@ -16,6 +16,47 @@ import json
 import random
 import string
 
+# ── Platform-level guardrails — restaurants cannot exceed these bounds ─────────
+# These are the absolute min/max DineMatters allows for any loyalty configuration.
+# Any value outside these ranges will be rejected before saving.
+LOYALTY_GUARDRAILS = {
+	"earn_percentage":              {"min": 1.0,   "max": 15.0,  "default": 5.0, "label": "Earn Percentage"},
+	"earn_flat_coins":              {"min": 5,     "max": 500,   "default": 50,  "label": "Flat Cash per Order"},
+	"min_order_to_earn":            {"min": 0,     "max": 2000,  "default": 0,   "label": "Minimum Order to Earn"},
+	"max_coins_per_order":          {"min": 10,    "max": 1000,  "default": 500, "label": "Maximum Cash per Order"},
+	"min_billing_for_redemption":   {"min": 0,     "max": 5000,  "default": 200, "label": "Min Bill for Redemption"},
+	"min_redemption_threshold":     {"min": 0,     "max": 5000,  "default": 100, "label": "Min Cash Redemption Threshold"},
+	"loyalty_expiry_months":        {"min": 3,     "max": 36,    "default": 12,  "label": "Cash Expiry Months"},
+	"share_reward_coins":           {"min": 0,     "max": 500,   "default": 20,  "label": "Share Reward Cash"},
+	"referral_order_reward_coins":  {"min": 0,     "max": 1000,  "default": 100, "label": "Referral Order Cash"},
+	"new_user_welcome_reward_coins":{"min": 0,     "max": 500,   "default": 50,  "label": "Welcome Reward Cash"},
+	"max_opens_rewarded_per_share": {"min": 1,     "max": 50,    "default": 7,   "label": "Max Rewarded Shares"},
+	"coins_per_unique_open":        {"min": 1,     "max": 100,   "default": 30,  "label": "Cash per Unique Open"},
+}
+
+def validate_loyalty_config(config: dict) -> list:
+	"""
+	Validates a loyalty config dict against LOYALTY_GUARDRAILS.
+	Returns a list of error strings (empty list = valid).
+	"""
+	errors = []
+	for field, rules in LOYALTY_GUARDRAILS.items():
+		if field not in config:
+			continue
+		value = config[field]
+		try:
+			value = float(value)
+		except (TypeError, ValueError):
+			errors.append(f"'{rules.get('label', field)}' must be a number.")
+			continue
+		if value < rules["min"] or value > rules["max"]:
+			errors.append(
+				f"'{rules.get('label', field)}' must be between {rules['min']} and {rules['max']} "
+				f"(got {value}). Contact DineMatters if you need a different range."
+			)
+	return errors
+
+
 @frappe.whitelist(allow_guest=True)
 @require_plan('DIAMOND')
 def get_loyalty_summary(restaurant_id, phone):
@@ -36,26 +77,26 @@ def get_loyalty_summary(restaurant_id, phone):
 		
 		customer = get_or_create_customer(normalized_phone)
 		
-		# Get all point entries
+		# Get all point entries (Global History)
 		entries = frappe.get_all(
 			"Restaurant Loyalty Entry",
-			filters={"customer": customer.name, "restaurant": restaurant},
-			fields=["transaction_type", "coins", "reason", "posting_date", "reference_doctype", "reference_name", "creation", "is_settled"],
+			filters={"customer": customer.name},
+			fields=["transaction_type", "coins", "reason", "posting_date", "reference_doctype", "reference_name", "creation", "is_settled", "restaurant"],
 			order_by="creation desc"
 		)
 		
 		from dinematters.dinematters.utils.loyalty import get_loyalty_balance, get_loyalty_tier
-		balance = get_loyalty_balance(customer.name, restaurant)
-		pending_balance = get_loyalty_balance(customer.name, restaurant, include_pending=True) - balance
-		tier = get_loyalty_tier(customer.name, restaurant)
+		# Centralized Balance (Sums all restaurants)
+		balance = get_loyalty_balance(customer.name)
+		pending_balance = get_loyalty_balance(customer.name, include_pending=True) - balance
 		
-		# Expiring soon (within 30 days)
-		# We sum gross Earn coins expiring in the window, then cap at actual balance.
-		# This prevents overstating the amount when coins have already been redeemed.
+		# Tier is also calculated globally based on total lifetime spend/coins
+		tier = get_loyalty_tier(customer.name)
+		
+		# Expiring soon (within 30 days) - Global check
 		from frappe.utils import add_days, today
 		expiring_soon_filters = {
 			"customer": customer.name,
-			"restaurant": restaurant,
 			"is_settled": 1,
 			"transaction_type": "Earn",
 			"expiry_date": ["between", [today(), add_days(today(), 30)]]
@@ -64,12 +105,15 @@ def get_loyalty_summary(restaurant_id, phone):
 		gross_expiring = sum(e.coins for e in expiring_soon_entries)
 		expiring_soon_balance = min(gross_expiring, balance)
 		
+		lifetime_coins = sum(e.coins for e in entries if e.transaction_type == 'Earn' and e.is_settled == 1)
+		
 		return {
 			"success": True,
 			"data": {
 				"balance": balance,
 				"pending_balance": pending_balance,
 				"expiring_soon_balance": expiring_soon_balance,
+				"lifetime_coins": lifetime_coins,
 				"tier": tier,
 				"transactions": entries
 			}
@@ -92,6 +136,8 @@ def get_loyalty_config(restaurant_id):
 			prog_name,
 			[
 				"program_name", "points_per_inr", "coin_value_in_inr",
+				"earn_type", "earn_percentage", "earn_flat_coins",
+				"min_order_to_earn", "max_coins_per_order",
 				"min_redemption_threshold", "min_billing_for_redemption",
 				"loyalty_expiry_months", "earn_on_status",
 				"share_reward_coins", "min_unique_opens_for_reward",
@@ -103,7 +149,108 @@ def get_loyalty_config(restaurant_id):
 			],
 			as_dict=True
 		)
+		
+		# Add current restaurant's city
+		restaurant_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
+		config["city"] = restaurant_info.city or "Surat"
+
+		# Fetch other outlets (Real + Mock)
+		filters = {"is_active": 1, "enable_loyalty": 1, "name": ["!=", restaurant]}
+		if restaurant_info.company:
+			filters["company"] = restaurant_info.company
+		else:
+			filters["city"] = restaurant_info.city
+
+		other_outlets = frappe.get_all(
+			"Restaurant",
+			filters=filters,
+			fields=["restaurant_id as id", "restaurant_name as name", "logo as imageSrc", "address", "city"],
+			limit=5
+		)
+
+		# Add Mock Data if needed
+		mock_outlets = [
+			{
+				"id": "mock-1",
+				"name": "The Spice Route",
+				"imageSrc": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80",
+				"address": "Vesu Canal Rd, Surat",
+				"cuisine": "Continental · Italian",
+				"service": "Dine-in · Delivery",
+				"offerBanner": "60% OFF up to ₹120",
+				"offers": ["60% OFF up to ₹120", "Free Delivery above ₹499", "Flat ₹50 Cashback"],
+				"loyaltyBanner": "Earn 50 Cash",
+				"rating": 4.4,
+				"isNew": True
+			},
+			{
+				"id": "mock-2",
+				"name": "Sky High Lounge",
+				"imageSrc": "https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800&q=80",
+				"address": "Adajan Gam, Surat",
+				"cuisine": "Multi-cuisine · Bar",
+				"service": "Table booking · Live Music",
+				"offerBanner": "Flat ₹100 OFF",
+				"offers": ["Flat ₹100 OFF", "10% Cashback on first order", "Free Beer on groups of 4+"],
+				"loyaltyBanner": "10% Cash Back",
+				"rating": 4.1
+			},
+			{
+				"id": "mock-3",
+				"name": "Coastal Cravings",
+				"imageSrc": "https://images.unsplash.com/photo-1534422298391-e4f8c170db76?w=800&q=80",
+				"address": "Dumas Road, Surat",
+				"cuisine": "Seafood · Coastal",
+				"service": "Dine-in · Takeaway",
+				"offerBanner": "Free Dessert on Orders",
+				"offers": ["Free Dessert on Orders", "Buy 2 Get 1 Free on Prawns", "Earn 2X Cash on Weekends"],
+				"loyaltyBanner": "Earn 30 Cash",
+				"rating": 4.6
+			},
+			{
+				"id": "mock-4",
+				"name": "The Artisan Bakery",
+				"imageSrc": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80",
+				"address": "City Light, Surat",
+				"cuisine": "Bakery · Desserts",
+				"service": "Takeaway · Delivery",
+				"offerBanner": "Buy 1 Get 1 Free",
+				"offers": ["Buy 1 Get 1 Free", "Fresh Bakes @ 50% OFF after 9PM", "Free Cookie on Every Order"],
+				"loyaltyBanner": "5% Cash Back",
+				"rating": 4.5
+			},
+			{
+				"id": "mock-5",
+				"name": "Zen Garden Sushi",
+				"imageSrc": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80",
+				"address": "Piplod, Surat",
+				"cuisine": "Japanese · Sushi",
+				"service": "Dine-in · Table booking",
+				"offerBanner": "20% OFF Special Rolls",
+				"offers": ["20% OFF Special Rolls", "Free Miso Soup on Weekdays", "Sake Tasting Event this Friday"],
+				"loyaltyBanner": "Earn 100 Cash",
+				"rating": 4.3,
+				"isNew": True
+			},
+			{
+				"id": "mock-6",
+				"name": "The Rustic Grill",
+				"imageSrc": "https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80",
+				"address": "VIP Road, Surat",
+				"cuisine": "BBQ · Steaks",
+				"service": "Dine-in · Live Sports",
+				"offerBanner": "Flat 15% OFF",
+				"offers": ["Flat 15% OFF", "Unlimited BBQ Night - Wed", "Earn 100 Cash on ₹1000+"],
+				"loyaltyBanner": "Premium Rewards",
+				"rating": 4.2
+			}
+		]
+		
+		# Merge real and mock for now
+		config["other_outlets"] = other_outlets + mock_outlets
+
 		return {"success": True, "data": config}
+
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Loyalty Get Config Error")
 		return {"success": False, "error": str(e)}
@@ -116,6 +263,12 @@ def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 	Generate or get a unique referral link for a customer
 	"""
 	try:
+		# Simple Rate Limiting
+		cache_key = f"referral_gen_limit:{phone}:{restaurant_id}"
+		if frappe.cache().get_value(cache_key):
+			return {"success": False, "error": {"code": "RATE_LIMIT", "message": "Please wait a moment before generating another link"}}
+		frappe.cache().set_value(cache_key, 1, expires_in_sec=5)
+
 		restaurant = validate_restaurant_for_api(restaurant_id)
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
@@ -379,6 +532,9 @@ def get_referral_details(identifier):
 		referrer_name = referrer_full_name.split(' ')[0] if referrer_full_name else link_info.referrer
 		restaurant_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
 		
+		# Get welcome coins from config
+		welcome_coins = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": link_info.restaurant}, "new_user_welcome_reward_coins") or 50
+		
 		# Get restaurant config for images
 		logo = frappe.db.get_value("Restaurant Config", {"restaurant": link_info.restaurant}, "logo")
 		# Using logo as fallback for banner as ‘banner_image’ field doesn’t exist
@@ -391,7 +547,8 @@ def get_referral_details(identifier):
 				"restaurant_name": restaurant_name,
 				"restaurant_id": link_info.restaurant,
 				"logo": logo,
-				"banner": banner
+				"banner": banner,
+				"welcome_coins": int(welcome_coins)
 			}
 		}
 	except Exception as e:
@@ -476,34 +633,66 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 @frappe.whitelist()
 @require_plan('DIAMOND')
 def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
-	"""Update loyalty configurations for admin"""
+	"""Update loyalty configurations for admin. Validates against guardrails before saving."""
 	try:
-		# Correct logging: title is first, message (config) is second
-		frappe.log_error("Loyalty API Update Call", f"Updating for {restaurant_id} with config: {config}")
-		
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 		if isinstance(config, str):
 			config = json.loads(config)
-			
-		# Handle Restaurant Loyalty Config record
+
+		# ── 1. Guardrail Validation ──────────────────────────────────────────────
+		validation_errors = validate_loyalty_config(config)
+		if validation_errors:
+			return {
+				"success": False,
+				"error": {"code": "GUARDRAIL_VIOLATION", "messages": validation_errors}
+			}
+
+		# ── 2. Backward Compat Migration ─────────────────────────────────────────
+		# If restaurant is saving for the first time with new fields, or
+		# if earn_type is not set but we have legacy points_per_inr, migrate.
+		if not config.get("earn_type"):
+			legacy_ppi = flt(config.get("points_per_inr", 0))
+			if legacy_ppi > 0:
+				# Convert: points_per_inr=0.1 => earn_percentage=10%
+				config["earn_type"] = "Percentage of Bill"
+				config["earn_percentage"] = round(legacy_ppi * 100, 2)
+				# Clamp to guardrail
+				config["earn_percentage"] = max(1.0, min(15.0, config["earn_percentage"]))
+			else:
+				config["earn_type"] = "Percentage of Bill"
+				config["earn_percentage"] = LOYALTY_GUARDRAILS["earn_percentage"]["default"]
+
+		# ── 3. Sync legacy points_per_inr from earn_percentage ───────────────────
+		# earn_loyalty_coins() still uses points_per_inr internally, so we keep
+		# it in sync automatically. coin_value_in_inr stays platform-constant = 1.
+		if config.get("earn_type") == "Percentage of Bill":
+			config["points_per_inr"] = round(flt(config.get("earn_percentage", 5)) / 100, 4)
+		else:
+			# For flat mode, points_per_inr is not meaningful — set to 0 to prevent double-earning
+			config["points_per_inr"] = 0
+
+		config["coin_value_in_inr"] = 1  # Platform-constant, non-negotiable
+
+		# ── 4. Save the config document ──────────────────────────────────────────
 		if frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
 			prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
 			prog_doc = frappe.get_doc("Restaurant Loyalty Config", prog_name)
 			prog_doc.update(config)
 			prog_doc.save(ignore_permissions=True)
-			frappe.log_error("Restaurant Loyalty Config Updated", f"Updated {prog_doc.name}")
 		else:
 			config["doctype"] = "Restaurant Loyalty Config"
 			config["restaurant"] = restaurant
+			if not config.get("program_name"):
+				config["program_name"] = f"DineMatters Rewards - {restaurant}"
 			prog_doc = frappe.get_doc(config)
 			prog_doc.insert(ignore_permissions=True)
-			frappe.log_error("Restaurant Loyalty Config Created", f"Created {prog_doc.name}")
-		
-		# Update Restaurant enable_loyalty
+
+		# ── 5. Update master enable_loyalty toggle ───────────────────────────────
 		if enable_loyalty is not None:
-			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", 1 if enable_loyalty else 0)
-			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", 1 if enable_loyalty else 0)
-			
+			enabled = 1 if enable_loyalty else 0
+			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", enabled)
+			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
+
 		frappe.db.commit()
 		return {"success": True}
 	except Exception as e:

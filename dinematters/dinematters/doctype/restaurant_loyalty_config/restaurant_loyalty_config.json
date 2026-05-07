@@ -11,6 +11,11 @@
   "restaurant",
   "is_active",
   "section_break_earning",
+  "earn_type",
+  "earn_percentage",
+  "earn_flat_coins",
+  "min_order_to_earn",
+  "max_coins_per_order",
   "points_per_inr",
   "coin_value_in_inr",
   "min_redemption_threshold",
@@ -64,24 +69,60 @@
    "label": "Earning & Redemption"
   },
   {
-   "default": "1",
-   "description": "How many coins are earned per 1 \u20b9 spent",
-   "fieldname": "points_per_inr",
+   "default": "Percentage of Bill",
+   "description": "How earn cash are calculated — as a % of bill or a flat amount per order",
+   "fieldname": "earn_type",
+   "fieldtype": "Select",
+   "label": "Earn Mode",
+   "options": "Percentage of Bill\nFlat Cash per Order"
+  },
+  {
+   "default": "5",
+   "description": "% of bill awarded as cash. DineMatters limits: 1%\u201315%. Applies when Earn Mode is Percentage.",
+   "fieldname": "earn_percentage",
    "fieldtype": "Float",
-   "label": "Coins per \u20b9"
+   "label": "Earn Percentage (%)"
+  },
+  {
+   "default": "50",
+   "description": "Fixed cash awarded per qualifying order. DineMatters limits: 5\u2013500. Applies when Earn Mode is Flat.",
+   "fieldname": "earn_flat_coins",
+   "fieldtype": "Int",
+   "label": "Flat Cash per Order"
+  },
+  {
+   "default": "0",
+   "description": "Minimum order value (₹) required for customer to earn any cash. 0 means no minimum.",
+   "fieldname": "min_order_to_earn",
+   "fieldtype": "Float",
+   "label": "Minimum Order to Earn (₹)"
+  },
+  {
+   "default": "500",
+   "description": "Maximum cash a customer can earn in a single order. DineMatters limits: 10\u20131000.",
+   "fieldname": "max_coins_per_order",
+   "fieldtype": "Int",
+   "label": "Max Cash per Order"
   },
   {
    "default": "1",
-   "description": "Value of 1 coin in \u20b9 during redemption",
+   "description": "How much cash is earned per 1 \u20b9 spent (auto-computed from Earn Percentage, kept for compatibility)",
+   "fieldname": "points_per_inr",
+   "fieldtype": "Float",
+   "label": "Cash per \u20b9 (Legacy)"
+  },
+  {
+   "default": "1",
+   "description": "Value of 1 cash unit in \u20b9 during redemption",
    "fieldname": "coin_value_in_inr",
    "fieldtype": "Float",
-   "label": "Coin Value in \u20b9"
+   "label": "Cash Value in \u20b9"
   },
   {
    "default": "0",
    "fieldname": "min_redemption_threshold",
    "fieldtype": "Int",
-   "label": "Min Redemption Threshold (Coins)"
+   "label": "Min Redemption Threshold (Cash)"
   },
   {
    "default": "0",
@@ -91,17 +132,17 @@
   },
   {
    "default": "12",
-   "description": "Months after which earned coins expire",
+   "description": "Months after which earned cash expires",
    "fieldname": "loyalty_expiry_months",
    "fieldtype": "Int",
    "label": "Loyalty Expiry (Months)"
   },
   {
    "default": "Completed",
-   "description": "Points will be spendable only after order reaches this status",
+   "description": "Cash will be spendable only after order reaches this status",
    "fieldname": "earn_on_status",
    "fieldtype": "Select",
-   "label": "Settle Points on Status",
+   "label": "Settle Cash on Status",
    "options": "Confirmed\nCompleted\nBilled"
   },
   {
@@ -110,10 +151,10 @@
   },
   {
    "default": "20",
-   "description": "Coins rewarded to referrer for sharing",
+   "description": "Cash rewarded to referrer for sharing",
    "fieldname": "share_reward_coins",
    "fieldtype": "Int",
-   "label": "Share Reward Coins"
+   "label": "Share Reward Cash"
   },
   {
    "default": "2",
@@ -124,10 +165,10 @@
   },
   {
    "default": "2",
-   "description": "Coins rewarded for each unique open after the initial threshold",
+   "description": "Cash rewarded for each unique open after the initial threshold",
    "fieldname": "coins_per_unique_open",
    "fieldtype": "Int",
-   "label": "Coins per Unique Open"
+   "label": "Cash per Unique Open"
   },
   {
    "default": "5",
@@ -143,17 +184,17 @@
   },
   {
    "default": "100",
-   "description": "Coins rewarded to referrer when friend matches first order",
+   "description": "Cash rewarded to referrer when friend matches first order",
    "fieldname": "referral_order_reward_coins",
    "fieldtype": "Int",
-   "label": "Referral Order Reward Coins"
+   "label": "Referral Order Reward Cash"
   },
   {
    "default": "50",
-   "description": "Coins rewarded to new user on signup via referral",
+   "description": "Cash rewarded to new user on signup via referral",
    "fieldname": "new_user_welcome_reward_coins",
    "fieldtype": "Int",
-   "label": "New User Welcome Coins"
+   "label": "New User Welcome Cash"
   },
   {
    "fieldname": "column_break_welcome",
@@ -173,24 +214,24 @@
   },
   {
    "default": "500",
-   "description": "Lifetime coins earned to reach Silver tier",
+   "description": "Lifetime cash earned to reach Silver tier",
    "fieldname": "tier_silver_threshold",
    "fieldtype": "Int",
-   "label": "Silver Tier Threshold (Lifetime Coins)"
+   "label": "Silver Tier Threshold (Lifetime Cash)"
   },
   {
    "default": "2000",
-   "description": "Lifetime coins earned to reach Gold tier",
+   "description": "Lifetime cash earned to reach Gold tier",
    "fieldname": "tier_gold_threshold",
    "fieldtype": "Int",
-   "label": "Gold Tier Threshold (Lifetime Coins)"
+   "label": "Gold Tier Threshold (Lifetime Cash)"
   },
   {
    "default": "5000",
-   "description": "Lifetime coins earned to reach Platinum tier",
+   "description": "Lifetime cash earned to reach Platinum tier",
    "fieldname": "tier_platinum_threshold",
    "fieldtype": "Int",
-   "label": "Platinum Tier Threshold (Lifetime Coins)"
+   "label": "Platinum Tier Threshold (Lifetime Cash)"
   },
   {
    "fieldname": "section_break_birthday",
@@ -199,10 +240,10 @@
   },
   {
    "default": "100",
-   "description": "Coins gifted to customers on their birthday (only for customers with order history)",
+   "description": "Cash gifted to customers on their birthday (only for customers with order history)",
    "fieldname": "birthday_bonus_coins",
    "fieldtype": "Int",
-   "label": "Birthday Bonus Coins"
+   "label": "Birthday Bonus Cash"
   }
  ],
  "index_web_pages_for_search": 1,

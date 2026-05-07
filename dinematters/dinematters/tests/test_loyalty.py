@@ -148,8 +148,13 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         cleanup_restaurants_by_prefix(_PREFIX + "-ELC-")
         cls._res = f"{_PREFIX}-ELC-{frappe.generate_hash(length=6)}"
         make_restaurant(cls._res, plan="DIAMOND")
-        # points_per_inr=0.1 → 1 coin per ₹10 → ₹1000 order = 100 coins
-        make_loyalty_config(cls._res, points_per_inr=0.1, loyalty_expiry_months=12)
+        make_loyalty_config(
+            cls._res,
+            earn_type="Percentage of Bill",
+            earn_percentage=10.0,   # 10% → ₹1000 order = 100 coins
+            points_per_inr=0.1,     # legacy field kept in sync
+            loyalty_expiry_months=12
+        )
         cls._customer = make_customer(phone="9100000002", name="Test Earn Customer")
 
         from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
@@ -164,8 +169,13 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
     def setUp(self):
         _clear_loyalty_entries(self._customer.name, self._res)
 
+    def test_coins_calculated_from_percentage(self):
+        """₹1000 order at 10% earn_percentage = 100 coins."""
+        earned = self.earn(self._customer.name, self._res, 1000.0, reason="Order")
+        self.assertEqual(earned, 100)
+
     def test_coins_calculated_from_points_per_inr(self):
-        """₹1000 order × 0.1 points_per_inr = 100 coins."""
+        """Legacy fallback: ₹1000 × 0.1 points_per_inr = 100 coins (same result)."""
         earned = self.earn(self._customer.name, self._res, 1000.0, reason="Order")
         self.assertEqual(earned, 100)
 
@@ -1345,3 +1355,322 @@ class TestClaimReferralReward(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ─── 13. Dynamic Earn Rate (earn_type, guardrails) ────────────────────────────
+
+class TestDynamicEarnRate(unittest.TestCase):
+    """
+    Covers all new earn_type behaviour:
+    - Percentage of Bill mode
+    - Flat Coins per Order mode
+    - min_order_to_earn threshold
+    - max_coins_per_order cap
+    - Backward compat with legacy points_per_inr
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+        cleanup_restaurants_by_prefix(_PREFIX + "-DER-")
+        cls._customer = make_customer(phone="9100000020", name="Test Dynamic Earn")
+
+    @classmethod
+    def tearDownClass(cls):
+        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.commit()
+
+    def _make_res(self, suffix):
+        name = f"{_PREFIX}-DER-{suffix}-{frappe.generate_hash(length=4)}"
+        make_restaurant(name, plan="DIAMOND")
+        return name
+
+    def _clear(self, res):
+        frappe.db.delete("Restaurant Loyalty Entry", {
+            "customer": self._customer.name, "restaurant": res
+        })
+        frappe.db.commit()
+
+    def test_percentage_mode_correct_coins(self):
+        """10% earn_percentage on ₹500 order → 50 coins."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("PCT")
+        try:
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=10.0,
+                                points_per_inr=0.1, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 500.0)
+            self.assertEqual(earned, 50)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_percentage_mode_7_percent(self):
+        """7% earn_percentage on ₹1000 → 70 coins."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("PCT7")
+        try:
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=7.0,
+                                points_per_inr=0.07, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 1000.0)
+            self.assertEqual(earned, 70)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_flat_mode_gives_fixed_coins(self):
+        """Flat Coins mode: always gives 75 coins regardless of order size."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("FLAT")
+        try:
+            make_loyalty_config(res, earn_type="Flat Coins per Order", earn_flat_coins=75,
+                                points_per_inr=0, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 2000.0)
+            self.assertEqual(earned, 75)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_flat_mode_same_for_small_and_large_order(self):
+        """Flat mode must return same coins whether order is ₹100 or ₹10000."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("FLATEQ")
+        try:
+            make_loyalty_config(res, earn_type="Flat Coins per Order", earn_flat_coins=50,
+                                points_per_inr=0, max_coins_per_order=500)
+            earned_small = earn_loyalty_coins(self._customer.name, res, 100.0)
+            self._clear(res)
+            earned_large = earn_loyalty_coins(self._customer.name, res, 10000.0)
+            self.assertEqual(earned_small, 50)
+            self.assertEqual(earned_large, 50)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_min_order_to_earn_blocks_small_orders(self):
+        """Order below min_order_to_earn must yield 0 coins."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("MINORD")
+        try:
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=10.0,
+                                points_per_inr=0.1, min_order_to_earn=500, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 300.0)  # below ₹500 min
+            self.assertEqual(earned, 0)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_min_order_to_earn_allows_qualifying_orders(self):
+        """Order exactly at min_order_to_earn must earn coins."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("MINORD2")
+        try:
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=10.0,
+                                points_per_inr=0.1, min_order_to_earn=500, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 500.0)  # exactly at threshold
+            self.assertEqual(earned, 50)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_max_coins_per_order_cap_applied(self):
+        """Even with high earn_percentage, max_coins_per_order caps the result."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("MAXCAP")
+        try:
+            # 10% of ₹5000 = 500 coins, but cap is 200
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=10.0,
+                                points_per_inr=0.1, max_coins_per_order=200)
+            earned = earn_loyalty_coins(self._customer.name, res, 5000.0)
+            self.assertEqual(earned, 200)  # capped at 200, not 500
+        finally:
+            cleanup_restaurant(res)
+
+    def test_max_cap_not_applied_if_below_cap(self):
+        """Coins below max_coins_per_order are NOT reduced."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("NOCAP")
+        try:
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=5.0,
+                                points_per_inr=0.05, max_coins_per_order=500)
+            earned = earn_loyalty_coins(self._customer.name, res, 400.0)  # 5% of 400 = 20 coins
+            self.assertEqual(earned, 20)
+        finally:
+            cleanup_restaurant(res)
+
+    def test_legacy_points_per_inr_still_works(self):
+        """If earn_type is not set and earn_percentage=0 (legacy config), points_per_inr fallback must work."""
+        from dinematters.dinematters.utils.loyalty import earn_loyalty_coins
+        res = self._make_res("LEGACY")
+        try:
+            # Simulate old-style config: earn_type=None, earn_percentage=0, only points_per_inr
+            frappe.db.set_value("Restaurant", res, "enable_loyalty", 1)
+            frappe.db.delete("Restaurant Loyalty Config", {"restaurant": res})
+            frappe.db.commit()
+            doc = frappe.get_doc({
+                "doctype": "Restaurant Loyalty Config",
+                "restaurant": res,
+                "program_name": "Legacy Config",
+                "is_active": 1,
+                "points_per_inr": 0.1,    # old field
+                "earn_percentage": 0,      # explicitly zero to suppress schema default
+                "loyalty_expiry_months": 12,
+                "coin_value_in_inr": 1.0,
+                # earn_type intentionally omitted → defaults to "Percentage of Bill"
+            })
+            doc.insert(ignore_permissions=True)
+            frappe.db.commit()
+            earned = earn_loyalty_coins(self._customer.name, res, 1000.0)
+            # Fallback: earn_percentage=0 is falsy, so uses points_per_inr=0.1 → 1000 * 0.1 = 100 coins
+            self.assertEqual(earned, 100)
+        finally:
+            cleanup_restaurant(res)
+
+
+# ─── 14. Guardrail Validation Tests ──────────────────────────────────────────
+
+class TestGuardrailValidation(unittest.TestCase):
+    """
+    Tests for the validate_loyalty_config() function and the
+    update_loyalty_config() API endpoint guardrail enforcement.
+    """
+
+    def test_valid_config_passes_guardrails(self):
+        """A config within all bounds must return an empty errors list."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({
+            "earn_percentage": 7,
+            "earn_flat_coins": 50,
+            "min_order_to_earn": 200,
+            "max_coins_per_order": 300,
+            "min_billing_for_redemption": 100,
+            "min_redemption_threshold": 50,
+            "loyalty_expiry_months": 12,
+        })
+        self.assertEqual(errors, [])
+
+    def test_earn_percentage_above_max_rejected(self):
+        """earn_percentage=20 must fail (max is 15)."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({"earn_percentage": 20})
+        self.assertTrue(len(errors) > 0)
+        self.assertIn("earn_percentage", errors[0])
+
+    def test_earn_percentage_below_min_rejected(self):
+        """earn_percentage=0 must fail (min is 1)."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({"earn_percentage": 0})
+        self.assertTrue(len(errors) > 0)
+
+    def test_max_coins_per_order_above_ceiling_rejected(self):
+        """max_coins_per_order=5000 must fail (ceiling is 1000)."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({"max_coins_per_order": 5000})
+        self.assertTrue(len(errors) > 0)
+
+    def test_expiry_months_too_low_rejected(self):
+        """loyalty_expiry_months=1 must fail (min is 3)."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({"loyalty_expiry_months": 1})
+        self.assertTrue(len(errors) > 0)
+
+    def test_multiple_violations_returns_all_errors(self):
+        """Multiple out-of-range fields must all appear in errors list."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({
+            "earn_percentage": 99,    # too high
+            "earn_flat_coins": 1,     # too low
+            "loyalty_expiry_months": 0,  # too low
+        })
+        self.assertGreaterEqual(len(errors), 3)
+
+    def test_unknown_field_is_ignored(self):
+        """Fields not in GUARDRAILS must be silently ignored (not raise)."""
+        from dinematters.dinematters.api.loyalty import validate_loyalty_config
+        errors = validate_loyalty_config({"some_unknown_field": 99999, "earn_percentage": 5})
+        self.assertEqual(errors, [])
+
+    def test_update_config_rejects_guardrail_violation_via_api(self):
+        """update_loyalty_config API must return GUARDRAIL_VIOLATION when earn_percentage > 15."""
+        frappe.set_user("Administrator")
+        res = f"{_PREFIX}-GRD-{frappe.generate_hash(length=6)}"
+        make_restaurant(res, plan="DIAMOND")
+        make_loyalty_config(res)
+        try:
+            from dinematters.dinematters.api.loyalty import update_loyalty_config
+            result = update_loyalty_config(
+                restaurant_id=res,
+                config={"earn_type": "Percentage of Bill", "earn_percentage": 25},
+                enable_loyalty=True
+            )
+            self.assertFalse(result.get("success"))
+            self.assertEqual(result["error"]["code"], "GUARDRAIL_VIOLATION")
+        finally:
+            cleanup_restaurant(res)
+
+    def test_update_config_migrates_legacy_points_per_inr(self):
+        """Saving a config with only points_per_inr must auto-set earn_type=Percentage and earn_percentage."""
+        frappe.set_user("Administrator")
+        res = f"{_PREFIX}-MIG-{frappe.generate_hash(length=6)}"
+        make_restaurant(res, plan="DIAMOND")
+        make_loyalty_config(res, points_per_inr=0.1)
+        try:
+            from dinematters.dinematters.api.loyalty import update_loyalty_config
+            # Save without specifying earn_type — should auto-migrate
+            result = update_loyalty_config(
+                restaurant_id=res,
+                config={"points_per_inr": 0.08},  # legacy-style save
+                enable_loyalty=True
+            )
+            self.assertTrue(result.get("success"))
+            saved = frappe.db.get_value(
+                "Restaurant Loyalty Config",
+                {"restaurant": res},
+                ["earn_type", "earn_percentage", "points_per_inr"],
+                as_dict=True
+            )
+            self.assertEqual(saved.earn_type, "Percentage of Bill")
+            self.assertAlmostEqual(saved.earn_percentage, 8.0, places=1)  # 0.08 * 100 = 8%
+            self.assertAlmostEqual(saved.points_per_inr, 0.08, places=3)  # kept in sync
+        finally:
+            cleanup_restaurant(res)
+
+    def test_update_config_locks_coin_value_to_1(self):
+        """Attempting to set coin_value_in_inr != 1 must be silently overridden to 1."""
+        frappe.set_user("Administrator")
+        res = f"{_PREFIX}-COIN-{frappe.generate_hash(length=6)}"
+        make_restaurant(res, plan="DIAMOND")
+        make_loyalty_config(res)
+        try:
+            from dinematters.dinematters.api.loyalty import update_loyalty_config
+            result = update_loyalty_config(
+                restaurant_id=res,
+                config={"earn_type": "Percentage of Bill", "earn_percentage": 5, "coin_value_in_inr": 2},
+                enable_loyalty=True
+            )
+            self.assertTrue(result.get("success"))
+            saved_value = frappe.db.get_value(
+                "Restaurant Loyalty Config", {"restaurant": res}, "coin_value_in_inr"
+            )
+            self.assertEqual(saved_value, 1)  # must remain 1 regardless of input
+        finally:
+            cleanup_restaurant(res)
+
+    def test_flat_mode_saves_correctly(self):
+        """update_loyalty_config with Flat Coins mode must persist earn_flat_coins and zero points_per_inr."""
+        frappe.set_user("Administrator")
+        res = f"{_PREFIX}-FLAT-{frappe.generate_hash(length=6)}"
+        make_restaurant(res, plan="DIAMOND")
+        make_loyalty_config(res)
+        try:
+            from dinematters.dinematters.api.loyalty import update_loyalty_config
+            result = update_loyalty_config(
+                restaurant_id=res,
+                config={"earn_type": "Flat Coins per Order", "earn_flat_coins": 75},
+                enable_loyalty=True
+            )
+            self.assertTrue(result.get("success"))
+            saved = frappe.db.get_value(
+                "Restaurant Loyalty Config",
+                {"restaurant": res},
+                ["earn_type", "earn_flat_coins", "points_per_inr"],
+                as_dict=True
+            )
+            self.assertEqual(saved.earn_type, "Flat Coins per Order")
+            self.assertEqual(saved.earn_flat_coins, 75)
+            self.assertEqual(saved.points_per_inr, 0)  # zeroed out in flat mode
+        finally:
+            cleanup_restaurant(res)

@@ -124,7 +124,7 @@ export default function CustomerInsights() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Customer Insights</h1>
           </div>
           <p className="text-muted-foreground mt-2">
-            View customer points, history, and manually reward your loyal customers.
+            View customer cash, history, and manually reward your loyal customers.
           </p>
         </div>
       </div>
@@ -155,7 +155,7 @@ export default function CustomerInsights() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Birthday</TableHead>
-                  <TableHead>Points Balance</TableHead>
+                  <TableHead>Cash Balance</TableHead>
                   <TableHead>Referral Opens</TableHead>
                   <TableHead className="w-[120px]">Cycle Rewards</TableHead>
                   <TableHead>Last Active</TableHead>
@@ -181,7 +181,7 @@ export default function CustomerInsights() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={customer.balance > 0 ? "default" : "secondary"} className="gap-1">
-                          {customer.balance} Points
+                          {customer.balance} Cash
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -226,7 +226,7 @@ export default function CustomerInsights() {
                             }}
                           >
                             <PlusCircle className="w-3.5 h-3.5" />
-                            Give Points
+                            Give Cash
                           </Button>
                           <Button
                             variant="outline"
@@ -256,17 +256,17 @@ export default function CustomerInsights() {
       <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{adjustType === 'Earn' ? 'Give Points' : 'Deduct Points'}</DialogTitle>
+            <DialogTitle>{adjustType === 'Earn' ? 'Give Cash' : 'Deduct Cash'}</DialogTitle>
             <DialogDescription>
               {adjustType === 'Earn'
-                ? `Reward points to ${selectedCustomer?.name}.`
-                : `Manually deduct points from ${selectedCustomer?.name}.`
+                ? `Reward cash to ${selectedCustomer?.name}.`
+                : `Manually deduct cash from ${selectedCustomer?.name}.`
               }
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="amount">Number of Points</Label>
+              <Label htmlFor="amount">Amount of Cash</Label>
               <NumberInput
                 id="amount"
 
@@ -292,7 +292,7 @@ export default function CustomerInsights() {
               disabled={adjusting || !adjustAmount}
               variant={adjustType === 'Redeem' ? 'destructive' : 'default'}
             >
-              {adjusting ? 'Processing...' : (adjustType === 'Earn' ? 'Add Points' : 'Deduct Points')}
+              {adjusting ? 'Processing...' : (adjustType === 'Earn' ? 'Add Cash' : 'Deduct Cash')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -307,7 +307,7 @@ export default function CustomerInsights() {
               Transaction History
             </DialogTitle>
             <DialogDescription>
-              Detailed loyalty point logs for {selectedCustomer?.name}
+              Detailed loyalty cash logs for {selectedCustomer?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -318,7 +318,7 @@ export default function CustomerInsights() {
                   <TableRow>
                     <TableHead className="text-[11px] uppercase tracking-wider font-bold">Date</TableHead>
                     <TableHead className="text-[11px] uppercase tracking-wider font-bold">Type</TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold">Points</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-bold">Cash</TableHead>
                     <TableHead className="text-[11px] uppercase tracking-wider font-bold">Reason</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -54,9 +54,10 @@ interface OrderDetailsDialogProps {
   orderId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  startInEditMode?: boolean
 }
 
-export function OrderDetailsDialog({ orderId, open, onOpenChange }: OrderDetailsDialogProps) {
+export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMode }: OrderDetailsDialogProps) {
   const { formatAmount, formatAmountNoDecimals } = useCurrency()
   const [copied, setCopied] = useState(false)
   const { print } = usePrint()
@@ -149,16 +150,21 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange }: OrderDetails
 
   const handleStartEdit = () => {
     if (!order) return
-    const items = order.order_items.map((item: any) => ({
-      dishId: item.product,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unitPrice: item.unit_price,
-      customizations: parseCustomizations(item.customizations)
+    setIsEditing(true)
+    const items = (order.order_items || []).map((i: any) => ({
+      ...i,
+      dishId: i.product,
+      product_name: i.product_name,
+      customizations: parseCustomizations(i.customizations)
     }))
     setEditItems(items)
-    setIsEditing(true)
   }
+
+  useEffect(() => {
+    if (open && startInEditMode && order) {
+      handleStartEdit()
+    }
+  }, [open, startInEditMode, !!order])
 
   const handleCancelEdit = () => {
     setIsEditing(false)

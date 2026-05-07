@@ -87,7 +87,14 @@ def make_loyalty_config(restaurant, **kwargs):
     defaults = {
         "program_name": f"Test Loyalty – {restaurant}",
         "is_active": 1,
-        "points_per_inr": 0.1,        # 1 coin per ₹10 spent
+        # New dynamic earn rate fields
+        "earn_type": "Percentage of Bill",
+        "earn_percentage": 10.0,       # 10% of bill
+        "earn_flat_coins": 50,
+        "min_order_to_earn": 0,
+        "max_coins_per_order": 500,
+        # Legacy field — kept in sync by the API, set manually here for tests
+        "points_per_inr": 0.1,
         "loyalty_expiry_months": 12,
         "coin_value_in_inr": 1.0,
         "earn_on_status": "Completed",
