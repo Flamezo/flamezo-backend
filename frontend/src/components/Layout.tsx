@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { SuspendedOverlay } from './SuspendedOverlay'
 import { normalizePhone } from '@/utils/otpStorage'
+import { getFeatureAccessStatus, GOLD_ONLY_FEATURES } from '@/utils/featureAccess'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -54,7 +55,7 @@ function UserProfileDropdown() {
   // Redirect to ERPNext/Frappe site (e.g. http://localhost:8000/)
   const siteOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000'
   const deskUrl = `${siteOrigin}/app`
-  
+
   // Check if main admin (or you could check boot.user.roles if desired)
   const isMainAdmin = currentUser === 'Administrator'
 
@@ -75,7 +76,7 @@ function UserProfileDropdown() {
             My Account
           </Link>
         </DropdownMenuItem>
-        
+
         {isMainAdmin && (
           <DropdownMenuItem asChild>
             <a href={deskUrl} className="flex items-center gap-2 cursor-pointer">
@@ -112,10 +113,6 @@ type NavGroup = {
 type NavItem = NavLink | NavGroup
 
 // GOLD-only: full ordering system, CRM, marketing, POS
-const GOLD_ONLY_FEATURES = ['ordering', 'loyalty_insights', 'coupons', 'pos_integration', 'customer', 'customer_pay_and_usage', 'marketing_studio', 'google_growth_sync', 'google_growth_ai']
-// SILVER gets: WhatsApp orders, basic loyalty settings, order settings
-const SILVER_FEATURES = ['whatsapp_orders', 'loyalty', 'order_settings']
-const GOLD_FEATURES = ['analytics', 'ai_recommendations', 'custom_branding', 'table_booking', 'games', 'events', 'offers', 'experience_lounge', 'video_upload', 'branding', 'google_growth']
 
 const navigation: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -212,7 +209,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, isSilver, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
@@ -289,23 +286,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // Helper to determine feature locking and required plan
   const getFeatureStatus = (feature?: string) => {
-    if (!feature) return { isLocked: false, requiredTier: null }
-    if (isGold) return { isLocked: false, requiredTier: null }
-
-    // Silver has explicit access to these features
-    if (SILVER_FEATURES.includes(feature)) {
-      return { isLocked: false, requiredTier: null }
-    }
-
-    if (GOLD_ONLY_FEATURES.includes(feature)) {
-      return { isLocked: true, requiredTier: 'GOLD' }
-    }
-
-    if (GOLD_FEATURES.includes(feature)) {
-      return { isLocked: !isGold, requiredTier: 'GOLD' }
-    }
-
-    return { isLocked: false, requiredTier: null }
+    return getFeatureAccessStatus(planType, feature)
   }
 
   const handleLockedClick = (e: React.MouseEvent, name: string, status: { isLocked: boolean; requiredTier: string | null }) => {
@@ -344,8 +325,11 @@ export default function Layout({ children }: LayoutProps) {
     // Wait for currentUser to be loaded
     if (!currentUser) return;
 
-    // Simple check: if user is Administrator, set admin to true
-    if (currentUser === 'Administrator') {
+    // Check for Administrator or DineMatters Supervisor role
+    const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+
+    if (currentUser === 'Administrator' || isSupervisor) {
       setIsSystemAdmin(true)
     } else {
       setIsSystemAdmin(false)
@@ -465,8 +449,8 @@ export default function Layout({ children }: LayoutProps) {
                 // Fallback to manual wa.me if auto-send failed or wasn't attempted
                 window.open(`https://wa.me/${phone}?text=${waText}`, '_blank', 'noopener,noreferrer')
                 toast.success(`WhatsApp opened!`, {
-                  description: whatsapp_error 
-                    ? `Auto-send failed (${whatsapp_error}). Manual link ready.` 
+                  description: whatsapp_error
+                    ? `Auto-send failed (${whatsapp_error}). Manual link ready.`
                     : `Payment link for ₹${amount.toLocaleString()} (${paymentTier}) ready to send.`
                 })
               } else {
@@ -770,7 +754,7 @@ export default function Layout({ children }: LayoutProps) {
                             <div className="border-t border-border/50 mx-1 mb-1" />
                           </>
                         )}
-                        
+
                         <SelectItem value="__search__" className="text-muted-foreground italic focus:bg-muted/5 transition-colors">
                           <div className="flex items-center gap-2 w-full py-0">
                             <Search className="h-4 w-4 flex-shrink-0" />
@@ -779,7 +763,7 @@ export default function Layout({ children }: LayoutProps) {
                         </SelectItem>
 
                         <div className="border-t border-border/40 my-1" />
-                        
+
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                           {restaurants.map((restaurant) => (
                             <SelectItem key={restaurant.name} value={restaurant.name} className="py-1.5 focus:bg-sidebar-accent">
@@ -879,8 +863,8 @@ export default function Layout({ children }: LayoutProps) {
                 if (item.adminOnly && !isAdmin) {
                   return false
                 }
-                // WhatsApp Orders visibility: only GOLD (Active) and SILVER (Locked), hidden for GOLD
-                if (item.feature === 'whatsapp_orders' && isGold) {
+                // WhatsApp Orders visibility: only GOLD and SILVER
+                if (item.feature === 'whatsapp_orders' && !isGold && !isSilver) {
                   return false
                 }
                 if (item.type === 'group') {
@@ -1429,7 +1413,7 @@ export default function Layout({ children }: LayoutProps) {
               >
                 <Menu className="h-5 w-5 text-foreground" />
               </button>
-              
+
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
                 {/* Today's Revenue - Mobile */}
                 <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap">
@@ -1490,84 +1474,84 @@ export default function Layout({ children }: LayoutProps) {
         <main className="p-3 sm:p-4 md:p-6 bg-background min-h-[calc(100vh-4.5rem)] overflow-x-hidden relative">
           <div className="max-w-7xl mx-auto h-full">
             {(!isActive && location.pathname !== '/account') ? (
-               <div className="flex flex-col items-center justify-center min-h-[60vh] h-full text-center space-y-6">
-                 {/* Billing Notification Banner inside deactivation overlay */}
-                 {billingInfo && planType === 'GOLD' && !billingInfo.mandate_active && (
-                   <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
-                     <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white">
-                       <div className="flex items-center gap-2 w-full">
-                         <div className="flex items-center gap-2 flex-grow overflow-hidden">
-                           <div className="p-1 rounded-md bg-white/20 shrink-0">
-                             <AlertCircle className="h-4 w-4" />
-                           </div>
-                           <span className="truncate">{planType} requires active mandate. Set up Autopay now for seamless operation.</span>
-                         </div>
-                         <button
-                           onClick={() => navigate('/autopay-setup')}
-                           className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
-                         >
-                           Set Up
-                         </button>
-                       </div>
-                     </div>
-                   </div>
-                 )}
-                 {billingInfo && billingInfo.billing_status === 'suspended' && (
-                   <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
-                     <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white">
-                       <div className="flex items-center gap-2 w-full">
-                         <div className="flex items-center gap-2 flex-grow overflow-hidden">
-                           <div className="p-1 rounded-md bg-white/20 shrink-0">
-                             <ShieldAlert className="h-4 w-4" />
-                           </div>
-                           <span className="truncate">Account suspended due to security reason. Please contact support to reactivate.</span>
-                         </div>
-                         <button
-                           onClick={() => navigate('/autopay-setup?buy=true')}
-                           className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
-                         >
-                           Recharge Now
-                         </button>
-                       </div>
-                     </div>
-                   </div>
-                 )}
-                 {billingInfo && billingInfo.coins_balance < 0 && (
-                   <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
-                     <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white">
-                       <div className="flex items-center gap-2 w-full">
-                         <div className="flex items-center gap-2 flex-grow overflow-hidden">
-                           <div className="p-1 rounded-md bg-white/20 shrink-0">
-                             <ShieldAlert className="h-4 w-4" />
-                           </div>
-                           <span className="truncate">Account at risk due to negative balance (₹{billingInfo.coins_balance.toLocaleString()}). Recharge immediately.</span>
-                         </div>
-                         <button
-                           onClick={() => navigate('/autopay-setup?buy=true')}
-                           className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
-                         >
-                           Pay Now
-                         </button>
-                       </div>
-                     </div>
-                   </div>
-                 )}
-                 <div className="bg-background max-w-lg p-10 rounded-2xl shadow-sm border border-border flex flex-col items-center">
-                    <ShieldAlert className="h-16 w-16 text-rose-500 mb-6" />
-                    <h1 className="text-2xl font-bold mb-3">Restaurant Deactivated</h1>
-                    <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                      Your Dinematters is deactivated due to security reason (something like production application) for that restaurant where nothing is accessible.
-                    </p>
-                    <p className="text-xs text-muted-foreground/60">
-                      Please select another active restaurant from the top header or visit your <Link to="/account" className="text-primary underline">Account</Link> tab.
-                    </p>
-                 </div>
-               </div>
+              <div className="flex flex-col items-center justify-center min-h-[60vh] h-full text-center space-y-6">
+                {/* Billing Notification Banner inside deactivation overlay */}
+                {billingInfo && planType === 'GOLD' && !billingInfo.mandate_active && (
+                  <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
+                    <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white">
+                      <div className="flex items-center gap-2 w-full">
+                        <div className="flex items-center gap-2 flex-grow overflow-hidden">
+                          <div className="p-1 rounded-md bg-white/20 shrink-0">
+                            <AlertCircle className="h-4 w-4" />
+                          </div>
+                          <span className="truncate">{planType} requires active mandate. Set up Autopay now for seamless operation.</span>
+                        </div>
+                        <button
+                          onClick={() => navigate('/autopay-setup')}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
+                        >
+                          Set Up
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {billingInfo && billingInfo.billing_status === 'suspended' && (
+                  <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
+                    <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white">
+                      <div className="flex items-center gap-2 w-full">
+                        <div className="flex items-center gap-2 flex-grow overflow-hidden">
+                          <div className="p-1 rounded-md bg-white/20 shrink-0">
+                            <ShieldAlert className="h-4 w-4" />
+                          </div>
+                          <span className="truncate">Account suspended due to security reason. Please contact support to reactivate.</span>
+                        </div>
+                        <button
+                          onClick={() => navigate('/autopay-setup?buy=true')}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
+                        >
+                          Recharge Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {billingInfo && billingInfo.coins_balance < 0 && (
+                  <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
+                    <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white">
+                      <div className="flex items-center gap-2 w-full">
+                        <div className="flex items-center gap-2 flex-grow overflow-hidden">
+                          <div className="p-1 rounded-md bg-white/20 shrink-0">
+                            <ShieldAlert className="h-4 w-4" />
+                          </div>
+                          <span className="truncate">Account at risk due to negative balance (₹{billingInfo.coins_balance.toLocaleString()}). Recharge immediately.</span>
+                        </div>
+                        <button
+                          onClick={() => navigate('/autopay-setup?buy=true')}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="bg-background max-w-lg p-10 rounded-2xl shadow-sm border border-border flex flex-col items-center">
+                  <ShieldAlert className="h-16 w-16 text-rose-500 mb-6" />
+                  <h1 className="text-2xl font-bold mb-3">Restaurant Deactivated</h1>
+                  <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                    Your Dinematters is deactivated due to security reason (something like production application) for that restaurant where nothing is accessible.
+                  </p>
+                  <p className="text-xs text-muted-foreground/60">
+                    Please select another active restaurant from the top header or visit your <Link to="/account" className="text-primary underline">Account</Link> tab.
+                  </p>
+                </div>
+              </div>
             ) : (
-               <>
-                 {location.pathname !== '/account' && location.pathname !== '/menu' && <Breadcrumb />}
-                 {children || <Outlet />}
-               </>
+              <>
+                {location.pathname !== '/account' && location.pathname !== '/menu' && <Breadcrumb />}
+                {children || <Outlet />}
+              </>
             )}
           </div>
         </main>
@@ -1583,66 +1567,66 @@ export default function Layout({ children }: LayoutProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="p-4 pt-0">
-             <div className="relative mb-4">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-               <Input 
-                 placeholder="Type restaurant name..." 
-                 className="pl-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary h-11"
-                 autoFocus
-                 value={restaurantSearchQuery}
-                 onChange={(e) => setRestaurantSearchQuery(e.target.value)}
-               />
-             </div>
-             
-             <div className="max-h-[350px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-               {restaurants
-                 .filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase()))
-                 .map((restaurant) => {
-                   const isSelected = selectedRestaurant === restaurant.name
-                   return (
-                     <button
-                       key={restaurant.name}
-                       className={cn(
-                         "w-full flex items-center justify-between p-3 rounded-xl transition-all group",
-                         isSelected 
-                           ? "bg-primary/10 border border-primary/20" 
-                           : "hover:bg-muted border border-transparent"
-                       )}
-                       onClick={() => {
-                         handleRestaurantChange(restaurant.name)
-                         setShowRestaurantSearch(false)
-                       }}
-                     >
-                       <div className="flex items-center gap-3">
-                         <div className={cn(
-                            "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                            isSelected ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors"
-                         )}>
-                            <Store className="h-5 w-5" />
-                         </div>
-                         <div className="text-left">
-                           <p className={cn("text-sm font-bold", isSelected ? "text-primary" : "text-foreground")}>
-                             {restaurant.restaurant_name}
-                           </p>
-                           <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">#{restaurant.name.slice(-6)}</p>
-                         </div>
-                       </div>
-                       {isSelected && (
-                         <CheckCircle2 className="h-5 w-5 text-primary" />
-                       )}
-                     </button>
-                   )
-                 })}
-               {restaurants.filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())).length === 0 && (
-                 <div className="py-12 text-center">
-                   <Store className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                   <p className="text-sm text-muted-foreground">No restaurants found matching "{restaurantSearchQuery}"</p>
-                 </div>
-               )}
-             </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Type restaurant name..."
+                className="pl-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary h-11"
+                autoFocus
+                value={restaurantSearchQuery}
+                onChange={(e) => setRestaurantSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="max-h-[350px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+              {restaurants
+                .filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase()))
+                .map((restaurant) => {
+                  const isSelected = selectedRestaurant === restaurant.name
+                  return (
+                    <button
+                      key={restaurant.name}
+                      className={cn(
+                        "w-full flex items-center justify-between p-3 rounded-xl transition-all group",
+                        isSelected
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted border border-transparent"
+                      )}
+                      onClick={() => {
+                        handleRestaurantChange(restaurant.name)
+                        setShowRestaurantSearch(false)
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                          isSelected ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors"
+                        )}>
+                          <Store className="h-5 w-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className={cn("text-sm font-bold", isSelected ? "text-primary" : "text-foreground")}>
+                            {restaurant.restaurant_name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">#{restaurant.name.slice(-6)}</p>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                      )}
+                    </button>
+                  )
+                })}
+              {restaurants.filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())).length === 0 && (
+                <div className="py-12 text-center">
+                  <Store className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No restaurants found matching "{restaurantSearchQuery}"</p>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter className="bg-muted/30 p-4 border-t border-border">
-             <Button variant="ghost" onClick={() => setShowRestaurantSearch(false)} className="rounded-xl">Close</Button>
+            <Button variant="ghost" onClick={() => setShowRestaurantSearch(false)} className="rounded-xl">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1907,8 +1891,8 @@ export default function Layout({ children }: LayoutProps) {
                 className="h-9 font-mono text-xs bg-muted/50"
               />
             </div>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               className="px-3"
               onClick={async () => {
                 const success = await copyToClipboard(linkToCopy)

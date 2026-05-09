@@ -44,8 +44,12 @@ class MonthlyBillingLedger(Document):
                 base_commission = max(min_amt_paise, calculated_fee)
                 self.notes = f"GOLD Plan Commission: ₹{calculated_fee/100:.2f} (Floor: ₹{monthly_min:.2f})"
             
-            # 2. GST Compliance (18% SaaS tax)
-            tax_rate = float(self.tax_percent or 18.0)
+            # 2. GST Compliance (Global Setting)
+            settings = frappe.get_single("Dinematters Settings")
+            charge_gst = bool(settings.charge_gst)
+            default_rate = float(settings.gst_percent or 18.0) if charge_gst else 0.0
+            
+            tax_rate = float(self.tax_percent if self.tax_percent is not None else default_rate)
             gst_amount = int(math.floor(base_commission * (tax_rate / 100.0)))
             
             # 3. Final Amount

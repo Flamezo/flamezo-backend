@@ -254,7 +254,7 @@ def get_restaurant_config(restaurant_id):
 				"enableOffers": bool(config.get("enable_offers")),
 				"enableCoupons": bool(config.get("enable_coupons")),
 				"enableExperienceLounge": bool(config.get("enable_experience_lounge")),
-				"verifyMyUser": bool(config.get("verify_my_user")),
+				"verifyMyUser": bool(config.get("verify_my_user")) if plan_type == "GOLD" else False,
 				"enableLoyalty": bool(restaurant_doc.get("enable_loyalty")),
 				"defaultDeliveryFee": flt(restaurant_doc.get("default_delivery_fee", 0)),
 				"googleMapsApiKey": frappe.conf.get("google_maps_api_key") or frappe.db.get_single_value("Dinematters Settings", "google_maps_api_key"),
@@ -312,7 +312,8 @@ def get_restaurant_config(restaurant_id):
 					"google_growth": plan_type == "GOLD",
 					"marketing_studio": plan_type == "GOLD",
 					"videoUpload": plan_type == "GOLD",
-					"analytics": plan_type == "GOLD",
+					"analytics": plan_type in ["SILVER", "GOLD"],
+					"customer": plan_type in ["SILVER", "GOLD"],
 					"aiRecommendations": plan_type == "GOLD",
 					"customBranding": plan_type == "GOLD",
 				}

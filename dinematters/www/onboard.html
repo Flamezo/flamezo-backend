@@ -437,33 +437,26 @@
             <li class="step-item" id="step-nav-2">
                 <div class="step-number">2</div>
                 <div class="step-label">
-                    <span class="step-title">Legal & Ops</span>
-                    <span class="step-desc">Tax & Banking</span>
+                    <span class="step-title">Store Setup</span>
+                    <span class="step-desc">Hours & Theme</span>
                 </div>
             </li>
             <li class="step-item" id="step-nav-3">
                 <div class="step-number">3</div>
                 <div class="step-label">
-                    <span class="step-title">Store Setup</span>
-                    <span class="step-desc">Features & Theme</span>
+                    <span class="step-title">Location</span>
+                    <span class="step-desc">Address & Region</span>
                 </div>
             </li>
             <li class="step-item" id="step-nav-4">
                 <div class="step-number">4</div>
                 <div class="step-label">
-                    <span class="step-title">Location</span>
-                    <span class="step-desc">Address & Region</span>
-                </div>
-            </li>
-            <li class="step-item" id="step-nav-5">
-                <div class="step-number">5</div>
-                <div class="step-label">
                     <span class="step-title">Branding</span>
                     <span class="step-desc">Logo & Socials</span>
                 </div>
             </li>
-            <li class="step-item" id="step-nav-6">
-                <div class="step-number">6</div>
+            <li class="step-item" id="step-nav-5">
+                <div class="step-number">5</div>
                 <div class="step-label">
                     <span class="step-title">Menu</span>
                     <span class="step-desc">Photos & Links</span>
@@ -509,44 +502,8 @@
                 </div>
             </div>
 
-            <!-- Step 2: Legal & Ops -->
+            <!-- Step 2: Store Setup -->
             <div class="step-content" id="step-2">
-                <div class="section-header">
-                    <h1>Legal & Operations</h1>
-                    <p>Details needed for setting up your business profile.</p>
-                </div>
-
-                <div class="row">
-                    <div class="form-group">
-                        <label>FSSAI Number</label>
-                        <input type="text" id="fssai_number" placeholder="Enter Food License Number">
-                    </div>
-                    <div class="form-group">
-                        <label>GST Number</label>
-                        <input type="text" id="gst_number" placeholder="GSTIN">
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="form-group">
-                        <label>Tax Rate (%)</label>
-                        <select id="tax_rate">
-                            <option value="5.0">5% GST (Standard)</option>
-                            <option value="12.0">12% GST</option>
-                            <option value="18.0">18% GST</option>
-                            <option value="0.0">No Tax</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>PAN Number</label>
-                        <input type="text" id="pan_number" placeholder="Business/Owner PAN">
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Step 3: Store Setup -->
-            <div class="step-content" id="step-3">
                 <div class="section-header">
                     <h1>Store Setup</h1>
                     <p>Customize how your digital store behaves.</p>
@@ -572,89 +529,20 @@
                 <div class="form-group">
                     <label>Operating Hours</label>
                     <div class="row">
-                        <input type="time" id="opening_time">
-                        <input type="time" id="closing_time">
-                    </div>
-                </div>
-
-                <div class="section-header" style="margin-top: 30px;">
-                    <h3>Enabled Features</h3>
-                    <p>Select which features to enable for your restaurant.</p>
-                </div>
-
-                <style>
-                    .checkbox-group {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 15px;
-                        margin-top: 15px;
-                    }
-                    .checkbox-item {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        padding: 12px;
-                        border: 1px solid var(--border);
-                        border-radius: 8px;
-                        cursor: pointer;
-                        transition: background 0.2s;
-                    }
-                    .checkbox-item:hover {
-                        background: var(--bg);
-                    }
-                    .checkbox-item input {
-                        width: 18px;
-                        height: 18px;
-                        margin: 0;
-                    }
-                    .checkbox-item label {
-                        margin: 0;
-                        cursor: pointer;
-                        font-size: 14px;
-                        font-weight: 500;
-                    }
-                </style>
-
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_table_booking" checked>
-                        <label for="enable_table_booking">Table Booking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_banquet_booking" checked>
-                        <label for="enable_banquet_booking">Banquet Booking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_events" checked>
-                        <label for="enable_events">Events</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_offers" checked>
-                        <label for="enable_offers">Offers</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_experience_lounge" checked>
-                        <label for="enable_experience_lounge">Experience Lounge</label>
-                    </div>
-                </div>
-
-                <div class="section-header" style="margin-top: 30px;">
-                    <h3>Delivery Partners</h3>
-                </div>
-                <div class="row">
-                    <div class="form-group">
-                        <label>Swiggy Link</label>
-                        <input type="url" id="swiggy_link" placeholder="https://swiggy.com/...">
-                    </div>
-                    <div class="form-group">
-                        <label>Zomato Link</label>
-                        <input type="url" id="zomato_link" placeholder="https://zomato.com/...">
+                        <div class="form-group">
+                            <label style="font-size: 11px; color: var(--text-muted);">Opening Time</label>
+                            <input type="time" id="opening_time">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 11px; color: var(--text-muted);">Closing Time</label>
+                            <input type="time" id="closing_time">
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Step 4: Location -->
-            <div class="step-content" id="step-4">
+            <!-- Step 3: Location -->
+            <div class="step-content" id="step-3">
                 <div class="section-header">
                     <h1>Location</h1>
                     <p>Where is your restaurant located?</p>
@@ -687,8 +575,8 @@
                 </div>
             </div>
 
-            <!-- Step 5: Branding -->
-            <div class="step-content" id="step-5">
+            <!-- Step 4: Branding -->
+            <div class="step-content" id="step-4">
                 <div class="section-header">
                     <h1>Branding & Social</h1>
                     <p>Help us make your store look amazing.</p>
@@ -739,8 +627,8 @@
                 </div>
             </div>
 
-            <!-- Step 6: Menu -->
-            <div class="step-content" id="step-6">
+            <!-- Step 5: Menu -->
+            <div class="step-content" id="step-5">
                 <div class="section-header">
                     <h1>Menu Details</h1>
                     <p>The most important part! Upload your menu photos.</p>
@@ -783,7 +671,7 @@
 
     <script>
         let currentStep = 1;
-        const totalSteps = 6;
+        const totalSteps = 5;
         let onboardingToken = new URLSearchParams(window.location.search).get('token');
         let formData = {
             menu_photos: [],
@@ -814,21 +702,13 @@
                     if (data.owner_phone) document.getElementById('owner_phone').value = data.owner_phone;
                     if (data.whatsapp_number) document.getElementById('whatsapp_number').value = data.whatsapp_number;
 
-                    // Step 2: Legal & Ops
-                    if (data.fssai_number) document.getElementById('fssai_number').value = data.fssai_number;
-                    if (data.gst_number) document.getElementById('gst_number').value = data.gst_number;
-                    if (data.tax_rate) document.getElementById('tax_rate').value = data.tax_rate;
-                    if (data.pan_number) document.getElementById('pan_number').value = data.pan_number;
-
-                    // Step 3: Store Setup
+                    // Step 2: Store Setup
                     if (data.default_theme) document.getElementById('default_theme').value = data.default_theme;
                     if (data.menu_layout) document.getElementById('menu_layout').value = data.menu_layout;
                     if (data.opening_time) document.getElementById('opening_time').value = data.opening_time;
                     if (data.closing_time) document.getElementById('closing_time').value = data.closing_time;
-                    if (data.swiggy_link) document.getElementById('swiggy_link').value = data.swiggy_link;
-                    if (data.zomato_link) document.getElementById('zomato_link').value = data.zomato_link;
 
-                    const toggles = ['enable_table_booking', 'enable_banquet_booking', 'enable_events', 'enable_offers', 'enable_experience_lounge'];
+                    const toggles = [];
                     toggles.forEach(t => {
                         if (data[t] !== undefined) document.getElementById(t).checked = !!data[t];
                     });
@@ -890,8 +770,7 @@
                 'owner_name', 'owner_email', 'owner_phone', 'whatsapp_number', 
                 'address', 'city', 'state', 'zip_code', 'google_map_url',
                 'tagline', 'subtitle', 'description', 'instagram_link', 'facebook_link', 'website_link', 'menu_link',
-                'fssai_number', 'gst_number', 'tax_rate', 'pan_number',
-                'opening_time', 'closing_time', 'swiggy_link', 'zomato_link',
+                'opening_time', 'closing_time',
                 'default_theme', 'menu_layout'
             ];
             
@@ -901,7 +780,7 @@
             });
 
             // Handle checkboxes
-            const toggles = ['enable_table_booking', 'enable_banquet_booking', 'enable_events', 'enable_offers', 'enable_experience_lounge'];
+            const toggles = [];
             toggles.forEach(t => {
                 const el = document.getElementById(t);
                 if (el) formData[t] = el.checked ? 1 : 0;

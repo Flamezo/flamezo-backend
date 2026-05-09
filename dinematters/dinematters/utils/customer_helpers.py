@@ -297,6 +297,9 @@ def revoke_customer_session(session_token: str) -> bool:
 
 
 def require_verified_phone(restaurant_id: str, phone: str) -> bool:
+	plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
+	if plan_type != "GOLD":
+		return True
 	config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
 	if not config:
 		return True
@@ -307,3 +310,24 @@ def get_platform_customer_from_user(user_email: str):
 	if not user_email or user_email == "Guest":
 		return None
 	return frappe.db.get_value("Customer", {"email": user_email}, "name")
+
+
+def mask_name(name):
+	"""Mask name for SILVER restaurants: 'Priya Sharma' -> 'Pr*** Sh***'"""
+	if not name: return "***"
+	parts = str(name).split()
+	masked_parts = []
+	for p in parts:
+		if len(p) <= 2:
+			masked_parts.append(p[0] + "*" * (len(p) - 1) if p else "*")
+		else:
+			masked_parts.append(p[:2] + "*" * (len(p) - 2))
+	return " ".join(masked_parts)
+
+
+def mask_phone(phone):
+	"""Mask phone: '9876543210' -> '98********'"""
+	if not phone: return "**********"
+	phone_str = str(phone)
+	if len(phone_str) < 2: return "**********"
+	return f"{phone_str[:2]}********"

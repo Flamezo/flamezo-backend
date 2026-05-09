@@ -10,7 +10,9 @@ from dinematters.dinematters.utils.customer_helpers import (
 	normalize_phone,
 	get_or_create_customer,
 	get_customer_token,
-	validate_customer_session
+	validate_customer_session,
+	mask_name,
+	mask_phone
 )
 from dinematters.dinematters.utils.platform_config import (
 	PLATFORM_LOYALTY,
@@ -579,9 +581,10 @@ def process_referral_welcome_bonus(customer, restaurant, referral_id):
 			return False
 			
 		# 3. Get loyalty config
-		loyalty_prog = frappe.get_doc("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1})
-		if not loyalty_prog:
+		lp_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name")
+		if not lp_name:
 			return False
+		loyalty_prog = frappe.get_doc("Restaurant Loyalty Config", lp_name)
 			
 		# 4. Award the Welcome Bonus
 		coins = loyalty_prog.new_user_welcome_reward_coins or 50
@@ -680,7 +683,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('GOLD')
+@require_plan('SILVER', 'GOLD')
 def get_customer_insights(restaurant_id, search_query=None):
 	"""
 	Get list of customers with their points for a restaurant.
@@ -807,23 +810,37 @@ def get_customer_insights(restaurant_id, search_query=None):
 			if lt >= silver_t: return "Silver"
 			return "Bronze"
 
+		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
+		is_gold = plan_type == "GOLD"
+		is_admin = "System Manager" in frappe.get_roles() or "Supervisor" in frappe.get_roles()
+
 		results = []
 		for c in customer_docs:
 			cid = c.name
 			balance = balance_map.get(cid, 0)
 			lifetime = lifetime_map.get(cid, 0)
 			ref = referral_map.get(cid, frappe._dict(total_opens=0, cycle_opens=0))
+			
+			is_unlocked = is_gold or frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": cid})
+			
+			phone = c.phone
+			display_phone = phone if is_unlocked else mask_phone(phone)
+			display_name = c.customer_name or cid
+			if not is_unlocked:
+				display_name = mask_name(display_name)
+
 			results.append({
 				"id": cid,
-				"name": c.customer_name or cid,
-				"phone": c.phone,
-				"birthday": str(c.date_of_birth) if c.date_of_birth else None,
+				"name": display_name,
+				"phone": display_phone,
+				"birthday": str(c.date_of_birth) if c.date_of_birth and is_unlocked else "********",
 				"balance": balance,
 				"tier": _tier_from_lifetime(lifetime),
 				"lifetime_coins": lifetime,
 				"referral_opens": int(ref.total_opens or 0),
 				"cycle_opens": int(ref.cycle_opens or 0),
-				"last_active": c.modified
+				"last_active": c.modified,
+				"is_unlocked": is_unlocked
 			})
 
 		# Sort by balance descending
@@ -835,7 +852,7 @@ def get_customer_insights(restaurant_id, search_query=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('GOLD')
+@require_plan('SILVER', 'GOLD')
 def get_customer_transactions(restaurant_id, customer_id):
 	"""
 	Get all loyalty transactions for a specific customer and restaurant
@@ -843,6 +860,15 @@ def get_customer_transactions(restaurant_id, customer_id):
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 		
+		# Check if unlocked for non-GOLD restaurants
+		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
+		is_gold = plan_type == "GOLD"
+		is_admin = "System Manager" in frappe.get_roles() or "Supervisor" in frappe.get_roles()
+		is_unlocked = is_admin or is_gold or frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": customer_id})
+
+		if not is_unlocked:
+			return {"success": False, "error": "Access denied. Please unlock customer profile first."}
+
 		# Get all loyalty entries for this customer at this restaurant
 		transactions = frappe.get_all(
 			"Restaurant Loyalty Entry",

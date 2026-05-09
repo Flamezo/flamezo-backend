@@ -63,3 +63,17 @@ typing-modules = ["frappe.types.DF"]
 quote-style = "double"
 indent-style = "tab"
 docstring-code-format = true
+
+[tool.pyright]
+extraPaths = [
+    "/home/frappe/frappe-bench/apps/frappe",
+    "/home/frappe/frappe-bench/apps/erpnext",
+    "/home/frappe/frappe-bench/apps/dinematters",
+    "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
+]
+reportMissingImports = "none"
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = "none"
+reportOptionalMemberAccess = "none"
+reportAttributeAccessIssue = "none"
+typeCheckingMode = "basic"

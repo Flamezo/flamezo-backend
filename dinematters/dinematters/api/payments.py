@@ -890,8 +890,11 @@ def schedule_monthly_billing():
 			min_amt_paise = int(monthly_min * 100)
 			base_commission = max(min_amt_paise, calculated_fee)
 			
-			# GST Compliance (18% standard for SaaS)
-			tax_rate = 18.0
+			# GST Compliance (Global Setting)
+			settings = frappe.get_single("Dinematters Settings")
+			charge_gst = bool(settings.charge_gst)
+			tax_rate = float(settings.gst_percent or 18.0) if charge_gst else 0.0
+			
 			gst_amount = int(math.floor(base_commission * (tax_rate / 100.0)))
 			final_total = base_commission + gst_amount
 

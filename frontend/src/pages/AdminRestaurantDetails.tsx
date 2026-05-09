@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useFrappePostCall } from '@/lib/frappe'
+import { useFrappePostCall, useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
@@ -130,6 +130,17 @@ function AdminRestaurantDetailsPage() {
     gst_amount?: number,
     error?: string 
   }>('dinematters.dinematters.api.admin.admin_create_manual_recharge_link')
+  
+  const { data: platformSettingsData } = useFrappeGetCall(
+    'dinematters.dinematters.api.admin.get_platform_settings',
+    {},
+    'platform-settings-details'
+  )
+  
+  const platformSettings = platformSettingsData?.message?.data || {
+    charge_gst: false,
+    gst_percent: 18
+  }
 
   const loadDetails = async () => {
     if (!id) return
@@ -860,7 +871,7 @@ function AdminRestaurantDetailsPage() {
                     <CreditCard className="h-5 w-5 text-primary" />
                     Manual Recharge Link
                   </CardTitle>
-                  <CardDescription>Generate a one-time payment link with 18% GST included</CardDescription>
+                  <CardDescription>Generate a one-time payment link {platformSettings.charge_gst ? `with ${platformSettings.gst_percent}% GST included` : 'without GST'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
@@ -916,14 +927,16 @@ function AdminRestaurantDetailsPage() {
                           <span className="text-muted-foreground">Base Credit:</span>
                           <span className="font-bold">₹{parseFloat(manualRechargeAmount).toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">GST (18%):</span>
-                          <span className="font-bold">₹{(parseFloat(manualRechargeAmount) * 0.18).toLocaleString()}</span>
-                        </div>
+                        {platformSettings.charge_gst && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">GST ({platformSettings.gst_percent}%):</span>
+                            <span className="font-bold">₹{(parseFloat(manualRechargeAmount) * (platformSettings.gst_percent / 100)).toLocaleString()}</span>
+                          </div>
+                        )}
                         <Separator className="bg-primary/20" />
                         <div className="flex justify-between text-base">
                           <span className="font-bold text-primary">Total Payable:</span>
-                          <span className="font-black text-primary text-lg">₹{(parseFloat(manualRechargeAmount) * 1.18).toLocaleString()}</span>
+                          <span className="font-black text-primary text-lg">₹{(parseFloat(manualRechargeAmount) * (1 + (platformSettings.charge_gst ? platformSettings.gst_percent / 100 : 0))).toLocaleString()}</span>
                         </div>
                       </div>
                     )}

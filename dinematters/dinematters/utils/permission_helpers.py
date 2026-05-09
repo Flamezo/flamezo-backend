@@ -19,7 +19,7 @@ def get_restaurant_permission_query_conditions(user, doctype=None, **kwargs):
 	
 	user_roles = frappe.get_roles(user)
 	if any(role in GLOBAL_ADMIN_ROLES or role in SUPERVISOR_ROLES for role in user_roles):
-		return ""
+		return "1=1"
 	
 	try:
 		# Recursion Guard: Prevent loop if this function is triggered during metadata fetch
@@ -153,7 +153,7 @@ def get_restaurant_user_permission_query_conditions(user, doctype="Restaurant Us
 	
 	user_roles = frappe.get_roles(user)
 	if any(role in GLOBAL_ADMIN_ROLES or role in SUPERVISOR_ROLES for role in user_roles):
-		return ""
+		return "1=1"
 	
 	restaurant_ids = get_user_restaurant_ids(user)
 	

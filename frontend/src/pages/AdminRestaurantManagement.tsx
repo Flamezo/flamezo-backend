@@ -10,24 +10,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
-import { 
-  Shield, 
-  RefreshCw, 
-  Power, 
-  PowerOff, 
-  Trash2, 
-  Coins, 
-  Settings, 
-  Zap, 
+import {
+  Shield,
+  RefreshCw,
+  Power,
+  PowerOff,
+  Trash2,
+  Coins,
+  Settings,
+  Zap,
   Search,
   ArrowUpRight,
   Mail,
@@ -89,11 +89,28 @@ export default function AdminRestaurantManagement() {
   const [editEmail, setEditEmail] = useState('')
   const [editFloorRecovery, setEditFloorRecovery] = useState(true)
 
+  const [isSupervisorOnly, setIsSupervisorOnly] = useState(false)
+  
+  const [isPlatformSettingsModalOpen, setIsPlatformSettingsModalOpen] = useState(false)
+  const [platformSettings, setPlatformSettings] = useState({
+    charge_gst: false,
+    gst_percent: 18,
+    gold_monthly_fee: 999,
+    gold_commission_percent: 1.5,
+    gold_upgrade_barrier: 1299
+  })
+
   useEffect(() => {
-    if (currentUser === 'Administrator') {
+    const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+    const hasSupervisorRole = userRoles.includes('DineMatters Supervisor')
+    const isMainAdmin = currentUser === 'Administrator' || userRoles.includes('System Manager')
+
+    if (isMainAdmin || hasSupervisorRole) {
       setIsAdmin(true)
+      setIsSupervisorOnly(hasSupervisorRole && !isMainAdmin)
     } else {
       setIsAdmin(false)
+      setIsSupervisorOnly(false)
     }
   }, [currentUser])
 
@@ -153,6 +170,22 @@ export default function AdminRestaurantManagement() {
   const { call: bulkDeleteOnboarding } = useFrappePostCall(
     'dinematters.dinematters.api.onboarding.bulk_delete_onboarding_requests'
   )
+
+  const { data: rawPlatformSettings, mutate: loadPlatformSettings } = useFrappeGetCall(
+    'dinematters.dinematters.api.admin.get_platform_settings',
+    {},
+    'platform-settings'
+  )
+
+  const { call: updatePlatformSettings } = useFrappePostCall(
+    'dinematters.dinematters.api.admin.update_platform_settings'
+  )
+
+  useEffect(() => {
+    if (rawPlatformSettings?.message?.data) {
+      setPlatformSettings(rawPlatformSettings.message.data)
+    }
+  }, [rawPlatformSettings])
 
   const handlePlanChange = async (restaurantName: string, newPlan: 'SILVER' | 'GOLD') => {
     try {
@@ -310,7 +343,7 @@ export default function AdminRestaurantManagement() {
   }
 
   const toggleSelectRow = (name: string) => {
-    setSelectedOnboarding(prev => 
+    setSelectedOnboarding(prev =>
       prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
     )
   }
@@ -327,7 +360,7 @@ export default function AdminRestaurantManagement() {
 
     try {
       setIsGenerating(true)
-      const params = isNewLead 
+      const params = isNewLead
         ? { restaurant_name: newRestaurantName }
         : { linked_restaurant: selectedOnboardingResId }
 
@@ -344,6 +377,22 @@ export default function AdminRestaurantManagement() {
       toast.error('API Error')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleUpdatePlatformSettings = async () => {
+    try {
+      setUpdating('platform-settings')
+      const result = await updatePlatformSettings({ settings: platformSettings }) as any
+      if (result?.message?.success) {
+        toast.success('Platform settings synchronized')
+        loadPlatformSettings()
+        setIsPlatformSettingsModalOpen(false)
+      }
+    } catch (error) {
+      toast.error('Failed to sync platform settings')
+    } finally {
+      setUpdating(null)
     }
   }
 
@@ -380,19 +429,30 @@ export default function AdminRestaurantManagement() {
             Manage all restaurants in the ecosystem
           </p>
         </div>
-        <Button
-          onClick={() => setIsOnboardingModalOpen(true)}
-          variant="outline"
-          className="relative h-11 px-6 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all font-semibold"
-        >
-          <Inbox className="h-4 w-4 mr-2 text-primary" />
-          Onboarding Requests
-          {pendingCount > 0 && (
-            <Badge className="ml-2 bg-primary text-white border-none px-1.5 h-5 min-w-5 flex items-center justify-center animate-pulse">
-              {pendingCount}
-            </Badge>
-          )}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setIsPlatformSettingsModalOpen(true)}
+            variant="outline"
+            className="h-11 px-4 rounded-xl border-stone-200 hover:bg-stone-50 transition-all font-semibold"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Platform Settings
+          </Button>
+
+          <Button
+            onClick={() => setIsOnboardingModalOpen(true)}
+            variant="outline"
+            className="relative h-11 px-6 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all font-semibold"
+          >
+            <Inbox className="h-4 w-4 mr-2 text-primary" />
+            Onboarding Requests
+            {pendingCount > 0 && (
+              <Badge className="ml-2 bg-primary text-white border-none px-1.5 h-5 min-w-5 flex items-center justify-center animate-pulse">
+                {pendingCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -550,14 +610,16 @@ export default function AdminRestaurantManagement() {
                                   <Settings className="h-4 w-4 mr-2" />
                                   <span>Configure</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => {
-                                  setRestaurantToDelete({ id: restaurant.restaurant_id, name: restaurant.restaurant_name })
-                                  setVerificationInput('')
-                                  setIsDeleteDialogOpen(true)
-                                }} className="text-red-600">
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  <span>Delete</span>
-                                </DropdownMenuItem>
+                                {!isSupervisorOnly && (
+                                  <DropdownMenuItem onClick={() => {
+                                    setRestaurantToDelete({ id: restaurant.restaurant_id, name: restaurant.restaurant_name })
+                                    setVerificationInput('')
+                                    setIsDeleteDialogOpen(true)
+                                  }} className="text-red-600">
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    <span>Delete</span>
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -600,7 +662,7 @@ export default function AdminRestaurantManagement() {
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground">Magnitude (Amount)</Label>
               <NumberInput
-                
+
                 value={coinAmount}
                 onChange={(e: any) => setCoinAmount(e.target.value)}
                 placeholder="0.00"
@@ -672,11 +734,11 @@ export default function AdminRestaurantManagement() {
                   <Label className="text-xs font-semibold text-muted-foreground ml-1">
                     Monthly Floor (₹)
                   </Label>
-                  <NumberInput  value={editMonthlyMinimum} onChange={(e: any) => setEditMonthlyMinimum(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
+                  <NumberInput value={editMonthlyMinimum} onChange={(e: any) => setEditMonthlyMinimum(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-muted-foreground ml-1">Network Fee (%)</Label>
-                  <NumberInput  value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
+                  <NumberInput value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
                 </div>
               </div>
             </div>
@@ -692,8 +754,8 @@ export default function AdminRestaurantManagement() {
                     </Label>
                   </div>
                   <p className="text-[10px] text-muted-foreground font-medium">
-                    {selectedRestaurant?.plan_type === 'GOLD' 
-                      ? 'Control automatic monthly minimum fee deductions' 
+                    {selectedRestaurant?.plan_type === 'GOLD'
+                      ? 'Control automatic monthly minimum fee deductions'
                       : 'Control automatic nightly minimum fee deductions'}
                   </p>
                 </div>
@@ -720,9 +782,9 @@ export default function AdminRestaurantManagement() {
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Platform Access Tier</span>
               </div>
-              
-              <Select 
-                value={selectedRestaurant?.plan_type} 
+
+              <Select
+                value={selectedRestaurant?.plan_type}
                 onValueChange={(value) => handlePlanChange(selectedRestaurant!.restaurant_id, value as any)}
                 disabled={updating === selectedRestaurant?.name}
               >
@@ -731,12 +793,10 @@ export default function AdminRestaurantManagement() {
                     <div className={cn(
                       "p-2 rounded-lg",
                       selectedRestaurant?.plan_type === 'GOLD' ? "bg-blue-500/10 text-blue-600" :
-                      selectedRestaurant?.plan_type === 'GOLD' ? "bg-amber-500/10 text-amber-600" :
-                      "bg-slate-500/10 text-slate-600"
+                        "bg-slate-500/10 text-slate-600"
                     )}>
                       {selectedRestaurant?.plan_type === 'GOLD' ? <Gem className="h-4 w-4" /> :
-                       selectedRestaurant?.plan_type === 'GOLD' ? <Trophy className="h-4 w-4" /> :
-                       <Shield className="h-4 w-4" />}
+                        <Shield className="h-4 w-4" />}
                     </div>
                     <div className="flex flex-col items-start">
                       <span className="text-sm font-black uppercase tracking-widest">{selectedRestaurant?.plan_type}</span>
@@ -749,8 +809,8 @@ export default function AdminRestaurantManagement() {
                     { id: 'SILVER', label: 'Silver Tier', icon: Shield, color: 'text-slate-500', desc: 'Basic Digital Menu' },
                     { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: '₹1299 unlock · ₹399/mo floor + 1.5% Commission' },
                   ].map((tier) => (
-                    <SelectItem 
-                      key={tier.id} 
+                    <SelectItem
+                      key={tier.id}
                       value={tier.id}
                       className="rounded-xl py-3 focus:bg-primary/5 cursor-pointer"
                     >
@@ -767,7 +827,7 @@ export default function AdminRestaurantManagement() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               {updating === selectedRestaurant?.name && (
                 <div className="flex items-center gap-2 px-1 text-[10px] font-bold text-primary animate-pulse">
                   <RefreshCw className="h-3 w-3 animate-spin" />
@@ -850,9 +910,9 @@ export default function AdminRestaurantManagement() {
                   <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
                     {selectedOnboarding.length} Selected
                   </span>
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
+                  <Button
+                    variant="destructive"
+                    size="sm"
                     className="h-8 rounded-lg font-bold shadow-sm"
                     onClick={handleBulkDelete}
                     disabled={updating === 'bulk-delete'}
@@ -873,7 +933,7 @@ export default function AdminRestaurantManagement() {
                   <p className="text-xs text-muted-foreground">Select an existing restaurant or create a new lead</p>
                 </div>
                 <div className="flex items-center gap-2 bg-muted/20 p-1 rounded-xl">
-                  <button 
+                  <button
                     onClick={() => setIsNewLead(false)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -882,7 +942,7 @@ export default function AdminRestaurantManagement() {
                   >
                     Existing
                   </button>
-                  <button 
+                  <button
                     onClick={() => setIsNewLead(true)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -900,15 +960,15 @@ export default function AdminRestaurantManagement() {
                     {isNewLead ? "Restaurant Name" : "Select Restaurant"}
                   </Label>
                   {isNewLead ? (
-                    <Input 
-                      placeholder="e.g. Flapjack Downtown" 
+                    <Input
+                      placeholder="e.g. Flapjack Downtown"
                       value={newRestaurantName}
                       onChange={(e) => setNewRestaurantName(e.target.value)}
                       className="h-10 rounded-xl bg-white"
                       onKeyDown={(e) => e.key === 'Enter' && handleGenerateLink()}
                     />
                   ) : (
-                    <RestaurantSelector 
+                    <RestaurantSelector
                       value={selectedOnboardingResId}
                       onSelect={setSelectedOnboardingResId}
                       options={(restaurants || []).map((r: any) => ({
@@ -919,7 +979,7 @@ export default function AdminRestaurantManagement() {
                     />
                   )}
                 </div>
-                <Button 
+                <Button
                   onClick={handleGenerateLink}
                   disabled={isGenerating || (isNewLead ? !newRestaurantName.trim() : !selectedOnboardingResId)}
                   className="h-10 rounded-xl px-8 font-bold shadow-lg shadow-primary/20 whitespace-nowrap"
@@ -944,7 +1004,7 @@ export default function AdminRestaurantManagement() {
                 <TableHeader>
                   <TableRow className="bg-muted/5">
                     <TableHead className="w-12 pl-6">
-                      <Checkbox 
+                      <Checkbox
                         checked={selectedOnboarding.length > 0 && selectedOnboarding.length === onboardingData?.message?.data?.length}
                         onCheckedChange={toggleSelectAll}
                         className="rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
@@ -963,7 +1023,7 @@ export default function AdminRestaurantManagement() {
                       selectedOnboarding.includes(req.name) && "bg-primary/5 hover:bg-primary/5"
                     )}>
                       <TableCell className="pl-6">
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedOnboarding.includes(req.name)}
                           onCheckedChange={() => toggleSelectRow(req.name)}
                           className="rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
@@ -1044,8 +1104,8 @@ export default function AdminRestaurantManagement() {
                 className="h-9 font-mono text-xs bg-muted/50"
               />
             </div>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               className="px-3"
               onClick={async () => {
                 const success = await copyToClipboard(linkToCopy)
@@ -1071,6 +1131,101 @@ export default function AdminRestaurantManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Platform Settings Modal */}
+      <Dialog open={isPlatformSettingsModalOpen} onOpenChange={setIsPlatformSettingsModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+          <div className="bg-stone-900 p-8 text-white relative">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <Settings className="h-24 w-24" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight">Platform Settings</DialogTitle>
+              <DialogDescription className="text-stone-400 font-medium">
+                Universal configuration for DineMatters ecosystem
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-8 space-y-8">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-bold">Charge GST</Label>
+                  <p className="text-xs text-muted-foreground font-medium">Add tax to all platform transactions</p>
+                </div>
+                <Switch 
+                  checked={platformSettings.charge_gst}
+                  onCheckedChange={(v) => setPlatformSettings(prev => ({ ...prev, charge_gst: v }))}
+                />
+              </div>
+
+              {platformSettings.charge_gst && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                  <Label className="text-sm font-bold ml-1">GST Percentage (%)</Label>
+                  <NumberInput
+                    value={platformSettings.gst_percent}
+                    onChange={(e) => setPlatformSettings(prev => ({ ...prev, gst_percent: parseFloat(e.target.value || '0') }))}
+                    placeholder="18.0"
+                    className="h-12 rounded-xl bg-stone-50 border-stone-200"
+                  />
+                </div>
+              )}
+
+              <div className="h-px bg-stone-100" />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Monthly Fee</Label>
+                  <NumberInput
+                    value={platformSettings.gold_monthly_fee}
+                    onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_monthly_fee: parseFloat(e.target.value || '0') }))}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Commission (%)</Label>
+                  <NumberInput
+                    value={platformSettings.gold_commission_percent}
+                    onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_commission_percent: parseFloat(e.target.value || '0') }))}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-bold ml-1 text-amber-600 uppercase tracking-widest">Gold Upgrade Barrier (Wallet Balance)</Label>
+                <NumberInput
+                  value={platformSettings.gold_upgrade_barrier}
+                  onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_upgrade_barrier: parseFloat(e.target.value || '0') }))}
+                  className="h-12 rounded-xl font-bold text-amber-700 bg-amber-50 border-amber-100"
+                />
+                <p className="text-[10px] text-muted-foreground px-1">
+                  Restaurants must top-up this amount in a single go to unlock GOLD tier features.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-8 bg-stone-50 border-t border-stone-100">
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsPlatformSettingsModalOpen(false)}
+              className="rounded-xl h-12 font-bold"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdatePlatformSettings}
+              disabled={updating === 'platform-settings'}
+              className="rounded-xl h-12 px-8 font-bold bg-stone-900 hover:bg-stone-800 text-white shadow-xl transition-all"
+            >
+              {updating === 'platform-settings' && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

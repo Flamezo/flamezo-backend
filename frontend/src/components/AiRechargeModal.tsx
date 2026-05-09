@@ -15,11 +15,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { useFrappePostCall } from 'frappe-react-sdk'
+import { useFrappePostCall, useFrappeGetCall } from '@/lib/frappe'
 import { Loader2, Sparkles, Zap, Star, Rocket, PenLine, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -102,6 +101,17 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
   const { call: verifyPayment } = useFrappePostCall(
     'dinematters.dinematters.api.coin_billing.verify_coin_purchase'
   )
+  
+  const { data: platformSettingsData } = useFrappeGetCall(
+    'dinematters.dinematters.api.admin.get_platform_settings',
+    {},
+    'platform-settings-modal'
+  )
+  
+  const platformSettings = platformSettingsData?.message?.data || {
+    charge_gst: false,
+    gst_percent: 18
+  }
 
   const isCustom = selectedBundle === 'custom'
   const customAmount = parseInt(customBalance || '0', 10)
@@ -118,8 +128,9 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
   const bonusUnits = isCustom ? getBonus(basePrice) : BUNDLES.find(b => b.id === selectedBundle)?.bonus || 0
   const selectedCoins = basePrice + bonusUnits
 
-  // Upfront GST Calculation: 18% on top of the base coin cost
-  const gstAmount = Math.round(basePrice * 0.18 * 100) / 100
+  // Dynamic GST Calculation from Settings
+  const gstRate = platformSettings.charge_gst ? platformSettings.gst_percent / 100 : 0
+  const gstAmount = Math.round(basePrice * gstRate * 100) / 100
   const totalPayable = basePrice + gstAmount
 
   const canPurchase = isCustom
@@ -325,10 +336,12 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
               <span className="font-medium text-emerald-600 dark:text-emerald-400">₹{bonusUnits.toLocaleString()}</span>
             </div>
           )}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">GST (18%)</span>
-            <span className="font-medium text-amber-600 dark:text-amber-400">+₹{gstAmount.toLocaleString()}</span>
-          </div>
+          {platformSettings.charge_gst && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">GST ({platformSettings.gst_percent}%)</span>
+              <span className="font-medium text-amber-600 dark:text-amber-400">+₹{gstAmount.toLocaleString()}</span>
+            </div>
+          )}
           <div className="h-px bg-border/50 w-full" />
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">

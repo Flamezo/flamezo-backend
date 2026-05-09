@@ -109,7 +109,7 @@ function AppContent() {
 								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
 									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
 								</Route>
-								<Route element={<FeatureProtectedRoute requireGold />}>
+								<Route element={<FeatureProtectedRoute feature="loyalty_insights" />}>
 									<Route path="/loyalty-insights" element={<CustomerInsights />} />
 								</Route>
 
@@ -121,7 +121,7 @@ function AppContent() {
 									<Route path="/events" element={<Events />} />
 								</Route>
 
-								<Route element={<FeatureProtectedRoute feature="ordering" />}>
+								<Route element={<FeatureProtectedRoute feature="customer" />}>
 									<Route path="/customers" element={<Customers />} />
 								</Route>
 

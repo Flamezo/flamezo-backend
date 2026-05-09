@@ -1,7 +1,8 @@
 import frappe
 from frappe import _
 from dinematters.dinematters.utils.razorpay_utils import get_razorpay_client
-from dinematters.dinematters.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES
+from dinematters.dinematters.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES, is_global_admin, is_supervisor
+import json
 
 @frappe.whitelist()
 def check_admin_access():
@@ -387,12 +388,11 @@ def delete_restaurant(restaurant_id):
     Only accessible by system administrators.
     """
     try:
-        # Check admin access first
-        access_check = check_admin_access()
-        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+        # Check global admin access first (Supervisors cannot delete)
+        if not is_global_admin():
             return {
                 'success': False,
-                'error': 'Admin access required'
+                'error': 'Restricted: Only Global Administrators can purge restaurants'
             }
         
         # Get restaurant record
@@ -861,8 +861,11 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
                 'error': f'No payment required for {tier} tier'
             }
 
-        # Calculate GST (consistent with coin_billing.py)
-        gst_rate = 0.18
+        # Calculate GST based on global settings
+        settings = frappe.get_single("Dinematters Settings")
+        charge_gst = bool(settings.charge_gst)
+        gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
+        
         gst_amount = round(base_amount * gst_rate, 2)
         total_payable = base_amount + gst_amount
         total_payable_paise = int(round(total_payable * 100))
@@ -919,10 +922,11 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
         try:
             from dinematters.dinematters.utils.whatsapp_utils import send_whatsapp_message
             
-            # Construct message (re-using the description or custom text)
+            # Construct message
+            gst_text = f" (Incl. {settings.gst_percent}% GST)" if charge_gst else ""
             msg_text = (
                 f"Hi! 👋 Welcome to DineMatters.\n\n"
-                f"To activate your *{tier}* plan, please complete your wallet top-up of *₹{total_payable:,.2f}* (Incl. 18% GST) using the secure payment link below:\n\n"
+                f"To activate your *{tier}* plan, please complete your wallet top-up of *₹{total_payable:,.2f}*{gst_text} using the secure payment link below:\n\n"
                 f"💳 {plink.get('short_url')}\n\n"
                 f"Once paid, your wallet will be automatically credited and you're good to go! 🚀"
             )
@@ -950,6 +954,59 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
     except Exception as e:
         frappe.log_error(f"admin_create_wallet_payment_link failed for {restaurant_id}: {str(e)}", "Admin Payment Link")
         return {'success': False, 'error': str(e)}
+
+@frappe.whitelist()
+def get_platform_settings():
+    """
+    Get DineMatters universal settings (Admin only)
+    """
+    if not is_global_admin() and not is_supervisor(frappe.session.user):
+        return {'success': False, 'error': 'Unauthorized'}
+    
+    settings = frappe.get_single("Dinematters Settings")
+    return {
+        'success': True,
+        'data': {
+            'charge_gst': bool(settings.charge_gst),
+            'gst_percent': float(settings.gst_percent or 18.0),
+            'gold_monthly_fee': float(settings.gold_monthly_fee or 999.0),
+            'gold_commission_percent': float(settings.gold_commission_percent or 1.5),
+            'gold_upgrade_barrier': float(settings.gold_upgrade_barrier or 1299.0)
+        }
+    }
+
+@frappe.whitelist()
+def update_platform_settings(settings):
+    """
+    Update DineMatters universal settings (Global Admin only)
+    """
+    if not is_global_admin():
+        return {'success': False, 'error': 'Restricted to Global Administrators'}
+    
+    if isinstance(settings, str):
+        settings = json.loads(settings)
+    
+    doc = frappe.get_doc("Dinematters Settings")
+    
+    allowed_fields = [
+        'charge_gst', 
+        'gst_percent', 
+        'gold_monthly_fee', 
+        'gold_commission_percent', 
+        'gold_upgrade_barrier'
+    ]
+    
+    updated = []
+    for field in allowed_fields:
+        if field in settings:
+            doc.set(field, settings[field])
+            updated.append(field)
+    
+    if updated:
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+    
+    return {'success': True, 'updated': updated}
 @frappe.whitelist()
 def admin_create_manual_recharge_link(restaurant_id, amount):
     """
@@ -966,8 +1023,11 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
         if base_amount <= 0:
             return {'success': False, 'error': 'Amount must be greater than 0'}
 
-        # Calculate GST
-        gst_rate = 0.18
+        # Calculate GST based on global settings
+        settings = frappe.get_single("Dinematters Settings")
+        charge_gst = bool(settings.charge_gst)
+        gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
+        
         gst_amount = round(base_amount * gst_rate, 2)
         total_payable = base_amount + gst_amount
         total_payable_paise = int(round(total_payable * 100))
@@ -991,7 +1051,7 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
             "amount": total_payable_paise,
             "currency": "INR",
             "accept_partial": False,
-            "description": f"Manual Wallet Recharge — ₹{base_amount} + ₹{gst_amount} GST",
+            "description": f"Manual Wallet Recharge — ₹{base_amount}" + (f" + ₹{gst_amount} GST" if charge_gst else ""),
             "customer": {
                 "name": restaurant.owner_name or restaurant.restaurant_name,
                 "email": restaurant.owner_email or "",

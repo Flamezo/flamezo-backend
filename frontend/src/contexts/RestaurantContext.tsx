@@ -38,14 +38,17 @@ interface RestaurantContextType {
     marketing_studio: boolean
     google_growth: boolean
     whatsapp_orders: boolean
+    order_settings: boolean
   }
   billingInfo: any | null
   googleMapsApiKey: string | null
   referralCode: string | null
   /** Role of the current user for the selected restaurant */
   userRole: 'Restaurant Admin' | 'Restaurant Staff' | null
-  /** True if current user is Restaurant Admin (or system Administrator) */
+  /** True if current user is Restaurant Admin (or system Administrator/Supervisor) */
   isAdmin: boolean
+  /** True if current user has DineMatters Supervisor role */
+  isSupervisor: boolean
 }
 
 const RestaurantContext = createContext<RestaurantContextType | undefined>(undefined)
@@ -241,7 +244,13 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   // User role for the selected restaurant (populated by get_restaurant_config)
   const userRole = (restaurantConfig?.subscription?.userRole as 'Restaurant Admin' | 'Restaurant Staff' | null) ?? null
-  const isAdmin = userRole === 'Restaurant Admin' || userRole === null // null = guest/admin/no config yet
+  
+  // Check for global supervisor role from boot data
+  const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+  const isSupervisor = userRoles.includes('DineMatters Supervisor')
+  
+  // isAdmin is true if they are a restaurant admin, or if they are a supervisor, or if no config is loaded yet (guest/admin)
+  const isAdmin = isSupervisor || userRole === 'Restaurant Admin' || userRole === null 
   
   const features = restaurantConfig?.subscription?.features ? {
     ordering: restaurantConfig.subscription.features.ordering ?? false,
@@ -258,6 +267,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     marketing_studio: restaurantConfig.subscription.features.marketing_studio ?? false,
     google_growth: restaurantConfig.subscription.features.google_growth ?? false,
     whatsapp_orders: restaurantConfig.subscription.features.whatsapp_orders ?? false,
+    order_settings: restaurantConfig.subscription.features.order_settings ?? false,
   } : {
     ordering: false,
     videoUpload: false,
@@ -273,6 +283,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     marketing_studio: false,
     google_growth: false,
     whatsapp_orders: false,
+    order_settings: false,
   }
 
   const billingInfo = restaurantConfig?.subscription ? {
@@ -315,6 +326,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         referralCode: restaurantConfig?.subscription?.referral_code || null,
         userRole,
         isAdmin,
+        isSupervisor,
       }}
     >
       {children}

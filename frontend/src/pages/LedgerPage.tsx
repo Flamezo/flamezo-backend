@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useDataTable } from '@/hooks/useDataTable'
+import { useFrappeGetCall } from '@/lib/frappe'
 import { FilterCondition } from '@/components/ListFilters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,17 @@ export default function LedgerPage() {
   const [showRecharge, setShowRecharge] = useState(false)
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null)
   const [balance, setBalance] = useState<number>(coinsBalance)
+  
+  const { data: platformSettingsData } = useFrappeGetCall(
+    'dinematters.dinematters.api.admin.get_platform_settings',
+    {},
+    'platform-settings-ledger'
+  )
+  
+  const platformSettings = platformSettingsData?.message?.data || {
+    charge_gst: false,
+    gst_percent: 18
+  }
   
   // Filtering State
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
@@ -462,7 +474,7 @@ export default function LedgerPage() {
           <p className="text-sm font-bold text-foreground">Fiscal Audit Transparency</p>
           <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
             Every transaction is recorded with a unique audit ID and balance snapshot. 
-            For top-ups, 18% GST is collected upfront and visible in the transaction details. 
+            {platformSettings.charge_gst ? `For top-ups, ${platformSettings.gst_percent}% GST is collected upfront and visible in the transaction details.` : 'Top-ups are currently GST-exempt.'} 
             Deductions for AI usage and commissions are calculated based on your current plans.
           </p>
         </div>
@@ -508,7 +520,7 @@ export default function LedgerPage() {
                     {(selectedTxn.gst_amount !== undefined || selectedTxn.total_paid_inr !== undefined) && (
                         <div className="grid grid-cols-2 gap-3">
                             <div className="p-4 rounded-2xl bg-background border border-border/50 shadow-sm">
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">GST (18%)</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">GST ({platformSettings.charge_gst ? `${platformSettings.gst_percent}%` : 'Off'})</p>
                                 <p className="text-lg font-bold tabular-nums text-slate-700">{formatAmountNoDecimals(selectedTxn.gst_amount || 0)}</p>
                             </div>
                             <div className="p-4 rounded-2xl bg-background border border-border/50 shadow-sm">

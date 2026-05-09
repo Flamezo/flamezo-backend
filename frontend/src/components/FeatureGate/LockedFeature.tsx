@@ -1,6 +1,7 @@
 import { Lock, Star } from 'lucide-react';
 import { FeatureKey } from '../../utils/featureGate';
 import { useRestaurant } from '../../contexts/RestaurantContext';
+import { getFeatureAccessStatus } from '../../utils/featureAccess';
 
 interface LockedFeatureProps {
   feature: FeatureKey;
@@ -34,8 +35,8 @@ export function LockedFeature({ feature }: LockedFeatureProps) {
   const featureLabel = FEATURE_LABELS[feature] || feature;
   const description = FEATURE_DESCRIPTIONS[feature] || "Unlock this premium feature to automate your restaurant and grow your revenue.";
   
-  const isGoldOnly = ['ordering', 'loyalty', 'coupons', 'pos_integration', 'customer', 'order_settings', 'customer_pay_and_usage'].includes(feature);
-  const requiredTier = isGoldOnly ? 'GOLD' : 'GOLD';
+  const { requiredTier } = getFeatureAccessStatus(planType, feature);
+  const isGoldOnly = requiredTier === 'GOLD';
 
   return (
     <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-gray-200 shadow-sm max-w-2xl mx-auto my-8">

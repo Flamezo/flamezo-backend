@@ -1,6 +1,7 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useState, useEffect } from 'react'
+import { getFeatureAccessStatus } from '@/utils/featureAccess'
 
 interface FeatureProtectedRouteProps {
   feature?: string
@@ -8,7 +9,8 @@ interface FeatureProtectedRouteProps {
 }
 
 export default function FeatureProtectedRoute({ feature, requireGold = false }: FeatureProtectedRouteProps) {
-  const { isGold, features, isLoading } = useRestaurant()
+  const { isGold, features, isLoading, planType } = useRestaurant()
+  const location = useLocation()
   const [hasTimedOut, setHasTimedOut] = useState(false)
 
   useEffect(() => {
@@ -27,15 +29,16 @@ export default function FeatureProtectedRoute({ feature, requireGold = false }: 
     )
   }
 
-  // Simple access determination
+  // Robust access determination using centralized utility
+  const accessStatus = getFeatureAccessStatus(planType, feature)
+  
   const hasAccess = Boolean(
-    
-    (requireGold && (isGold)) ||
-    (feature && (features as any)?.[feature]) ||
+    (requireGold && isGold) ||
     (!requireGold && !feature) ||
+    (feature && (features as any)?.[feature]) ||
+    (feature && !accessStatus.isLocked) ||
     hasTimedOut
   )
-
 
   if (!hasAccess) {
     return <Navigate to="/feature-locked" state={{ from: location.pathname }} replace />

@@ -154,8 +154,11 @@ def trigger_auto_recharge(restaurant):
 
         base_amount = debt_to_clear + actual_top_up
         
-        # Consistent 18% GST for all wallet transactions
-        gst_rate = 0.18
+        # Calculate GST based on global settings
+        settings = frappe.get_single("Dinematters Settings")
+        charge_gst = bool(settings.charge_gst)
+        gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
+
         gst_amount = round(base_amount * gst_rate, 2)
         total_payable = base_amount + gst_amount
         recharge_amt_paise = int(round(total_payable * 100))
@@ -436,7 +439,11 @@ def create_coin_purchase_order(restaurant, amount):
     bonus_units = get_bonus_units(base_amount)
     total_units = base_amount + bonus_units
 
-    gst_rate = 0.18
+    # GST Calculation from Settings
+    settings = frappe.get_single("Dinematters Settings")
+    charge_gst = bool(settings.charge_gst)
+    gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
+
     gst_amount = base_amount * gst_rate
     total_payable = base_amount + gst_amount
     

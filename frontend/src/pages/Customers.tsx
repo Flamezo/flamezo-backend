@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import } from 'lucide-react'
+import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import, Lock, Unlock, Coins } from 'lucide-react'
 import CustomerImportModal from '@/components/CustomerImportModal'
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -47,6 +46,7 @@ interface RestaurantCustomer {
   orders: OrderItem[]
   tableBookings: unknown[]
   banquetBookings: unknown[]
+  is_unlocked?: boolean
 }
 
 interface RestaurantData {
@@ -67,7 +67,7 @@ interface CustomerProfileData {
 }
 
 export default function Customers() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedRestaurant } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null)
@@ -87,31 +87,47 @@ export default function Customers() {
     searchQuery,
     setSearchQuery,
     mutate: refreshCustomers
-  } = useDataTable({
-    customEndpoint: 'dinematters.dinematters.api.customers.get_restaurant_customers',
-    customParams: { restaurant_id: selectedRestaurant },
-    paramNames: {
-      page: 'page',
-      pageSize: 'page_size',
-      search: 'search'
-    },
-    initialPageSize: 20,
-    debugId: `restaurant-customers-${selectedRestaurant}`
-  })
+  } = useDataTable
+      <RestaurantCustomer>({
+        customEndpoint: 'dinematters.dinematters.api.customers.get_restaurant_customers',
+        customParams: { restaurant_id: selectedRestaurant },
+        paramNames: {
+          page: 'page',
+          pageSize: 'page_size',
+          search: 'search'
+        },
+        initialPageSize: 20,
+        debugId: `restaurant-customers-${selectedRestaurant}`
+      })
 
   // Customer data extractor
-  const customers: RestaurantCustomer[] = useMemo(() => {
+  const customers = useMemo(() => {
     return fetchedCustomers || []
   }, [fetchedCustomers])
 
-  if (!isGold) {
-    return <LockedFeature feature="customer" />
-  }
-
-  const { restaurantConfig, refreshConfig } = useRestaurant()
+  const { restaurantConfig, refreshConfig, isSilver, planType } = useRestaurant()
   const isVerifyEnabled = restaurantConfig?.settings?.verifyMyUser ?? false
 
   const { call: setValue } = useFrappePostCall('frappe.client.set_value')
+  const { call: unlockCustomerApi } = useFrappePostCall('dinematters.dinematters.api.customers.unlock_customer_data')
+
+  const handleUnlockCustomer = async (customerId: string) => {
+    try {
+      const res = await unlockCustomerApi({
+        restaurant_id: selectedRestaurant,
+        customer_id: customerId
+      })
+      const body = (res as any)?.message || res
+      if (body.success) {
+        toast.success(body.message || 'Profile unlocked!')
+        refreshCustomers()
+      } else {
+        toast.error(body.error || 'Failed to unlock profile')
+      }
+    } catch (err) {
+      toast.error('Internal error occurred')
+    }
+  }
 
   const handleToggleVerify = async (checked: boolean) => {
     if (!selectedRestaurant) return
@@ -169,12 +185,12 @@ export default function Customers() {
         <Card className="border-none shadow-sm ring-1 ring-border">
           <CardContent className="pt-12 pb-12">
             <div className="flex flex-col items-center justify-center text-center space-y-3">
-               <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center">
-                  <UserCheck className="h-6 w-6 text-muted-foreground/50" />
-               </div>
-               <p className="text-muted-foreground font-medium">
-                 Select a restaurant from the dropdown to view customers.
-               </p>
+              <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center">
+                <UserCheck className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <p className="text-muted-foreground font-medium">
+                Select a restaurant from the dropdown to view customers.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -212,16 +228,18 @@ export default function Customers() {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-xl border border-border/50">
-                <Switch 
-                  id="verify-user-card" 
-                  checked={isVerifyEnabled}
-                  onCheckedChange={handleToggleVerify}
-                  disabled={isUpdatingVerify}
-                  className="scale-90"
-                />
-                <Label htmlFor="verify-user-card" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-1 cursor-pointer">Verify Users</Label>
-              </div>
+              {!isSilver && (
+                <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-xl border border-border/50">
+                  <Switch
+                    id="verify-user-card"
+                    checked={isVerifyEnabled}
+                    onCheckedChange={handleToggleVerify}
+                    disabled={isUpdatingVerify}
+                    className="scale-90"
+                  />
+                  <Label htmlFor="verify-user-card" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-1 cursor-pointer">Verify Users</Label>
+                </div>
+              )}
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
                 <Input
@@ -280,7 +298,9 @@ export default function Customers() {
                             </TableCell>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
-                                {c.customerName || '—'}
+                                <div className={!c.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
+                                  {c.customerName || '—'}
+                                </div>
                                 {c.isImported && (
                                   <div className="relative group inline-flex items-center">
                                     <Import className="h-3 w-3 text-blue-500 cursor-default" />
@@ -294,7 +314,11 @@ export default function Customers() {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell>{c.phone || '—'}</TableCell>
+                            <TableCell>
+                              <div className={!c.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
+                                {c.phone || '—'}
+                              </div>
+                            </TableCell>
                             <TableCell className="text-muted-foreground">
                               {c.lastVisited ? formatDate(c.lastVisited) : '—'}
                             </TableCell>
@@ -306,15 +330,29 @@ export default function Customers() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewFullProfile(c.id)}
-                                className="h-8"
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                Profile
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                {!c.is_unlocked && isSilver && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleUnlockCustomer(c.id)}
+                                    className="h-8 rounded-lg bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary font-bold transition-all hover:scale-[1.02] active:scale-[0.98] group"
+                                  >
+                                    <Coins className="h-3.5 w-3.5 mr-1.5 group-hover:rotate-12 transition-transform" />
+                                    5 Credits
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleViewFullProfile(c.id)}
+                                  className="h-8"
+                                  disabled={!c.is_unlocked && isSilver}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Profile
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                           {isExpanded && hasOrders && (
@@ -403,7 +441,7 @@ export default function Customers() {
             <DialogHeader className="flex flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                   <Users className="h-6 w-6 text-primary" />
+                  <Users className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -447,89 +485,89 @@ export default function Customers() {
             ) : profileData?.data ? (
               <div className="space-y-6">
                 <div>
-                   {profileData.data.restaurants.map((rest) => (
+                  {profileData.data.restaurants.map((rest) => (
                     <div key={rest.restaurant_id} className="space-y-4">
-                        {rest.orders && rest.orders.length > 0 && (
-                          <div className="text-sm">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Order History</p>
-                            <div className="rounded-md border bg-card/50">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead className="pl-4 h-9 text-xs">Order #</TableHead>
-                                    <TableHead className="h-9 text-xs">Date</TableHead>
-                                    <TableHead className="h-9 text-xs">Amount</TableHead>
-                                    <TableHead className="text-center h-9 text-xs">Status</TableHead>
-                                    <TableHead className="h-9 text-xs">Rating</TableHead>
-                                    <TableHead className="text-right pr-4 h-9 text-xs">Actions</TableHead>
+                      {rest.orders && rest.orders.length > 0 && (
+                        <div className="text-sm">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Order History</p>
+                          <div className="rounded-md border bg-card/50">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="pl-4 h-9 text-xs">Order #</TableHead>
+                                  <TableHead className="h-9 text-xs">Date</TableHead>
+                                  <TableHead className="h-9 text-xs">Amount</TableHead>
+                                  <TableHead className="text-center h-9 text-xs">Status</TableHead>
+                                  <TableHead className="h-9 text-xs">Rating</TableHead>
+                                  <TableHead className="text-right pr-4 h-9 text-xs">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {rest.orders.map((o: OrderItem) => (
+                                  <TableRow key={o.name} className="hover:bg-muted/50 border-border/50">
+                                    <TableCell className="pl-4 font-bold text-primary py-2 text-xs">
+                                      <Link to={`/orders/${o.name}`} className="hover:underline">
+                                        {o.order_number}
+                                      </Link>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground py-2 text-xs">{formatDate(o.creation)}</TableCell>
+                                    <TableCell className="font-bold py-2 text-xs">{formatAmountNoDecimals(o.total ?? 0)}</TableCell>
+                                    <TableCell className="text-center py-2 text-xs">
+                                      <Badge variant="outline" className="capitalize text-[10px] h-5 py-0 px-1.5">{o.status}</Badge>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-xs">
+                                      {(o.food_rating ?? o.customer_rating) != null ? (
+                                        <Badge variant="outline" className="border-amber-200 text-amber-600 bg-amber-50 h-5 px-1.5 py-0 text-[10px] font-bold">
+                                          <Star className="h-2.5 w-2.5 fill-amber-500 mr-1" />
+                                          {o.food_rating ?? o.customer_rating}.0
+                                        </Badge>
+                                      ) : <span className="text-muted-foreground/50">—</span>}
+                                    </TableCell>
+                                    <TableCell className="text-right pr-4 py-2">
+                                      <Link to={`/orders/${o.name}`}>
+                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] font-semibold px-2">View</Button>
+                                      </Link>
+                                    </TableCell>
                                   </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {rest.orders.map((o: OrderItem) => (
-                                    <TableRow key={o.name} className="hover:bg-muted/50 border-border/50">
-                                      <TableCell className="pl-4 font-bold text-primary py-2 text-xs">
-                                        <Link to={`/orders/${o.name}`} className="hover:underline">
-                                          {o.order_number}
-                                        </Link>
-                                      </TableCell>
-                                      <TableCell className="text-muted-foreground py-2 text-xs">{formatDate(o.creation)}</TableCell>
-                                      <TableCell className="font-bold py-2 text-xs">{formatAmountNoDecimals(o.total ?? 0)}</TableCell>
-                                      <TableCell className="text-center py-2 text-xs">
-                                        <Badge variant="outline" className="capitalize text-[10px] h-5 py-0 px-1.5">{o.status}</Badge>
-                                      </TableCell>
-                                      <TableCell className="py-2 text-xs">
-                                        {(o.food_rating ?? o.customer_rating) != null ? (
-                                          <Badge variant="outline" className="border-amber-200 text-amber-600 bg-amber-50 h-5 px-1.5 py-0 text-[10px] font-bold">
-                                            <Star className="h-2.5 w-2.5 fill-amber-500 mr-1" />
-                                            {o.food_rating ?? o.customer_rating}.0
-                                          </Badge>
-                                        ) : <span className="text-muted-foreground/50">—</span>}
-                                      </TableCell>
-                                      <TableCell className="text-right pr-4 py-2">
-                                        <Link to={`/orders/${o.name}`}>
-                                          <Button variant="ghost" size="sm" className="h-6 text-[10px] font-semibold px-2">View</Button>
-                                        </Link>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-4">
+                        {rest.tableBookings && rest.tableBookings.length > 0 && (
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Bookings: <span className="text-foreground">{rest.tableBookings.length}</span>
+                          </p>
+                        )}
+                        {rest.banquetBookings && rest.banquetBookings.length > 0 && (
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Banquets: <span className="text-foreground">{rest.banquetBookings.length}</span>
+                          </p>
+                        )}
+                      </div>
+                      {(!rest.orders || rest.orders.length === 0) &&
+                        (!rest.tableBookings || rest.tableBookings.length === 0) &&
+                        (!rest.banquetBookings || rest.banquetBookings.length === 0) && (
+                          <div className="py-12 flex flex-col items-center justify-center border rounded-md border-dashed border-border/60 bg-muted/10">
+                            <p className="text-sm font-medium text-muted-foreground">No transaction history found</p>
                           </div>
                         )}
-                        <div className="flex gap-4">
-                          {rest.tableBookings && rest.tableBookings.length > 0 && (
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                              Bookings: <span className="text-foreground">{rest.tableBookings.length}</span>
-                            </p>
-                          )}
-                          {rest.banquetBookings && rest.banquetBookings.length > 0 && (
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                              Banquets: <span className="text-foreground">{rest.banquetBookings.length}</span>
-                            </p>
-                          )}
-                        </div>
-                        {(!rest.orders || rest.orders.length === 0) &&
-                          (!rest.tableBookings || rest.tableBookings.length === 0) &&
-                          (!rest.banquetBookings || rest.banquetBookings.length === 0) && (
-                            <div className="py-12 flex flex-col items-center justify-center border rounded-md border-dashed border-border/60 bg-muted/10">
-                               <p className="text-sm font-medium text-muted-foreground">No transaction history found</p>
-                            </div>
-                          )}
                     </div>
                   ))}
                 </div>
               </div>
             ) : profileData && !profileData.data && (
               <div className="py-20 text-center">
-                 <p className="text-muted-foreground text-sm font-medium">
+                <p className="text-muted-foreground text-sm font-medium">
                   {profileData.error || 'Profile retrieval failed. Please try again.'}
                 </p>
               </div>
             )}
           </div>
           <div className="p-4 bg-muted/20 border-t border-border/50 rounded-b-2xl flex justify-end">
-             <Button variant="ghost" onClick={() => setProfileCustomerId(null)} className="h-9 px-6 font-semibold">Close</Button>
+            <Button variant="ghost" onClick={() => setProfileCustomerId(null)} className="h-9 px-6 font-semibold">Close</Button>
           </div>
         </DialogContent>
       </Dialog>

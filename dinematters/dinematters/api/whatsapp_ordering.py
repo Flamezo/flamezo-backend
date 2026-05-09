@@ -146,14 +146,16 @@ def get_whatsapp_orders(
             pluck="customer_phone"
         )
         
-        twenty_four_hours_ago = add_to_date(now_datetime(), hours=-24)
         plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
+        is_gold = plan_type == "GOLD"
+        
+        # SILVER leads expire after 3 hours; GOLD leads are always unlocked
+        silver_cutoff = add_to_date(now_datetime(), hours=-3)
         
         for order in orders:
-            is_recent = order.creation > twenty_four_hours_ago
+            is_recent = order.creation > silver_cutoff
             is_purchased = order.customer_phone in unlocked_phone_list
-            is_gold = plan_type == "GOLD"
-            order["is_unlocked"] = True if (is_recent or is_purchased or is_gold) else False
+            order["is_unlocked"] = True if (is_gold or is_recent or is_purchased) else False
         
         return {
             "success": True,
