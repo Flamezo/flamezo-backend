@@ -3,7 +3,8 @@
         "/home/frappe/frappe-bench/apps/frappe",
         "/home/frappe/frappe-bench/apps/erpnext",
         "/home/frappe/frappe-bench/apps/dinematters",
-        "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
+        "/home/frappe/frappe-bench/env/lib/python3.12/site-packages",
+        "/home/frappe/frappe-bench/apps/dinematters/dinematters"
     ],
     "reportMissingImports": "none",
     "reportMissingTypeStubs": false,

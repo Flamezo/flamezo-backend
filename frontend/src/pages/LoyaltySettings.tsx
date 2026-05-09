@@ -47,33 +47,20 @@ export default function LoyaltySettings() {
     if (restaurantDoc) setEnableLoyalty(!!restaurantDoc.enable_loyalty)
   }, [restaurantDoc])
 
-  // For Silver restaurants: intercept toggle-OFF with a confirmation modal
-  const handleLoyaltyToggle = (checked: boolean) => {
-    if (!checked && isSilver) {
-      setShowDisableConfirm(true)
-    } else {
-      setEnableLoyalty(checked)
-    }
-  }
-
-  const confirmDisableLoyalty = () => {
-    setEnableLoyalty(false)
-    setShowDisableConfirm(false)
-  }
-
-  const handleSave = async () => {
+  const saveSettings = async (newValue: boolean) => {
     if (!selectedRestaurant) return
     setSaving(true)
     try {
       const response: any = await updateLoyaltyConfig({
         restaurant_id: selectedRestaurant,
-        enable_loyalty: enableLoyalty,
+        enable_loyalty: newValue,
         config: {}   // No restaurant-configurable fields in centralized model
       })
       const body = response?.message || response?.data || response
       if (body?.success) {
+        setEnableLoyalty(newValue)
         await mutateRestaurant()
-        toast.success(enableLoyalty
+        toast.success(newValue
           ? 'Loyalty enabled — your customers can now earn DineMatters Cash!'
           : 'Loyalty disabled. Ordering and Club listing have also been turned off.')
       } else {
@@ -81,9 +68,25 @@ export default function LoyaltySettings() {
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to save settings')
+      // Revert local state on failure
+      setEnableLoyalty(!!restaurantDoc?.enable_loyalty)
     } finally {
       setSaving(false)
     }
+  }
+
+  // For Silver restaurants: intercept toggle-OFF with a confirmation modal
+  const handleLoyaltyToggle = (checked: boolean) => {
+    if (!checked && isSilver) {
+      setShowDisableConfirm(true)
+    } else {
+      saveSettings(checked)
+    }
+  }
+
+  const confirmDisableLoyalty = () => {
+    setShowDisableConfirm(false)
+    saveSettings(false)
   }
 
   return (
@@ -157,15 +160,18 @@ export default function LoyaltySettings() {
         </div>
 
         {/* Master Toggle */}
-        <div className="flex items-center gap-3 bg-muted/50 p-3 px-4 rounded-xl border h-14 shrink-0">
+        <div className="flex items-center gap-4 bg-muted/50 p-3 px-4 rounded-xl border h-14 shrink-0">
           <div className="flex flex-col">
             <Label htmlFor="enable-loyalty" className="text-sm font-semibold">Join Loyalty Network</Label>
-            <p className="text-[10px] text-muted-foreground">Enable for your restaurant</p>
+            <p className="text-[10px] text-muted-foreground">
+              {saving ? <span className="text-primary animate-pulse font-medium">Saving...</span> : 'Enable for your restaurant'}
+            </p>
           </div>
           <Switch
             id="enable-loyalty"
             checked={enableLoyalty}
             onCheckedChange={handleLoyaltyToggle}
+            disabled={saving}
           />
         </div>
       </div>
@@ -355,12 +361,6 @@ export default function LoyaltySettings() {
         </Card>
       </div>
 
-      {/* ── Save ────────────────────────────────────────────────────────── */}
-      <div className="flex justify-end pt-6 border-t border-border">
-        <Button size="lg" onClick={handleSave} disabled={saving} className="px-12 font-semibold shadow-sm h-12">
-          {saving ? 'Saving...' : 'Save Loyalty Settings'}
-        </Button>
-      </div>
     </div>
   )
 }

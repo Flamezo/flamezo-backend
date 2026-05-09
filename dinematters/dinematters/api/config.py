@@ -300,7 +300,7 @@ def get_restaurant_config(restaurant_id):
 				"features": {
 					# SILVER + GOLD: ordering and loyalty are tied together on Silver
 					# (Silver loyalty OFF = ordering OFF; Gold always has both)
-					"ordering": plan_type in ["SILVER", "GOLD"],
+					"ordering": plan_type == "GOLD",
 					"loyalty": plan_type in ["SILVER", "GOLD"],
 					"order_settings": plan_type in ["SILVER", "GOLD"],
 					"whatsapp_orders": plan_type in ["SILVER", "GOLD"],
