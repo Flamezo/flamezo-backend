@@ -514,13 +514,13 @@ class TestUpdateSubscriptionPlan(unittest.TestCase):
         self.assertFalse(result.get("deferred", False))
 
     def test_gold_upgrade_fails_when_balance_below_minimum(self):
-        """GOLD requires balance >= monthly_minimum (default 999). Balance 500 must fail."""
-        make_restaurant(self._res_name, plan="SILVER", balance=500.0, monthly_minimum=999.0)
+        """GOLD requires balance >= monthly_minimum (default 399). Balance 200 must fail."""
+        make_restaurant(self._res_name, plan="SILVER", balance=200.0, monthly_minimum=399.0)
         with self.assertRaises(frappe.ValidationError):
             self.update_subscription_plan(self._res_name, "GOLD")
 
     def test_gold_upgrade_succeeds_when_balance_meets_minimum(self):
-        make_restaurant(self._res_name, plan="SILVER", balance=1000.0, monthly_minimum=999.0)
+        make_restaurant(self._res_name, plan="SILVER", balance=500.0, monthly_minimum=399.0)
         result = self.update_subscription_plan(self._res_name, "GOLD")
         self.assertTrue(result["success"])
         self.assertTrue(result["deferred"])

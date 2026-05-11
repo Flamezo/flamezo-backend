@@ -27,7 +27,8 @@ export const GOLD_ONLY_FEATURES = [
   'video_upload',
   'videoUpload', // mapping backend key
   'branding',
-  'google_growth'
+  'google_growth',
+  'cart_milestones'
 ];
 
 export const SILVER_FEATURES = [

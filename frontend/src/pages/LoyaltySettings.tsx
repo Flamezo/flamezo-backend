@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
-import { useFrappePostCall, useFrappeGetDoc } from '@/lib/frappe'
+import { useFrappePostCall, useFrappeGetDoc, useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -17,17 +17,23 @@ import {
 } from '@/components/ui/dialog'
 
 // ── DineMatters Platform Constants (display only — actual enforcement is backend) ─
+// Plan-tiered: SILVER vs GOLD restaurants get different earn rates, caps, expiry, redemption limits.
 const PLATFORM = {
-  earn_percentage:          10,
-  coin_value_in_inr:        1,
-  max_coins_per_order:      1000,
-  min_order_to_earn:        100,
-  min_redemption_threshold: 250,
+  // Plan-tiered
+  earn_percentage:          { silver: 5,   gold: 7   },
+  max_coins_per_order:      { silver: 500, gold: 700 },
+  max_redemption_percent:   { silver: 20,  gold: 30  },
+  loyalty_expiry_months:    { silver: 3,   gold: 6   },
+  birthday_bonus_coins:     { silver: 50,  gold: 100 },
+  // Plan-independent
+  coin_value_in_inr:          1,
+  min_order_to_earn:          100,
+  min_redemption_threshold:   100,
   min_billing_for_redemption: 200,
-  loyalty_expiry_months:    6,
-  welcome_reward_coins:     50,
-  referral_share_coins:     30,
-  max_opens_per_cycle:      10,
+  max_daily_redemption_inr:   500,
+  welcome_reward_coins:       75,
+  referral_share_coins:       40,
+  max_opens_per_cycle:        10,
   tier: { silver: 500, gold: 2000, platinum: 5000 },
 }
 
@@ -41,6 +47,26 @@ export default function LoyaltySettings() {
     'Restaurant', selectedRestaurant || '',
     selectedRestaurant ? `Restaurant-${selectedRestaurant}` : null
   )
+
+  // Fetch loyalty config to get plan_type and plan-tiered constants
+  const { data: loyaltyConfigRes } = useFrappeGetCall(
+    'dinematters.dinematters.api.loyalty.get_loyalty_config',
+    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
+    selectedRestaurant ? `LoyaltyConfig-${selectedRestaurant}` : undefined
+  )
+  const loyaltyConfig = (loyaltyConfigRes as any)?.message?.data || (loyaltyConfigRes as any)?.data || null
+  const isGold = loyaltyConfig?.is_gold || !isSilver
+
+  // Plan-resolved display values
+  const plan = isGold ? 'gold' : 'silver'
+  const p = {
+    earn_percentage:        PLATFORM.earn_percentage[plan],
+    max_coins_per_order:    PLATFORM.max_coins_per_order[plan],
+    max_redemption_percent: PLATFORM.max_redemption_percent[plan],
+    expiry_months:          PLATFORM.loyalty_expiry_months[plan],
+    birthday_bonus:         PLATFORM.birthday_bonus_coins[plan],
+  }
+
   const { call: updateLoyaltyConfig } = useFrappePostCall('dinematters.dinematters.api.loyalty.update_loyalty_config')
 
   useEffect(() => {
@@ -68,7 +94,6 @@ export default function LoyaltySettings() {
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to save settings')
-      // Revert local state on failure
       setEnableLoyalty(!!restaurantDoc?.enable_loyalty)
     } finally {
       setSaving(false)
@@ -153,6 +178,11 @@ export default function LoyaltySettings() {
             <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
               DineMatters Network
             </Badge>
+            {isGold && (
+              <Badge className="text-xs font-semibold px-2 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-800">
+                Gold Plan
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground mt-2">
             Platform-wide loyalty that rewards customers across every restaurant in the DineMatters network.
@@ -215,7 +245,7 @@ export default function LoyaltySettings() {
                   <Percent className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                 </div>
                 <p className="text-sm font-semibold">Customer Earns</p>
-                <p className="text-2xl font-bold text-primary">10% Cash</p>
+                <p className="text-2xl font-bold text-primary">{p.earn_percentage}% Cash</p>
                 <p className="text-xs text-muted-foreground">on every qualifying order at your restaurant</p>
               </div>
               <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
@@ -247,6 +277,44 @@ export default function LoyaltySettings() {
           </CardContent>
         </Card>
 
+        {/* ── Gold vs Silver Advantage (shown for Gold) ────────────────── */}
+        {isGold && (
+          <Card className="border-2 border-yellow-300/60 dark:border-yellow-700/40 bg-gradient-to-br from-yellow-50/60 via-background to-amber-50/30 dark:from-yellow-900/10 dark:to-amber-900/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-500" />
+                Your Gold Plan Advantage
+              </CardTitle>
+              <CardDescription>Gold restaurants offer better rewards — customers prefer and return to you over Silver restaurants</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Earn Rate',       silver: '5%',      gold: '7%',      icon: <Percent className="w-3.5 h-3.5" /> },
+                  { label: 'Max per Order',   silver: '₹500',    gold: '₹700',    icon: <Zap className="w-3.5 h-3.5" /> },
+                  { label: 'Redeem up to',    silver: '20%',     gold: '30%',     icon: <Gift className="w-3.5 h-3.5" /> },
+                  { label: 'Cash Valid for',  silver: '3 months',gold: '6 months',icon: <Clock className="w-3.5 h-3.5" /> },
+                ].map(({ label, silver, gold, icon }) => (
+                  <div key={label} className="flex flex-col gap-1.5 p-3 rounded-lg bg-background border">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {icon}
+                      {label}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs line-through text-muted-foreground/60">{silver}</span>
+                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{gold}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
+                <Star className="w-3 h-3 text-yellow-500 shrink-0" />
+                Gold restaurants also give <strong>₹{PLATFORM.birthday_bonus_coins.gold} birthday bonuses</strong> (vs ₹{PLATFORM.birthday_bonus_coins.silver} Silver) — customers remember who treated them best.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── Platform Rates (Read-Only) ───────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
@@ -259,10 +327,11 @@ export default function LoyaltySettings() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { label: 'Earn Rate',           value: `${PLATFORM.earn_percentage}% of bill` },
+                { label: 'Earn Rate',           value: `${p.earn_percentage}% of bill` },
                 { label: 'Min. Order to Earn',  value: `₹${PLATFORM.min_order_to_earn}` },
-                { label: 'Max. Cash per Order', value: `₹${PLATFORM.max_coins_per_order}` },
-                { label: 'Cash Expiry',         value: `${PLATFORM.loyalty_expiry_months} months` },
+                { label: 'Max. Cash per Order', value: `₹${p.max_coins_per_order}` },
+                { label: 'Cash Valid for',      value: `${p.expiry_months} months` },
+                { label: 'Birthday Bonus',      value: `₹${p.birthday_bonus} Cash` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">
                   <span className="text-sm text-muted-foreground">{label}</span>
@@ -282,9 +351,11 @@ export default function LoyaltySettings() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { label: 'Coin Value',            value: `1 Cash = ₹${PLATFORM.coin_value_in_inr}` },
-                { label: 'Min. Wallet to Redeem', value: `₹${PLATFORM.min_redemption_threshold}` },
-                { label: 'Min. Bill to Redeem',   value: `₹${PLATFORM.min_billing_for_redemption}` },
+                { label: 'Coin Value',             value: `1 Cash = ₹${PLATFORM.coin_value_in_inr}` },
+                { label: 'Max Redeem per Order',   value: `${p.max_redemption_percent}% of bill` },
+                { label: 'Daily Redeem Limit',     value: `₹${PLATFORM.max_daily_redemption_inr}` },
+                { label: 'Min. Wallet to Redeem',  value: `₹${PLATFORM.min_redemption_threshold}` },
+                { label: 'Min. Bill to Redeem',    value: `₹${PLATFORM.min_billing_for_redemption}` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">
                   <span className="text-sm text-muted-foreground">{label}</span>
@@ -316,6 +387,9 @@ export default function LoyaltySettings() {
                   <span className="text-sm font-semibold tabular-nums">{value}</span>
                 </div>
               ))}
+              <p className="text-xs text-muted-foreground pt-1">
+                Referral cycle resets on the 1st of each month.
+              </p>
             </CardContent>
           </Card>
 
@@ -353,7 +427,7 @@ export default function LoyaltySettings() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             <p>• All earn and redemption rates are <strong>fixed platform-wide</strong> — uniform, fair, and fraud-resistant across all network restaurants.</p>
-            <p>• <strong>Fraud protection:</strong> Phone verification required for all referral rewards. IP + browser fingerprinting on referral opens.</p>
+            <p>• <strong>Fraud protection:</strong> Phone verification required for all referral rewards. Daily redemption cap of ₹{PLATFORM.max_daily_redemption_inr} per customer.</p>
             <p>• <strong>Settlement:</strong> No monetary charge per redemption. You gain new diners from the network; that discovery is the value exchange.</p>
             <p>• Changes to platform rates apply to future transactions only. Existing earned Cash is never affected.</p>
             <p className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> To request a rate review, contact the DineMatters partner team.</p>

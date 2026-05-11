@@ -353,7 +353,7 @@ function LockedInsight({ title, description, children, isUnlocked }: { title: st
 
 // Main Dashboard Component
 export default function Dashboard() {
-  const { selectedRestaurant, referralCode } = useRestaurant()
+  const { selectedRestaurant, referralCode, restaurants: allRestaurants } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
   const { isGold } = useRestaurant()
@@ -376,11 +376,7 @@ export default function Dashboard() {
     limit: 100
   }, selectedRestaurant ? `products-dashboard-${selectedRestaurant}` : null)
 
-  const { data: restaurants } = useFrappeGetDocList('Restaurant', {
-    fields: ['name', 'restaurant_name', 'is_active', 'owner_email', 'city', 'state'],
-    filters: selectedRestaurant ? ({ name: selectedRestaurant } as any) : undefined,
-    limit: 100
-  }, selectedRestaurant ? `restaurants-dashboard-${selectedRestaurant}` : null)
+  const currentRestaurant = allRestaurants.find(r => r.name === selectedRestaurant)
   
   // Real-time Analytics Summary
   const { data: analytics } = useFrappeGetCall('dinematters.dinematters.api.analytics.get_dashboard_summary', {
@@ -456,7 +452,7 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-sm flex items-center gap-1.5">
             <Activity className="h-4 w-4 text-primary" />
-            Showing rolling 7-day performance for <span className="font-bold text-foreground">{restaurants?.[0]?.restaurant_name || selectedRestaurant}</span>
+            Showing rolling 7-day performance for <span className="font-bold text-foreground">{currentRestaurant?.restaurant_name || selectedRestaurant}</span>
           </p>
         </div>
 
@@ -872,7 +868,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {restaurants?.map((restaurant: any) => (
+            {allRestaurants?.map((restaurant: any) => (
               <div 
                 key={restaurant.name}
                 className={cn(

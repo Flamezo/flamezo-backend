@@ -56,9 +56,9 @@ def get_restaurant_config(restaurant_id):
 	from dinematters.dinematters.tasks.subscription_tasks import sync_restaurant_subscription
 	
 	try:
+		cache_key = f"restaurant_config:{restaurant_id}"
 		# Cache full response for guests (60s TTL)
 		if frappe.session.user == "Guest":
-			cache_key = f"restaurant_config:{restaurant_id}"
 			cached = frappe.cache().get_value(cache_key)
 			if cached:
 				return json.loads(cached)
@@ -267,7 +267,10 @@ def get_restaurant_config(restaurant_id):
 					"default_packaging_fee": flt(restaurant_doc.get("default_packaging_fee", 0)),
 					"minimum_order_value": flt(restaurant_doc.get("minimum_order_value", 0)),
 					"estimated_prep_time": cint(restaurant_doc.get("estimated_prep_time", 30) or 30)
-				}
+				},
+				"cartMilestones": [], # Will be populated from coupons below
+				"enableCartMilestones": plan_type == "GOLD", # Always available for GOLD if coupons exist
+				"planType": plan_type # Ensure plan type is available in settings too for simpler frontend checks
 			},
 			"socialMedia": {
 				"googleReviewLink": config.get("google_review_link", ""),
@@ -322,8 +325,74 @@ def get_restaurant_config(restaurant_id):
 			"homeFeatures": []
 		}
 
+		# Fetch active coupons for this restaurant with a minimum order amount if GOLD plan
+		if plan_type == "GOLD":
+			# Fetch active coupons
+			coupons = frappe.db.get_list("Coupon",
+				filters={
+					"restaurant": restaurant_doc.name,
+					"is_active": 1,
+					"min_order_amount": [">", 0]
+				},
+				fields=["name", "code", "min_order_amount", "discount_type", "discount_value", "description", "offer_type", "free_item", "valid_from", "valid_until"],
+				ignore_permissions=True
+			)
+			
+			# Filter by date manually to handle 'No Expiry' (None) correctly
+			today = frappe.utils.getdate()
+			coupon_milestones = []
+			for c in coupons:
+				# Check start/end dates safely
+				v_from = frappe.utils.getdate(c.get("valid_from"))
+				v_until = frappe.utils.getdate(c.get("valid_until"))
+				
+				if v_from and v_from > today:
+					continue
+				if v_until and v_until < today:
+					continue
+
+				# Determine reward label for UI
+				label = ""
+				d_val = flt(c.get("discount_value"))
+				
+				if c.discount_type == "percent":
+					label = f"{int(d_val)}% Off"
+				elif c.discount_type == "flat":
+					label = f"₹{int(d_val)} Off"
+				elif c.discount_type == "delivery":
+					label = "Free Delivery"
+				elif c.offer_type == "combo" and c.get("free_item"):
+					label = f"Free {c.free_item.split(' - ')[-1]}"
+				else:
+					label = f"Offer: {c.code}"
+
+				icon = "🎁"
+				if c.discount_type == "delivery": 
+					icon = "🚚"
+				elif d_val > 50: 
+					icon = "🔥"
+				elif c.offer_type == "combo": 
+					icon = "🍱"
+
+				coupon_milestones.append({
+					"threshold": flt(c.get("min_order_amount")),
+					"rewardType": "message",
+					"rewardText": c.description or f"Use code {c.code} at checkout to save!",
+					"rewardLabel": label,
+					"icon": icon,
+					"couponCode": c.code,
+					"isCoupon": True
+				})
+
+			# Final sort and assignment
+			coupon_milestones.sort(key=lambda x: x.get("threshold", 0))
+			response_data["settings"]["cartMilestones"] = coupon_milestones
+			# Only enable if we actually have coupons to show
+			response_data["settings"]["enableCartMilestones"] = len(coupon_milestones) > 0
+
 		# Try to include Home Feature images (menu, book-table, legacy, offers-events, dine-play)
 		try:
+			cache_key = f"restaurant_config:{restaurant_id}"
 			features_cache_key = f"home_features:{restaurant_id}"
 			cached_features = frappe.cache().get_value(features_cache_key)
 			if cached_features:
@@ -795,6 +864,7 @@ def update_order_settings(restaurant_id, settings):
 				"details": error_trace if frappe.conf.developer_mode else None
 			}
 		}
+
 
 @frappe.whitelist()
 def update_logistics_settings(restaurant_id, settings):

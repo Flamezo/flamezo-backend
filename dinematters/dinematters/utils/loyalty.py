@@ -45,7 +45,7 @@ def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	for entry in entries:
 		if entry.transaction_type == "Earn":
 			# Only count Earn entries that haven't expired
-			if not entry.expiry_date or str(entry.expiry_date) >= str(curr_today):
+			if not entry.expiry_date or entry.expiry_date >= curr_today:
 				balance += entry.coins
 		else:
 			# Redemptions always deduct from balance
@@ -114,16 +114,17 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		return 0
 
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
+	plan_type    = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
 	min_order    = get_min_order_to_earn()     # ₹100
-	max_cap      = get_max_coins_per_order()   # ₹1000
+	max_cap      = get_max_coins_per_order(plan_type)
 	expiry_months = get_expiry_months()        # 6
 
 	# ── Minimum Order Check ───────────────────────────────────────────────────
 	if min_order > 0 and flt(amount_paid) < min_order:
 		return 0  # Order doesn't qualify
 
-	# ── Coin Calculation: always 10% of bill (platform standard) ──────────────
-	rate = get_earn_percentage() / 100         # 0.10
+	# ── Coin Calculation: tiered by plan (7% GOLD / 5% SILVER) ──────────────
+	rate = get_earn_percentage(plan_type) / 100
 	coins_earned = int(flt(amount_paid) * rate)
 	coins_earned = min(coins_earned, max_cap)  # Hard cap
 

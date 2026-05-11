@@ -6,6 +6,7 @@
  * ₹1 Balance = ₹1 (Base) + 18% GST (Collected Upfront)
  */
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { useFrappePostCall, useFrappeGetCall } from '@/lib/frappe'
-import { Loader2, Sparkles, Zap, Star, Rocket, PenLine, Wallet } from 'lucide-react'
+import { Loader2, Sparkles, Zap, Star, Rocket, PenLine, Wallet, History as HistoryIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CoinRechargeModalProps {
@@ -91,6 +92,7 @@ function loadRazorpayScript(): Promise<boolean> {
 }
 
 export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRechargeModalProps) {
+  const navigate = useNavigate()
   const [selectedBundle, setSelectedBundle] = useState<string>('2000')
   const [customBalance, setCustomBalance] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -360,21 +362,36 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
           </div>
         </div>
 
-        <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!canPurchase || isProcessing || selectedCoins === 0}
-            onClick={handlePurchase}
-            className="bg-primary hover:bg-primary/90 text-white gap-2"
+        <DialogFooter className="mt-2 flex items-center justify-between sm:justify-between w-full">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground hover:text-primary gap-2 px-2" 
+            onClick={() => {
+              onClose()
+              navigate('/ledger')
+            }}
           >
-            {isProcessing ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
-            ) : (
-              <><Sparkles className="h-4 w-4" /> Pay ₹{totalPayable}</>
-            )}
+            <HistoryIcon className="h-4 w-4" />
+            Show Ledger
           </Button>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!canPurchase || isProcessing || selectedCoins === 0}
+              onClick={handlePurchase}
+              className="bg-primary hover:bg-primary/90 text-white gap-2"
+            >
+              {isProcessing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+              ) : (
+                <><Sparkles className="h-4 w-4" /> Pay ₹{totalPayable}</>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

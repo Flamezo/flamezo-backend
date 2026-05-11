@@ -62,7 +62,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
     """
     Validates the nightly billing task that recovers daily minimum fees.
 
-    GOLD  — flat ₹33.30/day (999 / 30), regardless of order commissions.
+    GOLD  — flat ₹13.30/day (399 / 30), regardless of order commissions.
     GOLD — monthly guarantee recovery: (monthly_min) - total commissions in 30 days.
               Checked and charged only every 30 days.
     """
@@ -98,11 +98,11 @@ class TestDailySubscriptionFloors(unittest.TestCase):
     def test_gold_charged_flat_daily_fee_when_no_commission(self):
         """
         GOLD restaurant at 30-day cycle end, no commissions.
-        Expected deduction: ₹999 full shortfall (Monthly GOLD Floor).
+        Expected deduction: ₹399 full shortfall (Monthly GOLD Floor).
         """
         g = self._gold_name()
         activation_date = add_days(today(), -30)
-        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=999.0,
+        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=399.0,
                         enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
                         last_floor_recovery_date=activation_date)
         clear_transactions(g)
@@ -111,7 +111,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
 
         txn = get_latest_transaction(g, "Monthly GOLD Floor")
         self.assertIsNotNone(txn, "GOLD floor transaction must be created")
-        self.assertAlmostEqual(abs(txn.amount), 999.0, places=2)
+        self.assertAlmostEqual(abs(txn.amount), 399.0, places=2)
 
     def test_gold_skips_when_commission_already_covers_floor(self):
         """
@@ -122,7 +122,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
         engine is plan-agnostic — if commissions exist, they offset the floor.
         """
         g = self._gold_name()
-        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=999.0,
+        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=399.0,
                         enable_floor_recovery=1)
         clear_transactions(g)
         # Pre-load today's commission deductions
@@ -179,7 +179,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
         """
         g = self._gold_name()
         activation_date = add_days(today(), -30)
-        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=999.0,
+        make_restaurant(g, plan="GOLD", balance=500.0, monthly_minimum=399.0,
                         enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
                         last_floor_recovery_date=activation_date)
         clear_transactions(g)
@@ -197,7 +197,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
 
     def test_skips_inactive_restaurants(self):
         name = f"{_PREFIX}-DSF-X-{self._sfx}"
-        make_restaurant(name, plan="GOLD", balance=500.0, monthly_minimum=999.0,
+        make_restaurant(name, plan="GOLD", balance=500.0, monthly_minimum=399.0,
                         enable_floor_recovery=1, is_active=0)
         clear_transactions(name)
 
@@ -208,7 +208,7 @@ class TestDailySubscriptionFloors(unittest.TestCase):
 
     def test_skips_restaurants_with_floor_recovery_disabled(self):
         name = f"{_PREFIX}-DSF-X-{self._sfx}"
-        make_restaurant(name, plan="GOLD", balance=500.0, monthly_minimum=999.0,
+        make_restaurant(name, plan="GOLD", balance=500.0, monthly_minimum=399.0,
                         enable_floor_recovery=0)
         clear_transactions(name)
 

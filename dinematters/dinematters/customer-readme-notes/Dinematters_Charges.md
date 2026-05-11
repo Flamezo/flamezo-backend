@@ -10,7 +10,7 @@ DineMatters offers three distinct tiers designed to grow with your restaurant.
 | Tier | Fee Structure | Best For |
 | :--- | :--- | :--- |
 | **SILVER** | **₹0 / Month** | Start-ups digitizing their menu for the first time. |
-| **GOLD** | **₹999/mo + 1.5% Commission** <br> (₹399 Monthly Floor) | Established restaurants needing full automation, marketing & growth tools. |
+| **GOLD** | **₹399/mo floor + 1.5% Commission** | Established restaurants needing full automation, marketing & growth tools. |
 
 ### 💎 The Gold Pricing Model (Monthly Floor)
 The Gold tier is a "Growth Success Partner" model. It is designed so that DineMatters only earns when you earn.

@@ -606,6 +606,7 @@ def import_customers(restaurant_id, rows):
 						# if already set, silently skip (per product policy)
 
 					# Track which restaurants have imported this customer
+					# pyrefly: ignore [bad-argument-type]
 					_link_customer_to_restaurant(existing_id, restaurant, updates)
 
 					frappe.db.set_value("Customer", existing_id, updates)

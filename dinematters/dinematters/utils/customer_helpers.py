@@ -185,7 +185,7 @@ def _restore_session_from_db(session_token: str):
 		return None
 
 
-def validate_customer_session(phone: str, session_token: str, slide_expiry: bool = True) -> bool:
+def validate_customer_session(phone: str, session_token: str | None, slide_expiry: bool = True) -> bool:
 	try:
 		if not session_token or not phone:
 			return False
@@ -227,7 +227,7 @@ def validate_customer_session(phone: str, session_token: str, slide_expiry: bool
 		return False
 
 
-def get_customer_from_token(session_token: str) -> str:
+def get_customer_from_token(session_token: str | None) -> str | None:
 	"""
 	Securely retrieves the customer_id associated with a session token.
 	Verifies against Cache/DB and ensures session is NOT revoked.

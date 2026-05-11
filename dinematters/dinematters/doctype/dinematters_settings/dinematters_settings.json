@@ -128,7 +128,7 @@
    "label": "Subscription Defaults"
   },
   {
-   "default": "999",
+   "default": "399",
    "fieldname": "gold_monthly_fee",
    "fieldtype": "Float",
    "label": "GOLD Monthly Floor"

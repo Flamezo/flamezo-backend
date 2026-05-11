@@ -263,9 +263,17 @@ scheduler_events = {
         "0 1 * * *": [
             "dinematters.dinematters.api.google_business.fetch_all_restaurant_insights"
         ],
-		# Loyalty: grant birthday bonus coins at 08:00 daily
+		# Loyalty: grant birthday bonus coins at 08:00 IST daily
 		"0 8 * * *": [
 			"dinematters.dinematters.tasks.loyalty_tasks.grant_birthday_bonuses"
+		],
+		# Loyalty: nudge customers whose coins expire within 7 days — 10:00 IST daily
+		"0 10 * * *": [
+			"dinematters.dinematters.tasks.loyalty_tasks.send_coin_expiry_notifications"
+		],
+		# Loyalty: reset referral share cycles on 1st of each month at 00:00 UTC
+		"0 0 1 * *": [
+			"dinematters.dinematters.tasks.loyalty_tasks.reset_referral_cycles_monthly"
 		],
 	}
 }

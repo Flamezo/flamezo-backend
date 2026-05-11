@@ -19,6 +19,7 @@ from dinematters.dinematters.utils.platform_config import (
 	get_welcome_reward_coins,
 	get_referral_share_coins,
 	get_max_opens_rewarded_per_share,
+	get_tier_threshold,
 )
 import json
 import random
@@ -46,7 +47,7 @@ def get_loyalty_summary(restaurant_id, phone):
 		
 		# Production Auth Gate
 		session_token = get_customer_token()
-		if not validate_customer_session(normalized_phone, session_token):
+		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 		
 		customer = get_or_create_customer(normalized_phone)
@@ -106,38 +107,52 @@ def get_loyalty_config(restaurant_id):
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
-		if not frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
+		
+		# Check if loyalty is enabled for this restaurant
+		is_enabled = frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
+		if not is_enabled:
 			return {"success": True, "data": None}
 
-		prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
-		# Only fetch non-rate fields from the restaurant doc
+		# Try to fetch non-rate fields from the restaurant doc if it exists
 		restaurant_doc_config = frappe.db.get_value(
 			"Restaurant Loyalty Config",
-			prog_name,
-			["program_name", "earn_on_status", "birthday_bonus_coins"],
+			{"restaurant": restaurant},
+			["program_name", "earn_on_status"],
 			as_dict=True
-		)
+		) or {}
 
-		# Build config: platform constants override everything
+		# Plan-aware rates
+		from dinematters.dinematters.utils.platform_config import (
+			get_earn_percentage, get_max_coins_per_order, get_max_redemption_percent,
+			get_expiry_months, get_birthday_bonus_coins,
+		)
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		is_gold = plan == "GOLD"
+
+		# Build config: plan-tiered platform constants + program metadata
 		config = {
 			"program_name":                 restaurant_doc_config.get("program_name") or "DineMatters Rewards",
 			"earn_on_status":               restaurant_doc_config.get("earn_on_status") or "Completed",
-			"birthday_bonus_coins":         restaurant_doc_config.get("birthday_bonus_coins") or 0,
-			# ── Platform-fixed rates (from utils/platform_config.py) ──────────────
+			"plan_type":                    plan,
+			"is_gold":                      is_gold,
+			# ── Plan-tiered rates ─────────────────────────────────────────────────
 			"earn_type":                    PLATFORM_LOYALTY["earn_type"],
-			"earn_percentage":              PLATFORM_LOYALTY["earn_percentage"],
+			"earn_percentage":              get_earn_percentage(plan),          # 7% GOLD / 5% SILVER
+			"max_coins_per_order":          get_max_coins_per_order(plan),      # 700 / 500
+			"max_redemption_percent":       get_max_redemption_percent(plan),   # 30% / 20%
+			"loyalty_expiry_months":        get_expiry_months(plan),            # 6 (GOLD) / 3 (SILVER)
+			"birthday_bonus_coins":         get_birthday_bonus_coins(plan),     # 100 / 50
+			# ── Plan-independent constants ────────────────────────────────────────
 			"coin_value_in_inr":            PLATFORM_LOYALTY["coin_value_in_inr"],
 			"min_order_to_earn":            PLATFORM_LOYALTY["min_order_to_earn"],
-			"max_coins_per_order":          PLATFORM_LOYALTY["max_coins_per_order"],
 			"min_redemption_threshold":     PLATFORM_LOYALTY["min_redemption_threshold"],
 			"min_billing_for_redemption":   PLATFORM_LOYALTY["min_billing_for_redemption"],
-			"loyalty_expiry_months":        PLATFORM_LOYALTY["loyalty_expiry_months"],
-			"new_user_welcome_reward_coins":PLATFORM_LOYALTY["welcome_reward_coins"],
-			"coins_per_unique_open":        PLATFORM_LOYALTY["referral_share_coins"],
-			"max_opens_rewarded_per_share": PLATFORM_LOYALTY["max_opens_rewarded_per_share"],
-			"tier_silver_threshold":        PLATFORM_LOYALTY["tier"]["silver"],
-			"tier_gold_threshold":          PLATFORM_LOYALTY["tier"]["gold"],
-			"tier_platinum_threshold":      PLATFORM_LOYALTY["tier"]["platinum"],
+			"new_user_welcome_reward_coins":PLATFORM_LOYALTY.get("welcome_reward_coins", 50),
+			"coins_per_unique_open":        PLATFORM_LOYALTY.get("referral_share_coins", 30),
+			"max_opens_rewarded_per_share": PLATFORM_LOYALTY.get("max_opens_rewarded_per_share", 10),
+			"tier_silver_threshold":        get_tier_threshold("silver"),
+			"tier_gold_threshold":          get_tier_threshold("gold"),
+			"tier_platinum_threshold":      get_tier_threshold("platinum"),
 		}
 
 		# Add current restaurant's city
@@ -266,7 +281,7 @@ def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 			
 		# Production Auth Gate
 		session_token = get_customer_token()
-		if not validate_customer_session(normalized_phone, session_token):
+		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 		
 		customer = get_or_create_customer(normalized_phone)
@@ -407,7 +422,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 
 		# Auth gate — must have a valid session (post-OTP)
 		session_token = get_customer_token()
-		if not validate_customer_session(normalized_phone, session_token):
+		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 
 		# 1. Validate the referral link belongs to this restaurant
@@ -426,26 +441,32 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 		# 2. Get or create the referee customer
 		referee = get_or_create_customer(normalized_phone)
 
-		# 3. Idempotency: check if referee already claimed Welcome Bonus for this restaurant
+		# 3. Bot detection: reject accounts created in the last 60 seconds (script abuse)
+		from frappe.utils import now_datetime, get_datetime
+		age_seconds = (now_datetime() - get_datetime(referee.creation)).total_seconds()
+		if age_seconds < 60:
+			return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
+
+		# 4. Global idempotency: one Welcome Bonus per phone number ever, across all restaurants
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": referee.name,
-			"restaurant": restaurant,
 			"reason": "Welcome Bonus"
+			# No "restaurant" filter — global check
 		})
 		if already_rewarded:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "Welcome bonus already claimed"}}
 
-		# 4. Prevent self-referral
+		# 5. Prevent self-referral
 		if link_info.referrer == referee.name:
 			return {"success": False, "error": {"code": "SELF_REFERRAL", "message": "Cannot use your own referral link"}}
 
-		# 5. Use platform-fixed reward values (no per-restaurant config needed)
-		welcome_coins        = get_welcome_reward_coins()           # ₹50 platform standard
-		referral_share_coins = get_referral_share_coins()           # ₹30 per verified open
+		# 6. Use platform-fixed reward values (no per-restaurant config needed)
+		welcome_coins        = get_welcome_reward_coins()           # ₹75 platform standard
+		referral_share_coins = get_referral_share_coins()           # ₹40 per verified open
 		max_limit            = get_max_opens_rewarded_per_share()   # 10 per cycle
 		current_cycle = int(frappe.db.get_value("Referral Link", link_info.name, "rewarded_opens_in_cycle") or 0)
 
-		# 6. Award Welcome Bonus to referee
+		# 7. Award Welcome Bonus to referee
 		credit_loyalty_points(
 			customer=referee.name,
 			restaurant=restaurant,
@@ -455,7 +476,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			ref_name=link_info.name
 		)
 
-		# 7. Award Referral Share to referrer (if within cycle limit)
+		# 8. Award Referral Share to referrer (if within cycle limit)
 		referrer_coins_awarded = 0
 		if current_cycle < max_limit:
 			credit_loyalty_points(
@@ -469,7 +490,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			referrer_coins_awarded = referral_share_coins
 			frappe.db.set_value("Referral Link", link_info.name, "rewarded_opens_in_cycle", current_cycle + 1)
 
-		# 8. Mark referral visit as converted (best-effort, not blocking)
+		# 9. Mark referral visit as converted (best-effort, not blocking)
 		try:
 			frappe.db.sql("""
 				UPDATE `tabReferral Visit`
@@ -513,8 +534,8 @@ def get_referral_details(identifier):
 		referrer_name = referrer_full_name.split(' ')[0] if referrer_full_name else link_info.referrer
 		restaurant_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
 		
-		# Get welcome coins from config
-		welcome_coins = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": link_info.restaurant}, "new_user_welcome_reward_coins") or 50
+		# Get welcome coins from platform config (source of truth)
+		welcome_coins = get_welcome_reward_coins()
 		
 		# Get restaurant config for images
 		logo = frappe.db.get_value("Restaurant Config", {"restaurant": link_info.restaurant}, "logo")
@@ -529,7 +550,7 @@ def get_referral_details(identifier):
 				"restaurant_id": link_info.restaurant,
 				"logo": logo,
 				"banner": banner,
-				"welcome_coins": int(welcome_coins)
+				"welcome_coins": welcome_coins
 			}
 		}
 	except Exception as e:
@@ -568,26 +589,22 @@ def process_referral_welcome_bonus(customer, restaurant, referral_id):
 		if link_info.get("restaurant") != restaurant:
 			return False
 			
-		# 2. Check if customer already received a Welcome Bonus for this restaurant
-		# This prevents duplicate claims even if they re-verify
-		from dinematters.dinematters.utils.loyalty import get_loyalty_balance
+		# 2. Global idempotency: one Welcome Bonus per phone number ever, across all restaurants
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": customer,
-			"restaurant": restaurant,
 			"reason": "Welcome Bonus"
+			# No "restaurant" filter — global check prevents multi-restaurant bonus farming
 		})
 		
 		if already_rewarded:
 			return False
 			
-		# 3. Get loyalty config
-		lp_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name")
-		if not lp_name:
+		# 3. Ensure an active loyalty config exists for this restaurant
+		if not frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name"):
 			return False
-		loyalty_prog = frappe.get_doc("Restaurant Loyalty Config", lp_name)
-			
-		# 4. Award the Welcome Bonus
-		coins = loyalty_prog.new_user_welcome_reward_coins or 50
+
+		# 4. Award the Welcome Bonus (always platform value — not per-restaurant config)
+		coins = get_welcome_reward_coins()
 		credit_loyalty_points(
 			customer=customer,
 			restaurant=restaurant,
@@ -631,7 +648,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 			"earn_type", "earn_percentage", "earn_flat_coins", "points_per_inr",
 			"min_order_to_earn", "max_coins_per_order", "coin_value_in_inr",
 			"min_billing_for_redemption", "min_redemption_threshold",
-			"loyalty_expiry_months", "share_reward_coins",
+			"loyalty_expiry_months", "share_reward_coins", "birthday_bonus_coins",
 			"referral_order_reward_coins", "new_user_welcome_reward_coins",
 			"coins_per_unique_open", "max_opens_rewarded_per_share",
 			"welcome_coupon_discount",
@@ -640,10 +657,14 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		for field in _LOCKED_FIELDS:
 			config.pop(field, None)
 
-		# ── Ensure platform constants are stored in the doc (for reference) ──────
-		config["earn_type"]      = PLATFORM_LOYALTY["earn_type"]
-		config["earn_percentage"]= PLATFORM_LOYALTY["earn_percentage"]
-		config["points_per_inr"] = round(PLATFORM_LOYALTY["earn_percentage"] / 100, 4)
+		# ── Write back plan-tiered platform constants into the doc ───────────────
+		from dinematters.dinematters.utils.platform_config import (
+			get_earn_percentage, get_expiry_months,
+		)
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		config["earn_type"]       = PLATFORM_LOYALTY["earn_type"]
+		config["earn_percentage"] = get_earn_percentage(plan)
+		config["points_per_inr"]  = round(get_earn_percentage(plan) / 100, 4)
 		config["coin_value_in_inr"] = PLATFORM_LOYALTY["coin_value_in_inr"]
 
 		# ── Save the config document ─────────────────────────────────────────────
@@ -883,6 +904,232 @@ def get_customer_transactions(restaurant_id, customer_id):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
+@require_plan('SILVER', 'GOLD')
+def get_loyalty_analytics(restaurant_id):
+	"""
+	Merchant loyalty analytics dashboard.
+	Returns programme-level KPIs in a single API call — no N+1 queries.
+
+	Metrics returned:
+	  summary     — total_coins_issued, total_coins_redeemed, active_customers,
+	                customers_expiring_soon (within 7 days), redemption_rate_percent,
+	                avg_balance, daily_redemption_cap_utilization_today
+	  earn_by_reason — breakdown of Earn coins by reason (Order, Welcome Bonus, etc.)
+	  top_earners  — top 5 customers by lifetime coins (masked if Silver plan)
+	  expiring_soon — list of customers with coins expiring ≤7 days (for operator action)
+	  daily_trend  — last 30 days of daily earn + redeem volumes
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		is_gold = plan_type == "GOLD"
+
+		from frappe.utils import today, add_days, getdate
+		today_str = today()
+		window_end = str(add_days(today_str, 7))
+		thirty_days_ago = str(add_days(today_str, -30))
+
+		# ── 1. Programme-level summary ─────────────────────────────────────────────
+		summary_row = frappe.db.sql("""
+			SELECT
+				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   AND is_settled = 1 THEN coins ELSE 0 END), 0) AS total_issued,
+				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END), 0) AS total_redeemed,
+				COUNT(DISTINCT CASE WHEN transaction_type = 'Earn' AND is_settled = 1 THEN customer END)          AS active_customers
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s
+		""", (restaurant,), as_dict=True)[0]
+
+		total_issued   = int(summary_row.total_issued or 0)
+		total_redeemed = int(summary_row.total_redeemed or 0)
+		active_customers = int(summary_row.active_customers or 0)
+		redemption_rate = round((total_redeemed / total_issued * 100) if total_issued else 0, 1)
+
+		# Customers with coins expiring ≤7 days (and positive net balance)
+		expiring_rows = frappe.db.sql("""
+			SELECT
+				e.customer,
+				MIN(e.expiry_date) AS earliest_expiry,
+				GREATEST(0, SUM(
+					CASE
+						WHEN e.transaction_type = 'Earn'   AND e.is_settled = 1
+						 AND (e.expiry_date IS NULL OR e.expiry_date >= CURDATE()) THEN  e.coins
+						WHEN e.transaction_type = 'Redeem' AND e.is_settled = 1   THEN -e.coins
+						ELSE 0
+					END
+				)) AS net_balance
+			FROM `tabRestaurant Loyalty Entry` e
+			WHERE e.restaurant = %s
+			  AND EXISTS (
+				SELECT 1 FROM `tabRestaurant Loyalty Entry` x
+				WHERE x.restaurant = e.restaurant
+				  AND x.customer  = e.customer
+				  AND x.transaction_type = 'Earn'
+				  AND x.is_settled = 1
+				  AND x.expiry_date IS NOT NULL
+				  AND x.expiry_date >= %s
+				  AND x.expiry_date <= %s
+			  )
+			GROUP BY e.customer
+			HAVING net_balance > 0
+			ORDER BY earliest_expiry ASC
+			LIMIT 50
+		""", (restaurant, today_str, window_end), as_dict=True)
+
+		customers_expiring_soon = len(expiring_rows)
+
+		# Average wallet balance across all customers with any balance
+		avg_row = frappe.db.sql("""
+			SELECT COALESCE(AVG(net_bal), 0) AS avg_balance FROM (
+				SELECT customer,
+					GREATEST(0, SUM(
+						CASE
+							WHEN transaction_type = 'Earn'   AND is_settled = 1
+							 AND (expiry_date IS NULL OR expiry_date >= CURDATE()) THEN  coins
+							WHEN transaction_type = 'Redeem' AND is_settled = 1   THEN -coins
+							ELSE 0
+						END
+					)) AS net_bal
+				FROM `tabRestaurant Loyalty Entry`
+				WHERE restaurant = %s
+				GROUP BY customer
+				HAVING net_bal > 0
+			) t
+		""", (restaurant,), as_dict=True)
+		avg_balance = round(float(avg_row[0].avg_balance or 0), 1) if avg_row else 0.0
+
+		# Today's total redemptions across the whole restaurant (all customers)
+		today_redeem_row = frappe.db.sql("""
+			SELECT COALESCE(SUM(coins), 0) AS today_redeemed
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s
+			  AND transaction_type = 'Redeem'
+			  AND reason = 'Redemption'
+			  AND posting_date = CURDATE()
+		""", (restaurant,), as_dict=True)
+		today_redeemed_total = int(today_redeem_row[0].today_redeemed or 0) if today_redeem_row else 0
+
+		# ── 2. Earn breakdown by reason ────────────────────────────────────────────
+		reason_rows = frappe.db.sql("""
+			SELECT reason, COALESCE(SUM(coins), 0) AS total_coins, COUNT(*) AS count
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s AND transaction_type = 'Earn' AND is_settled = 1
+			GROUP BY reason
+			ORDER BY total_coins DESC
+		""", (restaurant,), as_dict=True)
+		earn_by_reason = [
+			{"reason": r.reason, "total_coins": int(r.total_coins), "count": int(r.count)}
+			for r in reason_rows
+		]
+
+		# ── 3. Top 5 earners (lifetime coins) ─────────────────────────────────────
+		top_rows = frappe.db.sql("""
+			SELECT customer, SUM(coins) AS lifetime_coins
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s AND transaction_type = 'Earn' AND is_settled = 1
+			GROUP BY customer
+			ORDER BY lifetime_coins DESC
+			LIMIT 5
+		""", (restaurant,), as_dict=True)
+
+		top_earner_ids = [r.customer for r in top_rows]
+		customer_names_map = {}
+		if top_earner_ids:
+			name_rows = frappe.get_all(
+				"Customer",
+				filters={"name": ["in", top_earner_ids]},
+				fields=["name", "customer_name", "phone"]
+			)
+			customer_names_map = {c.name: c for c in name_rows}
+
+		top_earners = []
+		for r in top_rows:
+			c = customer_names_map.get(r.customer, frappe._dict())
+			display_name = c.get("customer_name") or r.customer
+			display_phone = c.get("phone") or ""
+			if not is_gold:
+				display_name  = mask_name(display_name)
+				display_phone = mask_phone(display_phone)
+			top_earners.append({
+				"customer": r.customer,
+				"name": display_name,
+				"phone": display_phone,
+				"lifetime_coins": int(r.lifetime_coins or 0),
+			})
+
+		# ── 4. Expiring soon customer list (for operator action) ───────────────────
+		expiring_customer_ids = [r.customer for r in expiring_rows]
+		exp_name_map = {}
+		if expiring_customer_ids:
+			exp_name_rows = frappe.get_all(
+				"Customer",
+				filters={"name": ["in", expiring_customer_ids]},
+				fields=["name", "customer_name", "phone"]
+			)
+			exp_name_map = {c.name: c for c in exp_name_rows}
+
+		expiring_list = []
+		for r in expiring_rows[:20]:   # cap UI list at 20
+			c = exp_name_map.get(r.customer, frappe._dict())
+			display_name  = c.get("customer_name") or r.customer
+			display_phone = c.get("phone") or ""
+			if not is_gold:
+				display_name  = mask_name(display_name)
+				display_phone = mask_phone(display_phone)
+			expiring_list.append({
+				"customer": r.customer,
+				"name": display_name,
+				"phone": display_phone,
+				"net_balance": int(r.net_balance or 0),
+				"earliest_expiry": str(r.earliest_expiry) if r.earliest_expiry else None,
+			})
+
+		# ── 5. Daily trend — last 30 days ─────────────────────────────────────────
+		trend_rows = frappe.db.sql("""
+			SELECT
+				posting_date,
+				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   THEN coins ELSE 0 END), 0) AS earned,
+				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' THEN coins ELSE 0 END), 0) AS redeemed
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s
+			  AND is_settled = 1
+			  AND posting_date >= %s
+			GROUP BY posting_date
+			ORDER BY posting_date ASC
+		""", (restaurant, thirty_days_ago), as_dict=True)
+
+		daily_trend = [
+			{
+				"date":     str(r.posting_date),
+				"earned":   int(r.earned or 0),
+				"redeemed": int(r.redeemed or 0),
+			}
+			for r in trend_rows
+		]
+
+		return {
+			"success": True,
+			"data": {
+				"summary": {
+					"total_coins_issued":           total_issued,
+					"total_coins_redeemed":         total_redeemed,
+					"active_customers":             active_customers,
+					"customers_expiring_soon":      customers_expiring_soon,
+					"redemption_rate_percent":      redemption_rate,
+					"avg_balance":                  avg_balance,
+					"today_redeemed_restaurant":    today_redeemed_total,
+				},
+				"earn_by_reason":    earn_by_reason,
+				"top_earners":       top_earners,
+				"expiring_soon":     expiring_list,
+				"daily_trend":       daily_trend,
+			}
+		}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Loyalty Analytics Error")
+		return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
 @require_plan('GOLD')
 def adjust_customer_points(restaurant_id, customer_id, coins, reason, transaction_type="Earn"):
 	"""
@@ -891,11 +1138,14 @@ def adjust_customer_points(restaurant_id, customer_id, coins, reason, transactio
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 		coins = cint(coins)
-		
+
 		if coins <= 0:
 			return {"success": False, "error": "Coins must be greater than 0"}
-			
-		from dinematters.dinematters.api.loyalty import credit_loyalty_points
+
+		max_adjustment: int = PLATFORM_LOYALTY.get("max_manual_adjustment_coins", 500)  # type: ignore[assignment]
+		if coins > max_adjustment:
+			return {"success": False, "error": f"Max single adjustment is ₹{max_adjustment} coins. Split into multiple if needed."}
+
 		credit_loyalty_points(customer_id, restaurant, coins, reason or "Manual Adjustment", transaction_type=transaction_type)
 		
 		return {

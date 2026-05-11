@@ -2,6 +2,7 @@ import frappe
 from frappe.utils import flt, cint, now_datetime, today, getdate
 from dinematters.dinematters.api.coupons import get_coupon_details
 from dinematters.dinematters.utils.loyalty import get_loyalty_balance, is_loyalty_enabled
+from dinematters.dinematters.utils.platform_config import get_max_redemption_percent
 import json
 from datetime import datetime
 
@@ -143,10 +144,13 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	# 4. Apply Loyalty Discount
 	loyalty_discount = 0
 	if loyalty_coins > 0 and customer and is_loyalty_enabled(restaurant):
-		balance = get_loyalty_balance(customer, restaurant)
+		balance = get_loyalty_balance(customer)  # global balance — universal wallet
 		actual_coins = min(cint(loyalty_coins), balance)
+		# Plan-tiered per-order cap: GOLD 30%, SILVER 20%
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 		remaining = subtotal - total_item_discount
-		loyalty_discount = min(flt(actual_coins), max(0, remaining))
+		loyalty_discount = min(flt(actual_coins), max(0, remaining), subtotal * max_redeem_pct)
 	
 	# 5. Calculate Tax
 	tax_rate_val = frappe.db.get_value("Restaurant", restaurant, "tax_rate")

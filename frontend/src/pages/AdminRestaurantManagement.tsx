@@ -95,7 +95,7 @@ export default function AdminRestaurantManagement() {
   const [platformSettings, setPlatformSettings] = useState({
     charge_gst: false,
     gst_percent: 18,
-    gold_monthly_fee: 999,
+    gold_monthly_fee: 399,
     gold_commission_percent: 1.5,
     gold_upgrade_barrier: 1299
   })

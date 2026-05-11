@@ -7,6 +7,7 @@ import razorpay
 import json
 import math
 from datetime import datetime
+from typing import cast
 from frappe import _
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
 from dinematters.dinematters.utils.customer_helpers import (
@@ -66,7 +67,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 	"""Create or update a Razorpay order for customer payment (SaaS model: no Route/transfers)."""
 	try:
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", _restaurant_name)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 
 		if restaurant.plan_type == "SILVER":
 			return {
@@ -106,7 +107,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		# Get platform customer for linking
 		platform_customer = None
 		if customer_phone:
-			cust = get_or_create_customer(customer_phone, customer_name, customer_email)
+			cust = get_or_create_customer(customer_phone, cast(str, customer_name), cast(str, customer_email))
 			platform_customer = cust.name if cust else None
 
 		# Parse order items if string
@@ -117,8 +118,8 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		total_amount_paise = int(float(total_amount) * 100)
 
 		# Calculate platform fee (Dynamic % by restaurant config)
-		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else 1.5)
-		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))
+		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else 1.5)  # type: ignore
+		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))  # type: ignore
 
 		# Create or Update order in ERPNext
 		order_doc = None
@@ -201,24 +202,20 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		if redeemed_coins > 0 and platform_customer:
 			try:
 				from dinematters.dinematters.utils.loyalty import get_loyalty_balance, is_loyalty_enabled
+				from dinematters.dinematters.utils.platform_config import get_max_redemption_percent
 				if is_loyalty_enabled(_restaurant_name):
-					balance = get_loyalty_balance(platform_customer, _restaurant_name)
+					balance = get_loyalty_balance(platform_customer)  # global wallet
 					if redeemed_coins > balance:
 						redeemed_coins = balance
-					
-					loyalty_configs = frappe.get_all("Restaurant Loyalty Config", 
-						filters={"restaurant": _restaurant_name, "is_active": 1}, 
-						fields=["name", "coin_value_in_inr"],
-						limit=1)
-					
-					if loyalty_configs:
-						loyalty_prog = frappe.get_doc("Restaurant Loyalty Config", loyalty_configs[0].name)
-						loyalty_discount = float(redeemed_coins * (loyalty_prog.coin_value_in_inr or 1))
-						# Cap at 30% of subtotal
-						max_ld = orig_subtotal * 0.3
-						if loyalty_discount > max_ld:
-							loyalty_discount = max_ld
-							redeemed_coins = int(loyalty_discount / (loyalty_prog.coin_value_in_inr or 1))
+
+					# Plan-tiered redemption cap: GOLD 30%, SILVER 20%
+					plan = frappe.db.get_value("Restaurant", _restaurant_name, "plan_type") or "SILVER"
+					max_redeem_pct = get_max_redemption_percent(plan) / 100.0
+					loyalty_discount = float(redeemed_coins)  # coin_value_in_inr is always 1
+					max_ld = orig_subtotal * max_redeem_pct
+					if loyalty_discount > max_ld:
+						loyalty_discount = max_ld
+						redeemed_coins = int(loyalty_discount)
 				else:
 					redeemed_coins = 0
 					loyalty_discount = 0
@@ -339,7 +336,7 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 		# Prefer using the merchant's keys if the order belongs to a restaurant that has merchant credentials.
 		order = None
 		try:
-			order = frappe.get_doc("Order", {"razorpay_order_id": razorpay_order_id})
+			order = frappe.get_doc("Order", cast(str, frappe.db.get_value("Order", {"razorpay_order_id": razorpay_order_id})))
 		except Exception:
 			order = None
 
@@ -382,7 +379,7 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 				
 				# Try processing loyalty even if doc save failed (using db values)
 				try:
-					order_doc = frappe.get_doc("Order", order.name)
+					order_doc = frappe.get_doc("Order", cast(str, order.name))
 					process_loyalty_and_coupons(order_doc)
 				except Exception:
 					pass
@@ -448,7 +445,7 @@ def process_loyalty_and_coupons(order):
 				)
 				frappe.db.commit()
 				frappe.log_error(
-					f"Loyalty REDEEMED {coins_to_redeem} coins for order {order.name}, entry={result.name if result else None}",
+					f"Loyalty REDEEMED {result} coins for order {order.name}",
 					"Loyalty Debug"
 				)
 	except Exception as e:
@@ -509,7 +506,7 @@ def get_restaurant_payment_stats(restaurant_id):
 	try:
 		# Validate restaurant (returns restaurant doc name), then fetch doc
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", _restaurant_name)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 
 		def mask_identifier(value, prefix_len=4):
 			if not value:
@@ -542,7 +539,7 @@ def get_restaurant_payment_stats(restaurant_id):
 		}
 		
 		# Get monthly minimum info (ensure numeric values)
-		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else 999.0)
+		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else 999.0)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
 		minimum_due = max(0, monthly_minimum - platform_fee_collected)
 		
@@ -582,7 +579,7 @@ def create_razorpay_customer_and_token(restaurant_id, customer_name, customer_em
 	"""Create a Razorpay customer record and optionally store a token id for recurring charges."""
 	try:
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", _restaurant_name)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 
 		client = get_razorpay_client()
 
@@ -620,7 +617,7 @@ def set_restaurant_razorpay_keys(restaurant_id, key_id, key_secret, webhook_secr
 			frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", _restaurant_name)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 		restaurant.razorpay_merchant_key_id = key_id
 		restaurant.razorpay_merchant_key_secret = key_secret
 		# optional webhook secret
@@ -768,6 +765,8 @@ def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id,
 		)
 		
 		# 3. Save to restaurant doc
+		if not _restaurant_name:
+			raise Exception("Restaurant not found")
 		restarurant_doc = frappe.get_doc("Restaurant", _restaurant_name)
 		updated = False
 		
@@ -818,6 +817,8 @@ def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id,
 @frappe.whitelist(allow_guest=True)
 def download_guide(guide_name):
 	import os
+	MarkdownPdf = None
+	Section = None
 	try:
 		from markdown_pdf import MarkdownPdf, Section
 	except ImportError:
@@ -841,8 +842,8 @@ def download_guide(guide_name):
 	with open(file_path, "r") as f:
 		md_content = f.read()
 		
-	pdf = MarkdownPdf(toc_level=0)
-	pdf.add_section(Section(md_content))
+	pdf = MarkdownPdf(toc_level=0)  # type: ignore
+	pdf.add_section(Section(md_content))  # type: ignore
 	
 	import tempfile
 	with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -883,10 +884,10 @@ def schedule_monthly_billing():
 			total_paise = int(float(total) * 100)
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
-			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else 1.5)
-			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else 999.0)
+			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else 1.5)  # type: ignore
+			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else 999.0)  # type: ignore
 			
-			calculated_fee = int(math.floor(total_paise * (platform_fee_percent / 100.0)))
+			calculated_fee = int(math.floor(total_paise * (platform_fee_percent / 100.0)))  # type: ignore
 			min_amt_paise = int(monthly_min * 100)
 			base_commission = max(min_amt_paise, calculated_fee)
 			
@@ -977,7 +978,7 @@ def charge_monthly_bill(ledger_name):
 				if hasattr(client, 'payment_link'):
 					link = client.payment_link.create(payment_link_payload)
 				else:
-					link = client.request('POST', '/payment_links', payment_link_payload)
+					link = client.request('POST', '/payment_links', params=payment_link_payload)
 				
 				short_url = link.get('short_url')
 				frappe.db.set_value("Monthly Billing Ledger", ledger.name, {
@@ -999,7 +1000,7 @@ def charge_monthly_bill(ledger_name):
 			"amount": int(ledger.final_amount),
 			"currency": "INR",
 			"payment_capture": True,
-			"receipt": f"bill_{ledger.name[:20]}",
+			"receipt": f"bill_{str(ledger.name)[:20]}",
 			"notification": {
 				"token_id": restaurant.razorpay_token_id,
 				"payment_after": payment_after_ts

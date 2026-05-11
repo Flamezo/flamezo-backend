@@ -35,7 +35,7 @@ const FEATURES: FeatureRow[] = [
   { name: 'Online Ordering via QR', silver: true, gold: true },
   { name: 'Loyalty Rewards (Earn & Redeem)', silver: true, gold: true },
   { name: 'Listed on DineMatters Club', silver: true, gold: true },
-  { name: 'Image Storage Limit', silver: '20', gold: 'Unlimited' },
+  { name: 'Image Storage Limit', silver: '200', gold: 'Unlimited' },
   { name: 'Video Menu & Stories', silver: false, gold: true },
   { name: 'Custom QR Logo (Branding)', silver: false, gold: 'Own Brand' },
   { name: 'AI Recommendations', silver: false, gold: true },
@@ -128,8 +128,7 @@ export function SubscriptionComparisonModal({
                  onClick={() => onSelectPlan('GOLD')}
                  disabled={currentPlan === 'GOLD' || isChangingPlan}
                 >
-                  {currentPlan === 'GOLD' ? 'Current Plan' : 
-                   currentPlan === 'GOLD' ? 'Downgrade' : 'Upgrade'}
+                  {currentPlan === 'GOLD' ? 'Current Plan' : 'Upgrade'}
                 </Button>
             </div>
           </div>

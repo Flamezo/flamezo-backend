@@ -54,6 +54,9 @@
   "enable_experience_lounge",
   "enable_loyalty",
   "verify_my_user",
+  "section_break_cart_milestones",
+  "enable_cart_milestones",
+  "cart_milestones",
   "section_break_social_media",
   "google_review_link",
   "instagram_profile_link",
@@ -114,7 +117,7 @@
    "fieldtype": "Select",
    "label": "Default Theme",
    "options": "light\ndark",
-    "default": "dark"
+   "default": "dark"
   },
   {
    "fieldname": "logo",
@@ -394,6 +397,22 @@
    "hidden": 1,
    "in_list_view": 0,
    "no_copy": 1
+  },
+  {
+   "fieldname": "section_break_cart_milestones",
+   "fieldtype": "Section Break",
+   "label": "Cart Value Milestones (Progress Bar)"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_cart_milestones",
+   "fieldtype": "Check",
+   "label": "Enable Cart Progress Bar"
+  },
+  {
+   "fieldname": "cart_milestones",
+   "fieldtype": "JSON",
+   "label": "Cart Milestones"
   }
  ],
  "index_web_pages_for_search": 1,

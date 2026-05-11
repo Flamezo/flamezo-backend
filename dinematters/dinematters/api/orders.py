@@ -419,12 +419,8 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 						ref_name=order_doc.name
 					)
 				
-				# 4. Renew Referrer's Sharing Limit
-				try:
-					from dinematters.dinematters.api.loyalty import reset_referral_cycle
-					reset_referral_cycle(platform_customer, restaurant)
-				except Exception as e:
-					frappe.log_error(f"Error resetting referral cycle: {str(e)}")
+				# Referral cycle reset is handled by the monthly scheduler
+				# (reset_referral_cycles_monthly in loyalty_tasks.py — runs 1st of each month)
 		except Exception as e:
 			frappe.log_error(f"Error in loyalty earning/referral logic: {str(e)}")
 		
@@ -694,6 +690,9 @@ def get_customer_orders(restaurant_id, phone, page=1, limit=20, include_items=Fa
 		
 		# Bypass strict auth for recent WhatsApp shadow orders to allow guest tracking
 		is_shadow_request = recent_only or (frappe.request.headers.get("X-Shadow-Request") == "true") if frappe.request else recent_only
+		
+		has_valid_session = False
+		has_verified_phone = False
 		
 		if verify_required:
 			has_valid_session = validate_customer_session(phone, session_token)

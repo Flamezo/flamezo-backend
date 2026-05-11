@@ -429,8 +429,8 @@
             "fieldname": "monthly_minimum",
             "fieldtype": "Currency",
             "label": "Monthly Minimum Fee",
-            "default": "999",
-            "description": "Minimum monthly platform fee (default: \u20b9999)"
+            "default": "399",
+            "description": "Minimum monthly platform fee (default: ₹399)"
         },
         {
             "fieldname": "razorpay_customer_id",

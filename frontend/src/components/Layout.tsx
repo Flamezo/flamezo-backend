@@ -4,7 +4,7 @@ import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappeGetDoc, useFrappePostCall, useFrappeAuth } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { useState, useEffect, useMemo } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -160,6 +160,7 @@ const navigation: NavItem[] = [
     children: [
       { name: 'Loyalty Settings', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
       { name: 'Customer Insights', href: '/loyalty-insights', icon: Users, feature: 'loyalty_insights' },
+      { name: 'Analytics', href: '/loyalty-analytics', icon: BarChart3, feature: 'loyalty' },
     ],
   },
   {
@@ -714,7 +715,7 @@ export default function Layout({ children }: LayoutProps) {
                       <SelectTrigger className="h-auto py-1.5 px-2 border-0 bg-transparent hover:bg-sidebar-accent shadow-none focus:ring-0 focus:ring-offset-0 w-full data-[state=open]:bg-sidebar-accent">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-sm font-semibold text-sidebar-foreground truncate whitespace-nowrap overflow-hidden max-w-[100px]">
-                            {restaurantDoc?.restaurant_name || currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
+                            {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
                           </span>
                           {isGold ? (
                             <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-black rounded-full flex-shrink-0 border"
@@ -1868,7 +1869,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Hard Suspension Overlay */}
       {!isActive && billingStatus === 'suspended' && (
         <SuspendedOverlay
-          restaurantName={restaurantDoc?.restaurant_name || currentRestaurant?.restaurant_name || "Your Restaurant"}
+          restaurantName={currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || "Your Restaurant"}
         />
       )}
       <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>

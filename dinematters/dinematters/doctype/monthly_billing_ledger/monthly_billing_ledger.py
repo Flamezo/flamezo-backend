@@ -28,7 +28,7 @@ class MonthlyBillingLedger(Document):
                     ["platform_fee_percent", "monthly_minimum", "plan_type"], as_dict=True)
                 if res_info:
                     platform_fee_percent = float(res_info.platform_fee_percent if res_info.platform_fee_percent is not None else 1.5)
-                    monthly_min = float(res_info.monthly_minimum if res_info.monthly_minimum is not None else 999)
+                    monthly_min = float(res_info.monthly_minimum if res_info.monthly_minimum is not None else 399)
                     plan_type = res_info.plan_type or "GOLD"
 
             # 1. Calculate Base Commission based on Plan Type

@@ -6,6 +6,8 @@ interface Restaurant {
   restaurant_id: string
   restaurant_name: string
   is_active: boolean
+  city?: string
+  state?: string
 }
 
 interface RestaurantContextType {

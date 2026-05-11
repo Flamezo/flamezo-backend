@@ -27,7 +27,7 @@ def make_restaurant(name, plan="GOLD", balance=5000.0, **kwargs):
         "coins_balance": balance,
         "is_active": 1,
         "monthly_minimum": (
-            999.0 if plan == "GOLD" else
+            399.0 if plan == "GOLD" else
             399.0 if plan == "GOLD" else
             0.0
         ),
@@ -89,20 +89,20 @@ def make_loyalty_config(restaurant, **kwargs):
         "is_active": 1,
         # Earn config — locked by platform in production, set here for unit-test isolation
         "earn_type": "Percentage of Bill",
-        "earn_percentage": 10.0,       # 10% of bill (platform is 5%; tests may override)
+        "earn_percentage": 5.0,        # Silver platform rate; tests may override for GOLD (7%)
         "earn_flat_coins": 50,
         "min_order_to_earn": 0,
-        "max_coins_per_order": 1000,
+        "max_coins_per_order": 500,    # Silver platform cap; GOLD tests should pass 700
         # Legacy field — kept in sync with earn_percentage/100
-        "points_per_inr": 0.1,
-        "loyalty_expiry_months": 12,
+        "points_per_inr": 0.05,
+        "loyalty_expiry_months": 3,    # Silver platform expiry; GOLD tests should pass 6
         "coin_value_in_inr": 1.0,
         "earn_on_status": "Completed",
-        "min_redemption_threshold": 250,
+        "min_redemption_threshold": 100,
         # Referral / share reward coins (platform-sourced in production via platform_config)
-        "coins_per_unique_open": 30,
+        "coins_per_unique_open": 40,
         "max_opens_rewarded_per_share": 10,
-        "new_user_welcome_reward_coins": 50,
+        "new_user_welcome_reward_coins": 75,
     }
     defaults.update(kwargs)
 

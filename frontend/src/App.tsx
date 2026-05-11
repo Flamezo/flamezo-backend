@@ -40,6 +40,7 @@ const AIMenuThemeHistoryPage = lazy(() => import('./pages/AIMenuThemeHistoryPage
 const AutopaySetupPage = lazy(() => import('./pages/AutopaySetupPage'))
 const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
 const CustomerInsights = lazy(() => import('./pages/CustomerInsights'))
+const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
 const PaymentConfiguration = lazy(() => import('./pages/PaymentConfiguration'))
 const POSIntegration = lazy(() => import('./pages/POSIntegration'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
@@ -108,6 +109,7 @@ function AppContent() {
 
 								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
 									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
+									<Route path="/loyalty-analytics" element={<LoyaltyAnalytics />} />
 								</Route>
 								<Route element={<FeatureProtectedRoute feature="loyalty_insights" />}>
 									<Route path="/loyalty-insights" element={<CustomerInsights />} />

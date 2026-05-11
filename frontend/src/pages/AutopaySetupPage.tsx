@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -22,7 +21,6 @@ import {
   Wallet,
   History,
   ShieldAlert,
-  Gem,
   Trophy,
   Smartphone,
   Download,
@@ -139,14 +137,6 @@ export default function AutopaySetupPage() {
     if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < goldBarrier) {
       toast.error('Insufficient Balance', {
         description: `You need at least ₹${goldBarrier} in your wallet to unlock GOLD.`
-      })
-      setShowRecharge(true)
-      return
-    }
-
-    if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < luxBarrier) {
-      toast.error('Insufficient Balance', {
-        description: `You need at least ₹${luxBarrier} in your wallet to upgrade to GOLD.`
       })
       setShowRecharge(true)
       return
@@ -322,7 +312,7 @@ export default function AutopaySetupPage() {
               <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
               <p className="text-xs text-muted-foreground">
                 Your {billingInfo.deferred_plan_type} plan will be effective from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
-                {(billingInfo.deferred_plan_type === 'GOLD' || billingInfo.deferred_plan_type === 'GOLD') && " Premium features will unlock then."}
+                {billingInfo.deferred_plan_type === 'GOLD' && " Premium features will unlock then."}
               </p>
             </div>
             <Badge variant="outline" className="border-primary/30 text-primary">
@@ -336,8 +326,7 @@ export default function AutopaySetupPage() {
       <Card className="border-none shadow-xl bg-card overflow-hidden ring-1 ring-border/50 relative">
         <div className={cn(
           "absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full",
-          planType === 'GOLD' ? "bg-indigo-500" :
-            planType === 'GOLD' ? "bg-primary" : "bg-muted"
+          planType === 'GOLD' ? "bg-primary" : "bg-muted"
         )} />
 
         <CardContent className="p-0 relative z-10">
@@ -346,11 +335,9 @@ export default function AutopaySetupPage() {
             <div className="flex-1 p-5 flex items-center gap-4 w-full">
               <div className={cn(
                 "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md",
-                planType === 'GOLD' ? "bg-indigo-500 text-white" :
-                  planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
               )}>
-                {planType === 'GOLD' ? <Gem className="h-6 w-6" /> :
-                  planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
+                {planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
               </div>
 
               <div className="min-w-0">
@@ -358,15 +345,13 @@ export default function AutopaySetupPage() {
                   <h3 className="text-xl font-black tracking-tight truncate">{planType} PLAN</h3>
                   <Badge className={cn(
                     "px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0",
-                    planType === 'GOLD' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" :
-                      planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
+                    planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
                   )} variant="outline">
                     Active
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium truncate max-w-[280px]">
-                  {planType === 'GOLD' ? 'Elite business automation & logistics.' :
-                    planType === 'GOLD' ? 'Professional digital growth tools.' :
+                  {planType === 'GOLD' ? 'Professional digital growth tools.' :
                       'Essential digital presence.'}
                 </p>
               </div>
