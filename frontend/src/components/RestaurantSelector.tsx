@@ -62,7 +62,10 @@ export function RestaurantSelector({
             className="flex h-11 w-full border-none bg-transparent py-3 text-sm text-white outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           />
         </div>
-        <div className="max-h-[300px] overflow-y-auto p-1 bg-[#1c1c1c]">
+        <div 
+          className="max-h-[300px] overflow-y-auto p-1 bg-[#1c1c1c] custom-scrollbar touch-pan-y"
+          onWheel={(e) => e.stopPropagation()}
+        >
           {filteredOptions.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No restaurant found.

@@ -353,7 +353,7 @@ function LockedInsight({ title, description, children, isUnlocked }: { title: st
 
 // Main Dashboard Component
 export default function Dashboard() {
-  const { selectedRestaurant, referralCode, restaurants: allRestaurants } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
   const { isGold } = useRestaurant()
@@ -377,6 +377,19 @@ export default function Dashboard() {
   }, selectedRestaurant ? `products-dashboard-${selectedRestaurant}` : null)
 
   const currentRestaurant = allRestaurants.find(r => r.name === selectedRestaurant)
+  
+  // Filter outlets by company/brand to ensure only relevant locations are shown
+  const currentCompany = restaurantConfig?.restaurant?.company
+  const filteredOutlets = allRestaurants?.filter((r: any) => {
+    // If current restaurant has a company, show all restaurants with the same company
+    if (currentCompany) {
+      return r.company === currentCompany
+    }
+    // If no company is set, only show the selected restaurant (standalone mode)
+    // or if the user is a super-admin/supervisor, they might expect to see something else,
+    // but the user specifically asked to fix "all restaurants showing up".
+    return r.name === selectedRestaurant
+  }) || []
   
   // Real-time Analytics Summary
   const { data: analytics } = useFrappeGetCall('dinematters.dinematters.api.analytics.get_dashboard_summary', {
@@ -868,7 +881,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {allRestaurants?.map((restaurant: any) => (
+            {filteredOutlets?.map((restaurant: any) => (
               <div 
                 key={restaurant.name}
                 className={cn(
@@ -877,6 +890,7 @@ export default function Dashboard() {
                     ? "bg-primary/10 border-primary/30 shadow-md shadow-primary/5" 
                     : "bg-muted/30 border-border/40 hover:bg-muted/50"
                 )}
+                onClick={() => setSelectedRestaurant(restaurant.name)}
               >
                 <div className="flex items-center gap-3">
                   <div className={cn(
