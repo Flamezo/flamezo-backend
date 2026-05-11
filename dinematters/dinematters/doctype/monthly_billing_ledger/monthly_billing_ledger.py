@@ -21,7 +21,7 @@ class MonthlyBillingLedger(Document):
             
             # Fetch commission settings and plan type from Restaurant
             platform_fee_percent = 1.5
-            monthly_min = 999
+            monthly_min = 399
             plan_type = "GOLD"
             if self.restaurant:
                 res_info = frappe.db.get_value("Restaurant", self.restaurant, 

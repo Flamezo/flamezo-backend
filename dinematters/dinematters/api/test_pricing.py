@@ -45,11 +45,11 @@ def test_it():
             "is_active": 1,
             "coins_balance": 5000,
             "timezone": "UTC",
-            "monthly_minimum": 999,
+            "monthly_minimum": 399,
             "tax_rate": 0.0
         }).insert(ignore_permissions=True)
     else:
-        frappe.db.set_value("Restaurant", gold_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 999, "tax_rate": 0.0})
+        frappe.db.set_value("Restaurant", gold_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
     
     gold_commission_name = "test-gold-commission-res-e2e"
     if not frappe.db.exists("Restaurant", gold_commission_name):
@@ -140,7 +140,7 @@ def test_it():
     print("\n[SCENARIO 3: DAILY FLOOR RECOVERY]")
     # gold_commission_name has paid ₹45 commission. Daily target is ₹13.30 (399/30).
     # Floor Recovery should be 13.30 - 45.00 = 0 (No negative recovery)
-    # gold_name daily target is flat ₹33.30 (999/30).
+    # gold_name daily target is flat ₹13.30 (399/30).
 
     process_daily_subscription_floors()
 
@@ -155,10 +155,10 @@ def test_it():
     }, "amount") or 0.0
 
     print(f"GOLD Commission Floor Recovery: ₹{abs(commission_floor)} (Expected: 0.0)")
-    print(f"GOLD Fixed Fee: ₹{abs(gold_floor)} (Expected: 33.30)")
+    print(f"GOLD Fixed Fee: ₹{abs(gold_floor)} (Expected: 13.30)")
 
     assert abs(commission_floor) < 0.01, f"GOLD commission floor calculation wrong! Got {commission_floor}"
-    assert abs(abs(gold_floor) - 33.30) < 0.01, f"GOLD Flat fee calculation wrong! Got {gold_floor}"
+    assert abs(abs(gold_floor) - 13.30) < 0.01, f"GOLD Flat fee calculation wrong! Got {gold_floor}"
 
     print("\n[SCENARIO 4: DYNAMIC SETTINGS TEST]")
     # Change global GOLD fee to ₹450 (Daily: ₹15)

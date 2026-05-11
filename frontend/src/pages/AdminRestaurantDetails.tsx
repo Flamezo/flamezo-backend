@@ -34,7 +34,8 @@ import {
   ShieldCheck,
   Save,
   Undo2,
-  ClipboardCopy
+  ClipboardCopy,
+  MessageSquare
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
@@ -707,7 +708,6 @@ function AdminRestaurantDetailsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="SILVER"><div className="flex items-center gap-2"><Shield className="h-3 w-3 text-muted-foreground" /> SILVER (Basic)</div></SelectItem>
-                        <SelectItem value="GOLD"><div className="flex items-center gap-2"><Star className="h-3 w-3 text-primary" /> GOLD (Premium)</div></SelectItem>
                         <SelectItem value="GOLD"><div className="flex items-center gap-2"><Zap className="h-3 w-3 text-amber-500" /> GOLD (Full Automation)</div></SelectItem>
                       </SelectContent>
                     </Select>
@@ -949,16 +949,31 @@ function AdminRestaurantDetailsPage() {
                           <Button 
                             variant="secondary" 
                             size="icon" 
+                            className="shrink-0"
                             onClick={async () => {
                               const success = await copyToClipboard(generatedRechargeLink)
                               if (success) toast.success('Link copied to clipboard')
                             }}
+                            title="Copy Link"
                           >
-                            <Save className="h-4 w-4" />
+                            <ClipboardCopy className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            size="icon" 
+                            className="shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+                            onClick={async () => {
+                              const msg = `Hi ${restaurant.owner_name || restaurant.restaurant_name}, please use this link to top-up your DineMatters wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
+                              const success = await copyToClipboard(msg)
+                              if (success) toast.success('Recharge message copied!')
+                            }}
+                            title="Copy Professional Message"
+                          >
+                            <MessageSquare className="h-4 w-4" />
                           </Button>
                         </div>
                         <p className="text-[10px] text-muted-foreground italic">
-                          Share this link with {restaurant.owner_name || 'the customer'}. Wallet credits automatically on payment.
+                          Share the link or the full message with {restaurant.owner_name || 'the customer'}.
                         </p>
                       </div>
                     )}

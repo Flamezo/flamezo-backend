@@ -510,6 +510,7 @@ def get_orders(restaurant_id, status=None, page=1, limit=20, session_id=None, ad
 				filters["creation"] = [">=", date_from]
 			if date_to:
 				if "creation" in filters:
+					# pyrefly: ignore [unsupported-operation]
 					filters["creation"][1] = "<="
 					filters["creation"].append(date_to)
 				else:
