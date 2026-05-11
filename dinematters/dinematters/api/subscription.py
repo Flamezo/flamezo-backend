@@ -119,7 +119,7 @@ def get_plan_comparison(restaurant_id=None):
         },
         'GOLD': {
             'name': 'DineMatters Gold',
-            'price': f'₹999 floor / mo + {commission_rate} on orders',
+            'price': f'₹399 floor / mo + {commission_rate} on orders',
             'commission': commission_rate,
             'features': {
                 'included': [

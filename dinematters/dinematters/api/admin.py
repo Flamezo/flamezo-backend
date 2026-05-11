@@ -97,7 +97,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     r.modified,
                     COALESCE(r.coins_balance, 0) as coins_balance,
                     COALESCE(r.platform_fee_percent, 1.5) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, 999) as monthly_minimum,
+                    COALESCE(r.monthly_minimum, 399) as monthly_minimum,
                     COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
                     COALESCE(rc.subscription_plan, r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
@@ -119,7 +119,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     r.modified,
                     COALESCE(r.coins_balance, 0) as coins_balance,
                     COALESCE(r.platform_fee_percent, 1.5) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, 999) as monthly_minimum,
+                    COALESCE(r.monthly_minimum, 399) as monthly_minimum,
                     COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
                     COALESCE(r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
@@ -836,7 +836,7 @@ def send_onboarding_email(recipient, name, link):
 def admin_create_wallet_payment_link(restaurant_id, tier):
     """
     Create a Razorpay Payment Link for wallet top-up based on subscription tier.
-    GOLD = ₹999 (Silver is free — no link).
+    GOLD = ₹399 (Silver is free — no link).
     On payment, the webhook (payment_link.paid) auto-credits the wallet.
 
     Returns:
@@ -853,7 +853,7 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
             return {'success': False, 'error': 'Admin access required'}
 
         # Tier → amount mapping (Silver is free — caller should not invoke for Silver)
-        TIER_AMOUNTS = {'GOLD': 999}
+        TIER_AMOUNTS = {'GOLD': 399}
         base_amount = TIER_AMOUNTS.get(tier)
         if not base_amount:
             return {
@@ -969,7 +969,7 @@ def get_platform_settings():
         'data': {
             'charge_gst': bool(settings.charge_gst),
             'gst_percent': float(settings.gst_percent or 18.0),
-            'gold_monthly_fee': float(settings.gold_monthly_fee or 999.0),
+            'gold_monthly_fee': float(settings.gold_monthly_fee or 399.0),
             'gold_commission_percent': float(settings.gold_commission_percent or 1.5),
             'gold_upgrade_barrier': float(settings.gold_upgrade_barrier or 1299.0)
         }

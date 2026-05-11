@@ -162,12 +162,12 @@ class TestRecordTransaction(unittest.TestCase):
         self.assertAlmostEqual(new_bal, 955.0, places=2)
 
     def test_daily_gold_subscription_decreases_balance(self):
-        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 33.30)
-        self.assertAlmostEqual(new_bal, 966.70, places=2)
+        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 13.30)
+        self.assertAlmostEqual(new_bal, 986.70, places=2)
 
     def test_daily_gold_floor_large_decreases_balance(self):
-        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 43.30)
-        self.assertAlmostEqual(new_bal, 956.70, places=2)
+        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 23.30)
+        self.assertAlmostEqual(new_bal, 976.70, places=2)
 
     def test_delivery_fee_decreases_balance(self):
         new_bal = self.record_transaction(self._res_name, "Delivery Fee", 25.0)

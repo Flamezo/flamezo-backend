@@ -10,7 +10,7 @@ from dinematters.dinematters.api.coin_billing import deduct_coins
 def process_daily_subscription_floors():
     """
     Nightly task (23:59) — GOLD plan monthly floor recovery.
-    GOLD restaurants pay ₹999/mo minimum; if commissions don't cover it, the
+    GOLD restaurants pay ₹399/mo minimum; if commissions don't cover it, the
     shortfall is deducted from their coin wallet every 30 days.
     """
     today = getdate()
@@ -50,7 +50,7 @@ def process_daily_subscription_floors():
                 AND creation >= %s AND creation < %s
             """, (res.name, last_check, end_utc))[0][0] or 0.0
 
-            floor_target = float(res.monthly_minimum or 999.0)
+            floor_target = float(res.monthly_minimum or 399.0)
             shortfall = max(0, floor_target - abs(float(total_commissions)))
 
             if shortfall > 0:

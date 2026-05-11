@@ -45,7 +45,7 @@ def process_monthly_minimums_by_onboarding_date():
 				res_fee_percent = float(r.get("platform_fee_percent") if r.get("platform_fee_percent") is not None else 1.5)
 				calculated_fee = int(math.floor(total_paise * (res_fee_percent / 100.0)))
 				
-				res_min = float(r.get("monthly_minimum") if r.get("monthly_minimum") is not None else 999.0)
+				res_min = float(r.get("monthly_minimum") if r.get("monthly_minimum") is not None else 399.0)
 				min_amt_paise = int(res_min * 100)
 				
 				base_commission = max(min_amt_paise, calculated_fee)

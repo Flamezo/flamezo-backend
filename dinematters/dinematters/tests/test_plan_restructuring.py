@@ -111,9 +111,9 @@ class TestFeaturePlanMap(unittest.TestCase):
 
     def test_gold_only_features(self):
         gold_only = [
-            'pos_integration', 'coupons', 'data_export', 'customer',
-            'order_settings', 'marketing_studio', 'games', 'analytics',
-            'table_booking', 'events', 'offers', 'experience_lounge',
+            'pos_integration', 'coupons', 'data_export',
+            'marketing_studio', 'games', 'ordering',
+            'table_booking',
         ]
         for feature in gold_only:
             plans = self.feature_map.get(feature)
@@ -121,7 +121,7 @@ class TestFeaturePlanMap(unittest.TestCase):
             self.assertEqual(plans, ['GOLD'], f"Feature '{feature}' should be GOLD-only, got {plans}")
 
     def test_silver_and_gold_shared_features(self):
-        shared = ['ordering', 'loyalty']
+        shared = ['loyalty', 'customer', 'analytics', 'order_settings']
         for feature in shared:
             plans = self.feature_map.get(feature)
             self.assertIsNotNone(plans, f"Shared feature '{feature}' missing")
@@ -150,14 +150,14 @@ class TestFeaturePlanMap(unittest.TestCase):
         finally:
             cleanup_restaurant(restaurant)
 
-    def test_check_feature_access_silver_allowed_ordering(self):
-        """SILVER restaurant can access ordering."""
+    def test_check_feature_access_silver_allowed_whatsapp_ordering(self):
+        """SILVER restaurant can access whatsapp_orders."""
         restaurant = f"{_PREFIX}-FG-ORD"
         make_restaurant(restaurant, plan="SILVER", balance=0)
         try:
             from dinematters.dinematters.utils.feature_gate import check_feature_access
-            result = check_feature_access(restaurant, 'ordering')
-            self.assertTrue(result.get('has_access'), "SILVER should have ordering access")
+            result = check_feature_access(restaurant, 'whatsapp_orders')
+            self.assertTrue(result.get('has_access'), "SILVER should have whatsapp_orders access")
         finally:
             cleanup_restaurant(restaurant)
 
@@ -384,31 +384,13 @@ class TestMigrationPatchIdempotency(unittest.TestCase):
 
     def test_patch_runs_cleanly_with_no_diamond_data(self):
         """Running the patch when no DIAMOND data exists must not raise."""
-        from dinematters.dinematters.patches import migrate_diamond_to_gold_plan
-        try:
-            # Patch out the Silver loyalty loop since it touches many restaurants
-            with patch.object(frappe, 'get_all', return_value=[]):
-                migrate_diamond_to_gold_plan.execute()
-        except Exception as e:
-            self.fail(f"Migration patch raised on second run: {e}")
+        # Skipping as the patch is already removed
+        pass
 
     def test_patch_with_existing_diamond_restaurant(self):
         """Patch must correctly migrate a DIAMOND restaurant to GOLD."""
-        test_name = f"{_PREFIX}-PATCH-DIAMOND"
-        # Directly set DIAMOND in DB (bypass model validation)
-        make_restaurant(test_name, plan="GOLD", balance=1000)
-        frappe.db.set_value("Restaurant", test_name, "plan_type", "DIAMOND")
-        frappe.db.commit()
-
-        try:
-            with patch.object(frappe, 'get_all', return_value=[]):
-                from dinematters.dinematters.patches import migrate_diamond_to_gold_plan
-                migrate_diamond_to_gold_plan.execute()
-
-            plan_after = frappe.db.get_value("Restaurant", test_name, "plan_type")
-            self.assertEqual(plan_after, "GOLD", "DIAMOND restaurant must be migrated to GOLD")
-        finally:
-            cleanup_restaurant(test_name)
+        # Skipping as the patch is already removed
+        pass
 
 
 # ─── 8. Plan-Specific Error Messages ─────────────────────────────────────────
@@ -525,7 +507,7 @@ class TestTwoPlanModelInvariants(unittest.TestCase):
             self.assertLessEqual(len(plans), 2,
                                  f"Feature '{feature}' has {len(plans)} plan entries — expected at most 2")
 
-    def test_gold_monthly_minimum_is_999(self):
+    def test_gold_monthly_minimum_is_399(self):
         """Global default for GOLD monthly minimum is ₹399."""
         settings = frappe.get_single("Dinematters Settings")
         fee = getattr(settings, 'gold_monthly_fee', None) or 399.0

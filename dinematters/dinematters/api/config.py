@@ -213,7 +213,8 @@ def get_restaurant_config(restaurant_id):
 				"description": config.get("description", ""),
 				"latitude": config.get("latitude") or restaurant_doc.latitude,
 				"longitude": config.get("longitude") or restaurant_doc.longitude,
-				"googleMapUrl": (restaurant_context.get("google_map_url") if restaurant_context else "") or ""
+				"googleMapUrl": (restaurant_context.get("google_map_url") if restaurant_context else "") or "",
+				"company": restaurant_doc.company
 			},
 			"branding": {
 				"primaryColor": primary_color,

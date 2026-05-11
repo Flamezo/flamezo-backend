@@ -8,6 +8,7 @@ interface Restaurant {
   is_active: boolean
   city?: string
   state?: string
+  company?: string
 }
 
 interface RestaurantContextType {

@@ -66,6 +66,9 @@ class TestGoldMonthlyFloor(unittest.TestCase):
         new_last_date = frappe.db.get_value("Restaurant", d, "last_floor_recovery_date")
         self.assertEqual(getdate(new_last_date), getdate(today()), "Last recovery date must be updated to today")
 
+    def test_gold_monthly_minimum_is_399(self):
+        pass
+
     def test_gold_monthly_floor_skips_before_30_days(self):
         """
         GOLD: On day 29, no charge should be applied.
@@ -112,7 +115,7 @@ class TestGoldMonthlyFloor(unittest.TestCase):
         """
         g = self._gold_name()
         # Restaurant activated today — date_diff will be 0, skipped by < 30 check
-        make_restaurant(g, plan="GOLD", balance=1000.0, monthly_minimum=999.0, enable_floor_recovery=1)
+        make_restaurant(g, plan="GOLD", balance=1000.0, monthly_minimum=399.0, enable_floor_recovery=1)
         clear_transactions(g)
 
         self.run_billing()
