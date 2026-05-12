@@ -64,22 +64,26 @@ class HomeFeature(Document):
 		if not self.image_src:
 			return
 
-		# Get all Media Assets linked to this Home Feature
+		# Get Media Assets linked to this Home Feature — newest and ready first
 		media_assets = frappe.get_all(
 			"Media Asset",
 			filters={
 				"owner_doctype": "Home Feature",
 				"owner_name": self.name,
 				"media_role": "home_feature_image",
+				"status": ["in", ["uploaded", "ready"]],
 			},
-			fields=["name", "primary_url"]
+			fields=["name", "primary_url", "status"],
+			order_by="modified desc"
 		)
 
-		# Update all Media Assets to point to the new image
-		for asset in media_assets:
-			if asset.primary_url != self.image_src:
-				frappe.db.set_value("Media Asset", asset.name, "primary_url", self.image_src)
-				frappe.db.commit()
+		# Prefer the most recent 'ready' asset; fall back to newest 'uploaded'
+		target_asset = next((a for a in media_assets if a.status == "ready"), None) or \
+					   (media_assets[0] if media_assets else None)
+
+		if target_asset and target_asset.primary_url != self.image_src:
+			frappe.db.set_value("Media Asset", target_asset.name, "primary_url", self.image_src)
+			frappe.db.commit()
 
 		# If no Media Assets exist, create one for the new image
 		if not media_assets:

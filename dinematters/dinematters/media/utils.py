@@ -97,19 +97,23 @@ def get_media_asset_data(owner_doctype, owner_name, media_role, fallback_url=Non
 	# Normalize role (strip doctype prefix if present)
 	actual_role = get_actual_media_role(owner_doctype, media_role)
 	
-	# Try to get Media Asset (accept both 'uploaded' and 'ready' so a freshly-uploaded
-	# asset is surfaced immediately while the processing job is still running)
-	media_asset = frappe.db.get_value(
+	# Try to get Media Asset — prefer 'ready' (processed variants) over 'uploaded',
+	# and newest record first so stale/orphaned assets don't shadow the current one.
+	candidates = frappe.get_all(
 		"Media Asset",
-		{
+		filters={
 			"owner_doctype": owner_doctype,
 			"owner_name": owner_name,
 			"media_role": actual_role,
 			"status": ["in", ["uploaded", "ready"]]
 		},
-		["name", "primary_url", "blur_placeholder", "media_kind"],
-		as_dict=True
+		fields=["name", "primary_url", "blur_placeholder", "media_kind", "status"],
+		order_by="modified desc",
+		limit=10
 	)
+	# Prefer 'ready' assets over 'uploaded' ones
+	media_asset = next((a for a in candidates if a.get("status") == "ready"), None) or \
+				  (candidates[0] if candidates else None)
 	
 	if media_asset and media_asset.get("primary_url"):
 		result = {
@@ -239,6 +243,7 @@ def get_media_assets_batch(owner_doctype, owner_names, media_roles):
 	# 1. Fetch all matching Media Assets in one query
 	# Accept both 'uploaded' (processing in queue) and 'ready' so freshly-uploaded
 	# assets are returned immediately rather than waiting for the worker to finish.
+	# Order by modified desc so newest assets come first (used for deduplication below).
 	assets = frappe.get_all(
 		"Media Asset",
 		filters={
@@ -247,7 +252,8 @@ def get_media_assets_batch(owner_doctype, owner_names, media_roles):
 			"media_role": ["in", actual_roles],
 			"status": ["in", ["uploaded", "ready"]]
 		},
-		fields=["name", "owner_name", "media_role", "primary_url", "blur_placeholder", "media_kind"]
+		fields=["name", "owner_name", "media_role", "primary_url", "blur_placeholder", "media_kind", "status"],
+		order_by="modified desc"
 	)
 	
 	if not assets:
@@ -272,13 +278,22 @@ def get_media_assets_batch(owner_doctype, owner_names, media_roles):
 		variants_by_asset[parent].append(v)
 	
 	# 3. Process and format results
+	# Track which keys already have a 'ready' asset so we don't overwrite with 'uploaded'.
 	results = {}
+	results_status = {}
 	for asset in assets:
 		asset_name = asset["name"]
 		# Map back to the original role requested by the caller
 		original_role = next((r for r in media_roles if get_actual_media_role(owner_doctype, r) == asset["media_role"]), asset["media_role"])
 		key = (asset["owner_name"], original_role)
-		
+
+		# Skip if we already have a 'ready' asset for this key (assets ordered newest first)
+		if key in results_status and results_status[key] == "ready" and asset.get("status") != "ready":
+			continue
+		# Skip if key already has same status and we already recorded one (newest wins via order_by)
+		if key in results and results_status.get(key) == asset.get("status"):
+			continue
+
 		media_data = {
 			"url": asset["primary_url"],
 			"blur_placeholder": asset.get("blur_placeholder"),
@@ -313,7 +328,8 @@ def get_media_assets_batch(owner_doctype, owner_names, media_roles):
 				media_data["srcset"] = ", ".join(srcset_parts)
 		
 		results[key] = media_data
-		
+		results_status[key] = asset.get("status")
+
 	return results
 
 

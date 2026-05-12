@@ -193,6 +193,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'description',
       'default_theme',
       'logo',
+      'logo_size',
       'hero_video',
 
       // Color palette

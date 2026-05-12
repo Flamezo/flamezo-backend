@@ -18,6 +18,7 @@
   "primary_color",
   "default_theme",
   "logo",
+  "logo_size",
   "hero_video",
   "apple_touch_icon",
   "section_break_ai_theme_background",
@@ -123,6 +124,13 @@
    "fieldname": "logo",
    "fieldtype": "Attach Image",
    "label": "Logo"
+  },
+  {
+   "fieldname": "logo_size",
+   "fieldtype": "Select",
+   "label": "Logo Size",
+   "options": "Small\nMedium\nLarge",
+   "default": "Medium"
   },
   {
    "fieldname": "hero_video",
