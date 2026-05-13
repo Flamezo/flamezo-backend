@@ -2,16 +2,30 @@ import { useState } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
-import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Trash2, Upload, Image as ImageIcon, Video, Edit2, X, Check } from 'lucide-react'
+import { Trash2, Upload, Image as ImageIcon, Video, GripVertical } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 import SilverMediaUpload from './SilverMediaUpload'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface ProductMediaItem {
   name?: string
@@ -31,11 +45,113 @@ interface ProductMediaTableProps {
   productName?: string
 }
 
+interface SortableMediaRowProps {
+  item: ProductMediaItem
+  index: number
+  disabled?: boolean
+  onRemove: () => void
+  getMediaUrl: (url?: string) => string
+}
+
+function SortableMediaRow({ item, index, disabled, onRemove, getMediaUrl }: SortableMediaRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.media_asset || item.name || `item-${index}` })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 0,
+    position: 'relative' as const,
+  }
+
+  const mediaUrl = getMediaUrl(item.media_url)
+  const isVideo = item.media_type === 'video'
+
+  return (
+    <TableRow 
+      ref={setNodeRef} 
+      style={style}
+      className={cn(isDragging && "bg-accent opacity-50 shadow-lg")}
+    >
+      <TableCell>
+        <div 
+          {...attributes} 
+          {...listeners} 
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </TableCell>
+      <TableCell>
+        {mediaUrl ? (
+          <div className="relative group">
+            {isVideo ? (
+              <div className="relative w-16 h-16 bg-muted rounded border flex items-center justify-center overflow-hidden">
+                <Video className="h-6 w-6 text-muted-foreground absolute z-10" />
+                <video
+                  src={mediaUrl}
+                  className="absolute inset-0 w-full h-full object-cover rounded"
+                  muted
+                  playsInline
+                />
+                <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] px-1 py-0.5 rounded-bl font-bold z-20">
+                  VIDEO
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-16 h-16">
+                <img
+                  src={mediaUrl}
+                  alt={item.alt_text || `Media ${index + 1}`}
+                  className="w-16 h-16 object-cover rounded border"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">No media</span>
+        )}
+      </TableCell>
+      <TableCell className="text-center">
+        <span className={cn(
+          "px-2 py-1 rounded text-xs font-medium uppercase tracking-wider",
+          isVideo ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
+        )}>
+          {isVideo ? 'Video' : 'Image'}
+        </span>
+      </TableCell>
+      {!disabled && (
+        <TableCell className="text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
+  )
+}
+
 export default function ProductMediaTable({ value = [], onChange, required, disabled, productName }: ProductMediaTableProps) {
   const { isSilver } = useRestaurant()
   const [uploading, setUploading] = useState(false)
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editData, setEditData] = useState<Partial<ProductMediaItem>>({})
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
   
   // Ensure value is always an array
   const currentValue = Array.isArray(value) ? value : []
@@ -150,30 +266,22 @@ export default function ProductMediaTable({ value = [], onChange, required, disa
     onChange?.(reorderedItems)
   }
 
-  const handleEdit = (index: number) => {
-    setEditingIndex(index)
-    setEditData({ ...currentValue[index] })
-  }
-
-  const handleSaveEdit = () => {
-    if (editingIndex === null) return
-
-    const updatedItems = [...currentValue]
-    updatedItems[editingIndex] = {
-      ...updatedItems[editingIndex],
-      ...editData
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      const oldIndex = currentValue.findIndex(item => (item.media_asset || item.name) === active.id)
+      const newIndex = currentValue.findIndex(item => (item.media_asset || item.name) === over.id)
+      const newItems = arrayMove(currentValue, oldIndex, newIndex)
+      
+      // Update display_order based on new position
+      const reorderedItems = newItems.map((item, idx) => ({
+        ...item,
+        display_order: idx + 1
+      }))
+      
+      onChange?.(reorderedItems)
     }
-    onChange?.(updatedItems)
-    setEditingIndex(null)
-    setEditData({})
-    toast.success('Media item updated')
   }
-
-  const handleCancelEdit = () => {
-    setEditingIndex(null)
-    setEditData({})
-  }
-
 
   const getMediaUrl = (url?: string) => {
     if (!url) return ''
@@ -248,176 +356,34 @@ export default function ProductMediaTable({ value = [], onChange, required, disa
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"></TableHead>
                 <TableHead className="w-24">Preview</TableHead>
-                <TableHead>Media File</TableHead>
-                <TableHead>Media Type</TableHead>
-                <TableHead className="w-32">Display Order</TableHead>
-                <TableHead>Alt Text</TableHead>
-                <TableHead>Caption</TableHead>
-                {!disabled && <TableHead className="w-24">Actions</TableHead>}
+                <TableHead className="text-center">Media Type</TableHead>
+                {!disabled && <TableHead className="w-24 text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentValue.map((item, index) => {
-                const isEditing = editingIndex === index
-                const mediaUrl = getMediaUrl(item.media_url)
-                const isVideo = item.media_type === 'video'
-
-                return (
-                  <TableRow key={index}>
-                    <TableCell>
-                      {mediaUrl ? (
-                        <div className="flex items-center gap-2">
-                          {isVideo ? (
-                            <div className="relative w-16 h-16 bg-muted rounded border flex items-center justify-center overflow-hidden">
-                              <Video className="h-6 w-6 text-muted-foreground absolute z-10" />
-                              <video
-                                src={mediaUrl}
-                                className="absolute inset-0 w-full h-full object-cover rounded"
-                                muted
-                                playsInline
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none'
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <img
-                              src={mediaUrl}
-                              alt={item.alt_text || `Media ${index + 1}`}
-                              className="w-16 h-16 object-cover rounded border"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none'
-                              }}
-                            />
-                          )}
-                          {isVideo ? (
-                            <Video className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">No media</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs max-w-xs truncate">
-                      {isEditing ? (
-                        <Input
-                          value={editData.media_url || ''}
-                          onChange={(e) => setEditData({ ...editData, media_url: e.target.value })}
-                          placeholder="Media URL"
-                          className="text-xs"
-                        />
-                      ) : (
-                        item.media_url || 'N/A'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <Select
-                          value={editData.media_type || 'image'}
-                          onValueChange={(value: 'image' | 'video') => setEditData({ ...editData, media_type: value })}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="image">Image</SelectItem>
-                            <SelectItem value="video">Video</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className={cn(
-                          "px-2 py-1 rounded text-xs font-medium",
-                          isVideo ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                        )}>
-                          {isVideo ? 'Video' : 'Image'}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <NumberInput
-                          
-                          min="0"
-                          value={editData.display_order ?? index + 1}
-                          onChange={(e) => setEditData({ ...editData, display_order: parseInt(e.target.value) || 0 })}
-                          className="w-20"
-                        />
-                      ) : (
-                        <span className="text-sm">{item.display_order ?? index + 1}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <Input
-                          value={editData.alt_text || ''}
-                          onChange={(e) => setEditData({ ...editData, alt_text: e.target.value })}
-                          placeholder="Alt text"
-                          className="text-xs"
-                        />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">{item.alt_text || '-'}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <Textarea
-                          value={editData.caption || ''}
-                          onChange={(e) => setEditData({ ...editData, caption: e.target.value })}
-                          placeholder="Caption"
-                          className="text-xs min-h-[60px]"
-                          rows={2}
-                        />
-                      ) : (
-                        <span className="text-sm text-muted-foreground line-clamp-2">{item.caption || '-'}</span>
-                      )}
-                    </TableCell>
-                    {!disabled && (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {isEditing ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleSaveEdit}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleCancelEdit}
-                              >
-                                <X className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(index)}
-                              >
-                                <Edit2 className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemove(index)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
-              })}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={currentValue.map(item => item.media_asset || item.name || '')}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {currentValue.map((item, index) => (
+                    <SortableMediaRow
+                      key={item.media_asset || item.name || index}
+                      item={item}
+                      index={index}
+                      disabled={disabled}
+                      onRemove={() => handleRemove(index)}
+                      getMediaUrl={getMediaUrl}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
             </TableBody>
           </Table>
         </div>

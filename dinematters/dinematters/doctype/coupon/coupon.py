@@ -16,7 +16,7 @@ class Coupon(Document):
 
 	def _sanitize_json_fields(self):
 		"""Ensure JSON fields are None (not empty string) — MariaDB JSON CHECK constraint rejects ''."""
-		for field in ("required_items", "valid_days_of_week"):
+		for field in ("required_items", "valid_days_of_week", "item_pool"):
 			val = getattr(self, field, None)
 			if val == "" or val == "null" or val == "[]":
 				setattr(self, field, None)

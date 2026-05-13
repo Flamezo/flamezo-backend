@@ -286,6 +286,11 @@ scheduler_events = {
 		"0 2 * * 0": [
 			"dinematters.dinematters.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
 		],
+		# Coupons: auto-activate scheduled + deactivate expired offers daily at 00:05
+		"5 0 * * *": [
+			"dinematters.dinematters.tasks.coupon_tasks.auto_activate_scheduled_coupons",
+			"dinematters.dinematters.tasks.coupon_tasks.auto_deactivate_expired_coupons",
+		],
 	}
 }
 

@@ -336,34 +336,92 @@ def get_restaurant_config(restaurant_id):
 
 		# Fetch active coupons for this restaurant with a minimum order amount if GOLD plan
 		if plan_type == "GOLD":
-			# Fetch active coupons
+			# Fetch active coupons — include all combo fields
 			coupons = frappe.db.get_list("Coupon",
 				filters={
 					"restaurant": restaurant_doc.name,
 					"is_active": 1,
-					"min_order_amount": [">", 0]
 				},
-				fields=["name", "code", "min_order_amount", "discount_type", "discount_value", "description", "offer_type", "free_item", "valid_from", "valid_until"],
+				fields=[
+					"name", "code", "min_order_amount", "discount_type", "discount_value",
+					"description", "offer_type", "free_item", "valid_from", "valid_until",
+					"combo_type", "combo_name", "required_items", "item_pool",
+					"items_to_select", "combo_price", "display_on_menu",
+				],
 				ignore_permissions=True
 			)
-			
-			# Filter by date manually to handle 'No Expiry' (None) correctly
+
 			today = frappe.utils.getdate()
 			coupon_milestones = []
+			combo_deals = []  # Rich combo cards for menu page
+
 			for c in coupons:
-				# Check start/end dates safely
 				v_from = frappe.utils.getdate(c.get("valid_from"))
 				v_until = frappe.utils.getdate(c.get("valid_until"))
-				
 				if v_from and v_from > today:
 					continue
 				if v_until and v_until < today:
 					continue
 
-				# Determine reward label for UI
-				label = ""
+				# ── Combo deals section (display_on_menu) ──────────────────────
+				if c.offer_type == "combo" and c.get("display_on_menu"):
+					combo_type = c.get("combo_type") or "fixed_bundle"
+
+					# Resolve product details for required_items / item_pool
+					def _resolve_items(json_field):
+						ids = []
+						try:
+							raw = json_field
+							ids = json.loads(raw) if isinstance(raw, str) else list(raw or [])
+						except Exception:
+							pass
+						if not ids:
+							return []
+						rows = frappe.get_all(
+							"Menu Product",
+							filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
+							fields=["product_id", "product_name", "price", "image"],
+						)
+						lookup = {r.product_id: r for r in rows}
+						return [
+							{
+								"dishId": pid,
+								"name": lookup[pid].product_name if pid in lookup else pid,
+								"price": flt(lookup[pid].price) if pid in lookup else 0,
+								"image": lookup[pid].image if pid in lookup else None,
+							}
+							for pid in ids
+						]
+
+					required_items_detail = _resolve_items(c.get("required_items"))
+					item_pool_detail = _resolve_items(c.get("item_pool"))
+
+					# Savings calculation
+					combo_price = flt(c.get("combo_price") or 0)
+					original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
+					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
+
+					combo_deals.append({
+						"id": str(c.name),
+						"code": c.code,
+						"comboType": combo_type,
+						"comboName": c.get("combo_name") or c.description or c.code,
+						"description": c.description or "",
+						"comboPrice": combo_price,
+						"originalPrice": original_price,
+						"savings": savings,
+						"itemsToSelect": int(c.get("items_to_select") or 2),
+						"requiredItems": required_items_detail,
+						"itemPool": item_pool_detail,
+						# What to show on category badges (dish IDs in this combo)
+						"allDishIds": [i["dishId"] for i in required_items_detail + item_pool_detail],
+					})
+
+				# ── Cart milestones (for progress bar) — only if has min_order ─
+				if not flt(c.get("min_order_amount")):
+					continue
+
 				d_val = flt(c.get("discount_value"))
-				
 				if c.discount_type == "percent":
 					label = f"{int(d_val)}% Off"
 				elif c.discount_type == "flat":
@@ -371,16 +429,19 @@ def get_restaurant_config(restaurant_id):
 				elif c.discount_type == "delivery":
 					label = "Free Delivery"
 				elif c.offer_type == "combo" and c.get("free_item"):
-					label = f"Free {c.free_item.split(' - ')[-1]}"
+					label = f"Free {(c.free_item or '').split(' - ')[-1]}"
+				elif c.offer_type == "combo":
+					cp = flt(c.get("combo_price") or 0)
+					label = f"Combo ₹{int(cp)}" if cp else "Combo Deal"
 				else:
 					label = f"Offer: {c.code}"
 
 				icon = "🎁"
-				if c.discount_type == "delivery": 
+				if c.discount_type == "delivery":
 					icon = "🚚"
-				elif d_val > 50: 
+				elif d_val > 50:
 					icon = "🔥"
-				elif c.offer_type == "combo": 
+				elif c.offer_type == "combo":
 					icon = "🍱"
 
 				coupon_milestones.append({
@@ -390,14 +451,13 @@ def get_restaurant_config(restaurant_id):
 					"rewardLabel": label,
 					"icon": icon,
 					"couponCode": c.code,
-					"isCoupon": True
+					"isCoupon": True,
 				})
 
-			# Final sort and assignment
 			coupon_milestones.sort(key=lambda x: x.get("threshold", 0))
 			response_data["settings"]["cartMilestones"] = coupon_milestones
-			# Only enable if we actually have coupons to show
 			response_data["settings"]["enableCartMilestones"] = len(coupon_milestones) > 0
+			response_data["settings"]["comboDeals"] = combo_deals
 
 		# Try to include Home Feature images (menu, book-table, legacy, offers-events, dine-play)
 		try:

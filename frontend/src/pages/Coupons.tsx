@@ -22,10 +22,11 @@ import {
 import {
   Plus, Edit, Trash2, Tag, Percent, Gift, Calendar, Users,
   TrendingUp, AlertCircle, Zap, X, Bike, Sparkles, ArrowLeft,
-  Clock, Star, ShoppingBag, Flame, RotateCcw
+  Clock, Star, ShoppingBag, Flame, RotateCcw, Download
 } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
+import { AISuggestionsModal, type AISuggestion } from '@/components/coupons/AISuggestionsModal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -74,6 +75,12 @@ const BLANK_FORM = {
   valid_time_end: '',
   can_stack: false,
   free_item: '',
+  // New combo fields
+  combo_type: 'fixed_bundle' as string,
+  combo_name: '',
+  item_pool: '',
+  items_to_select: 2,
+  display_on_menu: true,
 }
 
 interface CouponTemplate {
@@ -257,7 +264,7 @@ const TEMPLATES: CouponTemplate[] = [
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Coupons() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedRestaurant, isGold, restaurant } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<any>(null)
@@ -265,6 +272,8 @@ export default function Coupons() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [couponToDelete, setCouponToDelete] = useState<{ name: string; code: string } | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<CouponTemplate | null>(null)
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+  const [aiPrefilledForm, setAiPrefilledForm] = useState<Partial<typeof BLANK_FORM> | null>(null)
 
   const initialFilters = useMemo(() => {
     if (!selectedRestaurant) return []
@@ -367,6 +376,66 @@ export default function Coupons() {
     }
   }
 
+  const aiSuggestionToFormData = (suggestion: AISuggestion) => ({
+    code: suggestion.code,
+    description: suggestion.description,
+    offer_type: suggestion.offer_type,
+    discount_type: suggestion.discount_type,
+    discount_value: suggestion.discount_value,
+    min_order_amount: suggestion.offer_type === 'combo' ? 0 : suggestion.min_order_amount,
+    combo_price: suggestion.offer_type === 'combo' ? ((suggestion as any).combo_price ?? 0) : 0,
+    max_discount_cap: suggestion.max_discount_cap ?? 0,
+    category: suggestion.category,
+    valid_days_of_week: suggestion.valid_days_of_week ? JSON.stringify(suggestion.valid_days_of_week) : '',
+    valid_time_start: suggestion.valid_time_start ?? '',
+    valid_time_end: suggestion.valid_time_end ?? '',
+    max_uses: suggestion.max_uses,
+    max_uses_per_user: suggestion.max_uses_per_user,
+    can_stack: suggestion.can_stack,
+    priority: suggestion.priority,
+    is_active: true,
+    // New combo-type fields from AI
+    combo_type: (suggestion as any).combo_type ?? 'fixed_bundle',
+    combo_name: (suggestion as any).combo_name ?? '',
+    items_to_select: (suggestion as any).items_to_select ?? 2,
+    display_on_menu: suggestion.offer_type === 'combo' ? ((suggestion as any).display_on_menu ?? true) : false,
+  })
+
+  const handleSaveAllAISuggestions = async (suggestions: AISuggestion[]) => {
+    let saved = 0
+    let failed = 0
+    for (const suggestion of suggestions) {
+      try {
+        await createCoupon({
+          doc: {
+            doctype: 'Coupon',
+            ...aiSuggestionToFormData(suggestion),
+            restaurant: selectedRestaurant,
+          },
+        })
+        saved++
+      } catch {
+        failed++
+      }
+    }
+    await mutate()
+    if (failed === 0) {
+      toast.success(`${saved} coupon${saved > 1 ? 's' : ''} saved successfully`)
+    } else {
+      toast.warning(`${saved} saved, ${failed} failed (possibly duplicate codes)`)
+    }
+  }
+
+  const handleUseAISuggestion = (suggestion: AISuggestion) => {
+    const prefilled = {
+      ...aiSuggestionToFormData(suggestion),
+      ...(suggestion.combo_items_hint ? { _combo_items_hint: suggestion.combo_items_hint } : {}),
+    }
+    setAiPrefilledForm(prefilled)
+    setEditingCoupon(null)
+    setIsCreateDialogOpen(true)
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const getOfferTypeIcon = (type: string) => {
@@ -401,10 +470,32 @@ export default function Coupons() {
           <h1 className="text-3xl font-bold">Manage Offers & Coupons</h1>
           <p className="text-muted-foreground mt-1">Create and manage discount coupons, auto-offers, and combo deals</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Coupon
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
+            onClick={() => {
+              window.open('/api/method/dinematters.dinematters.api.payments.download_guide?guide_name=DineMatters_Offers_Guide', '_blank')
+            }}
+          >
+            <Download className="h-4 w-4" />
+            Download Guide
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-purple-400/40 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+            onClick={() => setIsAIModalOpen(true)}
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate with AI
+          </Button>
+          <Button onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Coupon
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -617,24 +708,36 @@ export default function Coupons() {
         </CardContent>
       </Card>
 
-      {/* Template picker → shown when creating, not editing */}
+      {/* Template picker → shown when creating, not editing, and no AI pre-fill */}
       <TemplatePicker
-        open={isCreateDialogOpen && !selectedTemplate}
+        open={isCreateDialogOpen && !selectedTemplate && !aiPrefilledForm}
         onClose={() => setIsCreateDialogOpen(false)}
         onSelect={(tpl) => setSelectedTemplate(tpl)}
       />
 
       {/* Coupon form dialog */}
       <CouponDialog
-        open={(isCreateDialogOpen && !!selectedTemplate) || !!editingCoupon}
+        open={(isCreateDialogOpen && (!!selectedTemplate || !!aiPrefilledForm)) || !!editingCoupon}
         onClose={() => {
           setIsCreateDialogOpen(false)
           setSelectedTemplate(null)
           setEditingCoupon(null)
+          setAiPrefilledForm(null)
         }}
         coupon={editingCoupon}
         templateDefaults={selectedTemplate?.defaults ?? null}
+        aiDefaults={aiPrefilledForm}
         onSave={handleSave}
+      />
+
+      {/* AI Suggestions Modal */}
+      <AISuggestionsModal
+        open={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        restaurantId={selectedRestaurant!}
+        onUseSuggestion={handleUseAISuggestion}
+        onSaveAll={handleSaveAllAISuggestions}
+        walletBalance={(restaurant as any)?.coins_balance ?? 0}
       />
 
       {/* Delete confirmation */}
@@ -723,17 +826,19 @@ function TemplatePicker({ open, onClose, onSelect }: {
 
 // ─── Coupon form dialog ───────────────────────────────────────────────────────
 
-function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
+function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onSave }: {
   open: boolean
   onClose: () => void
   coupon: any
   templateDefaults: Partial<typeof BLANK_FORM> | null
+  aiDefaults?: Partial<typeof BLANK_FORM> | null
   onSave: (data: any) => Promise<void>
 }) {
   const { formatAmountNoDecimals } = useCurrency()
   const { selectedRestaurant } = useRestaurant()
   const [saving, setSaving] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
+  const [selectedPoolProducts, setSelectedPoolProducts] = useState<string[]>([])
 
   const { data: productsData } = useFrappeGetDocList('Menu Product', {
     fields: ['product_id', 'product_name', 'category_name', 'main_category'],
@@ -773,6 +878,11 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
         can_stack: !!coupon.can_stack,
         free_item: coupon.free_item || '',
         category: coupon.category || 'best',
+        combo_type: coupon.combo_type || 'fixed_bundle',
+        combo_name: coupon.combo_name || '',
+        item_pool: coupon.item_pool || '',
+        items_to_select: coupon.items_to_select || 2,
+        display_on_menu: coupon.display_on_menu ?? true,
       })
       if (coupon.required_items) {
         try {
@@ -784,12 +894,33 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
       } else {
         setSelectedProducts([])
       }
+      if (coupon.item_pool) {
+        try {
+          const parsed = typeof coupon.item_pool === 'string'
+            ? JSON.parse(coupon.item_pool)
+            : coupon.item_pool
+          setSelectedPoolProducts(Array.isArray(parsed) ? parsed : [])
+        } catch { setSelectedPoolProducts([]) }
+      } else {
+        setSelectedPoolProducts([])
+      }
     } else {
-      // New coupon — apply template defaults on top of blank form
-      setFormData({ ...BLANK_FORM, ...(templateDefaults || {}) })
-      setSelectedProducts([])
+      // New coupon — AI defaults take priority over template defaults
+      setFormData({ ...BLANK_FORM, ...(templateDefaults || {}), ...(aiDefaults || {}) })
+      // Resolve combo_items_hint names → product IDs
+      const hint = (aiDefaults as any)?._combo_items_hint as string | undefined
+      if (hint && products.length > 0) {
+        const names = hint.split(',').map((n: string) => n.trim().toLowerCase())
+        const matched = products
+          .filter(p => names.some(n => p.product_name.toLowerCase().includes(n) || n.includes(p.product_name.toLowerCase())))
+          .map(p => p.product_id)
+        setSelectedProducts(matched)
+      } else {
+        setSelectedProducts([])
+      }
+      setSelectedPoolProducts([])
     }
-  }, [open, coupon, templateDefaults])
+  }, [open, coupon, templateDefaults, aiDefaults])
 
   // Keep required_items in sync with the product multi-select
   useEffect(() => {
@@ -797,6 +928,13 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
       setFormData((prev: any) => ({ ...prev, required_items: JSON.stringify(selectedProducts) }))
     }
   }, [selectedProducts, formData.offer_type])
+
+  // Keep item_pool in sync with pool product multi-select
+  useEffect(() => {
+    if (formData.offer_type === 'combo') {
+      setFormData((prev: any) => ({ ...prev, item_pool: JSON.stringify(selectedPoolProducts) }))
+    }
+  }, [selectedPoolProducts, formData.offer_type])
 
   const set = (patch: Partial<typeof BLANK_FORM>) =>
     setFormData((prev: any) => ({ ...prev, ...patch }))
@@ -824,8 +962,16 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
       if (!s.valid_time_start) s.valid_time_start = null
       if (!s.valid_time_end) s.valid_time_end = null
       if (!s.valid_days_of_week) s.valid_days_of_week = null
-      if (s.offer_type !== 'combo') { s.required_items = null; s.combo_price = null; s.free_item = null }
-      else if (!s.required_items || s.required_items === '[]') s.required_items = null
+      if (s.offer_type !== 'combo') {
+        s.required_items = null; s.combo_price = null; s.free_item = null
+        s.combo_type = null; s.combo_name = null; s.item_pool = null
+        s.items_to_select = null; s.display_on_menu = 0
+      } else {
+        if (!s.required_items || s.required_items === '[]') s.required_items = null
+        if (!s.item_pool || s.item_pool === '[]') s.item_pool = null
+        if (!s.combo_name) s.combo_name = null
+        s.display_on_menu = s.display_on_menu ? 1 : 0
+      }
       if (!s.max_uses || s.max_uses === 0) s.max_uses = null
       if (!s.max_uses_per_user || s.max_uses_per_user === 0) s.max_uses_per_user = null
       if (!s.max_discount_cap || s.max_discount_cap === 0) s.max_discount_cap = null
@@ -907,50 +1053,141 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, onSave }: {
             <div className="space-y-4 rounded-xl border p-4">
               <p className="text-sm font-semibold flex items-center gap-2"><Gift className="h-4 w-4 text-purple-500" />Combo Settings</p>
 
-              {/* Product picker */}
-              <div className="space-y-2">
-                <Label>Required Products *</Label>
-                {selectedProducts.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {selectedProducts.map((pid) => {
-                      const prod = products.find(p => p.product_id === pid)
-                      return (
-                        <Badge key={pid} variant="secondary" className="gap-1 text-xs">
-                          {prod?.product_name || pid}
-                          <button type="button" onClick={() => setSelectedProducts(prev => prev.filter(p => p !== pid))}>
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                )}
-                <Select value="" onValueChange={(pid) => pid && !selectedProducts.includes(pid) && setSelectedProducts(prev => [...prev, pid])}>
-                  <SelectTrigger><SelectValue placeholder="Add a product to the combo…" /></SelectTrigger>
-                  <SelectContent>
-                    {products.filter(p => !selectedProducts.includes(p.product_id)).map((p) => (
-                      <SelectItem key={p.product_id} value={p.product_id}>{p.product_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+              {/* Row: Combo Type + Display Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="combo_price">Combo Price ({currencySymbol}) *</Label>
-                  <NumberInput id="combo_price" value={formData.combo_price}
-                    onChange={(e: any) => set({ combo_price: parseFloat(e.target.value) || 0 })} min="0" required />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="free_item">Free Gift Item (BOGO)</Label>
-                  <Select value={formData.free_item || '__none__'} onValueChange={(v) => set({ free_item: v === '__none__' ? '' : v })}>
-                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <Label>Combo Type *</Label>
+                  <Select value={formData.combo_type} onValueChange={(v) => set({ combo_type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {products.map((p) => <SelectItem key={p.product_id} value={p.product_id}>{p.product_name}</SelectItem>)}
+                      <SelectItem value="fixed_bundle">Fixed Bundle</SelectItem>
+                      <SelectItem value="bogo">BOGO — cheapest item free</SelectItem>
+                      <SelectItem value="build_your_own">Build Your Own</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="combo_name">Display Name <span className="text-muted-foreground font-normal text-xs">(on menu card)</span></Label>
+                  <Input
+                    id="combo_name"
+                    value={formData.combo_name}
+                    onChange={(e: any) => set({ combo_name: e.target.value })}
+                    placeholder={
+                      formData.combo_type === 'bogo' ? 'Buy 2 Get 1 Free' :
+                      formData.combo_type === 'build_your_own' ? 'Build Your Meal' :
+                      'Weekend Bundle'
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* fixed_bundle: all required products must be in cart */}
+              {formData.combo_type === 'fixed_bundle' && (
+                <div className="space-y-2">
+                  <Label>Required Products <span className="text-muted-foreground font-normal text-xs">(all must be in cart)</span></Label>
+                  {selectedProducts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {selectedProducts.map((pid) => {
+                        const prod = products.find(p => p.product_id === pid)
+                        return (
+                          <Badge key={pid} variant="secondary" className="gap-1 text-xs">
+                            {prod?.product_name || pid}
+                            <button type="button" onClick={() => setSelectedProducts(prev => prev.filter(p => p !== pid))}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <Select value="" onValueChange={(pid) => pid && !selectedProducts.includes(pid) && setSelectedProducts(prev => [...prev, pid])}>
+                    <SelectTrigger><SelectValue placeholder="Add a product to the bundle…" /></SelectTrigger>
+                    <SelectContent>
+                      {products.filter(p => !selectedProducts.includes(p.product_id)).map((p) => (
+                        <SelectItem key={p.product_id} value={p.product_id}>{p.product_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* bogo / build_your_own: item pool + how many to pick */}
+              {(formData.combo_type === 'bogo' || formData.combo_type === 'build_your_own') && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Item Pool <span className="text-muted-foreground font-normal text-xs">
+                      {formData.combo_type === 'bogo'
+                        ? '— customer picks from these; cheapest one goes free'
+                        : '— customer picks from these at the combo price'}
+                    </span></Label>
+                    {selectedPoolProducts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {selectedPoolProducts.map((pid) => {
+                          const prod = products.find(p => p.product_id === pid)
+                          return (
+                            <Badge key={pid} variant="secondary" className="gap-1 text-xs">
+                              {prod?.product_name || pid}
+                              <button type="button" onClick={() => setSelectedPoolProducts(prev => prev.filter(p => p !== pid))}>
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <Select value="" onValueChange={(pid) => pid && !selectedPoolProducts.includes(pid) && setSelectedPoolProducts(prev => [...prev, pid])}>
+                      <SelectTrigger><SelectValue placeholder="Add product to pool…" /></SelectTrigger>
+                      <SelectContent>
+                        {products.filter(p => !selectedPoolProducts.includes(p.product_id)).map((p) => (
+                          <SelectItem key={p.product_id} value={p.product_id}>{p.product_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5 w-1/2">
+                    <Label htmlFor="items_to_select">
+                      {formData.combo_type === 'bogo' ? 'Items to Buy (N in BOGO)' : 'Items to Select'}
+                    </Label>
+                    <NumberInput
+                      id="items_to_select"
+                      value={formData.items_to_select}
+                      onChange={(e: any) => set({ items_to_select: parseInt(e.target.value) || 2 })}
+                      min="1"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Combo Price — hidden for BOGO (auto-calculated) */}
+              {formData.combo_type === 'bogo' ? (
+                <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  BOGO discount is automatic — the cheapest qualifying item in the cart is made free. No combo price needed.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="combo_price">
+                    Combo Price ({currencySymbol}) *
+                    {formData.combo_type === 'build_your_own' && (
+                      <span className="text-muted-foreground font-normal text-xs ml-1">— what the customer pays for their picks</span>
+                    )}
+                  </Label>
+                  <NumberInput id="combo_price" value={formData.combo_price}
+                    onChange={(e: any) => set({ combo_price: parseFloat(e.target.value) || 0 })} min="0" required />
+                </div>
+              )}
+
+              {/* Show on menu card toggle */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="display_on_menu"
+                  checked={!!formData.display_on_menu}
+                  onChange={(e) => set({ display_on_menu: e.target.checked } as any)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <label htmlFor="display_on_menu" className="text-sm cursor-pointer">
+                  Show as a combo card on the menu page
+                </label>
               </div>
             </div>
 

@@ -13,6 +13,8 @@ from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_ap
 from dinematters.dinematters.utils.feature_gate import require_plan
 from dinematters.dinematters.utils.customer_helpers import get_customer_token, get_customer_from_token
 import json
+import csv
+import io
 from datetime import datetime
 
 
@@ -249,6 +251,246 @@ def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, 
 
 
 
+@frappe.whitelist()
+def export_coupons(restaurant_id):
+	"""
+	GET /api/method/dinematters.dinematters.api.coupons.export_coupons
+	Export all coupons for a restaurant as a CSV file download.
+	Enables multi-outlet replication and backup.
+	"""
+	restaurant = validate_restaurant_for_api(restaurant_id)
+
+	coupons = frappe.get_all(
+		"Coupon",
+		filters={"restaurant": restaurant},
+		fields=[
+			"code", "offer_type", "discount_type", "discount_value", "min_order_amount",
+			"max_discount_cap", "description", "detailed_description", "category",
+			"priority", "can_stack", "is_active", "valid_from", "valid_until",
+			"valid_days_of_week", "valid_time_start", "valid_time_end",
+			"max_uses", "max_uses_per_user",
+		],
+		order_by="code asc",
+	)
+
+	columns = [
+		"code", "offer_type", "discount_type", "discount_value", "min_order_amount",
+		"max_discount_cap", "description", "detailed_description", "category",
+		"priority", "can_stack", "is_active", "valid_from", "valid_until",
+		"valid_days_of_week", "valid_time_start", "valid_time_end",
+		"max_uses", "max_uses_per_user",
+	]
+
+	output = io.StringIO()
+	writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
+	writer.writeheader()
+	for coupon in coupons:
+		row = {col: (coupon.get(col) or "") for col in columns}
+		writer.writerow(row)
+
+	csv_bytes = output.getvalue().encode("utf-8")
+	frappe.local.response.filename = f"coupons_{restaurant_id}.csv"
+	frappe.local.response.filecontent = csv_bytes
+	frappe.local.response.type = "download"
+
+
+@frappe.whitelist()
+def import_coupons(restaurant_id, csv_content, overwrite_existing=False):
+	"""
+	POST /api/method/dinematters.dinematters.api.coupons.import_coupons
+	Bulk-import coupons from CSV content string.
+	Skips rows with duplicate codes unless overwrite_existing=True.
+	Returns counts of created / updated / skipped rows.
+	"""
+	restaurant = validate_restaurant_for_api(restaurant_id)
+
+	created = updated = skipped = 0
+	errors = []
+
+	try:
+		reader = csv.DictReader(io.StringIO(csv_content))
+	except Exception as e:
+		return {"success": False, "error": f"Invalid CSV: {str(e)}"}
+
+	for i, row in enumerate(reader, start=2):  # row 1 = header
+		code = (row.get("code") or "").strip().upper()
+		if not code:
+			errors.append(f"Row {i}: missing code, skipped")
+			skipped += 1
+			continue
+
+		existing = frappe.db.get_value("Coupon", {"code": code, "restaurant": restaurant}, "name")
+
+		if existing and not overwrite_existing:
+			skipped += 1
+			continue
+
+		fields = {
+			"restaurant": restaurant,
+			"code": code,
+			"offer_type": row.get("offer_type") or "coupon",
+			"discount_type": row.get("discount_type") or "flat",
+			"discount_value": flt(row.get("discount_value") or 0),
+			"min_order_amount": flt(row.get("min_order_amount") or 0),
+			"max_discount_cap": flt(row.get("max_discount_cap") or 0) or None,
+			"description": row.get("description") or "",
+			"detailed_description": row.get("detailed_description") or "",
+			"category": row.get("category") or "",
+			"priority": int(row.get("priority") or 0),
+			"can_stack": int(row.get("can_stack") or 0),
+			"is_active": int(row.get("is_active") or 1),
+			"valid_from": row.get("valid_from") or None,
+			"valid_until": row.get("valid_until") or None,
+			"valid_days_of_week": row.get("valid_days_of_week") or None,
+			"valid_time_start": row.get("valid_time_start") or None,
+			"valid_time_end": row.get("valid_time_end") or None,
+			"max_uses": int(row.get("max_uses") or 0),
+			"max_uses_per_user": int(row.get("max_uses_per_user") or 0),
+		}
+
+		try:
+			if existing:
+				doc = frappe.get_doc("Coupon", existing)
+				doc.update(fields)
+				doc.save(ignore_permissions=True)
+				updated += 1
+			else:
+				doc = frappe.get_doc({"doctype": "Coupon", **fields})
+				doc.insert(ignore_permissions=True)
+				created += 1
+		except Exception as e:
+			errors.append(f"Row {i} ({code}): {str(e)}")
+			skipped += 1
+
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"data": {
+			"created": created,
+			"updated": updated,
+			"skipped": skipped,
+			"errors": errors,
+		}
+	}
+
+
+@frappe.whitelist()
+def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_filter=None, count=6):
+	"""
+	POST /api/method/dinematters.dinematters.api.coupons.generate_coupon_suggestions
+	Generate AI-powered coupon suggestions using Gemini 2.5 Flash.
+
+	Quota: 10 free generations/restaurant/month.
+	After quota: costs 2 wallet coins per generation.
+
+	Args:
+		restaurant_id: Restaurant identifier
+		tone: "calm" | "attractive" | "aggressive"
+		offer_type_filter: Optional offer type to restrict generation to
+		count: Number of suggestions (3–8)
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		require_plan(restaurant, ["GOLD"])
+
+		count = max(3, min(int(count or 6), 8))
+
+		from dinematters.dinematters.services.ai.coupon_generator import (
+			generate_suggestions, FREE_MONTHLY_QUOTA, _check_quota_status,
+		)
+		from dinematters.dinematters.api.coin_billing import deduct_coins
+
+		COINS_PER_AI_COUPON = 2  # cost after free quota exhausted
+
+		# Check quota WITHOUT incrementing to decide if we need coins
+		quota_status = _check_quota_status(restaurant)
+
+		if not quota_status["free_remaining"]:
+			# Quota exhausted — deduct 2 coins per generation
+			balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+			if balance < COINS_PER_AI_COUPON:
+				return {
+					"success": False,
+					"error_code": "INSUFFICIENT_BALANCE",
+					"message": (
+						f"Your {FREE_MONTHLY_QUOTA} free AI generations for this month are used up. "
+						f"Each additional generation costs {COINS_PER_AI_COUPON} wallet coins. "
+						f"Your current balance is ₹{balance:.0f}. Please recharge your wallet."
+					),
+					"quota": quota_status,
+					"coins_required": COINS_PER_AI_COUPON,
+					"current_balance": balance,
+				}
+
+		# Run generation (this increments quota internally)
+		result = generate_suggestions(
+			restaurant_id=restaurant,
+			tone=tone,
+			offer_type_filter=offer_type_filter,
+			count=count,
+		)
+
+		if not result.get("success"):
+			return result
+
+		# If we consumed a paid slot, deduct coins
+		if not quota_status["free_remaining"]:
+			try:
+				deduct_coins(
+					restaurant=restaurant,
+					amount=COINS_PER_AI_COUPON,
+					type="AI Deduction",
+					description=f"AI coupon generation ({tone} tone, {count} suggestions)",
+				)
+				result["coins_deducted"] = COINS_PER_AI_COUPON
+			except Exception as e:
+				frappe.log_error(f"Coin deduction failed after AI coupon gen: {e}", "AI Coupon Billing")
+				# Don't fail the request — suggestions were already generated
+
+		return {
+			"success": True,
+			"data": {
+				"suggestions": result["suggestions"],
+				"quota": result["quota"],
+				"tone": result["tone"],
+				"coins_deducted": result.get("coins_deducted", 0),
+			}
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error in generate_coupon_suggestions: {str(e)}")
+		return {
+			"success": False,
+			"error": {"code": "AI_GENERATION_ERROR", "message": str(e)}
+		}
+
+
+@frappe.whitelist()
+def get_ai_coupon_quota(restaurant_id):
+	"""
+	GET quota status for AI coupon generation without consuming a generation.
+	Returns used/limit/resets_on/free_remaining/coins_per_paid.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		from dinematters.dinematters.services.ai.coupon_generator import (
+			_check_quota_status, FREE_MONTHLY_QUOTA,
+		)
+		status = _check_quota_status(restaurant)
+		balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+		return {
+			"success": True,
+			"data": {
+				**status,
+				"coins_per_paid_generation": 2,
+				"wallet_balance": balance,
+			}
+		}
+	except Exception as e:
+		return {"success": False, "error": {"code": "QUOTA_CHECK_ERROR", "message": str(e)}}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None, order_type=None):
 	"""
@@ -287,8 +529,11 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			fields=[
 				"name", "code", "discount_value", "min_order_amount", "discount_type",
 				"offer_type", "valid_from", "valid_until", "max_uses", "usage_count",
-				"max_discount_cap", "priority", "can_stack",
-				"category", "description", "detailed_description"
+				"max_discount_cap", "priority", "can_stack", "max_uses_per_user",
+				"valid_days_of_week", "valid_time_start", "valid_time_end",
+				"category", "description", "detailed_description",
+				"combo_type", "combo_name", "required_items", "item_pool",
+				"items_to_select", "combo_price", "free_item", "display_on_menu",
 			],
 			order_by="priority desc, discount_value desc"
 		)
@@ -409,26 +654,137 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 						"usedCount": customer_usage,
 						"maxUses": offer.max_uses_per_user
 					})
-			
 
-			
-			# Calculate discount (even for ineligible to show potential savings)
+			# ── Combo eligibility checks ─────────────────────────────────────────
+			combo_type = offer.get("combo_type") or "fixed_bundle"
+			combo_meta = {}  # extra combo info sent to frontend
+
+			if offer.offer_type == "combo":
+				# Parse pools / required items
+				required_ids = []
+				item_pool_ids = []
+				try:
+					if offer.required_items:
+						raw = offer.required_items
+						required_ids = json.loads(raw) if isinstance(raw, str) else list(raw)
+				except Exception: pass
+				try:
+					if offer.item_pool:
+						raw = offer.item_pool
+						item_pool_ids = json.loads(raw) if isinstance(raw, str) else list(raw)
+				except Exception: pass
+
+				items_needed = int(offer.get("items_to_select") or 2)
+
+				# Fetch product names for human-readable hints
+				all_pool_ids = list(set(required_ids + item_pool_ids))
+				product_names = {}
+				if all_pool_ids:
+					rows = frappe.get_all(
+						"Menu Product",
+						filters={"product_id": ["in", all_pool_ids]},
+						fields=["product_id", "product_name", "price"],
+					)
+					product_names = {r.product_id: {"name": r.product_name, "price": flt(r.price)} for r in rows}
+
+				if combo_type == "fixed_bundle":
+					missing = [r for r in required_ids if r not in cart_dish_ids]
+					if missing:
+						is_eligible = False
+						missing_names = [product_names.get(m, {}).get("name", m) for m in missing]
+						ineligibility_reasons.append({
+							"code": "COMBO_ITEMS_MISSING",
+							"message": f"Add {', '.join(missing_names)} to use this combo",
+							"type": "combo",
+							"missingItems": missing,
+							"missingItemNames": missing_names,
+							"requiredItems": required_ids,
+						})
+					combo_meta = {
+						"comboType": "fixed_bundle",
+						"requiredItems": required_ids,
+						"requiredItemNames": [product_names.get(r, {}).get("name", r) for r in required_ids],
+						"comboPrice": flt(offer.combo_price or 0),
+						"comboName": offer.get("combo_name") or offer.description or "",
+					}
+
+				elif combo_type == "bogo":
+					matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
+					if len(matching) < items_needed:
+						short = items_needed - len(matching)
+						pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
+						is_eligible = False
+						ineligibility_reasons.append({
+							"code": "COMBO_ITEMS_MISSING",
+							"message": f"Add {short} more item{'s' if short > 1 else ''} from the pool to unlock BOGO",
+							"type": "combo",
+							"missingCount": short,
+							"itemPool": item_pool_ids,
+							"itemPoolNames": pool_names,
+						})
+					combo_meta = {
+						"comboType": "bogo",
+						"itemPool": item_pool_ids,
+						"itemPoolNames": [product_names.get(p, {}).get("name", p) for p in item_pool_ids],
+						"itemsToSelect": items_needed,
+						"comboName": offer.get("combo_name") or offer.description or "",
+					}
+
+				elif combo_type == "build_your_own":
+					matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
+					if len(matching) < items_needed:
+						short = items_needed - len(matching)
+						pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
+						is_eligible = False
+						ineligibility_reasons.append({
+							"code": "COMBO_ITEMS_MISSING",
+							"message": f"Pick {short} more item{'s' if short > 1 else ''} from the combo pool",
+							"type": "combo",
+							"missingCount": short,
+							"itemPool": item_pool_ids,
+							"itemPoolNames": pool_names,
+						})
+					combo_meta = {
+						"comboType": "build_your_own",
+						"itemPool": item_pool_ids,
+						"itemPoolNames": [product_names.get(p, {}).get("name", p) for p in item_pool_ids],
+						"itemsToSelect": items_needed,
+						"comboPrice": flt(offer.combo_price or 0),
+						"comboName": offer.get("combo_name") or offer.description or "",
+					}
+
+			# ── Calculate discount (even ineligible, to show potential savings) ─
 			discount_amount = flt(offer.discount_value)
-			potential_discount = discount_amount  # What they could save
-			
-			if offer.discount_type == "percent":
-				# Calculate based on current cart or min order amount
+			potential_discount = discount_amount
+
+			if offer.offer_type == "combo":
+				if combo_type == "bogo":
+					# Potential = cheapest item in pool
+					pool = combo_meta.get("itemPool") or required_ids
+					prices = [flt(product_names.get(p, {}).get("price", 0)) for p in pool]
+					potential_discount = min(prices) if prices else discount_amount
+					if is_eligible:
+						matching_prices = sorted([flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool])
+						discount_amount = matching_prices[0] if matching_prices else 0
+					else:
+						discount_amount = 0
+				elif combo_type in ("fixed_bundle", "build_your_own") and offer.combo_price:
+					potential_discount = max(0, flt(cart_total) - flt(offer.combo_price))
+					discount_amount = potential_discount if is_eligible else 0
+				else:
+					discount_amount = flt(offer.discount_value) if is_eligible else 0
+			elif offer.discount_type == "percent":
 				calc_total = max(cart_total, flt(offer.min_order_amount or 0))
 				discount_amount = (calc_total * flt(offer.discount_value)) / 100
 				if offer.max_discount_cap and discount_amount > flt(offer.max_discount_cap):
 					discount_amount = flt(offer.max_discount_cap)
-			
+				potential_discount = discount_amount
+
 			if is_delivery_offer:
 				if offer.discount_type == 'delivery':
-					# "Free delivery" — actual saving depends on order-time fee; show 0 until applied
 					discount_amount = 0
 				potential_discount = discount_amount
-			
+
 			# Build offer data
 			offer_data = {
 				"id": str(offer.name),
@@ -444,13 +800,13 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"detailedDescription": offer.detailed_description or "",
 				"isEligible": is_eligible,
 				"minOrderAmount": flt(offer.min_order_amount or 0),
-				"category": offer.category or ""
+				"category": offer.category or "",
+				**combo_meta,
 			}
-			
+
 			# Add ineligibility info
 			if not is_eligible:
 				offer_data["ineligibilityReasons"] = ineligibility_reasons
-				# Add primary reason (most actionable)
 				if ineligibility_reasons:
 					offer_data["primaryReason"] = ineligibility_reasons[0]
 			

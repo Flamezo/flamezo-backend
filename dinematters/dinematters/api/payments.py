@@ -845,12 +845,15 @@ def download_guide(guide_name):
 		md_content = f.read()
 		
 	pdf = MarkdownPdf(toc_level=0)  # type: ignore
+	# Strip anchor links that start with digits — pymupdf can't resolve them and raises KeyError
+	import re
+	md_content = re.sub(r'\[([^\]]+)\]\(#[^\)]*\)', r'\1', md_content)
 	pdf.add_section(Section(md_content))  # type: ignore
-	
+
 	import tempfile
 	with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
 		tmp_path = tmp.name
-	
+
 	try:
 		pdf.save(tmp_path)
 		with open(tmp_path, "rb") as f:

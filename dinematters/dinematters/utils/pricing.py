@@ -117,8 +117,8 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 			offer.is_delivery_discount = (offer.discount_type == 'delivery' or offer.category == 'delivery')
 			eligible_offers.append(offer)
 	
-	# Sort and Apply
-	eligible_offers.sort(key=lambda x: x.discount_amount, reverse=True)
+	# Sort by priority DESC, then by discount_amount DESC as tiebreaker
+	eligible_offers.sort(key=lambda x: (x.priority or 0, x.discount_amount), reverse=True)
 	
 	if eligible_offers:
 		best = eligible_offers[0]
@@ -266,33 +266,95 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, deliv
 		usage = frappe.db.count("Coupon Usage", {"coupon": offer.name, "customer": customer_id})
 		if usage >= offer.max_uses_per_user: return {"success": False}
 
-	# 6. Combo Checks
-	if offer.offer_type == "combo" and offer.required_items:
-		try:
-			required = json.loads(offer.required_items)
-			cart_dish_ids = [str(item.get("dishId")) for item in cart_items]
-			if any(r not in cart_dish_ids for r in required):
+	# 6. Combo Checks (type-aware)
+	_raw_combo_type = getattr(offer, "combo_type", None)
+	combo_type = _raw_combo_type if isinstance(_raw_combo_type, str) and _raw_combo_type else "fixed_bundle"
+
+	if offer.offer_type == "combo":
+		cart_dish_ids = [str(item.get("dishId") or item.get("dish_id") or "") for item in cart_items]
+
+		if combo_type == "fixed_bundle":
+			# All required items must be present in cart
+			if offer.required_items:
+				try:
+					required = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
+					if any(str(r) not in cart_dish_ids for r in required):
+						return {"success": False}
+				except Exception:
+					pass
+
+		elif combo_type == "bogo":
+			# At least items_to_select qualifying items from item_pool must be in cart
+			pool = []
+			if offer.item_pool:
+				try:
+					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+				except Exception:
+					pass
+			required_count = int(getattr(offer, "items_to_select", 2) or 2)
+			matching = [i for i in cart_items if str(i.get("dishId") or "") in pool]
+			if len(matching) < required_count:
 				return {"success": False}
-		except: pass
+
+		elif combo_type == "build_your_own":
+			# At least items_to_select items from item_pool present
+			pool = []
+			if offer.item_pool:
+				try:
+					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+				except Exception:
+					pass
+			required_count = int(getattr(offer, "items_to_select", 2) or 2)
+			matching = [i for i in cart_items if str(i.get("dishId") or "") in pool]
+			if len(matching) < required_count:
+				return {"success": False}
 
 	# Calculate Discount
 	discount_amount = 0
 	if is_delivery_offer:
-		# Delivery offers are applied on the delivery fee
-		if offer.discount_type == 'delivery': # This implies "Free Delivery"
+		if offer.discount_type == 'delivery':
 			discount_amount = flt(delivery_fee)
 		elif offer.discount_type == 'flat':
 			discount_amount = flt(offer.discount_value)
 		elif offer.discount_type == 'percent':
 			discount_amount = (flt(delivery_fee) * flt(offer.discount_value)) / 100
 	else:
-		# Standard offers applied on items
-		discount_amount = flt(offer.discount_value)
-		if offer.offer_type == "combo" and offer.combo_price:
-			discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
+		if offer.offer_type == "combo":
+			if combo_type == "bogo":
+				# Cheapest qualifying item is free
+				pool = []
+				if offer.item_pool:
+					try:
+						pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+					except Exception:
+						pass
+				matching_prices = sorted(
+					[flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool]
+				)
+				discount_amount = matching_prices[0] if matching_prices else 0
+
+			elif combo_type == "build_your_own" and offer.combo_price is not None:
+				# Sum of qualifying items minus combo_price
+				pool = []
+				if offer.item_pool:
+					try:
+						pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+					except Exception:
+						pass
+				selected_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool)
+				discount_amount = max(0, selected_total - flt(offer.combo_price))
+
+			elif combo_type == "fixed_bundle" and offer.combo_price is not None:
+				discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
+
+			else:
+				discount_amount = flt(offer.discount_value)
+
 		elif offer.discount_type == "percent":
 			discount_amount = (flt(cart_total) * flt(offer.discount_value)) / 100
 			if offer.max_discount_cap and discount_amount > flt(offer.max_discount_cap):
 				discount_amount = flt(offer.max_discount_cap)
-	
+		else:
+			discount_amount = flt(offer.discount_value)
+
 	return {"success": True, "discount_amount": discount_amount}
