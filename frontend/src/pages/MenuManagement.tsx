@@ -59,6 +59,11 @@ export default function MenuManagement() {
 
   const handleSyncMenu = async () => {
     if (!selectedRestaurant) return
+    // Petpooja is push-only (fetch API deprecated) — direct owner to their POS tablet
+    if (posProvider === 'Petpooja') {
+      toast.info('Go to your Petpooja dashboard → Menu Management → Push Menu to sync.', { duration: 6000 })
+      return
+    }
     setIsSyncingMenu(true)
     try {
       await syncMenuCall({ restaurant_id: selectedRestaurant })
@@ -149,8 +154,7 @@ export default function MenuManagement() {
     [categories, selectedCategoryId]
   )
 
-  // Flat list of all categories for product move menus
-  const allCategoriesFlat = categories || []
+  // Hierarchical categories for selection menus (parents -> children)
 
   // Fetch Products
   const {
@@ -164,6 +168,42 @@ export default function MenuManagement() {
     include_inactive: 1,
     limit: 500
   }, (selectedRestaurant && (activeCategory || searchQuery)) ? `menu-products-${activeCategory?.name || 'search'}-${searchQuery}` : null)
+  
+  // Hierarchical categories for selection menus (parents -> children)
+  const hierarchicalCategories = useMemo(() => {
+    if (!categories) return []
+    const records = [...categories]
+    const sorted: any[] = []
+    const parents = records.filter(r => !r.parent_category)
+    const children = records.filter(r => r.parent_category)
+
+    // Sort parents by display_order, then display_name
+    parents.sort((a, b) => {
+      if ((a.display_order || 0) !== (b.display_order || 0)) {
+        return (a.display_order || 0) - (b.display_order || 0)
+      }
+      return (a.display_name || a.category_name || '').localeCompare(b.display_name || b.category_name || '')
+    })
+
+    parents.forEach(p => {
+      sorted.push(p)
+      const subs = children.filter(c => c.parent_category === p.name)
+      // Sort children by display_order, then display_name
+      subs.sort((a, b) => {
+        if ((a.display_order || 0) !== (b.display_order || 0)) {
+          return (a.display_order || 0) - (b.display_order || 0)
+        }
+        return (a.display_name || a.category_name || '').localeCompare(b.display_name || b.category_name || '')
+      })
+      sorted.push(...subs)
+    })
+
+    // Orphans
+    const orphans = children.filter(c => !parents.some(p => p.name === c.parent_category))
+    if (orphans.length > 0) sorted.push(...orphans)
+
+    return sorted
+  }, [categories])
 
   const products = productsData?.message?.data?.products || []
 
@@ -586,10 +626,14 @@ export default function MenuManagement() {
                         <DropdownMenuContent align="end" className="w-56 max-h-60 overflow-y-auto custom-scrollbar">
                           <DropdownMenuLabel>Move to Category</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          {allCategoriesFlat?.filter((c: any) => c.name !== selectedCategoryId).map((cat: any) => (
+                          {hierarchicalCategories?.filter((c: any) => c.name !== selectedCategoryId).map((cat: any) => (
                             <DropdownMenuItem key={cat.name} onClick={() => handleBulkMove(cat.name)}>
-                              <span className={cat.parent_category ? 'pl-4 text-muted-foreground' : ''}>
-                                {cat.parent_category ? '↳ ' : ''}{cat.display_name || cat.category_name}
+                              <span className={cn(
+                                "flex items-center gap-1",
+                                cat.parent_category && "pl-4 text-muted-foreground"
+                              )}>
+                                {cat.parent_category && <span className="opacity-50">↳</span>}
+                                {cat.display_name || cat.category_name}
                               </span>
                             </DropdownMenuItem>
                           ))}
@@ -631,7 +675,7 @@ export default function MenuManagement() {
                             onToggleStatus={(status) => handleToggleProductStatus(product, status)}
                             isSelected={selectedProductIds.includes(product.docname)}
                             onSelect={(checked) => toggleSelectProduct(product.docname, checked)}
-                            categories={allCategoriesFlat || []}
+                            categories={hierarchicalCategories}
                             onMove={(targetCategory) => handleMoveProduct(product.docname, targetCategory)}
                             posManaged={isPOSManaged}
                           />

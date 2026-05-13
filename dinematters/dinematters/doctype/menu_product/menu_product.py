@@ -75,6 +75,38 @@ class MenuProduct(Document):
 		
 		# Delete legacy signature dish entries
 		frappe.db.delete("Legacy Signature Dish", {"dish": self.name})
+
+		# 5. Deactivate combo coupons that required this product
+		self._deactivate_dependent_combo_coupons()
+
+	def _deactivate_dependent_combo_coupons(self):
+		"""
+		When a Menu Product is deleted, find all active combo coupons that list
+		this product in required_items and deactivate them so they don't silently
+		fail at checkout.
+		"""
+		import json
+		combo_coupons = frappe.get_all(
+			"Coupon",
+			filters={"restaurant": self.restaurant, "offer_type": "combo", "is_active": 1},
+			fields=["name", "code", "required_items"],
+		)
+		deactivated = []
+		for coupon in combo_coupons:
+			if not coupon.required_items:
+				continue
+			try:
+				required = json.loads(coupon.required_items) if isinstance(coupon.required_items, str) else coupon.required_items
+				if self.name in (required or []):
+					frappe.db.set_value("Coupon", coupon.name, "is_active", 0)
+					deactivated.append(coupon.code)
+			except Exception:
+				pass
+		if deactivated:
+			frappe.db.commit()
+			frappe.logger().warning(
+				f"[menu_product] Deactivated combo coupons {deactivated} because product '{self.name}' was deleted."
+			)
 	
 	def generate_slug_from_name(self, name):
 		"""Generate a slug-like string from name"""

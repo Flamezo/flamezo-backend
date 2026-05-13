@@ -259,15 +259,19 @@ def test_1_payload_structure(provider, order):
     assert float(sgst["amount"]) == expected_sgst, \
         f"Item SGST amount should be {expected_sgst}, got {sgst['amount']}"
 
-    # Order-level tax array should be populated with CGST + SGST totals
-    order_tax = oi["tax"]
-    assert len(order_tax) == 2, f"order-level tax array should have 2 entries, got {len(order_tax)}"
-    assert order_tax[0]["name"] == "CGST"
-    assert order_tax[1]["name"] == "SGST"
-    assert float(order_tax[0]["amount"]) == expected_cgst, \
-        f"Order CGST amount should be {expected_cgst}, got {order_tax[0]['amount']}"
-    assert float(order_tax[1]["amount"]) == expected_sgst, \
-        f"Order SGST amount should be {expected_sgst}, got {order_tax[1]['amount']}"
+    # Order-level tax_details array (key is "tax_details" not "tax" per official Petpooja schema)
+    order_tax = oi["tax_details"]
+    assert len(order_tax) == 2, f"order-level tax_details should have 2 entries, got {len(order_tax)}"
+    assert order_tax[0]["title"] == "CGST"
+    assert order_tax[1]["title"] == "SGST"
+    assert order_tax[0]["type"] == "P"
+    assert order_tax[1]["type"] == "P"
+    assert float(order_tax[0]["tax"]) == expected_cgst, \
+        f"Order CGST tax should be {expected_cgst}, got {order_tax[0]['tax']}"
+    assert float(order_tax[1]["tax"]) == expected_sgst, \
+        f"Order SGST tax should be {expected_sgst}, got {order_tax[1]['tax']}"
+    assert "restaurant_liable_amt" in order_tax[0]
+    assert "discount" not in oi, "discount array must NOT be present per Petpooja docs"
 
     print("  ✅ All payload fields validated")
 
@@ -330,7 +334,7 @@ def test_5_push_order_success(provider, order):
 
     # Verify the correct URL was called
     call_url = mock_post.call_args[0][0]
-    assert "qle1yy2ydc" in call_url, f"Wrong URL called: {call_url}"
+    assert "47pfzh5sf2" in call_url, f"Wrong URL called: {call_url}"
     assert "save_order"  in call_url
 
     # Verify payload is JSON-serializable (no crashes on dumps)

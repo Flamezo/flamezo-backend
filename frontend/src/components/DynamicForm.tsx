@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense, useMemo } from 'react'
 import { useDocTypeMeta, DocTypeField } from '@/lib/doctype'
 import { usePermissions } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
@@ -1823,7 +1823,7 @@ function LinkField({
       case 'Restaurant':
         return ['name', 'restaurant_name']
       case 'Menu Category':
-        return ['name', 'display_name', 'category_name']
+        return ['name', 'display_name', 'category_name', 'parent_category', 'display_order']
       default:
         return ['name']
     }
@@ -1847,6 +1847,46 @@ function LinkField({
     },
     linkedDoctype ? `link-${linkedDoctype}-${selectedRestaurant || 'all'}` : null
   )
+
+  // Organize categories hierarchically: Parent -> [Children]
+  const processedRecords = useMemo(() => {
+    if (!linkedRecords) return []
+    if (linkedDoctype !== 'Menu Category') return linkedRecords
+
+    const records = [...linkedRecords]
+    const sorted: any[] = []
+    const parents = records.filter(r => !r.parent_category)
+    const children = records.filter(r => r.parent_category)
+
+    // Sort parents by display_order, then display_name
+    parents.sort((a, b) => {
+      if ((a.display_order || 0) !== (b.display_order || 0)) {
+        return (a.display_order || 0) - (b.display_order || 0)
+      }
+      return (a.display_name || a.category_name || '').localeCompare(b.display_name || b.category_name || '')
+    })
+
+    parents.forEach(p => {
+      sorted.push(p)
+      const subs = children.filter(c => c.parent_category === p.name)
+      // Sort children by display_order, then display_name
+      subs.sort((a, b) => {
+        if ((a.display_order || 0) !== (b.display_order || 0)) {
+          return (a.display_order || 0) - (b.display_order || 0)
+        }
+        return (a.display_name || a.category_name || '').localeCompare(b.display_name || b.category_name || '')
+      })
+      sorted.push(...subs)
+    })
+
+    // Add any children whose parents weren't found in the set (edge case)
+    const orphans = children.filter(c => !parents.some(p => p.name === c.parent_category))
+    if (orphans.length > 0) {
+      sorted.push(...orphans)
+    }
+
+    return sorted
+  }, [linkedRecords, linkedDoctype])
 
   // Get display value for selected record
   const getDisplayValue = (record: any) => {
@@ -1899,12 +1939,20 @@ function LinkField({
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {linkedRecords && linkedRecords.length > 0 ? (
-            linkedRecords.map((record: any) => {
+          {processedRecords && processedRecords.length > 0 ? (
+            processedRecords.map((record: any) => {
               const display = getDisplayValue(record)
+              const isSub = linkedDoctype === 'Menu Category' && record.parent_category
+              
               return (
                 <SelectItem key={record.name} value={record.name}>
-                  {display}
+                  <span className={cn(
+                    "flex items-center gap-1",
+                    isSub && "pl-4 text-muted-foreground font-medium"
+                  )}>
+                    {isSub && <span className="opacity-50">↳</span>}
+                    {display}
+                  </span>
                 </SelectItem>
               )
             })

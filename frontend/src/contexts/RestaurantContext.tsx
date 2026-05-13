@@ -9,6 +9,7 @@ interface Restaurant {
   city?: string
   state?: string
   company?: string
+  logo?: string
 }
 
 interface RestaurantContextType {

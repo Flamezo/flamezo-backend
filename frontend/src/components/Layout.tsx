@@ -3,8 +3,7 @@ import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
-import { useState, useEffect, useMemo } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -216,7 +215,9 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
   const [sidebarHovered, setSidebarHovered] = useState(false) // Hover state for temporary expansion
   const [hoverDisabled, setHoverDisabled] = useState(false) // Temporarily disable hover after toggle
-  const [selectOpen, setSelectOpen] = useState(false) // Track if restaurant select is open
+  const [restaurantDropdownOpen, setRestaurantDropdownOpen] = useState(false)
+  const [restaurantDropdownSearch, setRestaurantDropdownSearch] = useState('')
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lockAnimating, setLockAnimating] = useState(false) // Track lock animation state
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
@@ -666,7 +667,8 @@ export default function Layout({ children }: LayoutProps) {
   }, [orders])
 
   // Determine if sidebar should show expanded content (either expanded state or hovered, but not if hover is disabled)
-  const showExpanded = sidebarExpanded || (sidebarHovered && !hoverDisabled)
+  // Also keep expanded if restaurant select is open — prevents unmounting the Select mid-open
+  const showExpanded = sidebarExpanded || (sidebarHovered && !hoverDisabled) || restaurantDropdownOpen
 
   // Handle toggle button click
   const handleToggle = () => {
@@ -697,178 +699,191 @@ export default function Layout({ children }: LayoutProps) {
           // Desktop: width based on expanded state or hover
           showExpanded ? "lg:w-64" : "lg:w-16"
         )}
-        onMouseEnter={() => !sidebarExpanded && !hoverDisabled && setSidebarHovered(true)}
-        onMouseLeave={(e) => {
-          // Don't collapse if select dropdown is open or if mouse is moving to dropdown
-          const relatedTarget = e.relatedTarget as HTMLElement
-          if (!selectOpen && relatedTarget && typeof relatedTarget.closest === 'function' && !relatedTarget.closest('[role="listbox"]')) {
-            setSidebarHovered(false)
-          }
+        onMouseEnter={() => {
+          if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+          if (!sidebarExpanded && !hoverDisabled) setSidebarHovered(true)
+        }}
+        onMouseLeave={() => {
+          // Delay collapse so that if a dropdown opens in the same tick, we can cancel it
+          collapseTimerRef.current = setTimeout(() => {
+            if (!restaurantDropdownOpen) setSidebarHovered(false)
+          }, 150)
         }}
       >
         <div className="flex flex-col h-full">
-          {/* Logo with Toggle Button - Unified with Top Navbar */}
+          {/* Sidebar Header */}
           <div className={cn(
-            "flex items-center bg-card border-r border-sidebar-border transition-all",
-            showExpanded ? "px-4 justify-between py-2.5 h-[3.5rem]" : "px-2 justify-center h-[3.5rem]"
+            "flex items-center h-[3.5rem] bg-card border-b border-sidebar-border shrink-0",
+            showExpanded ? "px-2 gap-1" : "px-2 justify-center"
           )}>
             {showExpanded ? (
-              <>
-                <div className="flex-1 flex flex-col gap-0.5 min-w-0 max-w-full">
-                  {/* Restaurant Dropdown */}
-                  {restaurants.length > 0 ? (
-                    <Select
-                      value={selectedRestaurant || restaurants[0]?.name || ''}
-                      onValueChange={handleRestaurantChange}
-                      onOpenChange={(open) => {
-                        setSelectOpen(open)
-                        // Keep sidebar expanded while dropdown is open
-                        if (open && !sidebarExpanded) {
-                          setSidebarHovered(true)
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-auto py-1.5 px-2 border-0 bg-transparent hover:bg-sidebar-accent shadow-none focus:ring-0 focus:ring-offset-0 w-full data-[state=open]:bg-sidebar-accent">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-sm font-semibold text-sidebar-foreground truncate whitespace-nowrap overflow-hidden max-w-[100px]">
-                            {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
-                          </span>
-                          {isGold ? (
-                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-black rounded-full flex-shrink-0 border"
-                              style={{
-                                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 40%, #B45309 100%)',
-                                borderColor: '#FCD34D',
-                                color: '#FFF8E7',
-                                boxShadow: '0 0 0 1px rgba(253,211,77,0.3), 0 2px 6px rgba(180,83,9,0.4)',
-                                letterSpacing: '0.05em'
-                              }}
-                            >
-                              <Crown className="h-2.5 w-2.5" style={{ color: '#FEF3C7', fill: '#FEF3C7', opacity: 0.9 }} />
-                              GOLD
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full flex-shrink-0 border border-slate-200 dark:border-slate-700">
-                              SILVER
-                            </span>
-                          )}
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent
-                        className="min-w-[220px] max-h-[450px] z-[60]"
-                        onCloseAutoFocus={() => {
-                          // When dropdown closes, allow sidebar to collapse if needed
-                          setSelectOpen(false)
-                        }}
-                      >
-                        {isAdmin && (
-                          <>
-                            <SelectItem value="__create_new__" className="text-primary font-bold focus:bg-primary/5 focus:text-primary mb-1">
-                              <div className="flex items-center gap-2 w-full py-0">
-                                <Plus className="h-4 w-4 text-primary flex-shrink-0" />
-                                <span className="text-sm">New Restaurant</span>
-                              </div>
-                            </SelectItem>
-                            <div className="border-t border-border/50 mx-1 mb-1" />
-                          </>
-                        )}
-
-                        <SelectItem value="__search__" className="text-muted-foreground italic focus:bg-muted/5 transition-colors">
-                          <div className="flex items-center gap-2 w-full py-0">
-                            <Search className="h-4 w-4 flex-shrink-0" />
-                            <span className="text-sm">Search / View All</span>
-                          </div>
-                        </SelectItem>
-
-                        <div className="border-t border-border/40 my-1" />
-
-                          {restaurants.map((restaurant) => (
-                            <SelectItem key={restaurant.name} value={restaurant.name} className="py-1.5 focus:bg-sidebar-accent">
-                              <div className="flex items-center gap-2 w-full">
-                                <Store className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                <div className="flex flex-col min-w-0 flex-1">
-                                  <span className="text-sm font-medium text-foreground truncate">{restaurant.restaurant_name}</span>
-                                  {!restaurant.is_active && (
-                                    <span className="text-[9px] font-bold text-red-500/60 uppercase">Inactive</span>
-                                  )}
-                                </div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex items-center gap-2 py-1.5 px-2">
-                      <Store className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm text-muted-foreground">No restaurants</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Lock/Unlock Button - Desktop Only */}
-                  <button
-                    onClick={handleToggle}
-                    className={cn(
-                      "hidden lg:flex items-center justify-center p-1.5 rounded-md transition-all duration-300",
-                      "hover:bg-sidebar-accent active:scale-90",
-                      "relative overflow-visible",
-                      sidebarExpanded
-                        ? "text-primary hover:text-primary/80"
-                        : "text-muted-foreground hover:text-sidebar-foreground"
+              <DropdownMenu
+                open={restaurantDropdownOpen}
+                onOpenChange={(open) => {
+                  if (open && collapseTimerRef.current) {
+                    clearTimeout(collapseTimerRef.current)
+                    collapseTimerRef.current = null
+                  }
+                  if (!open) setRestaurantDropdownSearch('')
+                  setRestaurantDropdownOpen(open)
+                  if (open && !sidebarExpanded) setSidebarHovered(true)
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button className={cn(
+                    "group flex-1 min-w-0 flex items-center gap-2.5 px-2 py-2 rounded text-left",
+                    "transition-colors duration-150 hover:bg-sidebar-accent/60 focus:outline-none",
+                    restaurantDropdownOpen && "bg-sidebar-accent/60"
+                  )}>
+                    {/* Logo / Avatar */}
+                    {currentRestaurant?.logo ? (
+                      <img src={currentRestaurant.logo} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover border border-border" />
+                    ) : (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground text-[12px] font-bold">
+                        {(currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'R').charAt(0).toUpperCase()}
+                      </div>
                     )}
-                    title={sidebarExpanded ? "Unlock sidebar (allow auto-collapse)" : "Lock sidebar (keep expanded)"}
-                  >
-                    <div className={cn(
-                      "relative transition-all duration-300",
-                      lockAnimating && "lock-toggle-animate"
-                    )}>
-                      {sidebarExpanded ? (
-                        <Lock className="h-4 w-4 transition-all duration-300" />
+                    {/* Name + tier inline */}
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+                      <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
+                        {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
+                      </span>
+                      {isGold ? (
+                        <span className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
+                          style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', color: '#FFF8E7' }}
+                        >
+                          <Crown className="h-2 w-2" />GOLD
+                        </span>
                       ) : (
-                        <LockOpen className="h-4 w-4 transition-all duration-300" />
+                        <span className="inline-flex shrink-0 items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-sm">
+                          SILVER
+                        </span>
                       )}
                     </div>
+                    <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150", restaurantDropdownOpen && "rotate-180")} />
                   </button>
-                  {/* Close Button - Mobile Only */}
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="lg:hidden p-2.5 -mr-1 rounded-md hover:bg-sidebar-accent transition-colors active:scale-95"
-                    aria-label="Close menu"
-                  >
-                    <X className="h-5 w-5 text-muted-foreground" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <Link to="/dashboard" className="flex items-center justify-center hover:opacity-80 transition-opacity flex-1">
-                  <Store className="h-5 w-5 text-primary" />
-                </Link>
-                {/* Lock/Unlock Button when collapsed - Desktop Only */}
-                <button
-                  onClick={handleToggle}
-                  className={cn(
-                    "hidden lg:flex items-center justify-center p-1.5 rounded transition-all duration-300",
-                    "hover:bg-sidebar-accent active:scale-90",
-                    "relative overflow-visible",
-                    sidebarExpanded
-                      ? "text-primary hover:text-primary/80"
-                      : "text-muted-foreground hover:text-sidebar-foreground"
-                  )}
-                  title={sidebarExpanded ? "Unlock sidebar" : "Lock sidebar"}
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-[260px] p-0 rounded-md border border-border/80 shadow-md z-[60] bg-popover"
                 >
-                  <div className={cn(
-                    "relative transition-all duration-300",
-                    lockAnimating && "lock-toggle-animate"
-                  )}>
-                    {sidebarExpanded ? (
-                      <Lock className="h-4 w-4 transition-all duration-300" />
-                    ) : (
-                      <LockOpen className="h-4 w-4 transition-all duration-300" />
-                    )}
+                  {/* Admin actions at top — stacked */}
+                  {isAdmin && (
+                    <>
+                      <div className="flex flex-col gap-1 px-2 pt-2 pb-1.5">
+                        <DropdownMenuItem
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer text-foreground hover:bg-accent focus:bg-accent"
+                          onSelect={() => { handleRestaurantChange('__create_new__') }}
+                        >
+                          <Plus className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span className="text-[12px] font-semibold">Add Restaurant</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer text-foreground hover:bg-accent focus:bg-accent"
+                          onSelect={() => { handleRestaurantChange('__search__') }}
+                        >
+                          <Settings className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span className="text-[12px] font-semibold">Manage All</span>
+                        </DropdownMenuItem>
+                      </div>
+                      <div className="h-px bg-border/60" />
+                    </>
+                  )}
+
+                  {/* Search */}
+                  <div className="px-2 py-2">
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-muted/50 border border-border/60">
+                      <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                      <input
+                        autoFocus
+                        placeholder="Search..."
+                        value={restaurantDropdownSearch}
+                        onChange={e => setRestaurantDropdownSearch(e.target.value)}
+                        className="flex-1 bg-transparent text-[13px] outline-none text-foreground placeholder:text-muted-foreground/60"
+                      />
+                    </div>
                   </div>
-                </button>
-              </>
+
+                  <div className="h-px bg-border/60" />
+
+                  {/* Restaurant list */}
+                  <div className="max-h-[280px] overflow-y-auto py-1">
+                    {(() => {
+                      const filtered = restaurants.filter(r =>
+                        r.restaurant_name.toLowerCase().includes(restaurantDropdownSearch.toLowerCase())
+                      )
+                      if (filtered.length === 0) return (
+                        <div className="px-3 py-5 text-center text-[13px] text-muted-foreground">No results</div>
+                      )
+                      return filtered.map((restaurant) => {
+                        const isActive = selectedRestaurant === restaurant.name
+                        return (
+                          <DropdownMenuItem
+                            key={restaurant.name}
+                            className={cn(
+                              "flex items-center gap-2.5 mx-1 px-2 py-1.5 rounded cursor-pointer focus:bg-accent",
+                              isActive && "bg-accent"
+                            )}
+                            onSelect={() => {
+                              setSelectedRestaurant(restaurant.name)
+                              window.dispatchEvent(new CustomEvent('restaurant-selected'))
+                            }}
+                          >
+                            {restaurant.logo ? (
+                              <img src={restaurant.logo} alt="" className="h-6 w-6 shrink-0 rounded object-cover border border-border" />
+                            ) : (
+                              <div className={cn(
+                                "flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold border",
+                                isActive ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"
+                              )}>
+                                {restaurant.restaurant_name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <span className={cn("text-[13px] truncate block", isActive ? "font-semibold text-foreground" : "font-normal text-foreground/80")}>
+                                {restaurant.restaurant_name}
+                              </span>
+                              {!restaurant.is_active && <span className="text-[10px] text-destructive/70 font-medium">Inactive</span>}
+                            </div>
+                            {isActive && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                          </DropdownMenuItem>
+                        )
+                      })
+                    })()}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link to="/dashboard" className="flex items-center justify-center hover:opacity-80 transition-opacity">
+                <Store className="h-5 w-5 text-primary" />
+              </Link>
             )}
+
+            {/* Lock/Unlock — desktop only */}
+            <button
+              onClick={handleToggle}
+              className={cn(
+                "hidden lg:flex shrink-0 items-center justify-center h-7 w-7 rounded transition-colors",
+                "hover:bg-sidebar-accent/60 focus:outline-none",
+                sidebarExpanded ? "text-primary/70 hover:text-primary" : "text-muted-foreground/60 hover:text-sidebar-foreground"
+              )}
+              title={sidebarExpanded ? "Unlock sidebar" : "Lock sidebar"}
+            >
+              <div className={cn("transition-all duration-200", lockAnimating && "lock-toggle-animate")}>
+                {sidebarExpanded ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+              </div>
+            </button>
+            {/* Close — mobile only */}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden shrink-0 flex items-center justify-center h-7 w-7 rounded hover:bg-sidebar-accent/60 transition-colors"
+              aria-label="Close menu"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
 
           {/* Navigation */}
@@ -1601,76 +1616,113 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Restaurant Selection Modal */}
-      <Dialog open={showRestaurantSearch} onOpenChange={setShowRestaurantSearch}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-2">
-            <DialogTitle>Search Restaurant</DialogTitle>
-            <DialogDescription>
-              Select a restaurant to switch the dashboard view
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-4 pt-0">
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Type restaurant name..."
-                className="pl-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary h-11"
-                autoFocus
-                value={restaurantSearchQuery}
-                onChange={(e) => setRestaurantSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="max-h-[350px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-              {restaurants
-                .filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase()))
-                .map((restaurant) => {
-                  const isSelected = selectedRestaurant === restaurant.name
-                  return (
-                    <button
-                      key={restaurant.name}
-                      className={cn(
-                        "w-full flex items-center justify-between p-3 rounded-xl transition-all group",
-                        isSelected
-                          ? "bg-primary/10 border border-primary/20"
-                          : "hover:bg-muted border border-transparent"
-                      )}
-                      onClick={() => {
-                        handleRestaurantChange(restaurant.name)
-                        setShowRestaurantSearch(false)
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                          isSelected ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors"
-                        )}>
-                          <Store className="h-5 w-5" />
-                        </div>
-                        <div className="text-left">
-                          <p className={cn("text-sm font-bold", isSelected ? "text-primary" : "text-foreground")}>
-                            {restaurant.restaurant_name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">#{restaurant.name.slice(-6)}</p>
-                        </div>
-                      </div>
-                      {isSelected && (
-                        <CheckCircle2 className="h-5 w-5 text-primary" />
-                      )}
-                    </button>
-                  )
-                })}
-              {restaurants.filter(r => r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())).length === 0 && (
-                <div className="py-12 text-center">
-                  <Store className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">No restaurants found matching "{restaurantSearchQuery}"</p>
-                </div>
-              )}
+      <Dialog open={showRestaurantSearch} onOpenChange={(open) => { setShowRestaurantSearch(open); if (!open) setRestaurantSearchQuery('') }}>
+        <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden gap-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div>
+              <DialogTitle className="text-[15px] font-semibold">Restaurants</DialogTitle>
+              <DialogDescription className="text-[12px] text-muted-foreground mt-0.5">Switch your active workspace</DialogDescription>
             </div>
           </div>
-          <DialogFooter className="bg-muted/30 p-4 border-t border-border">
-            <Button variant="ghost" onClick={() => setShowRestaurantSearch(false)} className="rounded-xl">Close</Button>
-          </DialogFooter>
+
+          {/* Admin actions at top */}
+          {isAdmin && (
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
+              <Button
+                variant="default"
+                size="sm"
+                className="flex-1 h-9 text-[13px] gap-1.5 font-semibold"
+                onClick={() => { setShowRestaurantSearch(false); handleRestaurantChange('__create_new__') }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Restaurant
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 h-9 text-[13px] gap-1.5 font-semibold text-foreground border-border"
+                onClick={() => { setShowRestaurantSearch(false) }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Manage All
+              </Button>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="px-5 py-3 border-b border-border">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/60">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground/70" />
+              <input
+                autoFocus
+                placeholder="Search restaurants..."
+                value={restaurantSearchQuery}
+                onChange={(e) => setRestaurantSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent text-[13px] outline-none text-foreground placeholder:text-muted-foreground/60"
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="max-h-[380px] overflow-y-auto py-2 px-3 custom-scrollbar">
+            {(() => {
+              const filtered = restaurants.filter(r =>
+                r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())
+              )
+              if (filtered.length === 0) return (
+                <div className="py-10 text-center">
+                  <p className="text-[13px] text-muted-foreground">No restaurants found</p>
+                </div>
+              )
+              return filtered.map((restaurant) => {
+                const isSelected = selectedRestaurant === restaurant.name
+                return (
+                  <button
+                    key={restaurant.name}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-left mb-0.5",
+                      isSelected ? "bg-accent" : "hover:bg-accent/60"
+                    )}
+                    onClick={() => {
+                      setSelectedRestaurant(restaurant.name)
+                      window.dispatchEvent(new CustomEvent('restaurant-selected'))
+                      setShowRestaurantSearch(false)
+                    }}
+                  >
+                    {/* Logo or letter avatar */}
+                    {restaurant.logo ? (
+                      <img src={restaurant.logo} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover border border-border" />
+                    ) : (
+                      <div className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[14px] font-bold border",
+                        isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"
+                      )}>
+                        {restaurant.restaurant_name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-[14px] truncate",
+                        isSelected ? "font-semibold text-foreground" : "font-normal text-foreground/80"
+                      )}>
+                        {restaurant.restaurant_name}
+                      </p>
+                      {!restaurant.is_active && (
+                        <p className="text-[11px] text-destructive/70 font-medium">Inactive</p>
+                      )}
+                    </div>
+                    {isSelected && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
+                  </button>
+                )
+              })
+            })()}
+          </div>
+
+          {/* Footer */}
+          <div className="px-5 py-3 border-t border-border flex justify-end">
+            <Button variant="ghost" size="sm" className="text-[13px] h-8" onClick={() => setShowRestaurantSearch(false)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
 

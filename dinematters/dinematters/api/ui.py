@@ -129,7 +129,7 @@ def get_user_restaurants():
 		restaurants = frappe.get_all(
 			"Restaurant",
 			filters={"name": ["in", restaurant_ids]},
-			fields=["name", "restaurant_id", "restaurant_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company"],
+			fields=["name", "restaurant_id", "restaurant_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
 			order_by="creation desc",
 			ignore_permissions=True
 		)

@@ -226,67 +226,77 @@ def run():
                     "addon_items": []
                 }
             ],
-            "tax": [],
-            "discount": []
+            "tax_details": [
+                {"id": "2201", "title": "CGST", "type": "P", "price": "2.5%", "tax": str(round(float(real_item_price)*0.025,2)), "restaurant_liable_amt": str(round(float(real_item_price)*0.025,2))},
+                {"id": "2202", "title": "SGST", "type": "P", "price": "2.5%", "tax": str(round(float(real_item_price)*0.025,2)), "restaurant_liable_amt": str(round(float(real_item_price)*0.025,2))}
+            ]
         }
     }
 
     # ── 5. Minimal payload probe (strip all optional fields) ──
-    save_order_url = "https://qle1yy2ydc.execute-api.ap-southeast-1.amazonaws.com/V1/save_order"
+    # Petpooja uses a different domain for order APIs vs menu APIs
+    save_order_url = "https://47pfzh5sf2.execute-api.ap-southeast-1.amazonaws.com/V1/save_order"
 
-    minimal_payload = {
-        "app_key": app_key,
-        "app_secret": app_secret,
-        "access_token": access_tok,
-        "restID": merchant,
-        "res_name": rest.restaurant_name,
-        "device_type": "Web",
-        "OrderInfo": {
-            "customer": {"name": "Test User", "phone": "9999999999", "address": "123 Test St"},
-            "order": {
-                "orderID": f"DM_MIN_{ts}",
-                "preorder_date": frappe.utils.today(),
-                "preorder_time": frappe.utils.now_datetime().strftime("%H:%M:%S"),
-                "created_on": frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S"),
-                "advanced_order": "N",
-                "order_type": "P",
-                "total": real_item_price,
-                "tax_total": "0",
-                "payment_type": "COD",
-                "delivery_charges": "0",
-                "packing_charges": "0",
-                "discount_total": "0",
-                "discount_type": "F",
-                "description": "",
-                "callback_url": callback_url,
-                "urgent_order": "N",
-                "urgent_time": "",
-                "enable_delivery": "1",
-                "dc_tax_percentage": "0",
-                "pc_tax_percentage": "0"
-            },
-            "orderItem": [{
-                "id": real_item_id,
-                "name": real_item_name,
-                "quantity": "1",
-                "price": real_item_price,
-                "final_price": real_item_price,
-                "item_discount": "",
-                "tax_inclusive": False,
-                "gst_liability": "restaurant",
-                "item_tax": [],
-                "variation_name": "",
-                "variation_id": "",
-                "addon_items": []
-            }],
-            "tax": [],
-            "discount": []
+    # Try multiple order_type values to find which one sandbox accepts
+    # Petpooja ordertypes from menu: 1=Delivery, 2=Pick Up, 3=Dine In
+    for ot_label, ot_val in [("Delivery(1)", "1"), ("PickUp(2)", "2"), ("DineIn(3)", "3")]:
+        minimal_payload = {
+            "app_key": app_key,
+            "app_secret": app_secret,
+            "access_token": access_tok,
+            "restID": merchant,
+            "res_name": rest.restaurant_name,
+            "device_type": "Web",
+            "OrderInfo": {
+                "customer": {"name": "Test User", "phone": "9999999999", "address": "123 Test St"},
+                "order": {
+                    "orderID": f"DM_MIN_{ts}_{ot_val}",
+                    "preorder_date": frappe.utils.today(),
+                    "preorder_time": frappe.utils.now_datetime().strftime("%H:%M:%S"),
+                    "created_on": frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S"),
+                    "advanced_order": "N",
+                    "order_type": ot_val,
+                    "total": real_item_price,
+                    "tax_total": "0",
+                    "payment_type": "COD",
+                    "delivery_charges": "0",
+                    "packing_charges": "0",
+                    "discount_total": "0",
+                    "discount_type": "F",
+                    "description": "",
+                    "callback_url": callback_url,
+                    "urgent_order": "N",
+                    "urgent_time": "",
+                    "enable_delivery": "1",
+                    "dc_tax_percentage": "0",
+                    "pc_tax_percentage": "0"
+                },
+                "orderItem": [{
+                    "id": real_item_id,
+                    "name": real_item_name,
+                    "quantity": "1",
+                    "price": real_item_price,
+                    "final_price": real_item_price,
+                    "item_discount": "",
+                    "tax_inclusive": False,
+                    "gst_liability": "restaurant",
+                    "item_tax": [],
+                    "variation_name": "",
+                    "variation_id": "",
+                    "addon_items": []
+                }]
+            }
         }
-    }
-    print(f"\n  🧪 Trying MINIMAL payload (zero tax, COD, Parcel)...")
-    min_resp = requests.post(save_order_url, headers={"Content-Type": "application/json"},
-                              data=json.dumps(minimal_payload), timeout=20)
-    print(f"  Minimal HTTP : {min_resp.status_code} | {min_resp.text}")
+        print(f"\n  🧪 Trying MINIMAL payload order_type={ot_label} COD no-tax...")
+        min_resp = requests.post(save_order_url, headers={"Content-Type": "application/json"},
+                                  data=json.dumps(minimal_payload), timeout=20)
+        print(f"  Minimal {ot_label}: {min_resp.status_code} | {min_resp.text}")
+        try:
+            if str(min_resp.json().get("success")) == "1":
+                print(f"  ✅ SUCCESS with order_type={ot_val}!")
+                break
+        except Exception:
+            pass
 
     # ── 6. Fire the full live request ─────────────────────────
 

@@ -155,6 +155,9 @@ permission_query_conditions = {
 	"WhatsApp Lead Unlock": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"AI credit Transaction": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"AI Image Generation": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Recommendation Interaction": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Co Order Event": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Menu Product Embedding Cache": "dinematters.dinematters.utils.permission_helpers.get_restaurant_permission_query_conditions",
 }
 
 has_permission = {
@@ -206,7 +209,9 @@ doc_events = {
 			# Marketing Studio: fire 'On Order Complete' triggers
 			"dinematters.dinematters.tasks.marketing_tasks.fire_order_complete_triggers",
 			# POS: push confirmed orders to POS provider (Petpooja, etc.)
-			"dinematters.dinematters.pos.utils.handle_order_update"
+			"dinematters.dinematters.pos.utils.handle_order_update",
+			# Recommendations: log co-ordered product pairs for co-order matrix
+			"dinematters.dinematters.tasks.recommendation_tasks.log_co_order_events",
 		],
 		"on_update": [
 			"dinematters.dinematters.api.realtime.notify_order_update",
@@ -276,6 +281,15 @@ scheduler_events = {
 		# Loyalty: reset referral share cycles on 1st of each month at 00:00 UTC
 		"0 0 1 * *": [
 			"dinematters.dinematters.tasks.loyalty_tasks.reset_referral_cycles_monthly"
+		],
+		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)
+		"0 2 * * 0": [
+			"dinematters.dinematters.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
+		],
+		# Coupons: auto-activate scheduled + deactivate expired offers daily at 00:05
+		"5 0 * * *": [
+			"dinematters.dinematters.tasks.coupon_tasks.auto_activate_scheduled_coupons",
+			"dinematters.dinematters.tasks.coupon_tasks.auto_deactivate_expired_coupons",
 		],
 	}
 }

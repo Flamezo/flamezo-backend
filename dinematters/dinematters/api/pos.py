@@ -109,10 +109,9 @@ def _process_gateway_event(data, provider_hint=None):
         )
         
         if is_test:
-             frappe.log_error(log_msg, "POS Gateway Trace (Unresolved)")
+            frappe.log_error("POS Gateway Trace (Unresolved)", log_msg)
         else:
-             # Just a warning for production-like payloads that fail resolution
-             frappe.logger().warning(log_msg)
+            frappe.logger().warning(log_msg)
         return
 
     # 3. Process via Provider

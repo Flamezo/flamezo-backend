@@ -11,8 +11,11 @@ import {
   Zap,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  ExternalLink,
+  MonitorSmartphone
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -121,18 +124,26 @@ export default function POSIntegration() {
     }
   };
 
+  // Petpooja uses push-based menu sync (fetch API deprecated per Malvi Vaghela May 2026).
+  // "Sync Menu Now" for Petpooja tells the owner to trigger from their POS tablet.
+  const isPetpooja = provider === 'Petpooja';
+  const [showSyncInstructions, setShowSyncInstructions] = useState(false);
+
   const handleSyncMenu = async () => {
     if (!enabled) {
       toast.error('Please enable POS integration first');
       return;
     }
-    
     if (!selectedRestaurant) return;
 
+    if (isPetpooja) {
+      // Push-only — show instructions instead of calling deprecated fetch API
+      setShowSyncInstructions(true);
+      return;
+    }
+
     try {
-      await syncMenu({
-        restaurant_id: selectedRestaurant
-      });
+      await syncMenu({ restaurant_id: selectedRestaurant });
       toast.success('Menu sync initiated in background');
       mutate();
     } catch (error: any) {
@@ -341,7 +352,7 @@ export default function POSIntegration() {
                   disabled={syncing || !enabled || !menuSyncEnabled}
                 >
                   <RefreshCcw className={cn("h-4 w-4 text-primary", syncing && "animate-spin")} />
-                  {syncing ? 'Processing...' : 'Sync Menu Now'}
+                  {isPetpooja ? 'How to Sync Menu' : syncing ? 'Processing...' : 'Sync Menu Now'}
                 </Button>
               </div>
             </CardContent>
@@ -377,6 +388,48 @@ export default function POSIntegration() {
 
         </div>
       </div>
+
+      {/* Petpooja push-menu instruction dialog */}
+      <Dialog open={showSyncInstructions} onOpenChange={setShowSyncInstructions}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MonitorSmartphone className="h-5 w-5 text-primary" />
+              Sync Menu from Petpooja
+            </DialogTitle>
+            <DialogDescription>
+              Petpooja uses a <strong>push-based</strong> menu sync. Your menu is sent from the Petpooja POS — not pulled by DineMatters.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <ol className="space-y-3">
+              {[
+                'Open your Petpooja POS tablet or the Petpooja dashboard.',
+                'Go to Menu Management.',
+                'Click the Push Menu button.',
+                'Petpooja will send your full menu to DineMatters automatically.',
+                'Your categories and products will update within seconds.',
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm">
+                  <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-muted-foreground">{step}</span>
+                </li>
+              ))}
+            </ol>
+            <a
+              href="https://developerapi.petpooja.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary hover:underline mt-2"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open Petpooja Dashboard
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Pencil, Trash2, GripVertical, ArrowRightLeft } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 import { Switch } from '@/components/ui/switch'
@@ -179,7 +180,13 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
                   <DropdownMenuSeparator />
                   {categories.filter(c => c.name !== product.category).map(cat => (
                     <DropdownMenuItem key={cat.name} onClick={() => onMove?.(cat.name)}>
-                      {cat.display_name || cat.category_name}
+                      <span className={cn(
+                        "flex items-center gap-1",
+                        cat.parent_category && "pl-4 text-muted-foreground"
+                      )}>
+                        {cat.parent_category && <span className="opacity-50">↳</span>}
+                        {cat.display_name || cat.category_name}
+                      </span>
                     </DropdownMenuItem>
                   ))}
                   {categories.filter(c => c.name !== product.category).length === 0 && (

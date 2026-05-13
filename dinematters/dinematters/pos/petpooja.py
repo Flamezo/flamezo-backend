@@ -7,22 +7,29 @@ from dinematters.dinematters.utils.common import safe_log_error
 
 # Staging vs Production endpoint selection.
 # Set petpooja_env = "production" in site_config.json to switch to prod URLs.
-# Production URLs are populated when Petpooja issues production credentials.
-_STAGING_BASE  = "https://qle1yy2ydc.execute-api.ap-southeast-1.amazonaws.com/V1"
-_PROD_BASE     = "https://prod.petpooja.com/V1"  # placeholder — update when Petpooja provides prod URL
+# Petpooja uses DIFFERENT base domains for order APIs vs menu APIs in staging.
+# Docs: save_order → 47pfzh5sf2, menu fetch → qle1yy2ydc
+_STAGING_MENU_BASE  = "https://qle1yy2ydc.execute-api.ap-southeast-1.amazonaws.com/V1"
+_STAGING_ORDER_BASE = "https://47pfzh5sf2.execute-api.ap-southeast-1.amazonaws.com/V1"
+_PROD_BASE          = "https://prod.petpooja.com/V1"  # placeholder — update when Petpooja provides prod URL
 
-def _base_url():
+def _menu_base_url():
     env = frappe.conf.get("petpooja_env", "staging")
-    return _PROD_BASE if env == "production" else _STAGING_BASE
+    return _PROD_BASE if env == "production" else _STAGING_MENU_BASE
+
+def _order_base_url():
+    env = frappe.conf.get("petpooja_env", "staging")
+    return _PROD_BASE if env == "production" else _STAGING_ORDER_BASE
 
 class PetpoojaProvider(POSProvider):
     def __init__(self, restaurant_doc):
         super().__init__(restaurant_doc)
-        base = _base_url()
-        self.save_order_url   = f"{base}/save_order"
-        self.fetch_menu_url   = f"{base}/mapped_restaurant_menus"
-        self.update_order_url = f"{base}/update_order_status"
-        self.rider_url        = f"{base}/rider_status_update"
+        order_base = _order_base_url()
+        menu_base  = _menu_base_url()
+        self.save_order_url   = f"{order_base}/save_order"
+        self.fetch_menu_url   = f"{menu_base}/mapped_restaurant_menus"
+        self.update_order_url = f"{order_base}/update_order_status"
+        self.rider_url        = f"{order_base}/rider_status_update"
 
     def sync_menu(self):
         """Petpooja is push-based; we also support active pull via mapped_restaurant_menus."""
@@ -30,40 +37,18 @@ class PetpoojaProvider(POSProvider):
 
     def pull_menu(self):
         """
-        Fetch full menu from Petpooja and sync categories + products into DineMatters.
-        Petpooja pushes menu to us via webhook (handle_menu_push), but this allows
-        an on-demand pull so merchants can trigger a sync without waiting.
-        Skipped if menu sync is disabled.
+        Petpooja's fetch menu API is deprecated (confirmed by Malvi Vaghela, May 2026).
+        Menu sync is push-only: Petpooja pushes to our Menu Sharing Endpoint on every change.
+        The "Sync Menu Now" button in the dashboard should instruct the user to trigger
+        a manual push from their Petpooja tablet (Menu Management → Push Menu).
         """
         if not self.restaurant.get("pos_menu_sync_enabled", 1):
             return {"status": "skipped", "message": "Menu sync is disabled for this restaurant"}
 
-        if not all([self.settings.get("app_key"), self.settings.get("app_secret"),
-                    self.settings.get("access_token"), self.settings.get("merchant_id")]):
-            return {"status": "error", "message": "Missing Petpooja credentials"}
-
-        try:
-            resp = requests.post(
-                self.fetch_menu_url,
-                headers={"Content-Type": "application/json"},
-                data=json.dumps({
-                    "app_key": self.settings["app_key"],
-                    "app_secret": self.settings["app_secret"],
-                    "access_token": self.settings["access_token"],
-                    "restID": self.settings["merchant_id"]
-                }),
-                timeout=20
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            safe_log_error("Petpooja Menu Fetch Error", frappe.get_traceback())
-            return {"status": "error", "message": str(e)}
-
-        if str(data.get("success")) != "1":
-            return {"status": "error", "message": data.get("message", "Menu fetch failed")}
-
-        return self.handle_menu_push(data)
+        return {
+            "status": "info",
+            "message": "Petpooja uses push-based menu sync. To refresh your menu, go to your Petpooja dashboard → Menu Management → Push Menu. Your menu will update automatically."
+        }
 
     def push_order(self, order_doc):
         """
@@ -384,12 +369,16 @@ class PetpoojaProvider(POSProvider):
             item_cgst_amt = round(order_cgst * weight, 2)
             item_sgst_amt = round(order_sgst * weight, 2)
 
+            # item_tax fields per official schema (petpoojamarkdown2.md §7):
+            # id, name, tax_percentage, amount  ← as used by Petpooja item-level tax
             item_tax = []
             if tax_rate_half > 0:
                 item_tax = [
                     {"id": cgst_taxid, "name": "CGST", "tax_percentage": str(tax_rate_half), "amount": str(item_cgst_amt)},
                     {"id": sgst_taxid, "name": "SGST", "tax_percentage": str(tax_rate_half), "amount": str(item_sgst_amt)},
                 ]
+            # Note: item-level tax uses "name"/"amount" (per markdown2 example).
+            # Order-level tax_details uses "title"/"tax"/"type"/"price"/"restaurant_liable_amt" (different schema).
 
             # Resolve Petpooja item ID — use pos_id from Menu Product if menu has been synced
             petpooja_item_id = frappe.db.get_value("Menu Product", item.product, "pos_id") or item.product
@@ -457,31 +446,33 @@ class PetpoojaProvider(POSProvider):
         order_time  = creation_dt.strftime("%H:%M:%S")
         created_on  = creation_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-        # ── order-level tax array (CGST + SGST totals) ──
-        order_tax = []
+        # ── order-level tax_details array ──
+        # Per official schema (pet-pooja.md + petpoojamarkdown2.md §8):
+        # Key is "tax_details" (NOT "tax"), fields: id, title, type, price (as "X%"), tax, restaurant_liable_amt
+        # Doc says: "For discounts avoid discount object — use discount_total + discount_type in order object"
+        tax_rate_str = f"{tax_rate_half}%"
+        order_tax_details = []
         if order_cgst > 0:
-            order_tax.append({"id": cgst_taxid, "name": "CGST",
-                               "tax_percentage": str(tax_rate_half), "amount": str(round(order_cgst, 2))})
+            order_tax_details.append({
+                "id": cgst_taxid,
+                "title": "CGST",
+                "type": "P",
+                "price": tax_rate_str,
+                "tax": str(round(order_cgst, 2)),
+                "restaurant_liable_amt": str(round(order_cgst, 2))
+            })
         if order_sgst > 0:
-            order_tax.append({"id": sgst_taxid, "name": "SGST",
-                               "tax_percentage": str(tax_rate_half), "amount": str(round(order_sgst, 2))})
+            order_tax_details.append({
+                "id": sgst_taxid,
+                "title": "SGST",
+                "type": "P",
+                "price": tax_rate_str,
+                "tax": str(round(order_sgst, 2)),
+                "restaurant_liable_amt": str(round(order_sgst, 2))
+            })
 
-        # ── discount array ──
-        order_discount = []
-        if float(order_doc.discount or 0) > 0:
-            order_discount.append({
-                "id": "1",
-                "title": "Discount",
-                "amount": str(order_doc.discount),
-                "discount_type": "F"
-            })
-        if float(order_doc.loyalty_discount or 0) > 0:
-            order_discount.append({
-                "id": "2",
-                "title": "Loyalty Discount",
-                "amount": str(order_doc.loyalty_discount),
-                "discount_type": "F"
-            })
+        # Discounts: per doc, do NOT send a discount array object.
+        # Use only discount_total + discount_type inside the "order" object (already done below).
 
         payload = {
             "app_key": self.settings["app_key"],
@@ -526,8 +517,7 @@ class PetpoojaProvider(POSProvider):
                     "pc_tax_percentage": tax_percent if order_doc.packaging_fee else "0"
                 },
                 "orderItem": order_items,
-                "tax": order_tax,
-                "discount": order_discount
+                "tax_details": order_tax_details
             }
         }
 

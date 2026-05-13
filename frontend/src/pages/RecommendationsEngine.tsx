@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
 import { Input } from '../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { useConfirm } from '@/hooks/useConfirm'
 
 interface Recommendation {
   id: string
@@ -20,6 +21,9 @@ interface Recommendation {
   reason?: string
   score?: number
   image?: string
+  clicks?: number
+  add_to_cart?: number
+  co_order_freq?: number
 }
 
 interface ProductWithRecommendations {
@@ -29,6 +33,8 @@ interface ProductWithRecommendations {
   mainCategory?: string
   image?: string
   recommendations: Recommendation[]
+  total_rec_clicks?: number
+  total_rec_add_to_cart?: number
 }
 
 interface RecommendationsResponse {
@@ -36,6 +42,7 @@ interface RecommendationsResponse {
     success: boolean
     data: {
       recommendation_run: number
+      recommendation_last_run: string | null
       products: ProductWithRecommendations[]
     }
   }
@@ -43,6 +50,7 @@ interface RecommendationsResponse {
 
 export default function RecommendationsEngine() {
   const { selectedRestaurant } = useRestaurant()
+  const { confirm, ConfirmDialogComponent } = useConfirm()
 
   // Track which products are expanded; default is all collapsed
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -82,6 +90,7 @@ export default function RecommendationsEngine() {
     (allProductsData as any) || []
 
   const recommendationRun = data?.message?.data?.recommendation_run ?? 0
+  const recommendationLastRun = data?.message?.data?.recommendation_last_run ?? null
   const products = data?.message?.data?.products ?? []
 
   const filteredProducts = useMemo(() => {
@@ -156,6 +165,18 @@ export default function RecommendationsEngine() {
   const handleRunEngine = async () => {
     if (!selectedRestaurant) return
 
+    const hasExisting = recommendationRun >= 1
+    if (hasExisting) {
+      const confirmed = await confirm({
+        title: 'Re-run Recommendation Engine',
+        description: 'This will re-run the AI engine and overwrite all existing recommendations with fresh scores. Co-order signals from real orders will be used. Continue?',
+        variant: 'warning',
+        confirmText: 'Re-run Engine',
+        cancelText: 'Cancel',
+      })
+      if (!confirmed) return
+    }
+
     try {
       const resp = await runEngine({ restaurant_id: selectedRestaurant })
       if ((resp as any)?.message?.success) {
@@ -168,8 +189,6 @@ export default function RecommendationsEngine() {
       toast.error('Could not run recommendation engine', { description: getFrappeError(error) })
     }
   }
-
-  const disabled = recommendationRun >= 1
 
   const toggleProduct = (productId: string) => {
     setExpanded(prev => ({
@@ -204,18 +223,23 @@ export default function RecommendationsEngine() {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            <Badge variant={disabled ? 'outline' : 'default'}>
-              {disabled ? 'Already Run' : 'Ready to Run'}
+            <Badge variant={recommendationRun >= 1 ? 'outline' : 'default'}>
+              {recommendationRun >= 1 ? 'Run' : 'Not Run Yet'}
             </Badge>
+            {recommendationLastRun && (
+              <span className="text-xs text-muted-foreground">
+                Last run: {new Date(recommendationLastRun).toLocaleString()}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               onClick={handleRunEngine}
-              disabled={!selectedRestaurant || disabled || running}
+              disabled={!selectedRestaurant || running}
             >
               {running && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {disabled ? 'Engine Locked (One-time)' : 'Run Recommendation Engine'}
+              {recommendationRun >= 1 ? 'Re-run Engine' : 'Run Recommendation Engine'}
             </Button>
             <Button
               size="icon"
@@ -285,9 +309,18 @@ export default function RecommendationsEngine() {
                       </div>
                     </div>
                   </div>
-                  <Badge variant="secondary" className="shrink-0">
-                    {product.id}
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {((product.total_rec_clicks ?? 0) > 0 || (product.total_rec_add_to_cart ?? 0) > 0) && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                        {(product.total_rec_clicks ?? 0) > 0 && `${product.total_rec_clicks} clicks`}
+                        {(product.total_rec_clicks ?? 0) > 0 && (product.total_rec_add_to_cart ?? 0) > 0 && ' · '}
+                        {(product.total_rec_add_to_cart ?? 0) > 0 && `${product.total_rec_add_to_cart} added`}
+                      </span>
+                    )}
+                    <Badge variant="secondary">
+                      {product.id}
+                    </Badge>
+                  </div>
                 </CardTitle>
               </CardHeader>
               {expanded[product.id] && (
@@ -331,6 +364,16 @@ export default function RecommendationsEngine() {
                                 {rec.reason && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     {rec.reason}
+                                  </div>
+                                )}
+                                {((rec.clicks ?? 0) > 0 || (rec.add_to_cart ?? 0) > 0) && (
+                                  <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-2">
+                                    {(rec.clicks ?? 0) > 0 && (
+                                      <span>{rec.clicks} click{rec.clicks !== 1 ? 's' : ''}</span>
+                                    )}
+                                    {(rec.add_to_cart ?? 0) > 0 && (
+                                      <span>{rec.add_to_cart} added to cart</span>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -424,6 +467,7 @@ export default function RecommendationsEngine() {
           ))}
         </div>
       )}
+      {ConfirmDialogComponent}
     </div>
   )
 }

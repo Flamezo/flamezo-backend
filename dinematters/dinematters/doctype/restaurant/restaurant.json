@@ -50,6 +50,7 @@
   "currency",
   "tables",
   "recommendation_run",
+  "recommendation_last_run",
   "qr_codes_pdf_url",
   "section_break_razorpay",
   "razorpay_account_id",
@@ -94,6 +95,8 @@
   "section_break_ai_metrics",
   "total_ai_generations",
   "total_ai_cost",
+  "ai_coupon_generations_this_month",
+  "ai_coupon_quota_reset_month",
   "section_break_pos",
   "pos_provider",
   "pos_enabled",
@@ -393,6 +396,12 @@
    "label": "Recommendation Run Count",
    "read_only": 1,
    "description": "How many times the AI menu recommendation engine has been executed for this restaurant."
+  },
+  {
+   "fieldname": "recommendation_last_run",
+   "fieldtype": "Datetime",
+   "label": "Recommendations Last Run",
+   "read_only": 1
   },
   {
    "fieldname": "qr_codes_pdf_url",
@@ -719,6 +728,20 @@
    "fieldtype": "Float",
    "label": "Total AI Cost (\u20b9)",
    "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_coupon_generations_this_month",
+   "fieldtype": "Int",
+   "label": "AI Coupon Generations This Month",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_coupon_quota_reset_month",
+   "fieldtype": "Data",
+   "label": "AI Coupon Quota Reset Month",
+   "description": "Format: YYYY-MM. Auto-managed.",
    "read_only": 1
   },
   {
