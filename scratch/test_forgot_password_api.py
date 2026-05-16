@@ -5,8 +5,8 @@ def run_test():
     """
     Test the frappe.core.doctype.user.user.reset_password whitelisted method.
     """
-    test_user = "contact@dinematters.com"
-    invalid_user = "nonexistent@dinematters.com"
+    test_user = "contact@flamezo_backend.com"
+    invalid_user = "nonexistent@flamezo_backend.com"
 
     print(f"--- Testing Forgot Password API ---")
 

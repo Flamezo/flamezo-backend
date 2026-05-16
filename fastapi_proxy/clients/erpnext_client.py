@@ -70,7 +70,7 @@ class ERPNextClient:
 		Call an ERPNext whitelisted method
 		
 		Args:
-			method_path: Method path (e.g., "dinematters.dinematters.api.ui.get_doctype_meta")
+			method_path: Method path (e.g., "flamezo_backend.flamezo_backend.api.ui.get_doctype_meta")
 			params: Query parameters (for GET requests)
 			data: Request body data (for POST requests)
 			http_method: HTTP method (GET, POST, PUT, DELETE)
@@ -153,14 +153,14 @@ class ERPNextClient:
 		if name:
 			# Get single document
 			return await self.call_method(
-				"dinematters.dinematters.api.documents.get_doc",
+				"flamezo_backend.flamezo_backend.api.documents.get_doc",
 				data={"doctype": doctype, "name": name},
 				http_method="POST"
 			)
 		else:
 			# Get list of documents
 			return await self.call_method(
-				"dinematters.dinematters.api.documents.get_doc_list",
+				"flamezo_backend.flamezo_backend.api.documents.get_doc_list",
 				data={
 					"doctype": doctype,
 					"filters": json.dumps(filters) if filters else None,
@@ -182,7 +182,7 @@ class ERPNextClient:
 		"""
 		doc_data["doctype"] = doctype
 		return await self.call_method(
-			"dinematters.dinematters.api.documents.insert_doc",
+			"flamezo_backend.flamezo_backend.api.documents.insert_doc",
 			data={"doc": json.dumps(doc_data)},
 			http_method="POST"
 		)
@@ -198,7 +198,7 @@ class ERPNextClient:
 		Maps to wrapper method in ERPNext
 		"""
 		return await self.call_method(
-			"dinematters.dinematters.api.documents.update_document",
+			"flamezo_backend.flamezo_backend.api.documents.update_document",
 			data={
 				"doctype": doctype,
 				"name": name,
@@ -217,7 +217,7 @@ class ERPNextClient:
 		Maps to wrapper method in ERPNext
 		"""
 		return await self.call_method(
-			"dinematters.dinematters.api.documents.delete_doc",
+			"flamezo_backend.flamezo_backend.api.documents.delete_doc",
 			data={"doctype": doctype, "name": name},
 			http_method="POST"
 		)

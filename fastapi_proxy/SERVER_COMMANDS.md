@@ -37,7 +37,7 @@ Expected response:
 ```json
 {
   "status": "healthy",
-  "service": "dinematters-fastapi-proxy",
+  "service": "flamezo_backend-fastapi-proxy",
   "version": "1.0.0"
 }
 ```
@@ -90,20 +90,20 @@ journalctl -u fastapi-proxy -n 100 --no-pager
 
 2. **Check Configuration**:
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 python -c "from config import settings; print('Config OK')"
 ```
 
 3. **Check .env File**:
 ```bash
-ls -la /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/.env
-cat /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/.env | grep -v SECRET
+ls -la /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/.env
+cat /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/.env | grep -v SECRET
 ```
 
 4. **Test Manual Start**:
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
 ```

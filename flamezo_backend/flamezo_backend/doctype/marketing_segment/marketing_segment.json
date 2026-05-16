@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "autoname": "field:segment_name",
+ "creation": "2026-04-07 05:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "segment_name",
+  "restaurant",
+  "description",
+  "column_break_1",
+  "criteria_type",
+  "estimated_reach",
+  "last_computed_at",
+  "section_break_criteria",
+  "filter_by_last_visit",
+  "days_since_last_visit",
+  "filter_by_visit_count",
+  "min_visit_count",
+  "filter_by_total_spent",
+  "min_total_spent",
+  "column_break_criteria_2",
+  "filter_by_birthday",
+  "customer_ids"
+ ],
+ "fields": [
+  {
+   "fieldname": "segment_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Segment Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "All Customers",
+   "fieldname": "criteria_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Criteria Type",
+   "options": "\nAll Customers\nNew Customers\nAt-Risk\nLoyal Regulars\nHigh Spenders\nBirthday This Month\nAdvanced Filter\nManual"
+  },
+  {
+   "fieldname": "estimated_reach",
+   "fieldtype": "Int",
+   "label": "Estimated Reach",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "last_computed_at",
+   "fieldtype": "Datetime",
+   "label": "Last Computed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_criteria",
+   "fieldtype": "Section Break",
+   "label": "Criteria Parameters"
+  },
+  {
+   "default": "0",
+   "fieldname": "filter_by_last_visit",
+   "fieldtype": "Check",
+   "label": "Filter by Last Visit Date?",
+   "depends_on": "eval:doc.criteria_type == 'Advanced Filter'"
+  },
+  {
+   "default": "30",
+   "description": "Number of days since last visit. Used when Criteria Type is 'At-Risk' or 'Advanced Filter'.",
+   "fieldname": "days_since_last_visit",
+   "fieldtype": "Int",
+   "label": "Days Since Last Visit",
+   "depends_on": "eval:doc.criteria_type == 'At-Risk' || doc.filter_by_last_visit == 1"
+  },
+  {
+   "default": "0",
+   "fieldname": "filter_by_visit_count",
+   "fieldtype": "Check",
+   "label": "Filter by Visit Count?",
+   "depends_on": "eval:doc.criteria_type == 'Advanced Filter'"
+  },
+  {
+   "default": "5",
+   "description": "Minimum number of visits. Used when Criteria Type is 'Loyal Regulars' or 'Advanced Filter'.",
+   "fieldname": "min_visit_count",
+   "fieldtype": "Int",
+   "label": "Min Visit Count",
+   "depends_on": "eval:doc.criteria_type == 'Loyal Regulars' || doc.filter_by_visit_count == 1"
+  },
+  {
+   "default": "0",
+   "fieldname": "filter_by_total_spent",
+   "fieldtype": "Check",
+   "label": "Filter by Total Spent?",
+   "depends_on": "eval:doc.criteria_type == 'Advanced Filter'"
+  },
+  {
+   "default": "1000",
+   "description": "Minimum lifetime GMV (\u20b9). Used when Criteria Type is 'High Spenders' or 'Advanced Filter'.",
+   "fieldname": "min_total_spent",
+   "fieldtype": "Float",
+   "label": "Min Lifetime Spend (\u20b9)",
+   "depends_on": "eval:doc.criteria_type == 'High Spenders' || doc.filter_by_total_spent == 1"
+  },
+  {
+   "fieldname": "column_break_criteria_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "filter_by_birthday",
+   "fieldtype": "Check",
+   "label": "Filter by Birthday (This Month)?",
+   "depends_on": "eval:doc.criteria_type == 'Advanced Filter'"
+  },
+  {
+   "description": "For 'Manual' type: comma-separated customer phone numbers (e.g. +919876543210,+918765432109).",
+   "fieldname": "customer_ids",
+   "fieldtype": "Long Text",
+   "label": "Manual Customer IDs",
+   "depends_on": "eval:doc.criteria_type == 'Manual'"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-07 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Marketing Segment",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -42,7 +42,7 @@ def main():
     print(token)
     print("\n" + "=" * 60)
     print("\nUsage example:")
-    print(f'curl -X POST http://127.0.0.1:9005/api/method/dinematters.dinematters.api.ui.get_doctype_meta \\')
+    print(f'curl -X POST http://127.0.0.1:9005/api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta \\')
     print(f'  -H "Authorization: Bearer {token}" \\')
     print(f'  -H "Content-Type: application/json" \\')
     print(f'  -d \'{{"doctype": "Restaurant"}}\'')

@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{restaurant}-TBL-{####}",
+ "creation": "2025-03-08 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "table_number",
+  "table_name",
+  "column_break_1",
+  "capacity",
+  "status",
+  "section_break_location",
+  "location",
+  "floor",
+  "column_break_location",
+  "notes",
+  "section_break_settings",
+  "is_combinable",
+  "combine_with",
+  "priority"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "table_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Table Number",
+   "reqd": 1,
+   "description": "Unique table identifier (e.g., T1, T2, VIP-1)"
+  },
+  {
+   "fieldname": "table_name",
+   "fieldtype": "Data",
+   "label": "Table Name",
+   "description": "Optional friendly name for the table"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "capacity",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Capacity",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Maximum number of persons this table can accommodate"
+  },
+  {
+   "default": "available",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "available\noccupied\nreserved\nmaintenance\nblocked",
+   "reqd": 1,
+   "description": "Current status of the table"
+  },
+  {
+   "fieldname": "section_break_location",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Select",
+   "label": "Location",
+   "options": "\nIndoor\nOutdoor\nPatio\nRooftop\nPrivate Room\nBar Area",
+   "description": "Physical location of the table"
+  },
+  {
+   "fieldname": "floor",
+   "fieldtype": "Data",
+   "label": "Floor",
+   "description": "Floor number or name (e.g., Ground, First, Mezzanine)"
+  },
+  {
+   "fieldname": "column_break_location",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes",
+   "description": "Internal notes about this table"
+  },
+  {
+   "fieldname": "section_break_settings",
+   "fieldtype": "Section Break",
+   "label": "Advanced Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_combinable",
+   "fieldtype": "Check",
+   "label": "Is Combinable",
+   "description": "Can this table be combined with others for larger parties?"
+  },
+  {
+   "depends_on": "eval:doc.is_combinable==1",
+   "fieldname": "combine_with",
+   "fieldtype": "Small Text",
+   "label": "Combine With",
+   "description": "Comma-separated list of table numbers this can combine with"
+  },
+  {
+   "default": "0",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority",
+   "description": "Assignment priority (higher = preferred for auto-assignment)"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-03-08 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Restaurant Table",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Staff",
+   "write": 1
+  }
+ ],
+ "sort_field": "table_number",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,401 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-16 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "hidden": 1,
+ "field_order": [
+  "restaurant_name",
+  "linked_restaurant",
+  "status",
+  "unique_token",
+  "section_break_owner",
+  "owner_name",
+  "owner_email",
+  "owner_phone",
+  "column_break_owner",
+  "whatsapp_number",
+  "onboarding_link",
+  "section_break_legal",
+  "fssai_number",
+  "gst_number",
+  "tax_rate",
+  "pan_number",
+  "column_break_legal",
+  "opening_time",
+  "closing_time",
+  "swiggy_link",
+  "zomato_link",
+  "section_break_config",
+  "subtitle",
+  "default_theme",
+  "menu_layout",
+  "column_break_config",
+  "enable_table_booking",
+  "enable_banquet_booking",
+  "enable_events",
+  "enable_offers",
+  "enable_experience_lounge",
+  "section_break_address",
+  "address",
+  "city",
+  "state",
+  "column_break_address",
+  "zip_code",
+  "google_map_url",
+  "section_break_branding",
+  "logo",
+  "hero_image",
+  "tagline",
+  "description",
+  "column_break_branding",
+  "instagram_link",
+  "facebook_link",
+  "website_link",
+  "menu_link",
+  "section_break_media",
+  "menu_photos",
+  "section_break_admin",
+  "created_restaurant",
+  "finalized_by",
+  "finalized_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Restaurant Name"
+  },
+  {
+   "fieldname": "linked_restaurant",
+   "fieldtype": "Link",
+   "label": "Linked Restaurant (Existing)",
+   "options": "Restaurant",
+   "description": "Select an existing restaurant to link this onboarding to."
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nClient Submitted\nProcessing\nCompleted",
+   "reqd": 1
+  },
+  {
+   "fieldname": "unique_token",
+   "fieldtype": "Data",
+   "label": "Unique Token",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_owner",
+   "fieldtype": "Section Break",
+   "label": "Contact Information"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "label": "Owner Name"
+  },
+  {
+   "fieldname": "owner_email",
+   "fieldtype": "Data",
+   "label": "Owner Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "owner_phone",
+   "fieldtype": "Data",
+   "label": "Owner Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "column_break_owner",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_number",
+   "fieldtype": "Data",
+   "label": "WhatsApp Number",
+   "options": "Phone",
+   "description": "Primary WhatsApp for customer contact"
+  },
+  {
+   "fieldname": "onboarding_link",
+   "fieldtype": "Data",
+   "label": "Onboarding Link",
+   "read_only": 1,
+   "description": "Send this link to the restaurant owner"
+  },
+  {
+   "fieldname": "section_break_legal",
+   "fieldtype": "Section Break",
+   "label": "Legal & Operations"
+  },
+  {
+   "fieldname": "fssai_number",
+   "fieldtype": "Data",
+   "label": "FSSAI Number"
+  },
+  {
+   "fieldname": "gst_number",
+   "fieldtype": "Data",
+   "label": "GST Number"
+  },
+  {
+   "fieldname": "tax_rate",
+   "fieldtype": "Percent",
+   "label": "Tax Rate (%)",
+   "default": 5.0
+  },
+  {
+   "fieldname": "pan_number",
+   "fieldtype": "Data",
+   "label": "PAN Number"
+  },
+  {
+   "fieldname": "column_break_legal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "opening_time",
+   "fieldtype": "Time",
+   "label": "Opening Time"
+  },
+  {
+   "fieldname": "closing_time",
+   "fieldtype": "Time",
+   "label": "Closing Time"
+  },
+  {
+   "fieldname": "swiggy_link",
+   "fieldtype": "Data",
+   "label": "Swiggy Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "zomato_link",
+   "fieldtype": "Data",
+   "label": "Zomato Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "section_break_config",
+   "fieldtype": "Section Break",
+   "label": "Setup & Configuration"
+  },
+  {
+   "fieldname": "subtitle",
+   "fieldtype": "Data",
+   "label": "Subtitle"
+  },
+  {
+   "fieldname": "default_theme",
+   "fieldtype": "Select",
+   "label": "Default Theme",
+   "options": "light\ndark",
+   "default": "dark"
+  },
+  {
+   "fieldname": "menu_layout",
+   "fieldtype": "Select",
+   "label": "Menu Layout",
+   "options": "1 Column\n2 Columns",
+   "default": "2 Columns"
+  },
+  {
+   "fieldname": "column_break_config",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_table_booking",
+   "fieldtype": "Check",
+   "label": "Enable Table Booking",
+   "default": 1
+  },
+  {
+   "fieldname": "enable_banquet_booking",
+   "fieldtype": "Check",
+   "label": "Enable Banquet Booking",
+   "default": 1
+  },
+  {
+   "fieldname": "enable_events",
+   "fieldtype": "Check",
+   "label": "Enable Events",
+   "default": 1
+  },
+  {
+   "fieldname": "enable_offers",
+   "fieldtype": "Check",
+   "label": "Enable Offers",
+   "default": 1
+  },
+  {
+   "fieldname": "enable_experience_lounge",
+   "fieldtype": "Check",
+   "label": "Enable Experience Lounge",
+   "default": 1
+  },
+  {
+   "fieldname": "section_break_address",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "column_break_address",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "zip_code",
+   "fieldtype": "Data",
+   "label": "Zip Code"
+  },
+  {
+   "fieldname": "google_map_url",
+   "fieldtype": "Long Text",
+   "label": "Google Map URL"
+  },
+  {
+   "fieldname": "section_break_branding",
+   "fieldtype": "Section Break",
+   "label": "Branding & Social"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "hero_image",
+   "fieldtype": "Attach Image",
+   "label": "Hero Image"
+  },
+  {
+   "fieldname": "tagline",
+   "fieldtype": "Data",
+   "label": "Tagline"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "instagram_link",
+   "fieldtype": "Data",
+   "label": "Instagram Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "facebook_link",
+   "fieldtype": "Data",
+   "label": "Facebook Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "website_link",
+   "fieldtype": "Data",
+   "label": "Website Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "menu_link",
+   "fieldtype": "Data",
+   "label": "Existing Menu Link (if any)",
+   "options": "URL"
+  },
+  {
+   "fieldname": "section_break_media",
+   "fieldtype": "Section Break",
+   "label": "Menu Photos"
+  },
+  {
+   "fieldname": "menu_photos",
+   "fieldtype": "Table",
+   "label": "Menu Photos",
+   "options": "Onboarding Media"
+  },
+  {
+   "fieldname": "section_break_admin",
+   "fieldtype": "Section Break",
+   "label": "Admin Controls"
+  },
+  {
+   "fieldname": "created_restaurant",
+   "fieldtype": "Link",
+   "label": "Created Restaurant",
+   "options": "Restaurant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "finalized_by",
+   "fieldtype": "Link",
+   "label": "Finalized By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "finalized_on",
+   "fieldtype": "Datetime",
+   "label": "Finalized On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "modified": "2026-04-16 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Restaurant Onboarding",
+ "naming_rule": "By fieldname",
+ "autoname": "field:restaurant_name",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Administrator",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

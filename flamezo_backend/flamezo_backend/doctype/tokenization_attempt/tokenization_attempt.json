@@ -1,0 +1,91 @@
+{
+  "doctype": "DocType",
+  "name": "Tokenization Attempt",
+  "module": "Flamezo",
+  "custom": 1,
+  "autoname": "hash",
+  "fields": [
+    {
+      "fieldname": "restaurant",
+      "fieldtype": "Link",
+      "label": "Restaurant",
+      "options": "Restaurant",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "order_ref",
+      "fieldtype": "Data",
+      "label": "Order Reference",
+      "description": "Optional internal order reference"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Int",
+      "label": "Amount (paise)",
+      "default": 100
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Data",
+      "label": "Currency",
+      "default": "INR"
+    },
+    {
+      "fieldname": "razorpay_order_id",
+      "fieldtype": "Data",
+      "label": "Razorpay Order ID",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "razorpay_payment_id",
+      "fieldtype": "Data",
+      "label": "Razorpay Payment ID",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "customer_id",
+      "fieldtype": "Data",
+      "label": "Razorpay Customer ID"
+    },
+    {
+      "fieldname": "token_id",
+      "fieldtype": "Data",
+      "label": "Razorpay Token ID"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "\npending\ncreated\nauthorized\ncaptured\nfailed\nsucceeded",
+      "default": "pending",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "processed",
+      "fieldtype": "Check",
+      "label": "Processed",
+      "default": 0
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Administrator",
+      "read": 1,
+      "write": 1
+    }
+  ]
+}
+

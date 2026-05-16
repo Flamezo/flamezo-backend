@@ -1,9 +1,9 @@
 [project]
-name = "dinematters"
+name = "flamezo_backend"
 authors = [
     { name = "Hetvi Patel", email = "hetvipatel2302@gmail.com"}
 ]
-description = "POS and backend for Dinematters"
+description = "POS and backend for Flamezo"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
@@ -68,7 +68,7 @@ docstring-code-format = true
 extraPaths = [
     "/home/frappe/frappe-bench/apps/frappe",
     "/home/frappe/frappe-bench/apps/erpnext",
-    "/home/frappe/frappe-bench/apps/dinematters",
+    "/home/frappe/frappe-bench/apps/flamezo_backend",
     "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
 ]
 reportMissingImports = "none"

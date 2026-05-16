@@ -1,18 +1,18 @@
 yarn run v1.22.22
-$ vite build --base=/assets/dinematters/dinematters/ && yarn copy-html-entry
+$ vite build --base=/assets/flamezo_backend/flamezo_backend/ && yarn copy-html-entry
 vite v6.4.1 building for production...
 transforming...
 ✓ 2170 modules transformed.
 rendering chunks...
 computing gzip size...
-../dinematters/public/dinematters/index.html                     1.09 kB │ gzip:     0.59 kB
-../dinematters/public/dinematters/assets/index-DB2n4aUt.css    134.52 kB │ gzip:    19.77 kB
-../dinematters/public/dinematters/assets/index-CcY2MDdO.js   9,857.27 kB │ gzip: 2,644.14 kB
+../flamezo_backend/public/flamezo_backend/index.html                     1.09 kB │ gzip:     0.59 kB
+../flamezo_backend/public/flamezo_backend/assets/index-DB2n4aUt.css    134.52 kB │ gzip:    19.77 kB
+../flamezo_backend/public/flamezo_backend/assets/index-CcY2MDdO.js   9,857.27 kB │ gzip: 2,644.14 kB
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
 ✓ built in 6.42s
-$ cp /home/frappe/frappe-bench/apps/dinematters/dinematters/public/dinematters/index.html /home/frappe/frappe-bench/apps/dinematters/dinematters/www/dinematters.html
+$ cp /home/frappe/frappe-bench/apps/flamezo_backend/flamezo_backend/public/flamezo_backend/index.html /home/frappe/frappe-bench/apps/flamezo_backend/flamezo_backend/www/flamezo_backend.html
 Done in 6.77s.

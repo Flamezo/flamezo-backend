@@ -1,7 +1,7 @@
 import frappe
 
 def check_time_settings():
-    frappe.init(site="dinematters.com") # Assuming this is the site name, but let's try to find it
+    frappe.init(site="flamezo_backend.com") # Assuming this is the site name, but let's try to find it
     # Actually, we can just use frappe.db if we are in the bench environment
     
     try:

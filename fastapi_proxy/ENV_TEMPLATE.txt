@@ -2,7 +2,7 @@
 # Copy this entire content into your .env file
 
 # ERPNext Backend
-ERPNEXT_BASE_URL=https://backend.dinematters.com
+ERPNEXT_BASE_URL=https://backend.flamezo_backend.com
 ERPNEXT_API_KEY=8838cf27200d3cf
 ERPNEXT_API_SECRET=afd0c5591807ccb
 
@@ -38,7 +38,7 @@ CACHE_CATEGORIES_TTL=600
 CACHE_PRODUCTS_TTL=300
 
 # CORS
-CORS_ORIGINS=https://app.dinematters.com,https://admin.dinematters.com
+CORS_ORIGINS=https://app.flamezo_backend.com,https://admin.flamezo_backend.com
 CORS_ALLOW_CREDENTIALS=true
 CORS_ALLOW_METHODS=*
 CORS_ALLOW_HEADERS=*

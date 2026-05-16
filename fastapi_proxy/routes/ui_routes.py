@@ -1,7 +1,7 @@
 """
 UI API Routes
 
-Maps to: dinematters.dinematters.api.ui.*
+Maps to: flamezo_backend.flamezo_backend.api.ui.*
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -52,7 +52,7 @@ class GetRestaurantSetupProgressRequest(BaseModel):
 # FastAPI doesn't match dots well, so we use a catch-all and dispatch by method name
 # The router prefix is /api/method, so routes are relative to that
 
-@router.post("/dinematters.dinematters.api.ui.get_doctype_meta", include_in_schema=True)
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta", include_in_schema=True)
 async def get_doctype_meta(
 	request: GetDoctypeMetaRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -60,7 +60,7 @@ async def get_doctype_meta(
 	"""
 	Get DocType metadata
 	
-	Mirrors: dinematters.dinematters.api.ui.get_doctype_meta
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_doctype_meta
 	Type: READ
 	Cache: Yes (60s)
 	"""
@@ -69,7 +69,7 @@ async def get_doctype_meta(
 	try:
 		# Forward request to ERPNext - unchanged
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_doctype_meta",
+			"flamezo_backend.flamezo_backend.api.ui.get_doctype_meta",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -85,7 +85,7 @@ async def get_doctype_meta(
 		)
 
 
-@router.post("/dinematters.dinematters.api.ui.get_user_permissions")
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_user_permissions")
 async def get_user_permissions(
 	request: GetUserPermissionsRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -93,7 +93,7 @@ async def get_user_permissions(
 	"""
 	Get user permissions for a DocType
 	
-	Mirrors: dinematters.dinematters.api.ui.get_user_permissions
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_user_permissions
 	Type: READ
 	Cache: Yes (30s)
 	"""
@@ -101,7 +101,7 @@ async def get_user_permissions(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_user_permissions",
+			"flamezo_backend.flamezo_backend.api.ui.get_user_permissions",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -115,14 +115,14 @@ async def get_user_permissions(
 		)
 
 
-@router.post("/dinematters.dinematters.api.ui.get_all_doctypes")
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes")
 async def get_all_doctypes(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
 	Get list of all doctypes
 	
-	Mirrors: dinematters.dinematters.api.ui.get_all_doctypes
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_all_doctypes
 	Type: READ
 	Cache: Yes (300s)
 	"""
@@ -130,7 +130,7 @@ async def get_all_doctypes(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_all_doctypes",
+			"flamezo_backend.flamezo_backend.api.ui.get_all_doctypes",
 			data={},  # No parameters
 			http_method="POST"
 		)
@@ -144,14 +144,14 @@ async def get_all_doctypes(
 		)
 
 
-@router.post("/dinematters.dinematters.api.ui.get_user_restaurants")
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_user_restaurants")
 async def get_user_restaurants(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
 	Get restaurants for current user
 	
-	Mirrors: dinematters.dinematters.api.ui.get_user_restaurants
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_user_restaurants
 	Type: READ
 	Cache: Yes (60s)
 	"""
@@ -159,7 +159,7 @@ async def get_user_restaurants(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_user_restaurants",
+			"flamezo_backend.flamezo_backend.api.ui.get_user_restaurants",
 			data={},  # No parameters
 			http_method="POST"
 		)
@@ -173,7 +173,7 @@ async def get_user_restaurants(
 		)
 
 
-@router.post("/dinematters.dinematters.api.ui.get_restaurant_setup_progress")
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_restaurant_setup_progress")
 async def get_restaurant_setup_progress(
 	request: GetRestaurantSetupProgressRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -181,7 +181,7 @@ async def get_restaurant_setup_progress(
 	"""
 	Get restaurant setup wizard progress
 	
-	Mirrors: dinematters.dinematters.api.ui.get_restaurant_setup_progress
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_restaurant_setup_progress
 	Type: READ
 	Cache: No (real-time status)
 	"""
@@ -189,7 +189,7 @@ async def get_restaurant_setup_progress(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_restaurant_setup_progress",
+			"flamezo_backend.flamezo_backend.api.ui.get_restaurant_setup_progress",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -203,7 +203,7 @@ async def get_restaurant_setup_progress(
 		)
 
 
-@router.post("/dinematters.dinematters.api.ui.get_setup_wizard_steps")
+@router.post("/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps")
 async def get_setup_wizard_steps(
 	# Temporarily disable auth for testing - TODO: Re-enable after login endpoint is implemented
 	# current_user: TokenData = Depends(get_current_user)
@@ -211,7 +211,7 @@ async def get_setup_wizard_steps(
 	"""
 	Get setup wizard steps configuration
 	
-	Mirrors: dinematters.dinematters.api.ui.get_setup_wizard_steps
+	Mirrors: flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps
 	Type: READ
 	Cache: Yes (300s)
 	"""
@@ -219,7 +219,7 @@ async def get_setup_wizard_steps(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.ui.get_setup_wizard_steps",
+			"flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps",
 			data={},  # No parameters
 			http_method="POST"
 		)

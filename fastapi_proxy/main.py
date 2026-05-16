@@ -119,13 +119,13 @@ async def health_check():
 	"""Health check endpoint - no rate limiting"""
 	return {
 		"status": "healthy",
-		"service": "dinematters-fastapi-proxy",
+		"service": "flamezo_backend-fastapi-proxy",
 		"version": "1.0.0"
 	}
 
 
 # Include routers
-# ERPNext uses dot notation: /api/method/dinematters.dinematters.api.ui.get_setup_wizard_steps
+# ERPNext uses dot notation: /api/method/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps
 # Routes are defined with full method paths, prefix is just /api/method
 app.include_router(ui_routes.router, prefix="/api/method", tags=["UI APIs"])
 app.include_router(order_routes.router, prefix="/api/method", tags=["Order Management"])

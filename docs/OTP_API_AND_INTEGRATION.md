@@ -1,6 +1,6 @@
 # OTP API & Customer UI Integration Guide
 
-**Dinematters** — Phone verification for checkout, table booking, banquet booking, and coupons.
+**Flamezo** — Phone verification for checkout, table booking, banquet booking, and coupons.
 
 *Version 1.0 | February 2025*
 
@@ -56,7 +56,7 @@ All endpoints: `@frappe.whitelist(allow_guest=True)` — no auth required.
 
 ### 2.1 Send OTP
 
-**Endpoint:** `dinematters.dinematters.api.otp.send_otp`  
+**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.send_otp`  
 **Method:** POST
 
 #### Request Parameters
@@ -89,7 +89,7 @@ All endpoints: `@frappe.whitelist(allow_guest=True)` — no auth required.
 #### Example (cURL)
 
 ```bash
-curl -X POST "https://your-site.com/api/method/dinematters.dinematters.api.otp.send_otp" \
+curl -X POST "https://your-site.com/api/method/flamezo_backend.flamezo_backend.api.otp.send_otp" \
   -H "Content-Type: application/json" \
   -d '{
     "restaurant_id": "unvind",
@@ -102,7 +102,7 @@ curl -X POST "https://your-site.com/api/method/dinematters.dinematters.api.otp.s
 #### Example (JavaScript/fetch)
 
 ```javascript
-const res = await fetch('/api/method/dinematters.dinematters.api.otp.send_otp', {
+const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.send_otp', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -119,7 +119,7 @@ const data = await res.json();
 
 ### 2.2 Verify OTP
 
-**Endpoint:** `dinematters.dinematters.api.otp.verify_otp`  
+**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.verify_otp`  
 **Method:** POST
 
 #### Request Parameters
@@ -155,7 +155,7 @@ const data = await res.json();
 #### Example (JavaScript)
 
 ```javascript
-const res = await fetch('/api/method/dinematters.dinematters.api.otp.verify_otp', {
+const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.verify_otp', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -173,7 +173,7 @@ const res = await fetch('/api/method/dinematters.dinematters.api.otp.verify_otp'
 
 ### 2.3 Check Verified
 
-**Endpoint:** `dinematters.dinematters.api.otp.check_verified`  
+**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.check_verified`  
 **Method:** POST or GET
 
 #### Request Parameters
@@ -203,13 +203,13 @@ or
 #### Example (GET)
 
 ```
-GET /api/method/dinematters.dinematters.api.otp.check_verified?phone=7487871213
+GET /api/method/flamezo_backend.flamezo_backend.api.otp.check_verified?phone=7487871213
 ```
 
 #### Example (POST)
 
 ```javascript
-const res = await fetch('/api/method/dinematters.dinematters.api.otp.check_verified', {
+const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.check_verified', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ phone: phone })
@@ -225,9 +225,9 @@ const { verified } = await res.json();
 
 | File | Purpose |
 |------|---------|
-| `dinematters/dinematters/api/otp.py` | API: send_otp, verify_otp, check_verified |
-| `dinematters/dinematters/utils/otp_service.py` | Fast2SMS: SMS (Quick/DLT) + WhatsApp |
-| `dinematters/dinematters/utils/customer_helpers.py` | normalize_phone, get_or_create_customer, is_phone_verified, require_verified_phone |
+| `flamezo_backend/flamezo_backend/api/otp.py` | API: send_otp, verify_otp, check_verified |
+| `flamezo_backend/flamezo_backend/utils/otp_service.py` | Fast2SMS: SMS (Quick/DLT) + WhatsApp |
+| `flamezo_backend/flamezo_backend/utils/customer_helpers.py` | normalize_phone, get_or_create_customer, is_phone_verified, require_verified_phone |
 
 ### Gating Points (Backend)
 
@@ -317,7 +317,7 @@ import { OTPVerification } from '../components/OTPVerification';
 | `clearVerifiedPhone()` | Clears stored verification |
 | `isVerifiedExpired(maxAgeMs?)` | Default 30 days; returns true if expired |
 
-**Keys:** `dinematters_verified_phone`, `dinematters_verified_at`
+**Keys:** `flamezo_backend_verified_phone`, `flamezo_backend_verified_at`
 
 ---
 
@@ -390,7 +390,7 @@ if (verifyMyUser) {
 - [x] `require_verified_phone` gating in orders, payments, bookings
 - [x] `get_or_create_customer` with fallback name
 - [x] Restaurant Config: `verify_my_user`
-- [x] Dinematters Settings: Fast2SMS config
+- [x] Flamezo Settings: Fast2SMS config
 - [x] `verifyMyUser` in `get_restaurant_config`
 
 ### Frontend (Payment)
@@ -409,7 +409,7 @@ if (verifyMyUser) {
 
 ## 6. Configuration
 
-### Dinematters Settings (Desk → Dinematters Settings)
+### Flamezo Settings (Desk → Flamezo Settings)
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -471,7 +471,7 @@ Frontend should show OTP flow when this is returned.
 
 ### Prerequisites
 
-1. Dinematters Settings: Set Fast2SMS API key
+1. Flamezo Settings: Set Fast2SMS API key
 2. Restaurant Config: Enable "Verify My User" for test restaurant
 3. Add ₹100+ to Fast2SMS account (for Quick route)
 
@@ -491,15 +491,15 @@ Frontend should show OTP flow when this is returned.
 
 ```bash
 # Send OTP (costs ₹5 with Quick route — use sparingly)
-bench --site your-site execute "dinematters.dinematters.api.otp.send_otp" \
+bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.send_otp" \
   --args '["unvind","7487871213"]'
 
 # Verify (use OTP from SMS + token from send response)
-bench --site your-site execute "dinematters.dinematters.api.otp.verify_otp" \
+bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.verify_otp" \
   --args '["unvind","7487871213","1234","<TOKEN>","Test User"]'
 
 # Check verified
-bench --site your-site execute "dinematters.dinematters.api.otp.check_verified" \
+bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.check_verified" \
   --args '["7487871213"]'
 ```
 

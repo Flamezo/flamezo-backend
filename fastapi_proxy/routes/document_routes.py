@@ -1,7 +1,7 @@
 """
 Document Management Routes
 
-Maps to: dinematters.dinematters.api.documents.*
+Maps to: flamezo_backend.flamezo_backend.api.documents.*
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -73,7 +73,7 @@ class DeleteDocRequest(BaseModel):
 
 # Route Implementations
 
-@router.post("/dinematters.dinematters.api.documents.create_document")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.create_document")
 async def create_document(
 	request: CreateDocumentRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -81,7 +81,7 @@ async def create_document(
 	"""
 	Create a document
 	
-	Mirrors: dinematters.dinematters.api.documents.create_document
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.create_document
 	Type: WRITE
 	Cache: No
 	"""
@@ -89,7 +89,7 @@ async def create_document(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.create_document",
+			"flamezo_backend.flamezo_backend.api.documents.create_document",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -103,7 +103,7 @@ async def create_document(
 		)
 
 
-@router.post("/dinematters.dinematters.api.documents.update_document")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.update_document")
 async def update_document(
 	request: UpdateDocumentRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -111,7 +111,7 @@ async def update_document(
 	"""
 	Update a document
 	
-	Mirrors: dinematters.dinematters.api.documents.update_document
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.update_document
 	Type: WRITE
 	Cache: No
 	"""
@@ -119,7 +119,7 @@ async def update_document(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.update_document",
+			"flamezo_backend.flamezo_backend.api.documents.update_document",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -133,7 +133,7 @@ async def update_document(
 		)
 
 
-@router.post("/dinematters.dinematters.api.documents.get_doc_list")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.get_doc_list")
 async def get_doc_list(
 	request: GetDocListRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -141,7 +141,7 @@ async def get_doc_list(
 	"""
 	Get list of documents
 	
-	Mirrors: dinematters.dinematters.api.documents.get_doc_list
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.get_doc_list
 	Type: READ
 	Cache: Yes (depends on doctype - see caching rules)
 	"""
@@ -149,7 +149,7 @@ async def get_doc_list(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.get_doc_list",
+			"flamezo_backend.flamezo_backend.api.documents.get_doc_list",
 			data=request.dict(exclude_none=True),
 			http_method="POST"
 		)
@@ -163,7 +163,7 @@ async def get_doc_list(
 		)
 
 
-@router.post("/dinematters.dinematters.api.documents.get_doc")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.get_doc")
 async def get_doc(
 	request: GetDocRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -171,7 +171,7 @@ async def get_doc(
 	"""
 	Get a single document
 	
-	Mirrors: dinematters.dinematters.api.documents.get_doc
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.get_doc
 	Type: READ
 	Cache: No (user-specific, real-time data)
 	"""
@@ -179,7 +179,7 @@ async def get_doc(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.get_doc",
+			"flamezo_backend.flamezo_backend.api.documents.get_doc",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -193,7 +193,7 @@ async def get_doc(
 		)
 
 
-@router.post("/dinematters.dinematters.api.documents.insert_doc")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.insert_doc")
 async def insert_doc(
 	request: InsertDocRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -201,7 +201,7 @@ async def insert_doc(
 	"""
 	Insert a document (wrapper for frappe.client.insert)
 	
-	Mirrors: dinematters.dinematters.api.documents.insert_doc
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.insert_doc
 	Type: WRITE
 	Cache: No
 	"""
@@ -209,7 +209,7 @@ async def insert_doc(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.insert_doc",
+			"flamezo_backend.flamezo_backend.api.documents.insert_doc",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -223,7 +223,7 @@ async def insert_doc(
 		)
 
 
-@router.post("/dinematters.dinematters.api.documents.delete_doc")
+@router.post("/flamezo_backend.flamezo_backend.api.documents.delete_doc")
 async def delete_doc(
 	request: DeleteDocRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -231,7 +231,7 @@ async def delete_doc(
 	"""
 	Delete a document (wrapper for frappe.client.delete)
 	
-	Mirrors: dinematters.dinematters.api.documents.delete_doc
+	Mirrors: flamezo_backend.flamezo_backend.api.documents.delete_doc
 	Type: WRITE
 	Cache: No
 	"""
@@ -239,7 +239,7 @@ async def delete_doc(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.delete_doc",
+			"flamezo_backend.flamezo_backend.api.documents.delete_doc",
 			data=request.dict(),
 			http_method="POST"
 		)

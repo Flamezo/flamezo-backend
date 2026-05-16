@@ -1,0 +1,467 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:restaurant",
+ "creation": "2025-01-15 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "issingle": 0,
+ "field_order": [
+  "restaurant",
+  "section_break_branding",
+  "restaurant_name",
+  "tagline",
+  "subtitle",
+  "description",
+  "column_break_branding",
+  "primary_color",
+  "default_theme",
+  "logo",
+  "logo_size",
+  "hero_video",
+  "apple_touch_icon",
+  "section_break_ai_theme_background",
+  "menu_theme_background_enabled",
+  "menu_theme_paid_until",
+  "menu_theme_generation_status",
+  "menu_theme_background_active",
+  "menu_theme_wallpapers",
+  "menu_theme_main_index",
+  "menu_theme_selected_items",
+  "menu_theme_color_theme",
+  "column_break_ai_theme_background",
+  "menu_theme_background_preview",
+  "menu_theme_background_sources",
+  "menu_theme_background_history",
+  "menu_theme_last_error",
+  "section_break_color_palette",
+  "color_palette_violet",
+  "color_palette_indigo",
+  "color_palette_blue",
+  "color_palette_green",
+  "color_palette_yellow",
+  "color_palette_orange",
+  "color_palette_red",
+  "section_break_settings",
+  "currency",
+  "menu_layout",
+  "enable_table_booking",
+  "enable_banquet_booking",
+  "column_break_settings",
+  "enable_events",
+  "enable_offers",
+  "enable_coupons",
+  "enable_experience_lounge",
+  "enable_loyalty",
+  "verify_my_user",
+  "section_break_cart_milestones",
+  "enable_cart_milestones",
+  "cart_milestones",
+  "section_break_social_media",
+  "google_review_link",
+  "instagram_profile_link",
+  "column_break_social_media",
+  "facebook_profile_link",
+  "whatsapp_phone_number",
+  "swiggy_link",
+  "zomato_link"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_branding",
+   "fieldtype": "Section Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "restaurant_name",
+   "fieldtype": "Data",
+   "label": "Restaurant Name"
+  },
+  {
+   "fieldname": "tagline",
+   "fieldtype": "Data",
+   "label": "Tagline"
+  },
+  {
+   "fieldname": "subtitle",
+   "fieldtype": "Data",
+   "label": "Subtitle"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "primary_color",
+   "fieldtype": "Data",
+   "label": "Primary Color"
+  },
+  {
+   "fieldname": "default_theme",
+   "fieldtype": "Select",
+   "label": "Default Theme",
+   "options": "light\ndark",
+   "default": "dark"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "logo_size",
+   "fieldtype": "Select",
+   "label": "Logo Size",
+   "options": "Small\nMedium\nLarge",
+   "default": "Medium"
+  },
+  {
+   "fieldname": "hero_video",
+   "fieldtype": "Attach",
+   "label": "Hero Video",
+   "description": "Upload a hero video file (mp4/webm) or attach a URL"
+  },
+  {
+   "fieldname": "apple_touch_icon",
+   "fieldtype": "Attach Image",
+   "label": "Apple Touch Icon"
+  },
+  {
+   "fieldname": "section_break_ai_theme_background",
+   "fieldtype": "Section Break",
+   "label": "AI Theme Background"
+  },
+  {
+   "default": "0",
+   "fieldname": "menu_theme_background_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Theme Background"
+  },
+  {
+   "fieldname": "menu_theme_paid_until",
+   "fieldtype": "Date",
+   "label": "Menu Theme Paid Until",
+   "read_only": 1
+  },
+  {
+   "default": "Idle",
+   "fieldname": "menu_theme_generation_status",
+   "fieldtype": "Select",
+   "label": "Theme Generation Status",
+   "options": "Idle\nPending\nProcessing\nCompleted\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "menu_theme_background_active",
+   "fieldtype": "Attach Image",
+   "label": "Active Theme Background"
+  },
+  {
+   "fieldname": "menu_theme_wallpapers",
+   "fieldtype": "JSON",
+   "label": "Theme Wallpapers"
+  },
+  {
+   "default": "0",
+   "fieldname": "menu_theme_main_index",
+   "fieldtype": "Int",
+   "label": "Main Theme Wallpaper Index"
+  },
+  {
+   "fieldname": "menu_theme_selected_items",
+   "fieldtype": "JSON",
+   "label": "Selected Items for Theme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "menu_theme_color_theme",
+   "fieldtype": "Data",
+   "label": "Theme Color Tone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ai_theme_background",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "menu_theme_background_preview",
+   "fieldtype": "Attach Image",
+   "label": "Latest Theme Background Preview",
+   "read_only": 1
+  },
+  {
+   "fieldname": "menu_theme_background_sources",
+   "fieldtype": "JSON",
+   "label": "Theme Background Sources",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "menu_theme_background_history",
+   "fieldtype": "JSON",
+   "label": "Theme Background History",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "menu_theme_last_error",
+   "fieldtype": "Small Text",
+   "label": "Theme Background Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_color_palette",
+   "fieldtype": "Section Break",
+   "label": "Color Palette"
+  },
+  {
+   "fieldname": "color_palette_violet",
+   "fieldtype": "Data",
+   "label": "Violet"
+  },
+  {
+   "fieldname": "color_palette_indigo",
+   "fieldtype": "Data",
+   "label": "Indigo"
+  },
+  {
+   "fieldname": "color_palette_blue",
+   "fieldtype": "Data",
+   "label": "Blue"
+  },
+  {
+   "fieldname": "color_palette_green",
+   "fieldtype": "Data",
+   "label": "Green"
+  },
+  {
+   "fieldname": "color_palette_yellow",
+   "fieldtype": "Data",
+   "label": "Yellow"
+  },
+  {
+   "fieldname": "color_palette_orange",
+   "fieldtype": "Data",
+   "label": "Orange"
+  },
+  {
+   "fieldname": "color_palette_red",
+   "fieldtype": "Data",
+   "label": "Red"
+  },
+  {
+   "fieldname": "section_break_settings",
+   "fieldtype": "Section Break",
+   "label": "Settings"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "default": "INR"
+  },
+  {
+   "fieldname": "menu_layout",
+   "fieldtype": "Select",
+   "label": "Menu Layout",
+   "options": "1 Column\n2 Columns",
+   "default": "2 Columns",
+   "description": "Choose the default layout for the menu page"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_table_booking",
+   "fieldtype": "Check",
+   "label": "Enable Table Booking"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_banquet_booking",
+   "fieldtype": "Check",
+   "label": "Enable Banquet Booking"
+  },
+  {
+   "fieldname": "column_break_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_events",
+   "fieldtype": "Check",
+   "label": "Enable Events"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_offers",
+   "fieldtype": "Check",
+   "label": "Enable Offers"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_coupons",
+   "fieldtype": "Check",
+   "label": "Enable Coupons"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_experience_lounge",
+   "fieldtype": "Check",
+   "label": "Enable Experience Lounge"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_loyalty",
+   "fieldtype": "Check",
+   "label": "Enable Loyalty & Referrals",
+   "description": "Enable restaurant-specific loyalty points and referral rewards"
+  },
+  {
+   "default": "0",
+   "fieldname": "verify_my_user",
+   "fieldtype": "Check",
+   "label": "Verify My User",
+   "description": "Require OTP verification before table booking, coupons, events, games"
+  },
+  {
+   "fieldname": "section_break_social_media",
+   "fieldtype": "Section Break",
+   "label": "Social Media & Contact"
+  },
+  {
+   "fieldname": "google_review_link",
+   "fieldtype": "Data",
+   "label": "Google Review Link",
+   "options": "URL",
+   "description": "Link to redirect to Google review page",
+   "length": 1000
+  },
+  {
+   "fieldname": "instagram_profile_link",
+   "fieldtype": "Data",
+   "label": "Instagram Profile Link",
+   "options": "URL",
+   "description": "Link to Instagram profile",
+   "length": 1000
+  },
+  {
+   "fieldname": "column_break_social_media",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "facebook_profile_link",
+   "fieldtype": "Data",
+   "label": "Facebook Profile Link",
+   "options": "URL",
+   "description": "Link to Facebook profile",
+   "length": 1000
+  },
+  {
+   "fieldname": "whatsapp_phone_number",
+   "fieldtype": "Data",
+   "label": "WhatsApp Phone Number",
+   "options": "Phone",
+   "description": "Phone number for WhatsApp contact"
+  },
+  {
+   "fieldname": "swiggy_link",
+   "fieldtype": "Data",
+   "label": "Swiggy Link",
+   "options": "URL",
+   "description": "Link to Swiggy restaurant page",
+   "length": 1000
+  },
+  {
+   "fieldname": "zomato_link",
+   "fieldtype": "Data",
+   "label": "Zomato Link",
+   "options": "URL",
+   "description": "Link to Zomato restaurant page",
+   "length": 1000
+  },
+  {
+   "fieldname": "merchant_push_tokens",
+   "fieldtype": "Small Text",
+   "label": "Merchant Push Tokens",
+   "description": "JSON array of FCM device tokens for merchant dashboard push notifications (new orders).",
+   "read_only": 1,
+   "hidden": 1,
+   "in_list_view": 0,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_break_cart_milestones",
+   "fieldtype": "Section Break",
+   "label": "Cart Value Milestones (Progress Bar)"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_cart_milestones",
+   "fieldtype": "Check",
+   "label": "Enable Cart Progress Bar"
+  },
+  {
+   "fieldname": "cart_milestones",
+   "fieldtype": "JSON",
+   "label": "Cart Milestones"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-01-15 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Restaurant Config",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Staff"
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "restaurant",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

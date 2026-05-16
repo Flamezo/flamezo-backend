@@ -1,0 +1,84 @@
+{
+  "actions": [],
+  "creation": "2026-04-03 06:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "session_token",
+    "customer",
+    "phone",
+    "column_break_1",
+    "revoked",
+    "expires_at",
+    "last_used_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "session_token",
+      "fieldtype": "Data",
+      "label": "Session Token",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "label": "Customer",
+      "options": "Customer",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "phone",
+      "fieldtype": "Data",
+      "label": "Phone (Normalized)",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "0",
+      "fieldname": "revoked",
+      "fieldtype": "Check",
+      "label": "Revoked",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "expires_at",
+      "fieldtype": "Datetime",
+      "label": "Expires At",
+      "reqd": 1
+    },
+    {
+      "fieldname": "last_used_at",
+      "fieldtype": "Datetime",
+      "label": "Last Used At"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-04-03 06:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Flamezo",
+  "name": "Customer Session",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "role": "System Manager"
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

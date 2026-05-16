@@ -4,7 +4,7 @@
 
 If you see:
 ```json
-{"detail":"Not found","gateway":"dinematters-backend"}
+{"detail":"Not found","gateway":"flamezo_backend-backend"}
 ```
 
 This means a gateway/proxy (Nginx, etc.) is intercepting the request.
@@ -59,7 +59,7 @@ ps aux | grep gunicorn | grep -v grep
 systemctl stop fastapi-proxy
 
 # Start manually to see errors
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 gunicorn -w 1 -k uvicorn.workers.UvicornWorker main:app --bind 127.0.0.1:8001 --log-level debug
 ```
@@ -68,14 +68,14 @@ Press `Ctrl+C` to stop, then restart service.
 
 ### 7. Check Configuration
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 python -c "from config import settings; print('ERPNext URL:', settings.erpnext_base_url)"
 ```
 
 ### 8. Check .env File
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 cat .env | grep -v SECRET | grep -v KEY
 ```
 
@@ -103,7 +103,7 @@ lsof -i :8001
 ### Issue: Configuration Error
 **Test**:
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 python -c "from config import settings; print('OK')"
 ```

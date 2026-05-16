@@ -42,9 +42,9 @@ After=network.target
 Type=simple
 User=frappe
 Group=frappe
-WorkingDirectory=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
-Environment="PATH=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/venv/bin"
-ExecStart=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
+WorkingDirectory=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
+Environment="PATH=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/venv/bin"
+ExecStart=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
 Restart=always
 RestartSec=10
 
@@ -73,7 +73,7 @@ sudo systemctl status fastapi-proxy
 If you don't have sudo access or want to test first:
 
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 
 # Run directly (for testing)
@@ -88,7 +88,7 @@ Press `Ctrl+C` to stop.
 ### Option 4: Run in Background (No Systemd)
 
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 
 # Run in background
@@ -139,7 +139,7 @@ sudo journalctl -u fastapi-proxy -n 50
 ### Issue: "ModuleNotFoundError"
 **Solution**: 
 ```bash
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 source venv/bin/activate
 pip install -r requirements.txt
 ```

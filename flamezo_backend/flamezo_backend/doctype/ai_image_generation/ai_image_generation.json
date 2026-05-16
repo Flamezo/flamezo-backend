@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 0,
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-03-20 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Restaurant",
+   "options": "Restaurant"
+  },
+  {
+   "fieldname": "owner_doctype",
+   "fieldtype": "Select",
+   "label": "Owner DocType",
+   "options": "Menu Product\nRestaurant Config"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Owner Name",
+   "options": "owner_doctype"
+  },
+  {
+   "default": "Pending_Upload",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending_Upload\nProcessing\nCompleted\nFailed"
+  },
+  {
+   "fieldname": "original_image_url",
+   "fieldtype": "Data",
+   "label": "Original Image URL"
+  },
+  {
+   "fieldname": "enhanced_image_url",
+   "fieldtype": "Data",
+   "label": "Enhanced Image URL"
+  },
+  {
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "label": "Video URL"
+  },
+  {
+   "fieldname": "prompt_version",
+   "fieldtype": "Data",
+   "label": "Prompt Version"
+  },
+  {
+   "fieldname": "generation_id",
+   "fieldtype": "Data",
+   "label": "Generation ID"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Text",
+   "label": "Error Message"
+  },
+  {
+   "fieldname": "reference_image_url",
+   "fieldtype": "Data",
+   "label": "Reference Image URL"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-20 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "AI Image Generation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

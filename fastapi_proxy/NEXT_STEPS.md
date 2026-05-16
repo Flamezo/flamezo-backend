@@ -13,7 +13,7 @@
 
 ```bash
 # On server, test each UI endpoint:
-curl -X POST http://127.0.0.1:9005/api/method/dinematters.dinematters.api.ui.get_setup_wizard_steps \
+curl -X POST http://127.0.0.1:9005/api/method/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{}'
@@ -31,7 +31,7 @@ curl http://127.0.0.1:9005/
 curl http://127.0.0.1:9005/health
 
 # Test a UI endpoint (will fail without auth, but shows if route exists)
-curl -X POST http://127.0.0.1:9005/api/method/dinematters.dinematters.api.ui.get_all_doctypes
+curl -X POST http://127.0.0.1:9005/api/method/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes
 ```
 
 ## 🚧 Step 2: Implement Missing Routes
@@ -77,7 +77,7 @@ For each implemented route:
 
 ### A. Test Direct ERPNext Call (Baseline)
 ```bash
-curl -X POST https://backend.dinematters.com/api/method/dinematters.dinematters.api.ui.get_all_doctypes \
+curl -X POST https://backend.flamezo_backend.com/api/method/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes \
   -H "Authorization: token 8838cf27200d3cf:afd0c5591807ccb" \
   -H "Content-Type: application/json" \
   -d '{}' > erpnext_response.json
@@ -85,7 +85,7 @@ curl -X POST https://backend.dinematters.com/api/method/dinematters.dinematters.
 
 ### B. Test FastAPI Proxy Call
 ```bash
-curl -X POST http://127.0.0.1:9005/api/method/dinematters.dinematters.api.ui.get_all_doctypes \
+curl -X POST http://127.0.0.1:9005/api/method/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes \
   -H "Authorization: Bearer JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}' > fastapi_response.json
@@ -116,10 +116,10 @@ Create a login route that:
 ### 1. Test Current UI Routes
 ```bash
 # On server
-cd /home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
+cd /home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
 
 # Test without auth (will fail, but shows route exists)
-curl -X POST http://127.0.0.1:9005/api/method/dinematters.dinematters.api.ui.get_setup_wizard_steps \
+curl -X POST http://127.0.0.1:9005/api/method/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps \
   -H "Content-Type: application/json" \
   -d '{}'
 ```

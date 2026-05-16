@@ -77,7 +77,7 @@ async def request_upload_session(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.media.api.request_upload_session",
+			"flamezo_backend.flamezo_backend.media.api.request_upload_session",
 			data={
 				"owner_doctype": request.owner_doctype,
 				"owner_name": request.owner_name,
@@ -114,7 +114,7 @@ async def confirm_upload(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.media.api.confirm_upload",
+			"flamezo_backend.flamezo_backend.media.api.confirm_upload",
 			data={
 				"upload_id": request.upload_id,
 				"owner_doctype": request.owner_doctype,
@@ -152,7 +152,7 @@ async def get_media_asset(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.media.api.get_media_asset",
+			"flamezo_backend.flamezo_backend.media.api.get_media_asset",
 			data={"media_id": media_id},
 			http_method="POST"
 		)
@@ -182,7 +182,7 @@ async def delete_media_asset(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.media.api.delete_media_asset",
+			"flamezo_backend.flamezo_backend.media.api.delete_media_asset",
 			data={"media_id": media_id},
 			http_method="POST"
 		)

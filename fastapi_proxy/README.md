@@ -48,7 +48,7 @@ ERPNext (Port 8000)
 
 ```bash
 cd /home/frappe/frappe-bench
-bench --site [your-site] execute dinematters.setup.create_fastapi_user.create_fastapi_system_user
+bench --site [your-site] execute flamezo_backend.setup.create_fastapi_user.create_fastapi_system_user
 ```
 
 **IMPORTANT**: Save the API key and secret printed!
@@ -62,7 +62,7 @@ nano .env
 
 Required values:
 ```bash
-ERPNEXT_BASE_URL=https://backend.dinematters.com
+ERPNEXT_BASE_URL=https://backend.flamezo_backend.com
 ERPNEXT_API_KEY=<from step 1>
 ERPNEXT_API_SECRET=<from step 1>
 JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
@@ -111,22 +111,22 @@ FastAPI uses JWT tokens for frontend authentication:
 All routes mirror ERPNext endpoints exactly:
 
 ### UI APIs
-- `POST /api/method/dinematters.dinematters.api.ui.get_doctype_meta`
-- `POST /api/method/dinematters.dinematters.api.ui.get_user_permissions`
-- `POST /api/method/dinematters.dinematters.api.ui.get_all_doctypes`
-- `POST /api/method/dinematters.dinematters.api.ui.get_user_restaurants`
-- `POST /api/method/dinematters.dinematters.api.ui.get_restaurant_setup_progress`
-- `POST /api/method/dinematters.dinematters.api.ui.get_setup_wizard_steps`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_user_permissions`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_user_restaurants`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_restaurant_setup_progress`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps`
 
 ### Order Management
-- `POST /api/method/dinematters.dinematters.api.order_status.update_status`
-- `POST /api/method/dinematters.dinematters.api.order_status.update_table_number`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.order_status.update_status`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.order_status.update_table_number`
 
 ### Document Management
-- `POST /api/method/dinematters.dinematters.api.documents.*`
+- `POST /api/method/flamezo_backend.flamezo_backend.api.documents.*`
 
 ### Restaurant
-- `POST /api/method/dinematters.dinematters.doctype.restaurant.restaurant.*`
+- `POST /api/method/flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.*`
 
 ### Frappe Client (mapped to wrappers)
 - `POST /api/method/frappe.client.*`
@@ -182,13 +182,13 @@ Test each API against ERPNext direct:
 
 ```bash
 # Direct ERPNext call
-curl -X POST http://localhost:8000/api/method/dinematters.dinematters.api.ui.get_doctype_meta \
+curl -X POST http://localhost:8000/api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta \
   -H "Authorization: token API_KEY:API_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"doctype": "Restaurant"}' > erpnext.json
 
 # FastAPI proxy call
-curl -X POST http://localhost:8001/api/method/dinematters.dinematters.api.ui.get_doctype_meta \
+curl -X POST http://localhost:8001/api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta \
   -H "Authorization: Bearer JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"doctype": "Restaurant"}' > fastapi.json
@@ -211,7 +211,7 @@ gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
 ```nginx
 server {
     listen 80;
-    server_name api.dinematters.com;
+    server_name api.flamezo_backend.com;
     
     location / {
         proxy_pass http://127.0.0.1:8001;
@@ -233,9 +233,9 @@ After=network.target
 [Service]
 Type=simple
 User=frappe
-WorkingDirectory=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy
-Environment="PATH=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/venv/bin"
-ExecStart=/home/frappe/frappe-bench/apps/dinematters/fastapi_proxy/venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
+WorkingDirectory=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy
+Environment="PATH=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/venv/bin"
+ExecStart=/home/frappe/frappe-bench/apps/flamezo_backend/fastapi_proxy/venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001
 Restart=always
 
 [Install]

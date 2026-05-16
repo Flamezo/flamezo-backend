@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2024-01-15 10:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "media_asset",
+  "media_url",
+  "media_type",
+  "display_order",
+  "column_break_1",
+  "alt_text",
+  "caption"
+ ],
+ "fields": [
+  {
+   "fieldname": "media_asset",
+   "fieldtype": "Link",
+   "label": "Media Asset",
+   "options": "Media Asset",
+   "read_only": 1
+  },
+  {
+   "fieldname": "media_url",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Media File",
+   "reqd": 1
+  },
+  {
+   "default": "image",
+   "fieldname": "media_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Media Type",
+   "options": "image\nvideo",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alt_text",
+   "fieldtype": "Data",
+   "label": "Alt Text"
+  },
+  {
+   "fieldname": "caption",
+   "fieldtype": "Small Text",
+   "label": "Caption"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 17:14:59.593743",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Product Media",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": []
+}

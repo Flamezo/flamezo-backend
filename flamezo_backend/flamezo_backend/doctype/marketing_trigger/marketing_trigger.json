@@ -1,0 +1,182 @@
+{
+ "actions": [],
+ "autoname": "field:trigger_name",
+ "creation": "2026-04-07 05:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "trigger_name",
+  "restaurant",
+  "is_active",
+  "total_fired",
+  "column_break_1",
+  "trigger_event",
+  "channel",
+  "delay_hours",
+  "section_break_event_params",
+  "days_since_visit",
+  "loyalty_milestone_coins",
+  "column_break_event_params_2",
+  "section_break_message",
+  "message_template",
+  "whatsapp_template_name",
+  "email_subject",
+  "column_break_coupon",
+  "include_coupon",
+  "coupon_code"
+ ],
+ "fields": [
+  {
+   "fieldname": "trigger_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trigger Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_fired",
+   "fieldtype": "Int",
+   "label": "Total Times Fired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "On Order Complete",
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Trigger Event",
+   "options": "On Order Complete\nOn Referral Signup\nOn Birthday\nX Days After Last Visit\nOn Loyalty Milestone"
+  },
+  {
+   "default": "WhatsApp",
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Channel",
+   "options": "SMS\nWhatsApp\nEmail"
+  },
+  {
+   "default": "2",
+   "fieldname": "delay_hours",
+   "fieldtype": "Int",
+   "label": "Delay (Hours)",
+   "description": "Send this many hours AFTER the trigger event fires."
+  },
+  {
+   "fieldname": "section_break_event_params",
+   "fieldtype": "Section Break",
+   "label": "Event Parameters"
+  },
+  {
+   "default": "30",
+   "depends_on": "eval:doc.trigger_event == 'X Days After Last Visit'",
+   "fieldname": "days_since_visit",
+   "fieldtype": "Int",
+   "label": "Days Inactive"
+  },
+  {
+   "default": "500",
+   "depends_on": "eval:doc.trigger_event == 'On Loyalty Milestone'",
+   "fieldname": "loyalty_milestone_coins",
+   "fieldtype": "Int",
+   "label": "Milestone (\u20b9)"
+  },
+  {
+   "fieldname": "column_break_event_params_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_message",
+   "fieldtype": "Section Break",
+   "label": "Message Content"
+  },
+  {
+   "fieldname": "message_template",
+   "fieldtype": "Long Text",
+   "label": "Message Body",
+   "description": "Supports: {{customer_name}}, {{restaurant_name}}, {{loyalty_balance}}, {{coupon_code}}, {{review_link}}",
+   "reqd": 1
+  },
+  {
+   "fieldname": "whatsapp_template_name",
+   "fieldtype": "Data",
+   "label": "WhatsApp Template Name",
+   "depends_on": "eval:doc.channel == \"WhatsApp Cloud API\"",
+   "description": "The approved template name from Meta (e.g. hello_world). Required for Cloud API."
+  },
+  {
+   "fieldname": "email_subject",
+   "fieldtype": "Data",
+   "label": "Email Subject Line",
+   "depends_on": "eval:doc.channel == 'Email'",
+   "description": "Subject line for Email triggers."
+  },
+  {
+   "fieldname": "column_break_coupon",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "include_coupon",
+   "fieldtype": "Check",
+   "label": "Attach Coupon?"
+  },
+  {
+   "depends_on": "eval:doc.include_coupon == 1",
+   "fieldname": "coupon_code",
+   "fieldtype": "Link",
+   "label": "Coupon Code",
+   "options": "Coupon"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-07 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Marketing Trigger",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

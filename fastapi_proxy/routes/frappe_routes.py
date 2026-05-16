@@ -2,7 +2,7 @@
 Frappe Client Routes
 
 Maps to: frappe.client.*
-These routes map to wrapper methods in dinematters.dinematters.api.documents
+These routes map to wrapper methods in flamezo_backend.flamezo_backend.api.documents
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -62,7 +62,7 @@ class FrappeClientDeleteRequest(BaseModel):
 
 
 # Route Implementations
-# These map to wrapper methods in dinematters.dinematters.api.documents
+# These map to wrapper methods in flamezo_backend.flamezo_backend.api.documents
 
 @router.post("/frappe.client.get_list")
 async def frappe_client_get_list(
@@ -70,9 +70,9 @@ async def frappe_client_get_list(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get list of documents (maps to dinematters.dinematters.api.documents.get_doc_list)
+	Get list of documents (maps to flamezo_backend.flamezo_backend.api.documents.get_doc_list)
 	
-	Mirrors: frappe.client.get_list → dinematters.dinematters.api.documents.get_doc_list
+	Mirrors: frappe.client.get_list → flamezo_backend.flamezo_backend.api.documents.get_doc_list
 	Type: READ
 	Cache: Yes (depends on doctype - see caching rules)
 	"""
@@ -87,7 +87,7 @@ async def frappe_client_get_list(
 			del data['limit_start']
 		
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.get_doc_list",
+			"flamezo_backend.flamezo_backend.api.documents.get_doc_list",
 			data=data,
 			http_method="POST"
 		)
@@ -107,9 +107,9 @@ async def frappe_client_get(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get a single document (maps to dinematters.dinematters.api.documents.get_doc)
+	Get a single document (maps to flamezo_backend.flamezo_backend.api.documents.get_doc)
 	
-	Mirrors: frappe.client.get → dinematters.dinematters.api.documents.get_doc
+	Mirrors: frappe.client.get → flamezo_backend.flamezo_backend.api.documents.get_doc
 	Type: READ
 	Cache: No (user-specific, real-time data)
 	"""
@@ -123,7 +123,7 @@ async def frappe_client_get(
 		}
 		
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.get_doc",
+			"flamezo_backend.flamezo_backend.api.documents.get_doc",
 			data=data,
 			http_method="POST"
 		)
@@ -143,9 +143,9 @@ async def frappe_client_insert(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Insert a document (maps to dinematters.dinematters.api.documents.insert_doc)
+	Insert a document (maps to flamezo_backend.flamezo_backend.api.documents.insert_doc)
 	
-	Mirrors: frappe.client.insert → dinematters.dinematters.api.documents.insert_doc
+	Mirrors: frappe.client.insert → flamezo_backend.flamezo_backend.api.documents.insert_doc
 	Type: WRITE
 	Cache: No
 	"""
@@ -153,7 +153,7 @@ async def frappe_client_insert(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.insert_doc",
+			"flamezo_backend.flamezo_backend.api.documents.insert_doc",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -173,9 +173,9 @@ async def frappe_client_delete(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Delete a document (maps to dinematters.dinematters.api.documents.delete_doc)
+	Delete a document (maps to flamezo_backend.flamezo_backend.api.documents.delete_doc)
 	
-	Mirrors: frappe.client.delete → dinematters.dinematters.api.documents.delete_doc
+	Mirrors: frappe.client.delete → flamezo_backend.flamezo_backend.api.documents.delete_doc
 	Type: WRITE
 	Cache: No
 	"""
@@ -183,7 +183,7 @@ async def frappe_client_delete(
 	
 	try:
 		response = await client.call_method(
-			"dinematters.dinematters.api.documents.delete_doc",
+			"flamezo_backend.flamezo_backend.api.documents.delete_doc",
 			data=request.dict(),
 			http_method="POST"
 		)

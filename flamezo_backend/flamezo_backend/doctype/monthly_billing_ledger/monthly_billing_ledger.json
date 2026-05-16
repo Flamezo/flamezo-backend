@@ -1,0 +1,110 @@
+{
+  "doctype": "DocType",
+  "name": "Monthly Billing Ledger",
+  "module": "Flamezo",
+  "custom": 0,
+  "fields": [
+    {
+      "fieldname": "restaurant",
+      "fieldtype": "Link",
+      "label": "Restaurant",
+      "options": "Restaurant",
+      "reqd": 1
+    },
+    {
+      "fieldname": "billing_month",
+      "fieldtype": "Data",
+      "label": "Billing Month",
+      "reqd": 1,
+      "description": "YYYY-MM format"
+    },
+    {
+      "fieldname": "total_gmv",
+      "fieldtype": "Int",
+      "label": "Total GMV (paise)",
+      "default": 0
+    },
+    {
+      "fieldname": "calculated_fee",
+      "fieldtype": "Int",
+      "label": "Calculated Fee (paise)",
+      "default": 0
+    },
+    {
+      "fieldname": "gst_amount",
+      "fieldtype": "Int",
+      "label": "GST Amount (paise)",
+      "default": 0
+    },
+    {
+      "fieldname": "tax_percent",
+      "fieldtype": "Percent",
+      "label": "Tax Rate (%)",
+      "default": 18.0
+    },
+    {
+      "fieldname": "final_amount",
+      "fieldtype": "Int",
+      "label": "Final Amount (paise)",
+      "default": 0
+    },
+    {
+      "fieldname": "payment_status",
+      "fieldtype": "Select",
+      "label": "Payment Status",
+      "options": "\npending\npaid\nfailed",
+      "default": "pending"
+    },
+    {
+      "fieldname": "razorpay_payment_id",
+      "fieldtype": "Data",
+      "label": "Razorpay Payment ID"
+    },
+    {
+      "fieldname": "payment_date",
+      "fieldtype": "Date",
+      "label": "Payment Date"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    }
+    ,
+    {
+      "fieldname": "retry_count",
+      "fieldtype": "Int",
+      "label": "Retry Count",
+      "default": 0
+    },
+    {
+      "fieldname": "next_retry_at",
+      "fieldtype": "Datetime",
+      "label": "Next Retry At"
+    },
+    {
+      "fieldname": "journal_entry",
+      "fieldtype": "Link",
+      "label": "Journal Entry",
+      "options": "Journal Entry"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "share": 1
+    },
+    {
+      "role": "Restaurant Admin",
+      "create": 0,
+      "read": 1,
+      "write": 0
+    }
+  ],
+  "document_type": "Master"
+}
+

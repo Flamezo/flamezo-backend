@@ -1,0 +1,151 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:MRL-{restaurant}-{month}",
+ "creation": "2026-02-20 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "month",
+  "column_break_1",
+  "total_gmv",
+  "total_platform_fee",
+  "section_break_minimum",
+  "minimum_due",
+  "status",
+  "column_break_minimum",
+  "payment_link_id",
+  "payment_link_url",
+  "section_break_dates",
+  "created_date",
+  "paid_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "month",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Month (YYYY-MM)",
+   "reqd": 1,
+   "description": "Month in YYYY-MM format (e.g., 2026-02)"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_gmv",
+   "fieldtype": "Int",
+   "label": "Total GMV (Paise)",
+   "default": "0",
+   "description": "Total Gross Merchandise Value in paise for the month"
+  },
+  {
+   "fieldname": "total_platform_fee",
+   "fieldtype": "Int",
+   "label": "Total Platform Fee (Paise)",
+   "default": "0",
+   "description": "Total platform fee collected in paise for the month"
+  },
+  {
+   "fieldname": "section_break_minimum",
+   "fieldtype": "Section Break",
+   "label": "Monthly Minimum"
+  },
+  {
+   "fieldname": "minimum_due",
+   "fieldtype": "Int",
+   "label": "Minimum Due (Paise)",
+   "default": "0",
+   "description": "Minimum fee due if platform fee < monthly minimum"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "pending\npaid\nwaived",
+   "default": "pending",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_minimum",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_link_id",
+   "fieldtype": "Data",
+   "label": "Payment Link ID",
+   "read_only": 1,
+   "description": "Razorpay payment link ID for minimum fee"
+  },
+  {
+   "fieldname": "payment_link_url",
+   "fieldtype": "Data",
+   "label": "Payment Link URL",
+   "read_only": 1,
+   "description": "Razorpay payment link URL for minimum fee"
+  },
+  {
+   "fieldname": "section_break_dates",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "created_date",
+   "fieldtype": "Date",
+   "label": "Created Date",
+   "default": "Today",
+   "read_only": 1
+  },
+  {
+   "fieldname": "paid_date",
+   "fieldtype": "Date",
+   "label": "Paid Date",
+   "read_only": 1,
+   "description": "Date when minimum fee was paid"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-02-20 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Monthly Revenue Ledger",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Admin"
+  }
+ ],
+ "sort_field": "month",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "autoname": "field:campaign_name",
+ "creation": "2026-04-07 05:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "campaign_name",
+  "restaurant",
+  "channel",
+  "status",
+  "column_break_1",
+  "target_segment",
+  "scheduled_at",
+  "sent_at",
+  "section_break_message",
+  "message_template",
+   "whatsapp_template_name",
+  "email_subject",
+  "column_break_coupon",
+  "include_coupon",
+  "coupon_code",
+  "section_break_stats",
+  "total_recipients",
+  "total_sent",
+  "total_failed",
+  "column_break_stats_2",
+  "total_cost_coins",
+  "total_conversions",
+  "revenue_attributed",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "campaign_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Campaign Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1
+  },
+  {
+   "default": "SMS",
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Channel",
+   "options": "SMS\nWhatsApp\nWhatsApp Cloud API\nEmail"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nScheduled\nSending\nSent\nFailed\nCancelled"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_segment",
+   "fieldtype": "Link",
+   "label": "Target Segment",
+   "options": "Marketing Segment",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scheduled_at",
+   "fieldtype": "Datetime",
+   "label": "Scheduled At",
+   "description": "Leave blank to send immediately on submit."
+  },
+  {
+   "fieldname": "sent_at",
+   "fieldtype": "Datetime",
+   "label": "Sent At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_message",
+   "fieldtype": "Section Break",
+   "label": "Message Content"
+  },
+  {
+   "fieldname": "message_template",
+   "fieldtype": "Long Text",
+   "label": "Message Body",
+   "description": "Supports variables: {{customer_name}}, {{restaurant_name}}, {{loyalty_balance}}, {{coupon_code}}",
+   "reqd": 1
+  },
+  {
+   "fieldname": "email_subject",
+   "fieldtype": "Data",
+   "label": "Email Subject Line",
+   "depends_on": "eval:doc.channel == 'Email'",
+   "description": "Subject line for Email campaigns. Required when channel is Email."
+  },
+  {
+   "fieldname": "column_break_coupon",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "include_coupon",
+   "fieldtype": "Check",
+   "label": "Attach Coupon?"
+  },
+  {
+   "depends_on": "eval:doc.include_coupon == 1",
+   "fieldname": "coupon_code",
+   "fieldtype": "Link",
+   "label": "Coupon Code",
+   "options": "Coupon"
+  },
+  {
+   "fieldname": "section_break_stats",
+   "fieldtype": "Section Break",
+   "label": "Campaign Statistics"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_recipients",
+   "fieldtype": "Int",
+   "label": "Total Recipients",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_sent",
+   "fieldtype": "Int",
+   "label": "Messages Sent",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_failed",
+   "fieldtype": "Int",
+   "label": "Messages Failed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_stats_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_cost_coins",
+   "fieldtype": "Float",
+   "label": "Total Cost (₹)",
+   "read_only": 1,
+   "description": "Total Amount deducted from wallet for this campaign."
+  },
+  {
+   "default": "0",
+   "fieldname": "total_conversions",
+   "fieldtype": "Int",
+   "label": "Total Conversions",
+   "read_only": 1,
+   "description": "Orders placed within 24h of receiving this campaign message."
+  },
+  {
+   "default": "0",
+   "fieldname": "revenue_attributed",
+   "fieldtype": "Float",
+   "label": "Revenue Attributed (\u20b9)",
+   "read_only": 1,
+   "description": "Total GMV from converted orders."
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Internal Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-07 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Marketing Campaign",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

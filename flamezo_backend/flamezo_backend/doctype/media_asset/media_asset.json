@@ -1,0 +1,351 @@
+{
+ "actions": [],
+ "autoname": "format:MED-{#####}",
+ "creation": "2026-03-06 11:30:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_identity",
+  "media_id",
+  "restaurant",
+  "owner_doctype",
+  "owner_name",
+  "column_break_identity",
+  "media_role",
+  "media_kind",
+  "visibility",
+  "section_source_metadata",
+  "source_filename",
+  "source_extension",
+  "source_mime_type",
+  "column_break_source",
+  "source_size_bytes",
+  "source_sha256",
+  "section_storage",
+  "storage_provider",
+  "bucket_name",
+  "raw_object_key",
+  "column_break_storage",
+  "primary_object_key",
+  "cdn_base_url",
+  "primary_url",
+  "section_processing",
+  "status",
+  "processing_attempts",
+  "last_error",
+  "column_break_processing",
+  "processed_at",
+  "is_active",
+  "is_deleted",
+  "section_render_metadata",
+  "width",
+  "height",
+  "duration_seconds",
+  "column_break_render",
+  "poster_url",
+  "blur_placeholder",
+  "section_display",
+  "alt_text",
+  "caption",
+  "display_order",
+  "section_variants",
+  "media_variants"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_identity",
+   "fieldtype": "Section Break",
+   "label": "Identity"
+  },
+  {
+   "fieldname": "media_id",
+   "fieldtype": "Data",
+   "label": "Media ID",
+   "read_only": 1,
+   "unique": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "owner_doctype",
+   "fieldtype": "Data",
+   "label": "Owner DocType",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "label": "Owner Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "media_role",
+   "fieldtype": "Select",
+   "label": "Media Role",
+   "options": "product_image\nproduct_video\nproduct_video_poster\ncategory_image\nhome_feature_image\nrestaurant_logo\nrestaurant_hero_video\nrestaurant_banner\nrestaurant_gallery_image\nrestaurant_config_logo\nrestaurant_config_hero_video\napple_touch_icon\nevent_image\noffer_image\nlegacy_hero_media\nlegacy_hero_fallback\nlegacy_footer_media\nlegacy_member_image\nlegacy_testimonial_avatar\nlegacy_testimonial_dish_image\nlegacy_gallery_image",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "media_kind",
+   "fieldtype": "Select",
+   "label": "Media Kind",
+   "options": "image\nvideo",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "visibility",
+   "fieldtype": "Select",
+   "label": "Visibility",
+   "options": "public\nprivate\nunlisted",
+   "default": "public"
+  },
+  {
+   "fieldname": "section_source_metadata",
+   "fieldtype": "Section Break",
+   "label": "Source Metadata"
+  },
+  {
+   "fieldname": "source_filename",
+   "fieldtype": "Data",
+   "label": "Source Filename"
+  },
+  {
+   "fieldname": "source_extension",
+   "fieldtype": "Data",
+   "label": "Source Extension"
+  },
+  {
+   "fieldname": "source_mime_type",
+   "fieldtype": "Data",
+   "label": "Source MIME Type"
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_size_bytes",
+   "fieldtype": "Int",
+   "label": "Source Size (Bytes)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "source_sha256",
+   "fieldtype": "Data",
+   "label": "Source SHA256"
+  },
+  {
+   "fieldname": "section_storage",
+   "fieldtype": "Section Break",
+   "label": "Storage"
+  },
+  {
+   "fieldname": "storage_provider",
+   "fieldtype": "Select",
+   "label": "Storage Provider",
+   "options": "cloudflare_r2\naws_s3",
+   "default": "cloudflare_r2"
+  },
+  {
+   "fieldname": "bucket_name",
+   "fieldtype": "Data",
+   "label": "Bucket Name"
+  },
+  {
+   "fieldname": "raw_object_key",
+   "fieldtype": "Data",
+   "label": "Raw Object Key"
+  },
+  {
+   "fieldname": "column_break_storage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "primary_object_key",
+   "fieldtype": "Data",
+   "label": "Primary Object Key"
+  },
+  {
+   "fieldname": "cdn_base_url",
+   "fieldtype": "Data",
+   "label": "CDN Base URL"
+  },
+  {
+   "fieldname": "primary_url",
+   "fieldtype": "Small Text",
+   "label": "Primary URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_processing",
+   "fieldtype": "Section Break",
+   "label": "Processing Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "pending_upload\nuploaded\nprocessing\nready\nfailed\ndeleted",
+   "default": "pending_upload",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "processing_attempts",
+   "fieldtype": "Int",
+   "label": "Processing Attempts",
+   "default": "0",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error"
+  },
+  {
+   "fieldname": "column_break_processing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "processed_at",
+   "fieldtype": "Datetime",
+   "label": "Processed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active",
+   "default": "1"
+  },
+  {
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_render_metadata",
+   "fieldtype": "Section Break",
+   "label": "Render Metadata"
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Int",
+   "label": "Width (px)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Int",
+   "label": "Height (px)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "duration_seconds",
+   "fieldtype": "Float",
+   "label": "Duration (seconds)",
+   "precision": 2
+  },
+  {
+   "fieldname": "column_break_render",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "poster_url",
+   "fieldtype": "Small Text",
+   "label": "Poster URL"
+  },
+  {
+   "fieldname": "blur_placeholder",
+   "fieldtype": "Small Text",
+   "label": "Blur Placeholder"
+  },
+  {
+   "fieldname": "section_display",
+   "fieldtype": "Section Break",
+   "label": "Display"
+  },
+  {
+   "fieldname": "alt_text",
+   "fieldtype": "Data",
+   "label": "Alt Text"
+  },
+  {
+   "fieldname": "caption",
+   "fieldtype": "Small Text",
+   "label": "Caption"
+  },
+  {
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Display Order",
+   "default": "0",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_variants",
+   "fieldtype": "Section Break",
+   "label": "Variants"
+  },
+  {
+   "fieldname": "media_variants",
+   "fieldtype": "Table",
+   "label": "Media Variants",
+   "options": "Media Variant"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-06 11:30:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Media Asset",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

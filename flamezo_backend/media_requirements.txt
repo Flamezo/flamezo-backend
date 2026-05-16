@@ -1,0 +1,12 @@
+# Media System Dependencies
+# Install with: bench --site [site-name] pip install -r apps/flamezo_backend/flamezo_backend/media_requirements.txt
+
+# AWS SDK for Cloudflare R2 (S3-compatible)
+boto3>=1.28.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Note: FFmpeg must be installed separately via system package manager
+# Ubuntu/Debian: sudo apt install ffmpeg
+# macOS: brew install ffmpeg

@@ -2,13 +2,13 @@
     "python.analysis.extraPaths": [
         "/home/frappe/frappe-bench/apps/frappe",
         "/home/frappe/frappe-bench/apps/erpnext",
-        "/home/frappe/frappe-bench/apps/dinematters",
+        "/home/frappe/frappe-bench/apps/flamezo_backend",
         "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
     ],
     "python.autoComplete.extraPaths": [
         "/home/frappe/frappe-bench/apps/frappe",
         "/home/frappe/frappe-bench/apps/erpnext",
-        "/home/frappe/frappe-bench/apps/dinematters",
+        "/home/frappe/frappe-bench/apps/flamezo_backend",
         "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
     ],
     "python.analysis.typeCheckingMode": "off",

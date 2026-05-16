@@ -1,0 +1,237 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:MIE-{####}",
+ "creation": "2025-12-03 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_upload",
+  "restaurant",
+  "restaurant_name",
+  "generate_descriptions",
+  "column_break_1",
+  "extraction_status",
+  "approval_status",
+  "section_break_images",
+  "menu_images",
+  "section_break_extraction",
+  "extract_button",
+  "generate_recommendations_button",
+  "section_break_extracted_data",
+  "extracted_dishes",
+  "section_break_results",
+  "extraction_log",
+  "items_created",
+  "categories_created",
+  "column_break_stats",
+  "extraction_date",
+  "processing_time",
+  "column_break_batch",
+  "total_batches",
+  "completed_batches",
+  "section_break_raw_response",
+  "raw_response",
+  "batch_results"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_upload",
+   "fieldtype": "Section Break",
+   "label": "Upload Information"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "description": "Select the restaurant for this menu extraction"
+  },
+  {
+   "fieldname": "restaurant_name",
+   "fieldtype": "Data",
+   "label": "Restaurant Name (Optional)",
+   "description": "Optional: Restaurant name for API extraction accuracy (auto-filled from Restaurant field)"
+  },
+  {
+   "default": "1",
+   "fieldname": "generate_descriptions",
+   "fieldtype": "Check",
+   "label": "Generate Descriptions Automatically",
+   "description": "Automatically generate premium descriptions for dishes missing descriptions"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "extraction_status",
+   "fieldtype": "Select",
+   "label": "Extraction Status",
+   "options": "Draft\nProcessing\nPending Approval\nCompleted\nFailed",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Pending\nApproved\nRejected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_images",
+   "fieldtype": "Section Break",
+   "label": "Menu Images"
+  },
+  {
+   "fieldname": "menu_images",
+   "fieldtype": "Table",
+   "label": "Menu Images",
+   "options": "Menu Image Item",
+   "reqd": 0,
+   "description": "Upload multiple menu images (PNG, JPEG, WebP). Maximum 20 images."
+  },
+  {
+   "fieldname": "section_break_extraction",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "extract_button",
+   "fieldtype": "Button",
+   "label": "Extract Menu Data"
+  },
+  {
+   "fieldname": "generate_recommendations_button",
+   "fieldtype": "Button",
+   "label": "Generate Recommendations",
+   "depends_on": "eval:doc.extraction_status == 'Completed'"
+  },
+  {
+   "fieldname": "section_break_extracted_data",
+   "fieldtype": "Section Break",
+   "label": "Extracted Data (Review and Edit Before Approval)",
+   "depends_on": "eval:doc.extraction_status == 'Pending Approval'"
+  },
+  {
+   "fieldname": "extracted_dishes",
+   "fieldtype": "Table",
+   "label": "Extracted Dishes",
+   "options": "Extracted Dish",
+   "depends_on": "eval:doc.extraction_status == 'Pending Approval'"
+  },
+  {
+   "fieldname": "section_break_results",
+   "fieldtype": "Section Break",
+   "label": "Extraction Results",
+   "depends_on": "eval:doc.extraction_status == 'Completed' || doc.extraction_status == 'Failed'"
+  },
+  {
+   "fieldname": "extraction_log",
+   "fieldtype": "Long Text",
+   "label": "Extraction Log",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "items_created",
+   "fieldtype": "Int",
+   "label": "Items Created",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "categories_created",
+   "fieldtype": "Int",
+   "label": "Categories Created",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_stats",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "extraction_date",
+   "fieldtype": "Datetime",
+   "label": "Extraction Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "processing_time",
+   "fieldtype": "Data",
+   "label": "Processing Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_batch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_batches",
+   "fieldtype": "Int",
+   "label": "Total Batches",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "completed_batches",
+   "fieldtype": "Int",
+   "label": "Completed Batches",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_raw_response",
+   "fieldtype": "Section Break",
+   "label": "Raw API Response"
+  },
+  {
+   "fieldname": "raw_response",
+   "fieldtype": "Code",
+   "label": "Raw Response",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "batch_results",
+   "fieldtype": "Code",
+   "label": "Batch Results (Internal)",
+   "options": "JSON",
+   "read_only": 1,
+   "hidden": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-03 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Menu Image Extractor",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
+
