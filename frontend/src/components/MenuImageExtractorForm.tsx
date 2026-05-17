@@ -66,19 +66,19 @@ export default function MenuImageExtractorForm({
     }
   )
 
-  const { call: insertDoc } = useFrappePostCall('dinematters.dinematters.api.documents.create_document')
-  const { call: updateDocument } = useFrappePostCall('dinematters.dinematters.api.documents.update_document')
+  const { call: insertDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.create_document')
+  const { call: updateDocument } = useFrappePostCall('flamezo_backend.flamezo.api.documents.update_document')
   
   const { call: extractMenuData } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.extract_menu_data'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.extract_menu_data'
   )
 
   const { call: getExtractionStatus } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.get_extraction_status'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.get_extraction_status'
   )
 
   const { call: approveExtraction } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
   )
 
   useEffect(() => {

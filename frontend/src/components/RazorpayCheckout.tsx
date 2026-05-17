@@ -64,11 +64,11 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
 
   // API calls
   const { call: createPaymentOrder } = useFrappePostCall<PaymentOrderResponse>(
-    'dinematters.dinematters.api.payments.create_payment_order'
+    'flamezo_backend.flamezo.api.payments.create_payment_order'
   );
 
   const { call: verifyPayment } = useFrappePostCall(
-    'dinematters.dinematters.api.payments.verify_payment'
+    'flamezo_backend.flamezo.api.payments.verify_payment'
   );
 
   // Load Razorpay script
@@ -130,7 +130,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
         key: key_id,
         amount: amount,
         currency: 'INR',
-        name: 'Dinematters',
+        name: 'Flamezo',
         description: `Order payment for ${restaurantId}`,
         order_id: razorpay_order_id,
         prefill: {

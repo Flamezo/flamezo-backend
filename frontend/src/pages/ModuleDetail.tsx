@@ -19,8 +19,8 @@ export default function ModuleDetail() {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
   const { selectedRestaurant } = useRestaurant()
-  const { call: getQrCodeUrl } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
-  const { call: generateQrCodes } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.generate_qr_codes_pdf')
+  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
+  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf')
 
   // Load QR code URL for Restaurant doctype
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function ModuleDetail() {
     }
   }, [doctype, docname, doc?.tables])
 
-  const { call: deleteDocApi } = useFrappePostCall('dinematters.dinematters.api.documents.delete_multiple_docs')
+  const { call: deleteDocApi } = useFrappePostCall('flamezo_backend.flamezo.api.documents.delete_multiple_docs')
 
   const handleDelete = async () => {
     const confirmed = await confirm({

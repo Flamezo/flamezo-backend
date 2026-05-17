@@ -92,7 +92,7 @@ export default function MarketingCampaigns() {
       searchQuery,
       setSearchQuery
   } = useDataTable({
-      customEndpoint: 'dinematters.dinematters.api.marketing.get_campaigns',
+      customEndpoint: 'flamezo_backend.flamezo.api.marketing.get_campaigns',
       customParams: {
           restaurant_id: selectedRestaurant,
           status_filter: statusFilter !== 'All' ? statusFilter : undefined
@@ -106,11 +106,11 @@ export default function MarketingCampaigns() {
       debugId: `campaigns-${selectedRestaurant}`
   })
 
-  const { call: fetchSegments } = useFrappePostCall('dinematters.dinematters.api.marketing.get_segments')
-  const { call: createCampaignApi } = useFrappePostCall('dinematters.dinematters.api.marketing.create_campaign')
-  const { call: sendCampaignApi } = useFrappePostCall('dinematters.dinematters.api.marketing.send_campaign')
-  const { call: deleteCampaignApi } = useFrappePostCall('dinematters.dinematters.api.marketing.delete_campaign')
-  const { call: cancelCampaignApi } = useFrappePostCall('dinematters.dinematters.api.marketing.cancel_campaign')
+  const { call: fetchSegments } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_segments')
+  const { call: createCampaignApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.create_campaign')
+  const { call: sendCampaignApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.send_campaign')
+  const { call: deleteCampaignApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.delete_campaign')
+  const { call: cancelCampaignApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.cancel_campaign')
 
   useEffect(() => {
     if (selectedRestaurant) {

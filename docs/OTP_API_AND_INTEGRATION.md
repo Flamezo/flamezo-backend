@@ -56,7 +56,7 @@ All endpoints: `@frappe.whitelist(allow_guest=True)` — no auth required.
 
 ### 2.1 Send OTP
 
-**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.send_otp`  
+**Endpoint:** `flamezo_backend.flamezo.api.otp.send_otp`  
 **Method:** POST
 
 #### Request Parameters
@@ -89,7 +89,7 @@ All endpoints: `@frappe.whitelist(allow_guest=True)` — no auth required.
 #### Example (cURL)
 
 ```bash
-curl -X POST "https://your-site.com/api/method/flamezo_backend.flamezo_backend.api.otp.send_otp" \
+curl -X POST "https://your-site.com/api/method/flamezo_backend.flamezo.api.otp.send_otp" \
   -H "Content-Type: application/json" \
   -d '{
     "restaurant_id": "unvind",
@@ -102,7 +102,7 @@ curl -X POST "https://your-site.com/api/method/flamezo_backend.flamezo_backend.a
 #### Example (JavaScript/fetch)
 
 ```javascript
-const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.send_otp', {
+const res = await fetch('/api/method/flamezo_backend.flamezo.api.otp.send_otp', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -119,7 +119,7 @@ const data = await res.json();
 
 ### 2.2 Verify OTP
 
-**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.verify_otp`  
+**Endpoint:** `flamezo_backend.flamezo.api.otp.verify_otp`  
 **Method:** POST
 
 #### Request Parameters
@@ -155,7 +155,7 @@ const data = await res.json();
 #### Example (JavaScript)
 
 ```javascript
-const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.verify_otp', {
+const res = await fetch('/api/method/flamezo_backend.flamezo.api.otp.verify_otp', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -173,7 +173,7 @@ const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.ver
 
 ### 2.3 Check Verified
 
-**Endpoint:** `flamezo_backend.flamezo_backend.api.otp.check_verified`  
+**Endpoint:** `flamezo_backend.flamezo.api.otp.check_verified`  
 **Method:** POST or GET
 
 #### Request Parameters
@@ -203,13 +203,13 @@ or
 #### Example (GET)
 
 ```
-GET /api/method/flamezo_backend.flamezo_backend.api.otp.check_verified?phone=7487871213
+GET /api/method/flamezo_backend.flamezo.api.otp.check_verified?phone=7487871213
 ```
 
 #### Example (POST)
 
 ```javascript
-const res = await fetch('/api/method/flamezo_backend.flamezo_backend.api.otp.check_verified', {
+const res = await fetch('/api/method/flamezo_backend.flamezo.api.otp.check_verified', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ phone: phone })
@@ -260,7 +260,7 @@ Your {restaurant_name} verification code is: {otp}. Don't share this code with a
 
 - Restaurant name truncated to 25 chars
 - Single-line (no newlines) for better delivery
-- Fallback label: `DineMatters` if `restaurant_name` not provided
+- Fallback label: `Flamezo` if `restaurant_name` not provided
 
 ---
 
@@ -491,15 +491,15 @@ Frontend should show OTP flow when this is returned.
 
 ```bash
 # Send OTP (costs ₹5 with Quick route — use sparingly)
-bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.send_otp" \
+bench --site your-site execute "flamezo_backend.flamezo.api.otp.send_otp" \
   --args '["unvind","7487871213"]'
 
 # Verify (use OTP from SMS + token from send response)
-bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.verify_otp" \
+bench --site your-site execute "flamezo_backend.flamezo.api.otp.verify_otp" \
   --args '["unvind","7487871213","1234","<TOKEN>","Test User"]'
 
 # Check verified
-bench --site your-site execute "flamezo_backend.flamezo_backend.api.otp.check_verified" \
+bench --site your-site execute "flamezo_backend.flamezo.api.otp.check_verified" \
   --args '["7487871213"]'
 ```
 

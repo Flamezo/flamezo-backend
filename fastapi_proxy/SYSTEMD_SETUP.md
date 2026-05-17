@@ -35,7 +35,7 @@ Paste this content:
 
 ```ini
 [Unit]
-Description=DineMatters FastAPI Proxy
+Description=Flamezo FastAPI Proxy
 After=network.target
 
 [Service]

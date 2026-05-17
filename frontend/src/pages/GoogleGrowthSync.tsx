@@ -21,7 +21,7 @@ export default function GoogleGrowthSync() {
     limit: 1000
   }, selectedRestaurant || '')
 
-  const { call: syncMenu } = useFrappePostCall('dinematters.dinematters.api.google_business.sync_menu_to_google')
+  const { call: syncMenu } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.sync_menu_to_google')
 
   const handleSync = async () => {
     if (!isGold) {

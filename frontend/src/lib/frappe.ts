@@ -1,4 +1,4 @@
-// Frappe SDK utilities for dinematters
+// Frappe SDK utilities for flamezo_backend
 import { 
   useFrappeGetDocList, 
   useFrappeGetDoc,

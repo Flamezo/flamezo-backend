@@ -1,7 +1,7 @@
 """
 Restaurant Routes
 
-Maps to: flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.*
+Maps to: flamezo_backend.flamezo.doctype.restaurant.restaurant.*
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -49,7 +49,7 @@ class GetTableQrAssetsRequest(BaseModel):
 
 # Route Implementations
 
-@router.post("/flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.generate_qr_codes_pdf")
+@router.post("/flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf")
 async def generate_qr_codes_pdf(
 	request: GenerateQRCodesPdfRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -57,7 +57,7 @@ async def generate_qr_codes_pdf(
 	"""
 	Generate QR codes PDF for restaurant tables
 	
-	Mirrors: flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.generate_qr_codes_pdf
+	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf
 	Type: WRITE
 	Cache: No
 	"""
@@ -65,7 +65,7 @@ async def generate_qr_codes_pdf(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.generate_qr_codes_pdf",
+			"flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -79,7 +79,7 @@ async def generate_qr_codes_pdf(
 		)
 
 
-@router.post("/flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_table_qr_assets")
+@router.post("/flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets")
 async def get_table_qr_assets(
 	request: GetTableQrAssetsRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -87,7 +87,7 @@ async def get_table_qr_assets(
 	"""
 	Get branded SVG and PNG QR assets for restaurant tables
 	
-	Mirrors: flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_table_qr_assets
+	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets
 	Type: READ
 	Cache: Yes (60s)
 	"""
@@ -95,7 +95,7 @@ async def get_table_qr_assets(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_table_qr_assets",
+			"flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -109,7 +109,7 @@ async def get_table_qr_assets(
 		)
 
 
-@router.post("/flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_qr_codes_pdf_url")
+@router.post("/flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url")
 async def get_qr_codes_pdf_url(
 	request: GetQRCodesPdfUrlRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -117,7 +117,7 @@ async def get_qr_codes_pdf_url(
 	"""
 	Get QR codes PDF URL for restaurant
 	
-	Mirrors: flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_qr_codes_pdf_url
+	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url
 	Type: READ
 	Cache: Yes (60s)
 	"""
@@ -125,7 +125,7 @@ async def get_qr_codes_pdf_url(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.get_qr_codes_pdf_url",
+			"flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url",
 			data=request.dict(),
 			http_method="POST"
 		)

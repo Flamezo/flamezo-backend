@@ -39,8 +39,8 @@ export default function MarketingAnalytics() {
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const { call: fetchCampaigns } = useFrappePostCall('dinematters.dinematters.api.marketing.get_campaigns')
-  const { call: fetchAnalytics } = useFrappePostCall('dinematters.dinematters.api.marketing.get_campaign_analytics')
+  const { call: fetchCampaigns } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_campaigns')
+  const { call: fetchAnalytics } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_campaign_analytics')
 
   useEffect(() => {
     if (!selectedRestaurant) return

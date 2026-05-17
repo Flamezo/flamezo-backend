@@ -102,8 +102,8 @@ export default function LegacyContentPage() {
   const { call: createDoc, loading: isCreating } = useFrappePostCall('frappe.client.insert')
   const { updateDoc, loading: isUpdating } = useFrappeUpdateDoc()
   const { deleteDoc } = useFrappeDeleteDoc()
-  const { call: updateLegacyContent, loading: isUpdatingLegacy } = useFrappePostCall('dinematters.dinematters.api.legacy.update_legacy_content')
-  const { call: generateLegacyContent, loading: isGenerating } = useFrappePostCall('dinematters.dinematters.api.legacy.generate_legacy_content')
+  const { call: updateLegacyContent, loading: isUpdatingLegacy } = useFrappePostCall('flamezo_backend.flamezo.api.legacy.update_legacy_content')
+  const { call: generateLegacyContent, loading: isGenerating } = useFrappePostCall('flamezo_backend.flamezo.api.legacy.generate_legacy_content')
 
   const handleGenerateLegacy = async () => {
     try {

@@ -27,7 +27,7 @@ export function UpgradeButton({ size = 'md', variant = 'primary', className = ''
   return (
     <button
       onClick={() => {
-        window.location.href = '/dinematters/autopay-setup';
+        window.location.href = '/flamezo_backend/autopay-setup';
       }}
       className={`
         inline-flex items-center gap-2 font-semibold rounded-lg transition-all

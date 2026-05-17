@@ -70,7 +70,7 @@ export function usePlanType(restaurantId?: string) {
     async function fetchPlan() {
       try {
         setLoading(true);
-        const response = await fetch('/api/method/dinematters.api.subscription.get_restaurant_plan', {
+        const response = await fetch('/api/method/flamezo_backend.api.subscription.get_restaurant_plan', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

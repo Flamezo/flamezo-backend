@@ -392,7 +392,7 @@ export default function Dashboard() {
   }) || []
   
   // Real-time Analytics Summary
-  const { data: analytics } = useFrappeGetCall('dinematters.dinematters.api.analytics.get_dashboard_summary', {
+  const { data: analytics } = useFrappeGetCall('flamezo_backend.flamezo.api.analytics.get_dashboard_summary', {
     restaurant_id: selectedRestaurant
   }, selectedRestaurant ? `analytics-dashboard-${selectedRestaurant}` : null)
 
@@ -928,7 +928,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-2xl font-black tracking-tight mb-2">Refer & Earn ₹500</h2>
               <p className="text-indigo-100/80 text-sm leading-relaxed">
-                Grow your network and get rewarded for every restaurant you bring to DineMatters.
+                Grow your network and get rewarded for every restaurant you bring to Flamezo.
               </p>
             </div>
           </div>
@@ -1000,7 +1000,7 @@ export default function Dashboard() {
             <Button 
               className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 flex-1 shadow-lg shadow-emerald-500/20 font-bold"
               onClick={() => {
-                const text = `Hey! I'm using DineMatters for my restaurant and it's amazing. Use my referral code *${referralCode}* to get ₹500 bonus on your first recharge. Register at: https://dinematters.com`
+                const text = `Hey! I'm using Flamezo for my restaurant and it's amazing. Use my referral code *${referralCode}* to get ₹500 bonus on your first recharge. Register at: https://flamezo_backend.com`
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
               }}
             >

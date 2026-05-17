@@ -10,8 +10,8 @@ export default defineConfig(({ command, mode }) => {
 	
 	return {
 		plugins: [react(), tailwindcss()],
-		// Use /dinematters/ for dev, /assets/dinematters/dinematters/ for build
-		base: isDev ? '/dinematters/' : '/assets/dinematters/dinematters/',
+		// Use /flamezo_backend/ for dev, /assets/flamezo_backend/flamezo_backend/ for build
+		base: isDev ? '/flamezo_backend/' : '/assets/flamezo_backend/flamezo_backend/',
 		server: {
 			port: 8081,
 			host: '0.0.0.0',
@@ -26,7 +26,7 @@ export default defineConfig(({ command, mode }) => {
 			}
 		},
 		build: {
-			outDir: '../dinematters/public/dinematters',
+			outDir: '../flamezo_backend/public/flamezo_backend',
 			emptyOutDir: true,
 			target: 'esnext', // Use ESNext for better tree-shaking support
 			minify: 'esbuild',

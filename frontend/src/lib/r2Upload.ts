@@ -39,7 +39,7 @@ export async function uploadToR2(options: R2UploadOptions): Promise<ConfirmUploa
 
   try {
     // Step 1: Request upload session
-    const sessionRes = await fetch('/api/method/dinematters.dinematters.media.api.request_upload_session', {
+    const sessionRes = await fetch('/api/method/flamezo_backend.flamezo.media.api.request_upload_session', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -86,7 +86,7 @@ export async function uploadToR2(options: R2UploadOptions): Promise<ConfirmUploa
 
 
     // Step 3: Confirm upload (creates Media Asset + enqueues processing)
-    const confirmRes = await fetch('/api/method/dinematters.dinematters.media.api.confirm_upload', {
+    const confirmRes = await fetch('/api/method/flamezo_backend.flamezo.media.api.confirm_upload', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

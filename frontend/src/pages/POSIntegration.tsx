@@ -43,7 +43,7 @@ export default function POSIntegration() {
   const { selectedRestaurant } = useRestaurant();
   const { data: restaurant, mutate } = useFrappeGetDoc('Restaurant', selectedRestaurant || '');
   const { updateDoc, loading: updating } = useFrappeUpdateDoc();
-  const { call: syncMenu, loading: syncing } = useFrappePostCall('dinematters.dinematters.api.pos.sync_menu');
+  const { call: syncMenu, loading: syncing } = useFrappePostCall('flamezo_backend.flamezo.api.pos.sync_menu');
 
   const [provider, setProvider] = useState<string>(restaurant?.pos_provider || 'Petpooja');
   const [enabled, setEnabled] = useState<boolean>(!!restaurant?.pos_enabled);
@@ -398,7 +398,7 @@ export default function POSIntegration() {
               Sync Menu from Petpooja
             </DialogTitle>
             <DialogDescription>
-              Petpooja uses a <strong>push-based</strong> menu sync. Your menu is sent from the Petpooja POS — not pulled by DineMatters.
+              Petpooja uses a <strong>push-based</strong> menu sync. Your menu is sent from the Petpooja POS — not pulled by Flamezo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -407,7 +407,7 @@ export default function POSIntegration() {
                 'Open your Petpooja POS tablet or the Petpooja dashboard.',
                 'Go to Menu Management.',
                 'Click the Push Menu button.',
-                'Petpooja will send your full menu to DineMatters automatically.',
+                'Petpooja will send your full menu to Flamezo automatically.',
                 'Your categories and products will update within seconds.',
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm">

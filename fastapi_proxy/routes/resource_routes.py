@@ -2,7 +2,7 @@
 Resource API Routes
 
 Maps to: /api/resource/*
-These routes map to wrapper methods in flamezo_backend.flamezo_backend.api.documents
+These routes map to wrapper methods in flamezo_backend.flamezo.api.documents
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -45,7 +45,7 @@ async def resource_get_list(
 ):
 	"""
 	GET /api/resource/{doctype} - Get list of documents
-	Maps to: flamezo_backend.flamezo_backend.api.documents.get_doc_list
+	Maps to: flamezo_backend.flamezo.api.documents.get_doc_list
 	
 	Type: READ
 	Cache: Yes (depends on doctype - see caching rules)
@@ -83,7 +83,7 @@ async def resource_get_list(
 			data["order_by"] = order_by
 		
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.documents.get_doc_list",
+			"flamezo_backend.flamezo.api.documents.get_doc_list",
 			data=data,
 			http_method="POST"
 		)
@@ -105,7 +105,7 @@ async def resource_get_doc(
 ):
 	"""
 	GET /api/resource/{doctype}/{name} - Get a single document
-	Maps to: flamezo_backend.flamezo_backend.api.documents.get_doc
+	Maps to: flamezo_backend.flamezo.api.documents.get_doc
 	
 	Type: READ
 	Cache: No (user-specific, real-time data)
@@ -114,7 +114,7 @@ async def resource_get_doc(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.documents.get_doc",
+			"flamezo_backend.flamezo.api.documents.get_doc",
 			data={
 				"doctype": doctype,
 				"name": name
@@ -140,7 +140,7 @@ async def resource_update_doc(
 ):
 	"""
 	PUT /api/resource/{doctype}/{name} - Update a document
-	Maps to: flamezo_backend.flamezo_backend.api.documents.update_document
+	Maps to: flamezo_backend.flamezo.api.documents.update_document
 	
 	Type: WRITE
 	Cache: No
@@ -149,7 +149,7 @@ async def resource_update_doc(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.documents.update_document",
+			"flamezo_backend.flamezo.api.documents.update_document",
 			data={
 				"doctype": doctype,
 				"name": name,
@@ -175,7 +175,7 @@ async def resource_delete_doc(
 ):
 	"""
 	DELETE /api/resource/{doctype}/{name} - Delete a document
-	Maps to: flamezo_backend.flamezo_backend.api.documents.delete_doc
+	Maps to: flamezo_backend.flamezo.api.documents.delete_doc
 	
 	Type: WRITE
 	Cache: No
@@ -184,7 +184,7 @@ async def resource_delete_doc(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.documents.delete_doc",
+			"flamezo_backend.flamezo.api.documents.delete_doc",
 			data={
 				"doctype": doctype,
 				"name": name

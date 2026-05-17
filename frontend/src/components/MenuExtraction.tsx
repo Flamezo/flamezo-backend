@@ -50,11 +50,11 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
   )
 
   const { call: extractMenuData } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.extract_menu_data'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.extract_menu_data'
   )
 
   const { call: approveExtraction } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
   )
 
   // Auto-select latest extraction if none selected

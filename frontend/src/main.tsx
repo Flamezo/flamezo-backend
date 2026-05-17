@@ -28,7 +28,7 @@ function initApp() {
 }
 
 if (import.meta.env.DEV) {
-  fetch('/api/method/dinematters.www.dinematters.get_context_for_dev', {
+  fetch('/api/method/flamezo_backend.www.flamezo_backend.get_context_for_dev', {
     method: 'POST',
   })
     .then(response => response.json())

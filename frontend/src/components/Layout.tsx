@@ -44,10 +44,10 @@ function UserProfileDropdown() {
     try {
       await logout()
       // Full page reload clears cache and ensures session is gone
-      window.location.replace('/dinematters/login')
+      window.location.replace('/flamezo_backend/login')
     } catch {
       // Still redirect on error so user can retry
-      window.location.replace('/dinematters/login')
+      window.location.replace('/flamezo_backend/login')
     }
   }
 
@@ -97,7 +97,7 @@ function UserProfileDropdown() {
   )
 }
 
-const SIDEBAR_GROUPS_KEY = 'dinematters_sidebar_groups_open'
+const SIDEBAR_GROUPS_KEY = 'flamezo_backend_sidebar_groups_open'
 
 type NavLink = { type: 'link'; name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeHref?: string; feature?: string; adminOnly?: boolean }
 type NavGroup = {
@@ -228,7 +228,7 @@ export default function Layout({ children }: LayoutProps) {
   // Admin access state - system admin (Administrator) for Restaurant Management nav
   const [isSystemAdmin, setIsSystemAdmin] = useState(false)
   const { data: platformSettingsResp } = useFrappeGetCall<{ success: boolean; data: any }>(
-    'dinematters.dinematters.api.admin.get_platform_settings',
+    'flamezo_backend.flamezo.api.admin.get_platform_settings',
     {},
     'platform-settings-global'
   )
@@ -328,19 +328,19 @@ export default function Layout({ children }: LayoutProps) {
 
   // API calls
   const { call: createRestaurant } = useFrappePostCall('frappe.client.insert')
-  const { call: onboardOwner } = useFrappePostCall<{ success: boolean; message?: string; data?: { email_sent: boolean; onboard_link?: string } }>('dinematters.dinematters.api.admin.admin_onboard_restaurant_owner')
-  const { call: createPaymentLink } = useFrappePostCall<{ success: boolean; payment_link_url?: string; amount?: number; owner_phone?: string; error?: string }>('dinematters.dinematters.api.admin.admin_create_wallet_payment_link')
+  const { call: onboardOwner } = useFrappePostCall<{ success: boolean; message?: string; data?: { email_sent: boolean; onboard_link?: string } }>('flamezo_backend.flamezo.api.admin.admin_onboard_restaurant_owner')
+  const { call: createPaymentLink } = useFrappePostCall<{ success: boolean; payment_link_url?: string; amount?: number; owner_phone?: string; error?: string }>('flamezo_backend.flamezo.api.admin.admin_create_wallet_payment_link')
 
 
   useEffect(() => {
     // Wait for currentUser to be loaded
     if (!currentUser) return;
 
-    // Check for Administrator or DineMatters Supervisor or System Manager role
+    // Check for Administrator or Flamezo Supervisor or System Manager role
     const win = window as any
     const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
     
-    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const isSupervisor = userRoles.includes('Flamezo Supervisor')
     const hasSystemManager = userRoles.includes('System Manager')
     const isRootAdmin = currentUser === 'Administrator'
 
@@ -450,7 +450,7 @@ export default function Layout({ children }: LayoutProps) {
               const phone = normalizePhone(owner_phone || newRestaurantData.owner_phone || '')
 
               const waText = encodeURIComponent(
-                `Hi! 👋 Welcome to DineMatters.\n\n` +
+                `Hi! 👋 Welcome to Flamezo.\n\n` +
                 `To activate your *${paymentTier}* plan, please complete your wallet top-up of *₹${amount.toLocaleString()}* (Incl. 18% GST) using the secure payment link below:\n\n` +
                 `💳 ${payment_link_url}\n\n` +
                 `Once paid, your wallet will be automatically credited and you're good to go! 🚀`
@@ -1239,7 +1239,7 @@ export default function Layout({ children }: LayoutProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const baseUrl = restaurantDoc?.base_url || 'https://app.dinematters.com/'
+                    const baseUrl = restaurantDoc?.base_url || 'https://backend.flamezo.in/'
                     const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }}
@@ -1275,7 +1275,7 @@ export default function Layout({ children }: LayoutProps) {
             {showExpanded ? (
               <div className="flex items-center justify-between gap-3">
                 <p className="text-base italic text-red-500 dark:text-red-400 font-light flex-1">
-                  By Dinematters
+                  By Flamezo
                 </p>
                 {/* Animated Theme Switch - Expanded */}
                 <button
@@ -1313,7 +1313,7 @@ export default function Layout({ children }: LayoutProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const baseUrl = restaurantDoc?.base_url || 'https://app.dinematters.com/'
+                      const baseUrl = restaurantDoc?.base_url || 'https://backend.flamezo.in/'
                       const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
                       window.open(url, '_blank', 'noopener,noreferrer')
                     }}
@@ -1598,7 +1598,7 @@ export default function Layout({ children }: LayoutProps) {
                   <ShieldAlert className="h-16 w-16 text-rose-500 mb-6" />
                   <h1 className="text-2xl font-bold mb-3">Restaurant Deactivated</h1>
                   <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                    Your Dinematters is deactivated due to security reason (something like production application) for that restaurant where nothing is accessible.
+                    Your Flamezo is deactivated due to security reason (something like production application) for that restaurant where nothing is accessible.
                   </p>
                   <p className="text-xs text-muted-foreground/60">
                     Please select another active restaurant from the top header or visit your <Link to="/account" className="text-primary underline">Account</Link> tab.
@@ -1954,7 +1954,7 @@ export default function Layout({ children }: LayoutProps) {
         </DialogContent>
       </Dialog>
 
-      {/* DineMatters Wallet Top-up Modal — triggered from top bar chip */}
+      {/* Flamezo Wallet Top-up Modal — triggered from top bar chip */}
       {selectedRestaurant && (
         <AiRechargeModal
           open={showTopBarRecharge}

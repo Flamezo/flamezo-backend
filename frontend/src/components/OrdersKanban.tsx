@@ -383,8 +383,8 @@ function DroppableStatusColumn({
 
 export function OrdersKanban({ orders, onCheckOrder, onOrderUpdate, onCancelOrder, onBilledOrder, restaurantTables }: OrdersKanbanProps) {
   const { formatAmountNoDecimals } = useCurrency()
-  const { call } = useFrappePostCall('dinematters.dinematters.api.order_status.update_status')
-  const { call: updateTableNumber } = useFrappePostCall('dinematters.dinematters.api.order_status.update_table_number')
+  const { call } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_status')
+  const { call: updateTableNumber } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_table_number')
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   

@@ -4,10 +4,10 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
-flamezo_backend.flamezo_backend.patches.sync_primary_color_from_palette
-flamezo_backend.flamezo_backend.patches.add_otp_and_customer_schema
-flamezo_backend.flamezo_backend.patches.sync_mobile_no_to_phone
-flamezo_backend.flamezo_backend.patches.initialize_ai_credits
-flamezo_backend.flamezo_backend.patches.add_referral_visit_unique_index
-flamezo_backend.flamezo_backend.patches.set_indian_timezone
+flamezo_backend.flamezo.patches.sync_primary_color_from_palette
+flamezo_backend.flamezo.patches.add_otp_and_customer_schema
+flamezo_backend.flamezo.patches.sync_mobile_no_to_phone
+flamezo_backend.flamezo.patches.initialize_ai_credits
+flamezo_backend.flamezo.patches.add_referral_visit_unique_index
+flamezo_backend.flamezo.patches.set_indian_timezone
 

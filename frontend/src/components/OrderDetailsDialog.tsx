@@ -118,11 +118,11 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
     Self: { color: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900', icon: <User className="w-3 h-3" /> },
   }[logisticsProvider]
 
-  const { call: assignDeliveryAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.assign_delivery')
-  const { call: cancelDeliveryAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.cancel_delivery')
-  const { call: updateOrderItemsAPI } = useFrappePostCall('dinematters.dinematters.api.orders.update_order_items')
-  const { call: updateDeliveryInfoAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.update_delivery_info')
-  const { call: markSelfDeliveryStatusAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.mark_self_delivery_status')
+  const { call: assignDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.assign_delivery')
+  const { call: cancelDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.cancel_delivery')
+  const { call: updateOrderItemsAPI } = useFrappePostCall('flamezo_backend.flamezo.api.orders.update_order_items')
+  const { call: updateDeliveryInfoAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.update_delivery_info')
+  const { call: markSelfDeliveryStatusAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.mark_self_delivery_status')
 
   // Product List for Search
   const { data: allProductsData } = useFrappeGetDocList(

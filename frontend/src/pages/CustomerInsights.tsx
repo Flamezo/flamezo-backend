@@ -34,12 +34,12 @@ export default function CustomerInsights() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const { call: getInsights } = useFrappePostCall('dinematters.dinematters.api.loyalty.get_customer_insights')
-  const { call: adjustPoints } = useFrappePostCall('dinematters.dinematters.api.loyalty.adjust_customer_points')
-  const { call: getTransactions } = useFrappePostCall('dinematters.dinematters.api.loyalty.get_customer_transactions')
+  const { call: getInsights } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.get_customer_insights')
+  const { call: adjustPoints } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.adjust_customer_points')
+  const { call: getTransactions } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.get_customer_transactions')
   const { restaurantConfig, isSilver, planType } = useRestaurant()
 
-  const { call: unlockCustomerApi } = useFrappePostCall('dinematters.dinematters.api.customers.unlock_customer_data')
+  const { call: unlockCustomerApi } = useFrappePostCall('flamezo_backend.flamezo.api.customers.unlock_customer_data')
 
   const handleUnlockCustomer = async (customerId: string) => {
     try {

@@ -54,7 +54,7 @@ export default function OrderSettings() {
     }
   }, [restaurantDoc])
 
-  const { call: updateSettings } = useFrappePostCall<{ success: boolean, data: any }>('dinematters.dinematters.api.config.update_order_settings')
+  const { call: updateSettings } = useFrappePostCall<{ success: boolean, data: any }>('flamezo_backend.flamezo.api.config.update_order_settings')
 
   const handleSave = async () => {
     if (!selectedRestaurant) return

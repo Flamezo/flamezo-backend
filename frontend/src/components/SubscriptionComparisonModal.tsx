@@ -42,7 +42,7 @@ export function SubscriptionComparisonModal({
     { name: 'QR Menu (HQ Photos)', silver: 'Standard', gold: 'Unlimited HQ' },
     { name: 'Online Ordering via QR', silver: true, gold: true },
     { name: 'Loyalty Rewards (Earn & Redeem)', silver: true, gold: true },
-    { name: 'Listed on DineMatters Club', silver: true, gold: true },
+    { name: 'Listed on Flamezo Club', silver: true, gold: true },
     { name: 'Image Storage Limit', silver: '200', gold: 'Unlimited' },
     { name: 'Video Menu & Stories', silver: false, gold: true },
     { name: 'Custom QR Logo (Branding)', silver: false, gold: 'Own Brand' },

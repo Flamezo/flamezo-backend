@@ -67,7 +67,7 @@ export function LockedFeature({ feature }: LockedFeatureProps) {
       <div className="grid grid-cols-1 gap-4 w-full max-w-sm">
         <button
           onClick={() => {
-            window.location.href = '/dinematters/autopay-setup';
+            window.location.href = '/flamezo_backend/autopay-setup';
           }}
           className={`w-full px-8 py-4 ${isGoldOnly ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-gray-900 hover:bg-black'} text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center justify-center space-x-2`}
         >

@@ -34,8 +34,8 @@ export function OTPVerification({
   const [verifying, setVerifying] = useState(false)
   const [cooldown, setCooldown] = useState(0)
 
-  const { call: sendOtp } = useFrappePostCall('dinematters.dinematters.api.otp.send_otp')
-  const { call: verifyOtp } = useFrappePostCall('dinematters.dinematters.api.otp.verify_otp')
+  const { call: sendOtp } = useFrappePostCall('flamezo_backend.flamezo.api.otp.send_otp')
+  const { call: verifyOtp } = useFrappePostCall('flamezo_backend.flamezo.api.otp.verify_otp')
 
   // Cooldown timer
   useEffect(() => {

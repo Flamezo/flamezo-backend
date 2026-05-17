@@ -29,7 +29,7 @@ export default function Breadcrumb() {
 
   // Generate breadcrumb items based on current path
   const getBreadcrumbs = (): BreadcrumbItem[] => {
-    const path = location.pathname.replace('/dinematters', '') || '/dashboard'
+    const path = location.pathname.replace('/flamezo_backend', '') || '/dashboard'
     const segments = path.split('/').filter(Boolean)
     
     const breadcrumbs: BreadcrumbItem[] = [

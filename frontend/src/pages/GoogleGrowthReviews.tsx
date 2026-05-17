@@ -17,9 +17,9 @@ export default function GoogleGrowthReviews() {
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
   const [replies, setReplies] = useState<Record<string, string>>({})
 
-  const { call: fetchReviews } = useFrappePostCall('dinematters.dinematters.api.google_business.get_google_reviews')
-  const { call: generateReply } = useFrappePostCall('dinematters.dinematters.api.google_business.generate_review_reply')
-  const { call: postReply } = useFrappePostCall('dinematters.dinematters.api.google_business.post_review_reply')
+  const { call: fetchReviews } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.get_google_reviews')
+  const { call: generateReply } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.generate_review_reply')
+  const { call: postReply } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.post_review_reply')
 
   useEffect(() => {
     if (selectedRestaurant) {

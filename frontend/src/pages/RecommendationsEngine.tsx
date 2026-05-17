@@ -62,17 +62,17 @@ export default function RecommendationsEngine() {
     isLoading,
     mutate
   } = useFrappeGetCall<RecommendationsResponse>(
-    'dinematters.dinematters.api.recommendations.get_recommendations_tree',
+    'flamezo_backend.flamezo.api.recommendations.get_recommendations_tree',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `recommendations-tree-${selectedRestaurant}` : null
   )
 
   const { call: runEngine, loading: running } = useFrappePostCall(
-    'dinematters.dinematters.api.recommendations.run_recommendation_engine'
+    'flamezo_backend.flamezo.api.recommendations.run_recommendation_engine'
   )
 
   const { call: updateRecs, loading: updating } = useFrappePostCall(
-    'dinematters.dinematters.api.recommendations.update_product_recommendations'
+    'flamezo_backend.flamezo.api.recommendations.update_product_recommendations'
   )
 
   const { data: allProductsData } = useFrappeGetDocList(

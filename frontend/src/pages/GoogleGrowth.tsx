@@ -21,8 +21,8 @@ export default function GoogleGrowth() {
     enabled: !!selectedRestaurant
   })
 
-  const { call: fetchInsights } = useFrappePostCall('dinematters.dinematters.api.google_business.fetch_google_insights')
-  const { call: getAuthUrl } = useFrappePostCall('dinematters.dinematters.api.google_business.get_google_auth_url')
+  const { call: fetchInsights } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.fetch_google_insights')
+  const { call: getAuthUrl } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.get_google_auth_url')
 
   useEffect(() => {
     if (selectedRestaurant) {

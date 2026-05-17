@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Restaurant Onboarding | DineMatters</title>
+    <title>Restaurant Onboarding | Flamezo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -423,7 +423,7 @@
     <aside class="sidebar">
         <div class="logo-container">
             <span class="logo-icon">🍽️</span>
-            <span class="logo-text">DineMatters</span>
+            <span class="logo-text">Flamezo</span>
         </div>
         
         <ul class="step-list">
@@ -735,7 +735,7 @@
                 <div class="success-screen">
                     <div class="success-icon">✓</div>
                     <h1>Submission Successful!</h1>
-                    <p>Thank you for providing your details. Our team at DineMatters will now review your information and set up your portal. You will receive a confirmation shortly.</p>
+                    <p>Thank you for providing your details. Our team at Flamezo will now review your information and set up your portal. You will receive a confirmation shortly.</p>
                 </div>
             </div>
 
@@ -769,7 +769,7 @@
 
         async function fetchDetails() {
             try {
-                const response = await fetch(`/api/method/flamezo_backend.flamezo_backend.api.onboarding.get_onboarding_details?token=${onboardingToken}`);
+                const response = await fetch(`/api/method/flamezo_backend.flamezo.api.onboarding.get_onboarding_details?token=${onboardingToken}`);
                 const result = await response.json();
                 
                 if (result.message && result.message.success) {
@@ -877,7 +877,7 @@
             });
 
             try {
-                const response = await fetch('/api/method/flamezo_backend.flamezo_backend.api.onboarding.submit_onboarding_data', {
+                const response = await fetch('/api/method/flamezo_backend.flamezo.api.onboarding.submit_onboarding_data', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
@@ -1010,7 +1010,7 @@
             formData.append('token', onboardingToken);
 
             try {
-                const response = await fetch('/api/method/flamezo_backend.flamezo_backend.api.onboarding.upload_onboarding_media', {
+                const response = await fetch('/api/method/flamezo_backend.flamezo.api.onboarding.upload_onboarding_media', {
                     method: 'POST',
                     headers: { 'X-Frappe-CSRF-Token': window.csrf_token },
                     body: formData

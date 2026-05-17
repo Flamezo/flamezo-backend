@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
-import loginImage from '/images/login-dinematters.webp'
+import loginImage from '/images/login-flamezo_backend.webp'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
@@ -55,7 +55,7 @@ export default function ForgotPassword() {
         <div className="absolute inset-0 bg-gradient-to-tr from-primary/40 to-transparent z-10 mix-blend-overlay" />
         <img
           src={loginImage}
-          alt="Dinematters Hub"
+          alt="Flamezo Hub"
           className="absolute inset-0 h-full w-full object-cover grayscale-[20%] brightness-90 hover:scale-105 transition-transform duration-[10s]"
         />
         <div className="absolute bottom-12 left-12 z-20 max-w-md">
@@ -149,7 +149,7 @@ export default function ForgotPassword() {
 
           <div className="mt-12 text-center">
             <p className="text-sm text-muted-foreground font-medium">
-              Protected by DineMatters Security Engine v4.0
+              Protected by Flamezo Security Engine v4.0
             </p>
           </div>
         </div>

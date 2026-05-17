@@ -1,7 +1,7 @@
 """
 Order Management Routes
 
-Maps to: flamezo_backend.flamezo_backend.api.order_status.*
+Maps to: flamezo_backend.flamezo.api.order_status.*
 
 STRICT RULES:
 - Accept EXACT same parameters as ERPNext
@@ -46,7 +46,7 @@ class UpdateTableNumberRequest(BaseModel):
 
 # Route Implementations
 
-@router.post("/flamezo_backend.flamezo_backend.api.order_status.update_status")
+@router.post("/flamezo_backend.flamezo.api.order_status.update_status")
 async def update_status(
 	request: UpdateStatusRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -54,7 +54,7 @@ async def update_status(
 	"""
 	Update order status
 	
-	Mirrors: flamezo_backend.flamezo_backend.api.order_status.update_status
+	Mirrors: flamezo_backend.flamezo.api.order_status.update_status
 	Type: WRITE
 	Cache: No
 	"""
@@ -62,7 +62,7 @@ async def update_status(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.order_status.update_status",
+			"flamezo_backend.flamezo.api.order_status.update_status",
 			data=request.dict(),
 			http_method="POST"
 		)
@@ -76,7 +76,7 @@ async def update_status(
 		)
 
 
-@router.post("/flamezo_backend.flamezo_backend.api.order_status.update_table_number")
+@router.post("/flamezo_backend.flamezo.api.order_status.update_table_number")
 async def update_table_number(
 	request: UpdateTableNumberRequest,
 	current_user: TokenData = Depends(get_current_user)
@@ -84,7 +84,7 @@ async def update_table_number(
 	"""
 	Update order table number
 	
-	Mirrors: flamezo_backend.flamezo_backend.api.order_status.update_table_number
+	Mirrors: flamezo_backend.flamezo.api.order_status.update_table_number
 	Type: WRITE
 	Cache: No
 	"""
@@ -92,7 +92,7 @@ async def update_table_number(
 	
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo_backend.api.order_status.update_table_number",
+			"flamezo_backend.flamezo.api.order_status.update_table_number",
 			data=request.dict(),
 			http_method="POST"
 		)

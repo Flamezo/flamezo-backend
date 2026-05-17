@@ -73,7 +73,7 @@ export default function GalleryManagement() {
 
   // Fetch Media Pool
   const { data: poolData, isLoading: isPoolLoading, mutate: mutatePool } = useFrappeGetCall(
-    'dinematters.dinematters.api.restaurant.get_restaurant_media_pool',
+    'flamezo_backend.flamezo.api.restaurant.get_restaurant_media_pool',
     { restaurant_id: selectedRestaurant },
     selectedRestaurant ? `media-pool-${selectedRestaurant}` : null
   )

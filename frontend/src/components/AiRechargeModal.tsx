@@ -1,7 +1,7 @@
 /**
  * CoinRechargeModal
  * 
- * Allows restaurants to top-up their DineMatters Wallet using Razorpay.
+ * Allows restaurants to top-up their Flamezo Wallet using Razorpay.
  * Bundles: 1000, 2000, 5000.
  * ₹1 Balance = ₹1 (Base) + 18% GST (Collected Upfront)
  */
@@ -98,14 +98,14 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
   const [isProcessing, setIsProcessing] = useState(false)
 
   const { call: createOrder } = useFrappePostCall(
-    'dinematters.dinematters.api.coin_billing.create_coin_purchase_order'
+    'flamezo_backend.flamezo.api.coin_billing.create_coin_purchase_order'
   )
   const { call: verifyPayment } = useFrappePostCall(
-    'dinematters.dinematters.api.coin_billing.verify_coin_purchase'
+    'flamezo_backend.flamezo.api.coin_billing.verify_coin_purchase'
   )
   
   const { data: platformSettingsData } = useFrappeGetCall(
-    'dinematters.dinematters.api.admin.get_platform_settings',
+    'flamezo_backend.flamezo.api.admin.get_platform_settings',
     {},
     'platform-settings-modal'
   )
@@ -173,7 +173,7 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
           amount,
           currency: 'INR',
           order_id: razorpay_order_id,
-          name: 'DineMatters Wallet',
+          name: 'Flamezo Wallet',
           description: `Top-up ₹${selectedCoins} Balance (Price: ₹${basePrice} + GST: ₹${gstAmount})`,
           theme: { color: '#f97316' },
           handler: async (response: any) => {

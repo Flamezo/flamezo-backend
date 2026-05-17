@@ -73,19 +73,19 @@ export default function AutopaySetupPage() {
   const [newPlanSelection, setNewPlanSelection] = useState<'SILVER' | 'GOLD' | null>(null)
 
   const { call: getInfo } = useFrappePostCall<any>(
-    'dinematters.dinematters.api.coin_billing.get_coin_billing_info'
+    'flamezo_backend.flamezo.api.coin_billing.get_coin_billing_info'
   )
   const { call: updateSettings } = useFrappePostCall<any>(
-    'dinematters.dinematters.api.coin_billing.update_autopay_settings'
+    'flamezo_backend.flamezo.api.coin_billing.update_autopay_settings'
   )
   const { call: updatePlan } = useFrappePostCall<any>(
-    'dinematters.dinematters.api.coin_billing.update_subscription_plan'
+    'flamezo_backend.flamezo.api.coin_billing.update_subscription_plan'
   )
   const { call: createTokenOrder } = useFrappePostCall<any>(
-    'dinematters.dinematters.api.payments.create_tokenization_order'
+    'flamezo_backend.flamezo.api.payments.create_tokenization_order'
   )
   const { call: confirmMandate } = useFrappePostCall<any>(
-    'dinematters.dinematters.api.payments.confirm_mandate_setup'
+    'flamezo_backend.flamezo.api.payments.confirm_mandate_setup'
   )
 
   const activeRes = restaurants.find(r => r.name === selectedRestaurant)
@@ -222,7 +222,7 @@ export default function AutopaySetupPage() {
       const rzp = new (window as any).Razorpay({
         key: key_id,
         subscription_id: razorpay_subscription_id,
-        name: 'DineMatters Autopay',
+        name: 'Flamezo Autopay',
         description: 'Authorize Mandate (Safety Cap: ₹15,000) — ₹1 verification fee',
         theme: { color: '#f97316' },
         handler: async (response: any) => {
@@ -276,7 +276,7 @@ export default function AutopaySetupPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-foreground">Billing & Subscription</h1>
-          <p className="text-sm text-muted-foreground">Manage your DineMatters tier, wallet balance and automatic top-ups.</p>
+          <p className="text-sm text-muted-foreground">Manage your Flamezo tier, wallet balance and automatic top-ups.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -284,7 +284,7 @@ export default function AutopaySetupPage() {
             size="sm"
             className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
             onClick={() => {
-              window.open('/api/method/dinematters.dinematters.api.payments.download_guide?guide_name=Dinematters_Charges', '_blank')
+              window.open('/api/method/flamezo_backend.flamezo.api.payments.download_guide?guide_name=Flamezo_Charges', '_blank')
             }}
           >
             <Download className="h-4 w-4" />

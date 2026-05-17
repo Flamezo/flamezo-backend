@@ -5,7 +5,7 @@ on:
     branches:
       - develop
     paths:
-      - 'dinematters/**'
+      - 'flamezo_backend/**'
       - 'frontend/**'
       - 'requirements.txt'
       - 'pyproject.toml'
@@ -19,7 +19,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Staging Server (dev.dinematters.com)
+    name: Deploy to Staging Server (dev.flamezo_backend.com)
     runs-on: ubuntu-latest
 
     steps:
@@ -43,7 +43,7 @@ jobs:
           echo "$SITE_CONFIG_JSON" | ssh -o StrictHostKeyChecking=no -p 2222 $SSH_USER@$SERVER_HOST \
             "export SITE_CONFIG_JSON=\$(cat); \
              cd /home/frappe/frappe-bench && \
-             bash apps/dinematters/scripts/deploy.sh $BRANCH dev.dinematters.com"
+             bash apps/flamezo_backend/scripts/deploy.sh $BRANCH dev.flamezo_backend.com"
 
       - name: Verify scheduler is active
         env:
@@ -51,7 +51,7 @@ jobs:
           SSH_USER: ${{ secrets.DEV_SSH_USER }}
         run: |
           SCHEDULER_STATUS=$(ssh -o StrictHostKeyChecking=no -p 2222 $SSH_USER@$SERVER_HOST \
-            "cd /home/frappe/frappe-bench && bench --site dev.dinematters.com scheduler status")
+            "cd /home/frappe/frappe-bench && bench --site dev.flamezo_backend.com scheduler status")
           echo "Scheduler status: $SCHEDULER_STATUS"
           if echo "$SCHEDULER_STATUS" | grep -q "disabled"; then
             echo "ERROR: Scheduler is still disabled after deployment!"

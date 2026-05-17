@@ -45,7 +45,7 @@ export default function EditableExtractedDishesTable({
   const [editedDishes, setEditedDishes] = useState<ExtractedDish[]>(dishes || [])
   const [saving, setSaving] = useState(false)
 
-  const { call: updateDoc } = useFrappePostCall('dinematters.dinematters.api.documents.update_document')
+  const { call: updateDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.update_document')
 
   useEffect(() => {
     setEditedDishes(dishes || [])

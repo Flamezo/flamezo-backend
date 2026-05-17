@@ -13,7 +13,7 @@ const PRO_RESTAURANT = {
   plan_type: 'PRO'
 }
 
-test.describe('Dinematters Subscription Model - E2E Tests', () => {
+test.describe('Flamezo Subscription Model - E2E Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Login as admin
     await page.goto('/login')
@@ -306,9 +306,9 @@ test.describe('Dinematters Subscription Model - E2E Tests', () => {
       // Try to access protected API endpoints
       await page.evaluate(async () => {
         const protectedEndpoints = [
-          'dinematters.dinematters.api.orders.create_order',
-          'dinematters.dinematters.api.analytics.get_dashboard',
-          'dinematters.dinematters.api.loyalty.get_program'
+          'flamezo_backend.flamezo.api.orders.create_order',
+          'flamezo_backend.flamezo.api.analytics.get_dashboard',
+          'flamezo_backend.flamezo.api.loyalty.get_program'
         ]
         
         for (const endpoint of protectedEndpoints) {

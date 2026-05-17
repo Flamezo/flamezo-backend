@@ -87,7 +87,7 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
       type: 'critical',
       icon: <ShieldAlert className="h-4 w-4" />,
       message: "Account suspended due to security reason. Please contact support to reactivate.",
-      action: { label: 'Contact Support', onClick: () => window.location.href = 'mailto:support@dinematters.ono.menu' }
+      action: { label: 'Contact Support', onClick: () => window.location.href = 'mailto:support@flamezo_backend.ono.menu' }
     })
   } else if (billingInfo.billing_status === 'overdue') {
     notifications.push({

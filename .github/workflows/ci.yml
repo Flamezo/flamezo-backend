@@ -8,7 +8,7 @@ on:
   pull_request:
 
 concurrency:
-  group: develop-dinematters-${{ github.event.number }}
+  group: develop-flamezo_backend-${{ github.event.number }}
   cancel-in-progress: true
 
 jobs:
@@ -89,10 +89,10 @@ jobs:
       - name: Install
         working-directory: /home/runner/frappe-bench
         run: |
-          bench get-app dinematters $GITHUB_WORKSPACE
+          bench get-app flamezo_backend $GITHUB_WORKSPACE
           bench setup requirements --dev
           bench new-site --db-root-password root --admin-password admin test_site
-          bench --site test_site install-app dinematters
+          bench --site test_site install-app flamezo_backend
           bench build
         env:
           CI: 'Yes'

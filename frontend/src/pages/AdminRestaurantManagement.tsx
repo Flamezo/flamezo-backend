@@ -106,7 +106,7 @@ export default function AdminRestaurantManagement() {
     const win = window as any
     const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
     
-    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const isSupervisor = userRoles.includes('Flamezo Supervisor')
     const isSystemManager = userRoles.includes('System Manager')
     const isRootAdmin = currentUser === 'Administrator'
 
@@ -133,7 +133,7 @@ export default function AdminRestaurantManagement() {
     filters,
     setFilters
   } = useDataTable({
-    customEndpoint: 'dinematters.dinematters.api.admin.get_all_restaurants',
+    customEndpoint: 'flamezo_backend.flamezo.api.admin.get_all_restaurants',
     paramNames: {
       page: 'page',
       pageSize: 'page_size',
@@ -146,44 +146,44 @@ export default function AdminRestaurantManagement() {
 
   // APIs
   const { call: updateRestaurantPlan } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'dinematters.dinematters.api.admin.update_restaurant_plan'
+    'flamezo_backend.flamezo.api.admin.update_restaurant_plan'
   )
   const { call: toggleRestaurantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'dinematters.dinematters.api.admin.toggle_restaurant_status'
+    'flamezo_backend.flamezo.api.admin.toggle_restaurant_status'
   )
   const { call: deleteRestaurant } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'dinematters.dinematters.api.admin.delete_restaurant'
+    'flamezo_backend.flamezo.api.admin.delete_restaurant'
   )
   const { call: giveCoins } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'dinematters.dinematters.api.admin.admin_give_coins'
+    'flamezo_backend.flamezo.api.admin.admin_give_coins'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'dinematters.dinematters.api.admin.admin_update_restaurant_settings'
+    'flamezo_backend.flamezo.api.admin.admin_update_restaurant_settings'
   )
 
   const { call: generateOnboardingLink } = useFrappePostCall(
-    'dinematters.dinematters.api.onboarding.generate_onboarding_link'
+    'flamezo_backend.flamezo.api.onboarding.generate_onboarding_link'
   )
 
   // Onboarding APIs
   const { data: onboardingData, mutate: loadOnboarding } = useFrappeGetCall(
-    'dinematters.dinematters.api.onboarding.get_all_onboarding_requests'
+    'flamezo_backend.flamezo.api.onboarding.get_all_onboarding_requests'
   )
   const { call: deleteOnboarding } = useFrappePostCall(
-    'dinematters.dinematters.api.onboarding.delete_onboarding_request'
+    'flamezo_backend.flamezo.api.onboarding.delete_onboarding_request'
   )
   const { call: bulkDeleteOnboarding } = useFrappePostCall(
-    'dinematters.dinematters.api.onboarding.bulk_delete_onboarding_requests'
+    'flamezo_backend.flamezo.api.onboarding.bulk_delete_onboarding_requests'
   )
 
   const { data: rawPlatformSettings, mutate: loadPlatformSettings } = useFrappeGetCall(
-    'dinematters.dinematters.api.admin.get_platform_settings',
+    'flamezo_backend.flamezo.api.admin.get_platform_settings',
     {},
     'platform-settings'
   )
 
   const { call: updatePlatformSettings } = useFrappePostCall(
-    'dinematters.dinematters.api.admin.update_platform_settings'
+    'flamezo_backend.flamezo.api.admin.update_platform_settings'
   )
 
   useEffect(() => {
@@ -1157,7 +1157,7 @@ export default function AdminRestaurantManagement() {
                 <DialogTitle className="text-2xl font-black tracking-tight text-white">Platform Settings</DialogTitle>
               </div>
               <DialogDescription className="text-stone-400 font-medium pl-1">
-                Universal configuration for DineMatters ecosystem
+                Universal configuration for Flamezo ecosystem
               </DialogDescription>
             </DialogHeader>
           </div>

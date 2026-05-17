@@ -124,7 +124,7 @@ function AdminRestaurantDetailsPage() {
     const win = window as any
     const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
     
-    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const isSupervisor = userRoles.includes('Flamezo Supervisor')
     const hasSystemManager = userRoles.includes('System Manager')
     const isRootAdmin = currentUser === 'Administrator'
 
@@ -138,14 +138,14 @@ function AdminRestaurantDetailsPage() {
   // Legacy Generation Clearance
   const win = window as any
   const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
-  const hasSupervisorRole = userRoles.includes('DineMatters Supervisor')
+  const hasSupervisorRole = userRoles.includes('Flamezo Supervisor')
   const hasSystemManager = userRoles.includes('System Manager')
   const isMainAdmin = currentUser === 'Administrator' || hasSystemManager
   const canGenerateLegacy = isMainAdmin || hasSupervisorRole
 
   const [isGeneratingLegacy, setIsGeneratingLegacy] = useState(false)
   const { call: generateLegacyContent } = useFrappePostCall(
-    'dinematters.dinematters.api.legacy.generate_legacy_content'
+    'flamezo_backend.flamezo.api.legacy.generate_legacy_content'
   )
 
   const handleGenerateLegacy = async () => {
@@ -169,13 +169,13 @@ function AdminRestaurantDetailsPage() {
 
   // APIs
   const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { restaurant: Restaurant } }>(
-    'dinematters.dinematters.api.admin.get_restaurant_details'
+    'flamezo_backend.flamezo.api.admin.get_restaurant_details'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'dinematters.dinematters.api.admin.admin_update_restaurant_settings'
+    'flamezo_backend.flamezo.api.admin.admin_update_restaurant_settings'
   )
   const { call: onboardOwner } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'dinematters.dinematters.api.admin.admin_onboard_restaurant_owner'
+    'flamezo_backend.flamezo.api.admin.admin_onboard_restaurant_owner'
   )
   const { call: createManualLink } = useFrappePostCall<{ 
     success: boolean, 
@@ -184,10 +184,10 @@ function AdminRestaurantDetailsPage() {
     base_amount?: number,
     gst_amount?: number,
     error?: string 
-  }>('dinematters.dinematters.api.admin.admin_create_manual_recharge_link')
+  }>('flamezo_backend.flamezo.api.admin.admin_create_manual_recharge_link')
   
   const { data: platformSettingsData } = useFrappeGetCall(
-    'dinematters.dinematters.api.admin.get_platform_settings',
+    'flamezo_backend.flamezo.api.admin.get_platform_settings',
     {},
     'platform-settings-details'
   )
@@ -397,7 +397,7 @@ function AdminRestaurantDetailsPage() {
               </div>
               <p className="text-muted-foreground font-mono text-sm flex items-center gap-2">
                 ID: {restaurant.restaurant_id} <Separator className="h-3 w-px mx-1 bg-muted-foreground/30" /> 
-                <Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.dinematters.com
+                <Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo_backend.com
               </p>
             </div>
           </div>
@@ -904,7 +904,7 @@ function AdminRestaurantDetailsPage() {
                   <div className="text-center py-6 bg-orange-500/10 rounded-2xl border border-orange-200">
                     <p className="text-sm text-orange-600 font-bold uppercase tracking-wider mb-2">Current Balance</p>
                     <h2 className="text-5xl font-black text-orange-700">{restaurant.coins_balance.toLocaleString()}</h2>
-                    <p className="text-[10px] text-orange-600/60 mt-1">DineMatters Coins (1 Coin = ₹1)</p>
+                    <p className="text-[10px] text-orange-600/60 mt-1">Flamezo Coins (1 Coin = ₹1)</p>
                   </div>
 
                   <div className="space-y-4">
@@ -1050,7 +1050,7 @@ function AdminRestaurantDetailsPage() {
                             size="icon" 
                             className="shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
                             onClick={async () => {
-                              const msg = `Hi ${restaurant.owner_name || restaurant.restaurant_name}, please use this link to top-up your DineMatters wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
+                              const msg = `Hi ${restaurant.owner_name || restaurant.restaurant_name}, please use this link to top-up your Flamezo wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
                               const success = await copyToClipboard(msg)
                               if (success) toast.success('Recharge message copied!')
                             }}

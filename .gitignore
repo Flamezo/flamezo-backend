@@ -7,9 +7,9 @@ node_modules
 __pycache__
 
 # Build artifacts - ignore all Vite-generated assets (hash-named chunks)
-dinematters/public/dinematters/assets/
-dinematters/public/dinematters/index.html
-dinematters/www/dinematters.html
+flamezo_backend/public/flamezo_backend/assets/
+flamezo_backend/public/flamezo_backend/index.html
+flamezo_backend/www/flamezo_backend.html
 
 # Generated files
 *.log
@@ -35,11 +35,11 @@ venv/
 
 package-lock.json
 
-DinemattersProd_key.pem
-Flash-access-token.csv
+FlamezoProd_key.pem
 dev-server-cred.md
 whatsapp_config.md
 site_config_dev.json
 site_config_prod.json
-dinemattersDev_key.pem
+flamezoDev_key.pem
 prod-server-cred.md
+Flash-access-token.csv

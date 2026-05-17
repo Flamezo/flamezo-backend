@@ -30,7 +30,7 @@ export default function HomeFeaturesManager() {
     if (!selectedRestaurant) return null
     try {
       const response = await fetch(
-        `/api/method/dinematters.dinematters.api.config.get_home_features?restaurant_id=${encodeURIComponent(selectedRestaurant)}`
+        `/api/method/flamezo_backend.flamezo.api.config.get_home_features?restaurant_id=${encodeURIComponent(selectedRestaurant)}`
       )
       const json = await response.json()
       const payload = json?.message ?? json
@@ -103,7 +103,7 @@ export default function HomeFeaturesManager() {
     if (!confirm('Delete this feature?')) return
     try {
       const csrf = (window as any).frappe?.csrf_token || (window as any).csrf_token
-      const resp = await fetch('/api/method/dinematters.dinematters.api.documents.delete_doc', {
+      const resp = await fetch('/api/method/flamezo_backend.flamezo.api.documents.delete_doc', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ export default function HomeFeaturesManager() {
 
       // ── Step 2: Persist doc changes ───────────────────────────────────────
       const csrf = (window as any).frappe?.csrf_token || (window as any).csrf_token
-      const updateResp = await fetch('/api/method/dinematters.dinematters.api.documents.update_document', {
+      const updateResp = await fetch('/api/method/flamezo_backend.flamezo.api.documents.update_document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,16 +2,16 @@
 set -e
 
 # ============================================================
-# DineMatters Robust Deployment Script (V2 - Repo Controlled)
+# Flamezo Robust Deployment Script (V2 - Repo Controlled)
 # ============================================================
 
 BENCH_PATH="/home/frappe/frappe-bench"
-APP_PATH="${BENCH_PATH}/apps/dinematters"
+APP_PATH="${BENCH_PATH}/apps/flamezo_backend"
 GIT_BRANCH="${1:-main}"
-SITE="${2:-backend.dinematters.com}"
+SITE="${2:-backend.flamezo_backend.com}"
 
 echo "============================================================"
-echo "DineMatters Robust Deployment — Site: $SITE | Branch: $GIT_BRANCH"
+echo "Flamezo Robust Deployment — Site: $SITE | Branch: $GIT_BRANCH"
 echo "============================================================"
 
 # ─── 1. Inject site_config.json (Database Shield) ─────────────────────────
@@ -65,7 +65,7 @@ echo "Code synced to $(git rev-parse --short HEAD)"
 # ─── 3. Backend Setup ────────────────────────────────────────────────────────
 echo "Installing Python dependencies & Migrating..."
 cd "$BENCH_PATH"
-./env/bin/pip install -e apps/dinematters --quiet
+./env/bin/pip install -e apps/flamezo_backend --quiet
 bench --site "$SITE" migrate
 bench --site "$SITE" enable-scheduler || true
 
@@ -97,7 +97,7 @@ fi
 # ─── 5. Production Assets & Cache ───────────────────────────────────────────
 echo "Finalizing production assets..."
 cd "$BENCH_PATH"
-bench build --app dinematters
+bench build --app flamezo_backend
 bench --site "$SITE" clear-cache
 
 # ─── 6. Service Restart ──────────────────────────────────────────────────────

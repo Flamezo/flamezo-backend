@@ -9,7 +9,7 @@ function walkDir(dir, callback) {
   });
 }
 
-walkDir('/home/frappe/frappe-bench/apps/dinematters/frontend/src', function(filePath) {
+walkDir('/home/frappe/frappe-bench/apps/flamezo_backend/frontend/src', function(filePath) {
   if (filePath.endsWith('.tsx') && !filePath.endsWith('number-input.tsx')) {
     let content = fs.readFileSync(filePath, 'utf8');
 

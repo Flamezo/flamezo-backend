@@ -1,4 +1,4 @@
-# FastAPI Proxy Shield for DineMatters
+# FastAPI Proxy Shield for Flamezo
 
 A transparent, protective API layer that sits between the frontend and ERPNext backend.
 
@@ -111,22 +111,22 @@ FastAPI uses JWT tokens for frontend authentication:
 All routes mirror ERPNext endpoints exactly:
 
 ### UI APIs
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_user_permissions`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_all_doctypes`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_user_restaurants`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_restaurant_setup_progress`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.ui.get_setup_wizard_steps`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_doctype_meta`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_user_permissions`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_all_doctypes`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_user_restaurants`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress`
+- `POST /api/method/flamezo_backend.flamezo.api.ui.get_setup_wizard_steps`
 
 ### Order Management
-- `POST /api/method/flamezo_backend.flamezo_backend.api.order_status.update_status`
-- `POST /api/method/flamezo_backend.flamezo_backend.api.order_status.update_table_number`
+- `POST /api/method/flamezo_backend.flamezo.api.order_status.update_status`
+- `POST /api/method/flamezo_backend.flamezo.api.order_status.update_table_number`
 
 ### Document Management
-- `POST /api/method/flamezo_backend.flamezo_backend.api.documents.*`
+- `POST /api/method/flamezo_backend.flamezo.api.documents.*`
 
 ### Restaurant
-- `POST /api/method/flamezo_backend.flamezo_backend.doctype.restaurant.restaurant.*`
+- `POST /api/method/flamezo_backend.flamezo.doctype.restaurant.restaurant.*`
 
 ### Frappe Client (mapped to wrappers)
 - `POST /api/method/frappe.client.*`
@@ -182,13 +182,13 @@ Test each API against ERPNext direct:
 
 ```bash
 # Direct ERPNext call
-curl -X POST http://localhost:8000/api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta \
+curl -X POST http://localhost:8000/api/method/flamezo_backend.flamezo.api.ui.get_doctype_meta \
   -H "Authorization: token API_KEY:API_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"doctype": "Restaurant"}' > erpnext.json
 
 # FastAPI proxy call
-curl -X POST http://localhost:8001/api/method/flamezo_backend.flamezo_backend.api.ui.get_doctype_meta \
+curl -X POST http://localhost:8001/api/method/flamezo_backend.flamezo.api.ui.get_doctype_meta \
   -H "Authorization: Bearer JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"doctype": "Restaurant"}' > fastapi.json
@@ -227,7 +227,7 @@ server {
 
 ```ini
 [Unit]
-Description=DineMatters FastAPI Proxy
+Description=Flamezo FastAPI Proxy
 After=network.target
 
 [Service]
@@ -327,5 +327,5 @@ For issues or questions:
 
 ## 📜 License
 
-Same as DineMatters ERPNext app.
+Same as Flamezo ERPNext app.
 

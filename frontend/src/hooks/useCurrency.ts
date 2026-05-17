@@ -42,7 +42,7 @@ export function useCurrency() {
   const currencyCode = pricing?.currency || configData?.currency || restaurantData?.currency || 'INR'
 
   // Fetch Currency info via whitelisted method to bypass DocType permissions
-  const { data: currencyResponse } = useFrappeGetCall('dinematters.dinematters.api.config.get_currency_info', {
+  const { data: currencyResponse } = useFrappeGetCall('flamezo_backend.flamezo.api.config.get_currency_info', {
     currency_code: currencyCode
   }, {
     revalidateOnFocus: false,

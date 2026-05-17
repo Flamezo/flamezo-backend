@@ -6,7 +6,7 @@ on:
       - main
       - master
     paths:
-      - 'dinematters/**'
+      - 'flamezo_backend/**'
       - 'frontend/**'
       - 'requirements.txt'
       - 'pyproject.toml'
@@ -21,7 +21,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Production Server (backend.dinematters.com)
+    name: Deploy to Production Server (backend.flamezo_backend.com)
     runs-on: ubuntu-latest
 
     steps:
@@ -46,10 +46,10 @@ jobs:
           echo "$SITE_CONFIG_JSON" | ssh -o StrictHostKeyChecking=no $SSH_USER@$SERVER_HOST \
             "export SITE_CONFIG_JSON=\$(cat); \
              cd /home/frappe/frappe-bench && \
-             if [ -f apps/dinematters/scripts/deploy.sh ]; then \
-               bash apps/dinematters/scripts/deploy.sh $BRANCH backend.dinematters.com; \
+             if [ -f apps/flamezo_backend/scripts/deploy.sh ]; then \
+               bash apps/flamezo_backend/scripts/deploy.sh $BRANCH backend.flamezo_backend.com; \
              else \
-               echo 'New script not found at apps/dinematters/scripts/deploy.sh, falling back to ./deploy.sh for migration...'; \
+               echo 'New script not found at apps/flamezo_backend/scripts/deploy.sh, falling back to ./deploy.sh for migration...'; \
                bash ./deploy.sh $BRANCH; \
              fi"
 
@@ -59,7 +59,7 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           SCHEDULER_STATUS=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$SERVER_HOST \
-            "cd /home/frappe/frappe-bench && bench --site backend.dinematters.com scheduler status")
+            "cd /home/frappe/frappe-bench && bench --site backend.flamezo_backend.com scheduler status")
           echo "Scheduler status: $SCHEDULER_STATUS"
           if echo "$SCHEDULER_STATUS" | grep -q "disabled"; then
             echo "ERROR: Scheduler is still disabled after deployment!"

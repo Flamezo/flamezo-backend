@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
-import loginImage from '/images/login-dinematters.webp'
+import loginImage from '/images/login-flamezo_backend.webp'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
@@ -35,7 +35,7 @@ export default function Login() {
       if (res.ok) {
         toast.success('Logged in successfully')
         // Reload to let server set boot and session
-        window.location.href = '/dinematters'
+        window.location.href = '/flamezo_backend'
       } else {
         const data = await res.json().catch(() => ({}))
         const msg = data?.message || 'Login failed'
@@ -55,7 +55,7 @@ export default function Login() {
       <div className="hidden md:block relative w-1/2 min-h-screen overflow-hidden">
         <img
           src={loginImage}
-          alt="Dinematters"
+          alt="Flamezo"
           width={1080}
           height={1080}
           fetchPriority="high"
@@ -66,7 +66,7 @@ export default function Login() {
       {/* Right 50% - Login card */}
       <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12">
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border border-border">
-          <h2 className="text-2xl font-semibold mb-4 text-center text-foreground">Welcome to Dinematters</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-center text-foreground">Welcome to Flamezo</h2>
           <p className="text-sm text-muted-foreground mb-6 text-center">Sign in to manage your restaurants</p>
           <form onSubmit={handleSubmit} className="space-y-4">
           <div>

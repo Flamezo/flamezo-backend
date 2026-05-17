@@ -1,4 +1,4 @@
-// DineMatters Merchant Dashboard — Firebase Cloud Messaging Service Worker
+// Flamezo Merchant Dashboard — Firebase Cloud Messaging Service Worker
 // Handles push notifications when the dashboard tab is in background.
 // Cost: ZERO — FCM web push is completely free.
 

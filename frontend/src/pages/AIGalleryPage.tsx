@@ -27,7 +27,7 @@ export default function AIGalleryPage() {
 
   const handleDownload = async (url: string, name: string) => {
     // Use the backend proxy to bypass CORS and force download
-    const proxyUrl = `/api/method/dinematters.dinematters.api.ai_media.download_proxy?file_url=${encodeURIComponent(url)}&filename=ai-gen-${name}.png`
+    const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(url)}&filename=ai-gen-${name}.png`
     
     const link = document.createElement('a')
     link.href = proxyUrl

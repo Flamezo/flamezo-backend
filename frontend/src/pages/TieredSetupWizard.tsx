@@ -80,7 +80,7 @@ export default function TieredSetupWizard() {
 
   // Get setup progress from backend
   const { data: progressData, mutate: refreshProgress } = useFrappeGetCall<SetupProgressResponse>(
-    'dinematters.dinematters.api.ui.get_restaurant_setup_progress',
+    'flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress',
     { restaurant_id: selectedRestaurant || '' },
     selectedRestaurant ? `restaurant-progress-${selectedRestaurant}` : null
   )

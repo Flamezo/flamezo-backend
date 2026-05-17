@@ -31,7 +31,7 @@ export default function QRCodeScanner({ onScan, restaurantId, open, onOpenChange
   const animFrameRef = useRef<number | null>(null)
   const processingRef = useRef(false)
 
-  const { call: parseQrCode } = useFrappePostCall('dinematters.dinematters.api.cart.parse_qr_code')
+  const { call: parseQrCode } = useFrappePostCall('flamezo_backend.flamezo.api.cart.parse_qr_code')
 
   // Full cleanup on close
   const stopCamera = useCallback(() => {

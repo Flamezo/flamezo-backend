@@ -1,5 +1,5 @@
 /**
- * DineMatters Merchant Dashboard — Push Notification Utility (Firebase/FCM)
+ * Flamezo Merchant Dashboard — Push Notification Utility (Firebase/FCM)
  * Cost: ZERO — FCM Web Push is free forever.
  *
  * Saves merchant device FCM tokens so the backend can push new order alerts
@@ -34,7 +34,7 @@ function getFirebaseApp(): FirebaseApp {
  * Registers the service worker, gets an FCM token, and saves it to the backend.
  *
  * @param restaurantId  The slug of the restaurant
- * @param frappeBaseUrl Base URL of the Frappe backend (e.g. https://api.dinematters.com)
+ * @param frappeBaseUrl Base URL of the Frappe backend (e.g. https://api.flamezo_backend.com)
  * @param onNewOrder    Callback fired when a new-order push arrives while tab is open
  */
 export async function initMerchantPush(
@@ -83,7 +83,7 @@ export async function initMerchantPush(
 
     // 4. Save to backend
     const res = await fetch(
-      `${frappeBaseUrl}/api/method/dinematters.dinematters.api.push_notifications.save_merchant_subscription`,
+      `${frappeBaseUrl}/api/method/flamezo_backend.flamezo.api.push_notifications.save_merchant_subscription`,
       {
         method: 'POST',
         headers: {

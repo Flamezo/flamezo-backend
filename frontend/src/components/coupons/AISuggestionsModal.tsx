@@ -300,7 +300,7 @@ export function AISuggestionsModal({
   const [saving, setSaving] = useState(false)
 
   const { call: generateSuggestions, loading } = useFrappePostCall(
-    'dinematters.dinematters.api.coupons.generate_coupon_suggestions'
+    'flamezo_backend.flamezo.api.coupons.generate_coupon_suggestions'
   )
 
   const handleGenerate = async () => {

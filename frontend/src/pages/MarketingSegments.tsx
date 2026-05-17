@@ -114,11 +114,11 @@ export default function MarketingSegments() {
   
   const [confirmDelete, setConfirmDelete] = useState<{open: boolean, name: string, label: string}>({ open: false, name: '', label: '' })
 
-  const { call: fetchSegments } = useFrappePostCall('dinematters.dinematters.api.marketing.get_segments')
-  const { call: saveSegmentApi } = useFrappePostCall('dinematters.dinematters.api.marketing.save_segment')
-  const { call: deleteSegmentApi } = useFrappePostCall('dinematters.dinematters.api.marketing.delete_segment')
-  const { call: previewApi } = useFrappePostCall('dinematters.dinematters.api.marketing.preview_segment_reach')
-  const { call: fetchOptOutStatsApi } = useFrappePostCall('dinematters.dinematters.api.marketing.get_optout_stats')
+  const { call: fetchSegments } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_segments')
+  const { call: saveSegmentApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.save_segment')
+  const { call: deleteSegmentApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.delete_segment')
+  const { call: previewApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.preview_segment_reach')
+  const { call: fetchOptOutStatsApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_optout_stats')
 
   const load = () => {
     if (!selectedRestaurant) return

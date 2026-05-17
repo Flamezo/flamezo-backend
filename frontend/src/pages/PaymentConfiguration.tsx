@@ -56,13 +56,13 @@ export default function PaymentConfiguration() {
   const [merchantWebhookSecret, setMerchantWebhookSecret] = useState('')
 
   const { call: getPaymentStats } = useFrappePostCall<{ success: boolean; data: PaymentStats }>(
-    'dinematters.dinematters.api.payments.get_restaurant_payment_stats'
+    'flamezo_backend.flamezo.api.payments.get_restaurant_payment_stats'
   )
   const { call: setMerchantKeys } = useFrappePostCall(
-    'dinematters.dinematters.api.payments.set_restaurant_razorpay_keys'
+    'flamezo_backend.flamezo.api.payments.set_restaurant_razorpay_keys'
   )
   const { call: canSetMerchantKeys } = useFrappePostCall<{ success: boolean; allowed: boolean }>(
-    'dinematters.dinematters.api.payments.can_set_merchant_keys'
+    'flamezo_backend.flamezo.api.payments.can_set_merchant_keys'
   )
 
   const loadData = async () => {
@@ -167,7 +167,7 @@ export default function PaymentConfiguration() {
             variant="outline"
             className="rounded-full gap-2 border-primary/20 text-primary hover:bg-primary/5"
             onClick={() => {
-              window.open('/api/method/dinematters.dinematters.api.payments.download_guide?guide_name=DineMatters_Razorpay_Guide', '_blank')
+              window.open('/api/method/flamezo_backend.flamezo.api.payments.download_guide?guide_name=Flamezo_Razorpay_Guide', '_blank')
             }}
           >
             <Download className="h-4 w-4" />
@@ -189,7 +189,7 @@ export default function PaymentConfiguration() {
                   <h3 className="text-lg font-bold">Admin Access Required</h3>
                   <p className="text-sm text-muted-foreground max-w-md">
                     Only system administrators can configure customer payment gateways. 
-                    Please contact Dinematters support to update your merchant keys.
+                    Please contact Flamezo support to update your merchant keys.
                   </p>
                 </div>
               </CardContent>

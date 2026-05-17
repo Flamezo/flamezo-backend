@@ -76,7 +76,7 @@ const TABS = [
 
 export function OrdersModernView({ orders, onCheckOrder, onOrderUpdate, onShowCancelled }: OrdersModernViewProps) {
   const { formatAmountNoDecimals } = useCurrency()
-  const { call: updateStatus } = useFrappePostCall('dinematters.dinematters.api.order_status.update_status')
+  const { call: updateStatus } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_status')
   const { ConfirmDialogComponent } = useConfirm()
   const [activeTab, setActiveTab] = useState('new')
 

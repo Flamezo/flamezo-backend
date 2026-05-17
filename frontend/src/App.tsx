@@ -68,7 +68,7 @@ function AppContent() {
 	const { theme } = useTheme()
 	return (
 		<>
-			<BrowserRouter basename="/dinematters">
+			<BrowserRouter basename="/flamezo_backend">
 				<Suspense fallback={<Layout><PageSkeleton /></Layout>}>
 					<Routes>
 						{/* Public routes */}

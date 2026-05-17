@@ -48,7 +48,7 @@ export default function ReviewExtraction({ restaurantId }: ReviewExtractionProps
   }, [latestExtraction?.extraction_status, refreshExtraction])
 
   const { call: approveExtraction } = useFrappePostCall(
-    'dinematters.dinematters.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
   )
 
   const handleApprove = async () => {

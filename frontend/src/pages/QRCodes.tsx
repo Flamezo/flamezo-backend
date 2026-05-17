@@ -237,13 +237,13 @@ export default function QRCodes() {
   })
 
   // API calls
-  const { call: generateQrCodes } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.generate_qr_codes_pdf')
-  const { call: getQrCodeUrl } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
-  const { call: deleteQrCodes } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.delete_qr_codes_pdf')
-  const { call: getTableAssets } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.get_table_qr_assets')
-  const { call: getSpecialAssets } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.get_special_qr_assets')
-  const { call: getAnalytics } = useFrappePostCall('dinematters.dinematters.doctype.restaurant.restaurant.get_qr_scan_analytics')
-  const { call: getAppSettings } = useFrappePostCall('dinematters.dinematters.utils.config_helpers.get_app_settings')
+  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf')
+  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
+  const { call: deleteQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.delete_qr_codes_pdf')
+  const { call: getTableAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets')
+  const { call: getSpecialAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_special_qr_assets')
+  const { call: getAnalytics } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics')
+  const { call: getAppSettings } = useFrappePostCall('flamezo_backend.flamezo.utils.config_helpers.get_app_settings')
   const { updateDoc: updateRestaurant } = useFrappeUpdateDoc()
 
   // Load restaurant + settings on mount
@@ -253,9 +253,9 @@ export default function QRCodes() {
       try {
         const settingsRes: any = await getAppSettings({})
         const globalBaseUrl = settingsRes?.message?.app_base_url
-        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://app.dinematters.com/')
+        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://backend.flamezo.in/')
       } catch {
-        setBaseUrl(restaurantDoc.base_url || 'https://app.dinematters.com/')
+        setBaseUrl(restaurantDoc.base_url || 'https://backend.flamezo.in/')
       }
       setTables(restaurantDoc.tables || 0)
       if (restaurantDoc.qr_codes_pdf_url) {
@@ -640,7 +640,7 @@ export default function QRCodes() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   QR codes encode: <code className="bg-muted px-1 rounded">
-                    {(baseUrl || 'https://app.dinematters.com').replace(/\/$/, '')}/restaurant-id
+                    {(baseUrl || 'https://backend.flamezo.in').replace(/\/$/, '')}/restaurant-id
                     {qrMode === 'dine_in' ? '?table_no=N' : '?order_type=takeaway|delivery'}
                   </code>
                 </p>
@@ -788,7 +788,7 @@ export default function QRCodes() {
                     )}
                     <li><strong>2×2 grid PDF</strong> fits 4 cards per landscape A4 — recommended for mass printing</li>
                     <li>Use the <strong>Assets</strong> tab (above) to download individual codes as PNG / SVG</li>
-                    <li>SILVER plan shows DineMatters branding; GOLD shows your logo</li>
+                    <li>SILVER plan shows Flamezo branding; GOLD shows your logo</li>
                   </ul>
                 </div>
               </div>

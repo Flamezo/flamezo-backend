@@ -48,19 +48,19 @@ export default function OrderDetail() {
   }, [restaurantDoc, isSelfDelivery])
 
   // Table update API call
-  const { call: updateTableNumber } = useFrappePostCall('dinematters.dinematters.api.order_status.update_table_number')
+  const { call: updateTableNumber } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_table_number')
 
   const [assigningDelivery, setAssigningDelivery] = useState(false)
   const [cancellingDelivery, setCancellingDelivery] = useState(false)
 
   // Delivery API calls
-  const { call: assignDeliveryAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.assign_delivery')
-  const { call: cancelDeliveryAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.cancel_delivery')
+  const { call: assignDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.assign_delivery')
+  const { call: cancelDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.cancel_delivery')
   const [manualForm, setManualForm] = useState({ rider_name: '', rider_phone: '', eta: '' })
   const [quote, setQuote] = useState<any>(null)
   const [isQuoting, setIsQuoting] = useState(false)
 
-  const { call: getQuoteAPI } = useFrappePostCall('dinematters.dinematters.api.delivery.get_delivery_quote')
+  const { call: getQuoteAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.get_delivery_quote')
 
   const handleGetQuote = async () => {
     if (!order?.name) return
@@ -358,7 +358,7 @@ export default function OrderDetail() {
                       providerBadge.color
                     )}>
                       {providerBadge.icon}
-                      {isSelfDelivery ? 'Self / Own Riders (Manual)' : `${logisticsProvider} — DineMatters Managed`}
+                      {isSelfDelivery ? 'Self / Own Riders (Manual)' : `${logisticsProvider} — Flamezo Managed`}
                     </span>
                   </div>
 

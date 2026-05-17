@@ -52,7 +52,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
 
   // Fetch legacy content via custom API (returns child tables + formatted data)
   const { data: legacyResponse, isLoading: contentLoading, mutate: mutateContent } = useFrappeGetCall(
-    'dinematters.dinematters.api.legacy.get_legacy_content',
+    'flamezo_backend.flamezo.api.legacy.get_legacy_content',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `legacy-content-${selectedRestaurant}` : null
   )
@@ -93,7 +93,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
 
   // Get all menu products via whitelisted API (avoids REST permission issues)
   const { data: productsResponse } = useFrappeGetCall(
-    'dinematters.dinematters.api.products.get_products',
+    'flamezo_backend.flamezo.api.products.get_products',
     selectedRestaurant ? { restaurant_id: selectedRestaurant, limit: 200 } : undefined,
     selectedRestaurant ? `menu-products-${selectedRestaurant}` : null
   )
@@ -107,7 +107,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   const { call: createDoc, loading: isCreating } = useFrappePostCall('frappe.client.insert')
   const { updateDoc, loading: isUpdating } = useFrappeUpdateDoc()
   const { deleteDoc } = useFrappeDeleteDoc()
-  const { call: updateLegacyContent } = useFrappePostCall('dinematters.dinematters.api.legacy.update_legacy_content')
+  const { call: updateLegacyContent } = useFrappePostCall('flamezo_backend.flamezo.api.legacy.update_legacy_content')
 
 
   // Sync API response into form state when data arrives

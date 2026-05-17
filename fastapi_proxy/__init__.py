@@ -1,5 +1,5 @@
 """
-FastAPI Proxy Shield for DineMatters ERPNext Backend
+FastAPI Proxy Shield for Flamezo ERPNext Backend
 
 This proxy acts as a transparent, protective layer between the frontend and ERPNext.
 It MUST NOT change any business logic, API contracts, or response formats.

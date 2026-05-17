@@ -34,7 +34,7 @@ interface Booking {
   confirmedAt?: string
 }
 
-const SELECTED_DATE_KEY = 'dinematters-bookings-selected-date'
+const SELECTED_DATE_KEY = 'flamezo_backend-bookings-selected-date'
 
 export default function Bookings() {
   const { selectedRestaurant, isGold, isSilver } = useRestaurant()
@@ -56,11 +56,11 @@ export default function Bookings() {
   const [showCalendarPicker, setShowCalendarPicker] = useState(false)
   const [monthlyBookings, setMonthlyBookings] = useState<{[key: string]: number}>({})
 
-  const { call: fetchBookings } = useFrappePostCall('dinematters.dinematters.api.bookings.get_admin_bookings')
-  const { call: confirmBookingAPI } = useFrappePostCall('dinematters.dinematters.api.bookings.confirm_booking')
-  const { call: rejectBookingAPI } = useFrappePostCall('dinematters.dinematters.api.bookings.reject_booking')
-  const { call: markCompletedAPI } = useFrappePostCall('dinematters.dinematters.api.bookings.mark_completed')
-  const { call: markNoShowAPI } = useFrappePostCall('dinematters.dinematters.api.bookings.mark_no_show')
+  const { call: fetchBookings } = useFrappePostCall('flamezo_backend.flamezo.api.bookings.get_admin_bookings')
+  const { call: confirmBookingAPI } = useFrappePostCall('flamezo_backend.flamezo.api.bookings.confirm_booking')
+  const { call: rejectBookingAPI } = useFrappePostCall('flamezo_backend.flamezo.api.bookings.reject_booking')
+  const { call: markCompletedAPI } = useFrappePostCall('flamezo_backend.flamezo.api.bookings.mark_completed')
+  const { call: markNoShowAPI } = useFrappePostCall('flamezo_backend.flamezo.api.bookings.mark_no_show')
 
   // Save selected date to localStorage
   useEffect(() => {

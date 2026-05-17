@@ -40,7 +40,7 @@ export async function checkFeatureAccess(
   feature: FeatureKey
 ): Promise<FeatureAccess> {
   try {
-    const response = await fetch('/api/method/dinematters.api.subscription.check_access', {
+    const response = await fetch('/api/method/flamezo_backend.api.subscription.check_access', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,7 +75,7 @@ export async function checkFeatureAccess(
  */
 export async function getRestaurantPlan(restaurantId: string) {
   try {
-    const response = await fetch('/api/method/dinematters.api.subscription.get_restaurant_plan', {
+    const response = await fetch('/api/method/flamezo_backend.api.subscription.get_restaurant_plan', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -103,7 +103,7 @@ export async function getRestaurantPlan(restaurantId: string) {
  */
 export async function getUpgradeBenefits(restaurantId: string) {
   try {
-    const response = await fetch('/api/method/dinematters.api.subscription.get_upgrade_benefits', {
+    const response = await fetch('/api/method/flamezo_backend.api.subscription.get_upgrade_benefits', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

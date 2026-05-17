@@ -38,8 +38,8 @@ export default function AIMenuThemeHistoryPage() {
   const { selectedRestaurant, restaurantConfig } = useRestaurant()
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const { call: getThemeStatus } = useFrappePostCall<ThemeStatusResponse>('dinematters.dinematters.api.ai_media.get_menu_theme_background_status')
-  const { call: activateThemeBackground, loading: isActivating } = useFrappePostCall('dinematters.dinematters.api.ai_media.activate_menu_theme_background')
+  const { call: getThemeStatus } = useFrappePostCall<ThemeStatusResponse>('flamezo_backend.flamezo.api.ai_media.get_menu_theme_background_status')
+  const { call: activateThemeBackground, loading: isActivating } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.activate_menu_theme_background')
 
   const [status, setStatus] = useState<ThemeStatusResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -80,7 +80,7 @@ export default function AIMenuThemeHistoryPage() {
   )
 
   const handleDownload = (url: string, name: string) => {
-    const proxyUrl = `/api/method/dinematters.dinematters.api.ai_media.download_proxy?file_url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}`
+    const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}`
     const link = document.createElement('a')
     link.href = proxyUrl
     link.download = name

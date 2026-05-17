@@ -2,8 +2,8 @@
  * localStorage keys for platform-wide verified phone.
  * Once verified at one restaurant, user stays verified for all.
  */
-const VERIFIED_PHONE_KEY = 'dinematters_verified_phone'
-const VERIFIED_AT_KEY = 'dinematters_verified_at'
+const VERIFIED_PHONE_KEY = 'flamezo_verified_phone'
+const VERIFIED_AT_KEY = 'flamezo_verified_at'
 
 /** Normalize phone by stripping non-numeric chars and extracting base 10 digits */
 export function normalizePhone(phone: string): string {

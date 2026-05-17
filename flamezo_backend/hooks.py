@@ -119,68 +119,68 @@ app_license = "mit"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"Restaurant": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Config": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant User": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_user_permission_query_conditions",
-	"Restaurant Table": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Loyalty Config": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Loyalty Entry": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Menu Product": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Menu Category": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Order": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Cart Entry": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Coupon": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Offer": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Event": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Game": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Table Booking": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Banquet Booking": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Home Feature": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Legacy Content": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Menu Image Extractor": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Customer": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Marketing Campaign": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Marketing Trigger": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Marketing Segment": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Marketing Event": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Analytics Event": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Coin Transaction": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Monthly Billing Ledger": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Monthly Revenue Ledger": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Plan Change Log": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Media Asset": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Media Upload Session": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Coupon Usage": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Referral Link": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"WhatsApp Lead Unlock": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"AI credit Transaction": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"AI Image Generation": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Recommendation Interaction": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Co Order Event": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Menu Product Embedding Cache": "flamezo_backend.flamezo_backend.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Restaurant": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Restaurant Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Restaurant User": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_user_permission_query_conditions",
+	"Restaurant Table": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Restaurant Loyalty Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Restaurant Loyalty Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Order": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Cart Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Coupon": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Offer": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Game": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Table Booking": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Banquet Booking": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Home Feature": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Legacy Content": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Menu Image Extractor": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Customer": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Marketing Campaign": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Marketing Trigger": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Marketing Segment": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Marketing Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Analytics Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Coin Transaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Monthly Billing Ledger": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Monthly Revenue Ledger": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Plan Change Log": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Media Asset": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Media Upload Session": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Coupon Usage": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Referral Link": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"WhatsApp Lead Unlock": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"AI credit Transaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"AI Image Generation": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Recommendation Interaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Co Order Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Menu Product Embedding Cache": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 }
 
 has_permission = {
-	"Restaurant": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant Config": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant User": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant Table": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Menu Product": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Menu Category": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Order": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Customer": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Marketing Campaign": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Monthly Billing Ledger": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
+	"Restaurant": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Restaurant Config": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Restaurant User": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Restaurant Table": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Order": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Customer": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Marketing Campaign": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Monthly Billing Ledger": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	# All other restaurant-specific doctypes use the base restaurant check
-	"Banquet Booking": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Table Booking": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Coupon": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Offer": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Event": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Game": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Home Feature": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"Legacy Content": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
-	"AI Image Generation": "flamezo_backend.flamezo_backend.utils.permission_helpers.has_restaurant_permission",
+	"Banquet Booking": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Table Booking": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Coupon": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Offer": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Event": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Game": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Home Feature": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Legacy Content": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"AI Image Generation": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 }
 
 # DocType Class
@@ -197,49 +197,49 @@ has_permission = {
 
 doc_events = {
 	"Customer": {
-		"before_save": "flamezo_backend.flamezo_backend.api.customers.normalize_customer_phone_on_save",
+		"before_save": "flamezo_backend.flamezo.api.customers.normalize_customer_phone_on_save",
 	},
 	"Order": {
-		"before_save": "flamezo_backend.flamezo_backend.api.customers.normalize_order_phone_on_save",
+		"before_save": "flamezo_backend.flamezo.api.customers.normalize_order_phone_on_save",
 		"after_insert": [
-			"flamezo_backend.flamezo_backend.api.customers.update_customer_last_visited",
-			"flamezo_backend.flamezo_backend.api.realtime.notify_order_update",
+			"flamezo_backend.flamezo.api.customers.update_customer_last_visited",
+			"flamezo_backend.flamezo.api.realtime.notify_order_update",
 			# Push notification to merchant dashboard (free FCM, background-safe)
-			"flamezo_backend.flamezo_backend.api.realtime.notify_new_order_to_merchant",
+			"flamezo_backend.flamezo.api.realtime.notify_new_order_to_merchant",
 			# Marketing Studio: fire 'On Order Complete' triggers
-			"flamezo_backend.flamezo_backend.tasks.marketing_tasks.fire_order_complete_triggers",
+			"flamezo_backend.flamezo.tasks.marketing_tasks.fire_order_complete_triggers",
 			# POS: push confirmed orders to POS provider (Petpooja, etc.)
-			"flamezo_backend.flamezo_backend.pos.utils.handle_order_update",
+			"flamezo_backend.flamezo.pos.utils.handle_order_update",
 			# Recommendations: log co-ordered product pairs for co-order matrix
-			"flamezo_backend.flamezo_backend.tasks.recommendation_tasks.log_co_order_events",
+			"flamezo_backend.flamezo.tasks.recommendation_tasks.log_co_order_events",
 		],
 		"on_update": [
-			"flamezo_backend.flamezo_backend.api.realtime.notify_order_update",
-			"flamezo_backend.flamezo_backend.utils.loyalty.handle_order_cancellation",
-			"flamezo_backend.flamezo_backend.utils.loyalty.handle_loyalty_settlement",
-			"flamezo_backend.flamezo_backend.pos.utils.handle_order_update"
+			"flamezo_backend.flamezo.api.realtime.notify_order_update",
+			"flamezo_backend.flamezo.utils.loyalty.handle_order_cancellation",
+			"flamezo_backend.flamezo.utils.loyalty.handle_loyalty_settlement",
+			"flamezo_backend.flamezo.pos.utils.handle_order_update"
 		],
 	},
 	"Table Booking": {
-		"after_insert": "flamezo_backend.flamezo_backend.api.customers.update_customer_last_visited",
+		"after_insert": "flamezo_backend.flamezo.api.customers.update_customer_last_visited",
 	},
 	"Banquet Booking": {
-		"after_insert": "flamezo_backend.flamezo_backend.api.customers.update_customer_last_visited",
+		"after_insert": "flamezo_backend.flamezo.api.customers.update_customer_last_visited",
 	},
 	"Menu Product": {
 		"on_update": [
-			"flamezo_backend.flamezo_backend.api.products.invalidate_product_cache",
-			"flamezo_backend.flamezo_backend.api.realtime.notify_product_update",
-			"flamezo_backend.flamezo_backend.api.google_business.handle_product_update"
+			"flamezo_backend.flamezo.api.products.invalidate_product_cache",
+			"flamezo_backend.flamezo.api.realtime.notify_product_update",
+			"flamezo_backend.flamezo.api.google_business.handle_product_update"
 		],
 	},
 	"Cart Entry": {
-		"after_insert": "flamezo_backend.flamezo_backend.api.realtime.notify_cart_update",
-		"on_update": "flamezo_backend.flamezo_backend.api.realtime.notify_cart_update",
-		"on_trash": "flamezo_backend.flamezo_backend.api.realtime.notify_cart_update",
+		"after_insert": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
+		"on_update": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
+		"on_trash": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
 	},
 	"File": {
-		"on_update": "flamezo_backend.flamezo_backend.doctype.home_feature.home_feature.update_home_feature_from_file",
+		"on_update": "flamezo_backend.flamezo.doctype.home_feature.home_feature.update_home_feature_from_file",
 	},
 }
 
@@ -249,52 +249,52 @@ doc_events = {
 scheduler_events = {
 	"cron": {
 		"30 3 * * *": [
-			"flamezo_backend.flamezo_backend.tasks.marketing_tasks.generate_daily_seo_blog"
+			"flamezo_backend.flamezo.tasks.marketing_tasks.generate_daily_seo_blog"
 		],
 		"59 23 * * *": [  # Run daily at 23:59 for floor recovery and lite renewals
-			"flamezo_backend.flamezo_backend.tasks.subscription_tasks.process_daily_subscription_floors",
-			"flamezo_backend.flamezo_backend.tasks.subscription_tasks.process_silver_feature_renewals",
+			"flamezo_backend.flamezo.tasks.subscription_tasks.process_daily_subscription_floors",
+			"flamezo_backend.flamezo.tasks.subscription_tasks.process_silver_feature_renewals",
 		],
 		"1 0 * * *": [    # Run daily at 00:01 for plan switches
-			"flamezo_backend.flamezo_backend.tasks.subscription_tasks.apply_deferred_plan_changes",
+			"flamezo_backend.flamezo.tasks.subscription_tasks.apply_deferred_plan_changes",
 		],
 		# Marketing Studio: dispatch scheduled campaigns every 15 minutes
 		"*/15 * * * *": [
-			"flamezo_backend.flamezo_backend.tasks.marketing_tasks.dispatch_scheduled_campaigns",
+			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
-			"flamezo_backend.flamezo_backend.tasks.marketing_tasks.fire_triggers",
+			"flamezo_backend.flamezo.tasks.marketing_tasks.fire_triggers",
 		],
 		# Google Growth: fetch insights daily
         "0 1 * * *": [
-            "flamezo_backend.flamezo_backend.api.google_business.fetch_all_restaurant_insights"
+            "flamezo_backend.flamezo.api.google_business.fetch_all_restaurant_insights"
         ],
 		# Loyalty: grant birthday bonus coins at 08:00 IST daily
 		"0 8 * * *": [
-			"flamezo_backend.flamezo_backend.tasks.loyalty_tasks.grant_birthday_bonuses"
+			"flamezo_backend.flamezo.tasks.loyalty_tasks.grant_birthday_bonuses"
 		],
 		# Loyalty: nudge customers whose coins expire within 7 days — 10:00 IST daily
 		"0 10 * * *": [
-			"flamezo_backend.flamezo_backend.tasks.loyalty_tasks.send_coin_expiry_notifications"
+			"flamezo_backend.flamezo.tasks.loyalty_tasks.send_coin_expiry_notifications"
 		],
 		# Loyalty: reset referral share cycles on 1st of each month at 00:00 UTC
 		"0 0 1 * *": [
-			"flamezo_backend.flamezo_backend.tasks.loyalty_tasks.reset_referral_cycles_monthly"
+			"flamezo_backend.flamezo.tasks.loyalty_tasks.reset_referral_cycles_monthly"
 		],
 		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)
 		"0 2 * * 0": [
-			"flamezo_backend.flamezo_backend.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
+			"flamezo_backend.flamezo.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
 		],
 		# Coupons: auto-activate scheduled + deactivate expired offers daily at 00:05
 		"5 0 * * *": [
-			"flamezo_backend.flamezo_backend.tasks.coupon_tasks.auto_activate_scheduled_coupons",
-			"flamezo_backend.flamezo_backend.tasks.coupon_tasks.auto_deactivate_expired_coupons",
+			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_activate_scheduled_coupons",
+			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_deactivate_expired_coupons",
 		],
 	}
 }
 
-extend_bootinfo = "flamezo_backend.flamezo_backend.utils.boot_helpers.extend_bootinfo"
+extend_bootinfo = "flamezo_backend.flamezo.utils.boot_helpers.extend_bootinfo"
 
 
 
@@ -330,10 +330,10 @@ extend_bootinfo = "flamezo_backend.flamezo_backend.utils.boot_helpers.extend_boo
 # ----------------
 # CORS Configuration for Frontend Access
 before_request = [
-    "flamezo_backend.flamezo_backend.utils.cors_helpers.handle_cors_preflight",
-    "flamezo_backend.flamezo_backend.utils.auth_hooks.restrict_merchant_desk_access"
+    "flamezo_backend.flamezo.utils.cors_helpers.handle_cors_preflight",
+    "flamezo_backend.flamezo.utils.auth_hooks.restrict_merchant_desk_access"
 ]
-after_request = ["flamezo_backend.flamezo_backend.utils.cors_helpers.add_cors_headers"]
+after_request = ["flamezo_backend.flamezo.utils.cors_helpers.add_cors_headers"]
 
 # Job Events
 # ----------

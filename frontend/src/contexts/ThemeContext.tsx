@@ -14,7 +14,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     // Check localStorage first
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('dinematters-theme') as Theme
+      const saved = localStorage.getItem('flamezo-theme') as Theme
       if (saved === 'light' || saved === 'dark') {
         return saved
       }
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       root.classList.remove('dark')
     }
-    localStorage.setItem('dinematters-theme', theme)
+    localStorage.setItem('flamezo-theme', theme)
   }, [theme])
 
   const setTheme = (newTheme: Theme) => {

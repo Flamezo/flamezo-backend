@@ -92,9 +92,9 @@ export default function MarketingAutomation() {
     open: false, name: '', label: ''
   })
 
-  const { call: fetchTriggers } = useFrappePostCall('dinematters.dinematters.api.marketing.get_triggers')
-  const { call: saveTriggerApi } = useFrappePostCall('dinematters.dinematters.api.marketing.save_trigger')
-  const { call: deleteTriggerApi } = useFrappePostCall('dinematters.dinematters.api.marketing.delete_trigger')
+  const { call: fetchTriggers } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_triggers')
+  const { call: saveTriggerApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.save_trigger')
+  const { call: deleteTriggerApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.delete_trigger')
 
   const load = () => {
     if (!selectedRestaurant) return

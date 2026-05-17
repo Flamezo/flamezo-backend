@@ -34,11 +34,11 @@ export default function AIMenuThemeBackgroundPage() {
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  const { call: getThemeStatus } = useFrappePostCall<ThemeStatusResponse>('dinematters.dinematters.api.ai_media.get_menu_theme_background_status')
-  const { call: setThemeBackgroundEnabled } = useFrappePostCall('dinematters.dinematters.api.ai_media.set_menu_theme_background_enabled')
-  const { call: uploadWallpaper } = useFrappePostCall('dinematters.dinematters.api.ai_media.upload_menu_theme_wallpaper')
-  const { call: deleteWallpaper } = useFrappePostCall('dinematters.dinematters.api.ai_media.delete_menu_theme_wallpaper')
-  const { call: setMainWallpaper } = useFrappePostCall('dinematters.dinematters.api.ai_media.set_main_menu_theme_wallpaper')
+  const { call: getThemeStatus } = useFrappePostCall<ThemeStatusResponse>('flamezo_backend.flamezo.api.ai_media.get_menu_theme_background_status')
+  const { call: setThemeBackgroundEnabled } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.set_menu_theme_background_enabled')
+  const { call: uploadWallpaper } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.upload_menu_theme_wallpaper')
+  const { call: deleteWallpaper } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.delete_menu_theme_wallpaper')
+  const { call: setMainWallpaper } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.set_main_menu_theme_wallpaper')
 
   const fetchStatus = useCallback(async () => {
     if (!selectedRestaurant) return

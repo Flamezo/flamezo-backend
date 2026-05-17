@@ -51,13 +51,13 @@ interface RestaurantContextType {
   userRole: 'Restaurant Admin' | 'Restaurant Staff' | null
   /** True if current user is Restaurant Admin (or system Administrator/Supervisor) */
   isAdmin: boolean
-  /** True if current user has DineMatters Supervisor role */
+  /** True if current user has Flamezo Supervisor role */
   isSupervisor: boolean
 }
 
 const RestaurantContext = createContext<RestaurantContextType | undefined>(undefined)
 
-const STORAGE_KEY = 'dinematters-selected-restaurant'
+const STORAGE_KEY = 'flamezo-selected-restaurant'
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
   // Helper to validate restaurant IDs
@@ -86,7 +86,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   // Root level fetch to break the render deadlock
   const { data: restaurantsData } = useFrappeGetCall<{ message: { restaurants: Restaurant[] } }>(
-    'dinematters.dinematters.api.ui.get_user_restaurants',
+    'flamezo_backend.flamezo.api.ui.get_user_restaurants',
     {},
     'user-restaurants'
   )
@@ -179,7 +179,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     
     try {
       const resp = await fetch(
-        `/api/method/dinematters.dinematters.api.config.get_restaurant_config?restaurant_id=${encodeURIComponent(selectedRestaurant)}`,
+        `/api/method/flamezo_backend.flamezo.api.config.get_restaurant_config?restaurant_id=${encodeURIComponent(selectedRestaurant)}`,
         { cache: 'no-store' }
       )
       const json = await resp.json()
@@ -251,7 +251,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   
   // Check for global supervisor role from boot data
   const userRoles = (window as any)?.frappe?.boot?.user_roles || []
-  const isSupervisor = userRoles.includes('DineMatters Supervisor')
+  const isSupervisor = userRoles.includes('Flamezo Supervisor')
   
   // isAdmin is true if they are a restaurant admin, or if they are a supervisor, or if no config is loaded yet (guest/admin)
   const isAdmin = isSupervisor || userRole === 'Restaurant Admin' || userRole === null 

@@ -63,7 +63,7 @@ export default function WhatsAppOrders() {
     searchQuery,
     setSearchQuery
   } = useDataTable({
-    customEndpoint: 'dinematters.dinematters.api.whatsapp_ordering.get_whatsapp_orders',
+    customEndpoint: 'flamezo_backend.flamezo.api.whatsapp_ordering.get_whatsapp_orders',
     paramNames: {
       page: 'page',
       pageSize: 'page_length',
@@ -79,8 +79,8 @@ export default function WhatsAppOrders() {
     debugId: `whatsapp-orders-${selectedRestaurant}-${viewMode}`
   })
 
-  const { call: unlockLeadApi } = useFrappePostCall('dinematters.dinematters.api.whatsapp_ordering.unlock_whatsapp_lead')
-  const { call: updateStatus } = useFrappePostCall('dinematters.dinematters.api.order_status.update_status')
+  const { call: unlockLeadApi } = useFrappePostCall('flamezo_backend.flamezo.api.whatsapp_ordering.unlock_whatsapp_lead')
+  const { call: updateStatus } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_status')
   
   // ── Real-time Notifications ───────────────────────────────────────────────
   useFrappeEventListener('whatsapp_intent', () => {

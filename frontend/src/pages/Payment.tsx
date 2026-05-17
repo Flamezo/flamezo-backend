@@ -79,10 +79,10 @@ const Payment: React.FC = () => {
   const { data: restaurant } = useFrappeGetDoc('Restaurant', restaurantId);
   
   const { call: getCartItems } = useFrappePostCall<PricingResult>(
-    'dinematters.dinematters.api.cart.get_cart'
+    'flamezo_backend.flamezo.api.cart.get_cart'
   );
   const { call: checkVerified } = useFrappePostCall<{success: boolean, verified: boolean}>(
-    'dinematters.dinematters.api.otp.check_verified'
+    'flamezo_backend.flamezo.api.otp.check_verified'
   );
 
   // Load cart items when restaurant or delivery location changes

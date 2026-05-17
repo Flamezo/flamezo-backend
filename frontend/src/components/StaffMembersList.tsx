@@ -89,14 +89,14 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
   const [inviteLoading, setInviteLoading] = useState(false)
 
   const { data: staffDataRaw, isLoading, mutate } = useFrappeGetCall<{ message: { success: boolean; data: StaffData } }>(
-    'dinematters.dinematters.api.staff.get_staff_members',
+    'flamezo_backend.flamezo.api.staff.get_staff_members',
     { restaurant_id: restaurantId },
     restaurantId ? `staff-members-${restaurantId}` : null
   )
 
-  const { call: callPost } = useFrappePostCall('dinematters.dinematters.api.staff.invite_staff_member')
-  const { call: callRemove } = useFrappePostCall('dinematters.dinematters.api.staff.remove_staff_member')
-  const { call: callUpdate } = useFrappePostCall('dinematters.dinematters.api.staff.update_staff_member')
+  const { call: callPost } = useFrappePostCall('flamezo_backend.flamezo.api.staff.invite_staff_member')
+  const { call: callRemove } = useFrappePostCall('flamezo_backend.flamezo.api.staff.remove_staff_member')
+  const { call: callUpdate } = useFrappePostCall('flamezo_backend.flamezo.api.staff.update_staff_member')
 
   const staffData: StaffData | null = (staffDataRaw as any)?.message?.data ?? null
   const members = staffData?.members ?? []
@@ -408,7 +408,7 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Upgrade to Add Staff</p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
               GOLD plan includes 6 staff seats.
-              Contact DineMatters to upgrade your plan.
+              Contact Flamezo to upgrade your plan.
             </p>
           </div>
         </div>

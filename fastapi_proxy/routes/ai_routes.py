@@ -22,7 +22,7 @@ async def enqueue_enhancement(
     client = get_erpnext_client()
     try:
         response = await client.call_method(
-            "flamezo_backend.flamezo_backend.api.ai_media.enqueue_enhancement",
+            "flamezo_backend.flamezo.api.ai_media.enqueue_enhancement",
             data=request.dict()
         )
         return response
@@ -38,7 +38,7 @@ async def get_status(
     client = get_erpnext_client()
     try:
         response = await client.call_method(
-            "flamezo_backend.flamezo_backend.api.ai_media.get_enhancement_status",
+            "flamezo_backend.flamezo.api.ai_media.get_enhancement_status",
             data={"generation_id": generation_id}
         )
         return response
@@ -54,7 +54,7 @@ async def apply_to_product(
     client = get_erpnext_client()
     try:
         response = await client.call_method(
-            "flamezo_backend.flamezo_backend.api.ai_media.apply_to_product",
+            "flamezo_backend.flamezo.api.ai_media.apply_to_product",
             data={"generation_id": generation_id}
         )
         return response

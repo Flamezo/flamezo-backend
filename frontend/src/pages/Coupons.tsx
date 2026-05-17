@@ -476,7 +476,7 @@ export default function Coupons() {
             size="sm"
             className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
             onClick={() => {
-              window.open('/api/method/dinematters.dinematters.api.payments.download_guide?guide_name=DineMatters_Offers_Guide', '_blank')
+              window.open('/api/method/flamezo_backend.flamezo.api.payments.download_guide?guide_name=Flamezo_Offers_Guide', '_blank')
             }}
           >
             <Download className="h-4 w-4" />

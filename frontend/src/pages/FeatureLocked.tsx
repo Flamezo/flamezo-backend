@@ -11,7 +11,7 @@ export default function FeatureLocked() {
   const { isGold, planType, isLoading } = useRestaurant()
 
   // Get the attempted path from location state or current path
-  const attemptedPath = (location.state?.from || location.pathname).replace('/dinematters', '')
+  const attemptedPath = (location.state?.from || location.pathname).replace('/flamezo_backend', '')
   const { featureName, requiredPlan } = getFeatureDetails(attemptedPath)
 
   // Auto-unlock logic: If the user actually has access now, send them back
@@ -25,7 +25,7 @@ export default function FeatureLocked() {
     if (hasAccess) {
       // Ensure we don't double-prefix the path. 
       // navigate() automatically prepends the basename from App.tsx
-      const target = (location.state?.from || '/dashboard').replace('/dinematters', '')
+      const target = (location.state?.from || '/dashboard').replace('/flamezo_backend', '')
       navigate(target, { replace: true })
     }
   }, [isGold, isLoading, requiredPlan, navigate, location, attemptedPath])

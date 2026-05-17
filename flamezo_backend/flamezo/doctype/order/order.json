@@ -1,0 +1,627 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:order_id",
+ "creation": "2024-01-15 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "order_id",
+  "order_number",
+  "customer",
+  "column_break_1",
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+  "platform_customer",
+  "table_number",
+  "order_type",
+  "pickup_time",
+  "section_break_items",
+  "order_items",
+  "section_break_totals",
+  "subtotal",
+  "discount",
+  "tax",
+  "cgst",
+  "sgst",
+  "tax_percent",
+  "column_break_totals",
+  "delivery_fee",
+  "packaging_fee",
+  "logistics_platform_fee",
+  "delivery_courier_fee",
+  "delivery_markup",
+  "total",
+  "coupon",
+  "loyalty_coins_redeemed",
+  "loyalty_discount",
+  "coins_earned",
+  "referral_link",
+  "section_break_status",
+  "status",
+  "is_pushed_to_pos",
+  "pos_order_id",
+  "column_break_status",
+  "payment_method",
+  "payment_status",
+  "transaction_id",
+  "razorpay_order_id",
+  "razorpay_payment_id",
+  "is_tokenization",
+  "is_whatsapp_order",
+  "platform_fee_amount",
+  "restaurant_transfer_amount",
+  "section_break_delivery",
+  "estimated_delivery",
+  "delivery_partner",
+  "delivery_mode",
+  "delivery_id",
+  "delivery_status",
+  "delivery_eta",
+  "delivery_rider_name",
+  "delivery_rider_phone",
+  "delivery_tracking_url",
+  "delivery_address",
+  "delivery_latitude",
+  "delivery_longitude",
+  "delivery_landmark",
+  "delivery_location_pin",
+  "rider_latitude",
+  "rider_longitude",
+  "rider_last_updated",
+  "column_break_delivery",
+  "delivery_city",
+  "delivery_state",
+  "delivery_zip_code",
+  "delivery_house_number",
+  "delivery_instructions",
+  "section_break_requests",
+  "cooking_requests",
+  "section_break_feedback",
+  "customer_rating",
+  "customer_feedback",
+  "food_rating",
+  "service_rating",
+  "idempotency_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "order_id",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Order ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "order_number",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Order Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name"
+  },
+  {
+   "fieldname": "customer_email",
+   "fieldtype": "Data",
+   "label": "Customer Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "platform_customer",
+   "fieldtype": "Link",
+   "label": "Platform Customer",
+   "options": "Customer",
+   "read_only": 1,
+   "description": "Customer record for cross-restaurant analytics"
+  },
+  {
+   "fieldname": "order_type",
+   "fieldtype": "Select",
+   "label": "Order Type",
+   "options": "dine_in\ntakeaway\ndelivery",
+   "default": "dine_in"
+  },
+  {
+   "fieldname": "pickup_time",
+   "fieldtype": "Datetime",
+   "label": "Pickup Time"
+  },
+  {
+   "fieldname": "table_number",
+   "fieldtype": "Int",
+   "label": "Table Number",
+   "description": "Table number from scanned QR code (format: restaurant-id/table-number)"
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Order Items"
+  },
+  {
+   "fieldname": "order_items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Order Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "subtotal",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Subtotal",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "discount",
+   "fieldtype": "Currency",
+   "label": "Discount"
+  },
+  {
+   "fieldname": "coupon",
+   "fieldtype": "Link",
+   "label": "Coupon",
+   "options": "Coupon"
+  },
+  {
+   "default": "0",
+   "fieldname": "loyalty_coins_redeemed",
+   "fieldtype": "Int",
+   "label": "Loyalty Cash Redeemed"
+  },
+  {
+   "default": "0",
+   "fieldname": "loyalty_discount",
+   "fieldtype": "Currency",
+   "label": "Loyalty Discount"
+  },
+  {
+   "default": "0",
+   "fieldname": "coins_earned",
+   "fieldtype": "Int",
+   "label": "Cash Earned"
+  },
+  {
+   "fieldname": "referral_link",
+   "fieldtype": "Link",
+   "label": "Referral Link",
+   "options": "Referral Link"
+  },
+  {
+   "default": "0",
+   "fieldname": "tax",
+   "fieldtype": "Currency",
+   "label": "Tax"
+  },
+  {
+   "fieldname": "cgst",
+   "fieldtype": "Currency",
+   "label": "CGST"
+  },
+  {
+   "fieldname": "sgst",
+   "fieldtype": "Currency",
+   "label": "SGST"
+  },
+  {
+   "fieldname": "tax_percent",
+   "fieldtype": "Percent",
+   "label": "Tax Rate Applied"
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_fee",
+   "fieldtype": "Currency",
+   "label": "Delivery Fee"
+  },
+  {
+   "fieldname": "packaging_fee",
+   "fieldtype": "Currency",
+   "label": "Packaging Fee",
+   "default": "0"
+  },
+  {
+   "default": "0",
+   "fieldname": "logistics_platform_fee",
+   "fieldtype": "Currency",
+   "label": "Logistics Platform Fee",
+   "read_only": 1,
+   "description": "Fee earned by Flamezo platform for delivery management"
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_courier_fee",
+   "fieldtype": "Currency",
+   "label": "Delivery Courier Fee",
+   "read_only": 1,
+   "description": "Actual courier cost before platform fee and markup"
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_markup",
+   "fieldtype": "Currency",
+   "label": "Delivery Markup",
+   "read_only": 1,
+   "description": "Restaurant profit markup on delivery"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "confirmed",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "pending_verification\nPending Payment\nPending Verification\nAuto Accepted\nAccepted\nconfirmed\npreparing\nready\nDispatched\nIn Billing\ndelivered\nbilled\ncancelled",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pushed_to_pos",
+   "fieldtype": "Check",
+   "label": "Is Pushed to POS",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pos_order_id",
+   "fieldtype": "Data",
+   "label": "POS Order ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_method",
+   "fieldtype": "Select",
+   "label": "Payment Method",
+   "options": "\npay_at_counter\npay_online\nonline\ncard\ncash\ndigital_wallet"
+  },
+  {
+   "default": "pending",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "label": "Payment Status",
+   "options": "pending\ncompleted\nfailed"
+  },
+  {
+   "fieldname": "transaction_id",
+   "fieldtype": "Data",
+   "label": "Transaction ID"
+  },
+  {
+   "fieldname": "razorpay_order_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Order ID",
+   "read_only": 1,
+   "description": "Razorpay order ID for payment processing"
+  },
+  {
+   "fieldname": "razorpay_payment_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Payment ID",
+   "read_only": 1,
+   "description": "Razorpay payment ID after successful payment"
+  },
+  {
+   "fieldname": "is_tokenization",
+   "fieldtype": "Check",
+   "label": "Is Tokenization",
+   "default": 0,
+   "in_list_view": 0,
+   "description": "Flag indicating this order was created for tokenization (system use only)"
+  },
+  {
+   "fieldname": "is_whatsapp_order",
+   "fieldtype": "Check",
+   "label": "Is WhatsApp Order",
+   "default": 0,
+   "in_list_view": 1,
+   "description": "Flag indicating this order was created via WhatsApp redirect (GOLD plan)"
+  },
+  {
+   "fieldname": "platform_fee_amount",
+   "fieldtype": "Int",
+   "label": "Platform Fee Amount (Paise)",
+   "read_only": 1,
+   "description": "Platform fee amount in paise (1.5% of total)"
+  },
+  {
+   "fieldname": "restaurant_transfer_amount",
+   "fieldtype": "Int",
+   "label": "Restaurant Transfer Amount (Paise)",
+   "read_only": 1,
+   "description": "Amount transferred to restaurant in paise"
+  },
+  {
+   "fieldname": "section_break_delivery",
+   "fieldtype": "Section Break",
+   "label": "Delivery Information"
+  },
+  {
+   "fieldname": "estimated_delivery",
+   "fieldtype": "Datetime",
+   "label": "Estimated Delivery"
+  },
+  {
+   "fieldname": "delivery_partner",
+   "fieldtype": "Select",
+   "label": "Delivery Partner",
+   "options": "borzo\nflash\nmanual"
+  },
+  {
+   "fieldname": "delivery_mode",
+   "fieldtype": "Select",
+   "label": "Delivery Mode",
+   "options": "auto\nmanual",
+   "default": "auto"
+  },
+  {
+   "fieldname": "delivery_id",
+   "fieldtype": "Data",
+   "label": "Delivery ID",
+   "description": "External ID from delivery partner"
+  },
+  {
+   "fieldname": "delivery_status",
+   "fieldtype": "Data",
+   "label": "Delivery Status",
+   "description": "Current status from delivery partner"
+  },
+  {
+   "fieldname": "delivery_eta",
+   "fieldtype": "Data",
+   "label": "Delivery ETA",
+   "description": "ETA from delivery partner"
+  },
+  {
+   "fieldname": "delivery_rider_name",
+   "fieldtype": "Data",
+   "label": "Rider Name"
+  },
+  {
+   "fieldname": "delivery_rider_phone",
+   "fieldtype": "Data",
+   "label": "Rider Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "delivery_tracking_url",
+   "fieldtype": "Data",
+   "label": "Tracking URL",
+   "options": "URL"
+  },
+  {
+   "fieldname": "delivery_address",
+   "fieldtype": "Small Text",
+   "label": "Delivery Address"
+  },
+  {
+   "fieldname": "delivery_latitude",
+   "fieldtype": "Float",
+   "label": "Delivery Latitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delivery_longitude",
+   "fieldtype": "Float",
+   "label": "Delivery Longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delivery_landmark",
+   "fieldtype": "Data",
+   "label": "Landmark"
+  },
+  {
+   "fieldname": "delivery_location_pin",
+   "fieldtype": "Data",
+   "label": "Location Pin (Lat, Lng or URL)"
+  },
+  {
+   "fieldname": "rider_latitude",
+   "fieldtype": "Float",
+   "label": "Rider Latitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rider_longitude",
+   "fieldtype": "Float",
+   "label": "Rider Longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rider_last_updated",
+   "fieldtype": "Datetime",
+   "label": "Rider Last Updated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_delivery",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "delivery_city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "delivery_state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "delivery_zip_code",
+   "fieldtype": "Data",
+   "label": "Zip Code"
+  },
+  {
+   "fieldname": "delivery_house_number",
+   "fieldtype": "Data",
+   "label": "House/Flat Number"
+  },
+  {
+   "fieldname": "delivery_instructions",
+   "fieldtype": "Small Text",
+   "label": "Delivery Instructions"
+  },
+  {
+   "fieldname": "section_break_requests",
+   "fieldtype": "Section Break",
+   "label": "Cooking Requests"
+  },
+  {
+   "fieldname": "cooking_requests",
+   "fieldtype": "JSON",
+   "label": "Cooking Requests"
+  },
+  {
+   "fieldname": "section_break_feedback",
+   "fieldtype": "Section Break",
+   "label": "Customer Feedback"
+  },
+  {
+   "fieldname": "customer_rating",
+   "fieldtype": "Int",
+   "label": "Customer Rating",
+   "description": "1-5 stars from customer",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "customer_feedback",
+   "fieldtype": "Small Text",
+   "label": "Customer Feedback",
+   "description": "Feedback or review shared by customer for this order"
+  },
+  {
+   "fieldname": "food_rating",
+   "fieldtype": "Int",
+   "label": "Food Rating",
+   "description": "1-5 stars for food quality",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "service_rating",
+   "fieldtype": "Int",
+   "label": "Service Rating",
+   "description": "1-5 stars for service quality",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotency Key",
+   "read_only": 1,
+   "unique": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "pos_sync_status",
+   "fieldtype": "Data",
+   "label": "POS Sync Status",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2024-01-15 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Order",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "All",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Flamezo Supervisor",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

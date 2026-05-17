@@ -81,10 +81,10 @@ export default function PaymentSettings() {
   const [activePreset, setActivePreset] = useState<FilterPreset>('today')
 
   const { call: getPayments } = useFrappePostCall<{ success: boolean; data: { items: RazorpayPayment[] } }>(
-    'dinematters.dinematters.api.payments.get_razorpay_payments'
+    'flamezo_backend.flamezo.api.payments.get_razorpay_payments'
   )
   const { call: refundPayment } = useFrappePostCall(
-    'dinematters.dinematters.api.payments.initiate_razorpay_refund'
+    'flamezo_backend.flamezo.api.payments.initiate_razorpay_refund'
   )
 
   const loadPayments = useCallback(async (fDate?: string, tDate?: string) => {

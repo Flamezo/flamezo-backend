@@ -1,0 +1,1011 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:restaurant_id",
+ "title_field": "restaurant_name",
+ "creation": "2025-01-15 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant_id",
+  "restaurant_name",
+  "company",
+  "column_break_1",
+  "subdomain",
+  "slug",
+  "is_active",
+  "enable_loyalty",
+  "section_break_owner",
+  "owner_email",
+  "owner_phone",
+  "column_break_owner",
+  "owner_name",
+  "section_break_address",
+  "address",
+  "city",
+  "state",
+  "column_break_address",
+  "zip_code",
+  "latitude",
+  "longitude",
+  "city_latitude",
+  "city_longitude",
+  "country",
+  "section_break_settings",
+  "tax_rate",
+  "gst_number",
+  "default_delivery_fee",
+  "enable_takeaway",
+  "enable_delivery",
+  "enable_dine_in",
+  "no_ordering",
+  "order_channel",
+  "packaging_fee_type",
+  "default_packaging_fee",
+  "minimum_order_value",
+  "estimated_prep_time",
+  "column_break_settings",
+  "timezone",
+  "currency",
+  "tables",
+  "recommendation_run",
+  "recommendation_last_run",
+  "qr_codes_pdf_url",
+  "section_break_razorpay",
+  "razorpay_account_id",
+  "razorpay_kyc_status",
+  "column_break_razorpay",
+  "platform_fee_percent",
+  "monthly_minimum",
+  "razorpay_customer_id",
+  "razorpay_token_id",
+  "mandate_status",
+  "billing_status",
+  "section_break_subscription",
+  "plan_type",
+  "plan_activated_on",
+  "column_break_subscription",
+  "plan_changed_by",
+  "plan_change_reason",
+  "section_break_subscription_limits",
+  "max_images_silver",
+  "current_image_count",
+  "column_break_subscription_metrics",
+  "total_orders",
+  "total_revenue",
+  "commission_earned",
+  "deferred_plan_type",
+  "plan_change_date",
+  "plan_change_history",
+  "section_break_coins",
+  "coins_balance",
+  "auto_recharge_enabled",
+  "enable_floor_recovery",
+  "floor_recovery_activated_on",
+  "last_floor_recovery_date",
+  "column_break_coins",
+  "auto_recharge_threshold",
+  "auto_recharge_amount",
+  "section_break_auto_recharge_safety",
+  "daily_auto_recharge_limit",
+  "daily_auto_recharge_count",
+  "column_break_safety",
+  "last_auto_recharge_date",
+  "section_break_ai_metrics",
+  "total_ai_generations",
+  "total_ai_cost",
+  "ai_coupon_generations_this_month",
+  "ai_coupon_quota_reset_month",
+  "section_break_pos",
+  "pos_provider",
+  "pos_enabled",
+  "pos_app_key",
+  "pos_app_secret",
+  "pos_access_token",
+  "pos_merchant_id",
+  "column_break_pos",
+  "pos_last_sync_at",
+  "pos_sync_status",
+  "section_break_branding",
+  "logo",
+  "hero_video",
+  "section_break_metadata",
+  "description",
+  "column_break_google_map",
+  "google_map_url",
+  "section_logistics_hub",
+  "preferred_logistics_provider",
+  "flash_store_id",
+  "delivery_markup_type",
+  "delivery_markup_value",
+  "max_delivery_distance",
+  "referral_code",
+  "referred_by_restaurant",
+  "section_break_google_growth",
+  "google_business_account_id",
+  "google_business_location_id",
+  "enable_google_sync",
+  "google_review_url",
+  "google_insights_data",
+  "google_refresh_token"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant_id",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Restaurant ID",
+   "read_only": 1,
+   "unique": 1,
+   "description": "Automatically generated unique identifier for your restaurant"
+  },
+  {
+   "fieldname": "restaurant_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Restaurant Name",
+   "reqd": 1,
+   "description": "Your restaurant's name as it will appear to customers"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "description": "Link to your company profile (optional)"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "subdomain",
+   "fieldtype": "Data",
+   "label": "Subdomain",
+   "unique": 1,
+   "description": "Unique web address for your restaurant (e.g., pizza-palace-nyc)"
+  },
+  {
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "label": "Slug",
+   "unique": 1,
+   "description": "Short name for links and URLs (use lowercase letters and hyphens)"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_loyalty",
+   "fieldtype": "Check",
+   "label": "Enable Loyalty"
+  },
+  {
+   "fieldname": "section_break_owner",
+   "fieldtype": "Section Break",
+   "label": "Owner Information"
+  },
+  {
+   "fieldname": "onboarding_date",
+   "fieldtype": "Date",
+   "label": "Onboarding Date",
+   "description": "Date the restaurant was onboarded (used to schedule monthly billing)."
+  },
+  {
+   "fieldname": "owner_email",
+   "fieldtype": "Data",
+   "label": "Owner Email",
+   "options": "Email",
+   "description": "Email address of the restaurant owner for system access"
+  },
+  {
+   "fieldname": "owner_phone",
+   "fieldtype": "Data",
+   "label": "Owner Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "column_break_owner",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "label": "Owner Name"
+  },
+  {
+   "fieldname": "section_break_address",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "column_break_address",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "zip_code",
+   "fieldtype": "Data",
+   "label": "Zip Code"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "city_latitude",
+   "fieldtype": "Float",
+   "label": "City Latitude",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "city_longitude",
+   "fieldtype": "Float",
+   "label": "City Longitude",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country"
+  },
+  {
+   "fieldname": "section_break_settings",
+   "fieldtype": "Section Break",
+   "label": "Settings"
+  },
+  {
+   "default": "5.0",
+   "fieldname": "tax_rate",
+   "fieldtype": "Percent",
+   "label": "Tax Rate",
+   "description": "Tax percentage applied to orders (e.g., 5 for 5% GST)"
+  },
+  {
+   "fieldname": "gst_number",
+   "fieldtype": "Data",
+   "label": "GST Number",
+   "description": "Restaurant's GST registration number"
+  },
+  {
+   "default": "0",
+   "fieldname": "default_delivery_fee",
+   "fieldtype": "Currency",
+   "label": "Default Delivery Fee",
+   "description": "Standard delivery charge for orders"
+  },
+  {
+   "fieldname": "enable_takeaway",
+   "fieldtype": "Check",
+   "label": "Enable Takeaway",
+   "default": "1"
+  },
+  {
+   "fieldname": "enable_delivery",
+   "fieldtype": "Check",
+   "label": "Enable Delivery",
+   "default": "0"
+  },
+  {
+   "fieldname": "enable_dine_in",
+   "fieldtype": "Check",
+   "label": "Enable Dine-in",
+   "default": "1"
+  },
+  {
+   "fieldname": "no_ordering",
+   "fieldtype": "Check",
+   "label": "No Ordering",
+   "default": "0"
+  },
+  {
+   "fieldname": "order_channel",
+   "fieldtype": "Select",
+   "label": "Order Channel",
+   "options": "Realtime\nWhatsApp",
+   "default": "Realtime",
+   "description": "Realtime = in-app orders (GOLD only). WhatsApp = orders via WhatsApp link (available on all plans)."
+  },
+  {
+   "default": "Fixed",
+   "fieldname": "packaging_fee_type",
+   "fieldtype": "Select",
+   "label": "Packaging Fee Type",
+   "options": "Fixed\nPercentage"
+  },
+  {
+   "default": "0",
+   "fieldname": "default_packaging_fee",
+   "fieldtype": "Currency",
+   "label": "Packaging Fee + Operation Overhead",
+   "description": "Charge for packaging and operational overhead per order."
+  },
+  {
+   "fieldname": "minimum_order_value",
+   "fieldtype": "Currency",
+   "label": "Minimum Order Value for Delivery",
+   "default": "0"
+  },
+  {
+   "fieldname": "estimated_prep_time",
+   "fieldtype": "Int",
+   "label": "Estimated Preparation Time (mins)",
+   "default": "30"
+  },
+  {
+   "fieldname": "column_break_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone",
+   "default": "UTC"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "default": "INR"
+  },
+  {
+   "default": "0",
+   "fieldname": "tables",
+   "fieldtype": "Int",
+   "label": "Tables",
+   "description": "Number of tables in the restaurant. QR codes will be generated when this field is updated."
+  },
+  {
+   "default": "0",
+   "fieldname": "recommendation_run",
+   "fieldtype": "Int",
+   "label": "Recommendation Run Count",
+   "read_only": 1,
+   "description": "How many times the AI menu recommendation engine has been executed for this restaurant."
+  },
+  {
+   "fieldname": "recommendation_last_run",
+   "fieldtype": "Datetime",
+   "label": "Recommendations Last Run",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qr_codes_pdf_url",
+   "fieldtype": "Data",
+   "label": "QR Codes PDF URL",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "section_break_razorpay",
+   "fieldtype": "Section Break",
+   "label": "Razorpay Integration"
+  },
+  {
+   "fieldname": "razorpay_account_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Account ID",
+   "read_only": 1,
+   "description": "Razorpay linked account ID for this restaurant"
+  },
+  {
+   "fieldname": "razorpay_kyc_status",
+   "fieldtype": "Select",
+   "label": "Razorpay KYC Status",
+   "options": "\nunder_review\nneeds_clarification\nactivated\nsuspended\nrejected",
+   "default": "",
+   "read_only": 1,
+   "description": "KYC verification status for Razorpay account"
+  },
+  {
+   "fieldname": "column_break_razorpay",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "platform_fee_percent",
+   "fieldtype": "Percent",
+   "label": "Platform Fee Percent",
+   "default": "1.5",
+   "precision": 2,
+   "description": "Platform fee percentage (default: 1.5%)"
+  },
+  {
+   "fieldname": "monthly_minimum",
+   "fieldtype": "Currency",
+   "label": "Monthly Minimum Fee",
+   "default": "399",
+   "description": "Minimum monthly platform fee (default: \u20b9399)"
+  },
+  {
+   "fieldname": "razorpay_customer_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Customer ID",
+   "read_only": 1,
+   "description": "Razorpay customer id used for tokenized recurring charges"
+  },
+  {
+   "fieldname": "razorpay_merchant_key_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Merchant Key ID",
+   "description": "Merchant Razorpay Key ID for accepting customer payments (stored per-restaurant). Visible to admins only."
+  },
+  {
+   "fieldname": "razorpay_merchant_key_secret",
+   "fieldtype": "Password",
+   "label": "Razorpay Merchant Key Secret",
+   "description": "Merchant Razorpay Key Secret (encrypted). Only System Managers may set or view.",
+   "hidden": 1
+  },
+  {
+   "fieldname": "razorpay_keys_updated_at",
+   "fieldtype": "Datetime",
+   "label": "Razorpay Keys Updated At",
+   "read_only": 1,
+   "description": "Timestamp when merchant Razorpay keys were last updated"
+  },
+  {
+   "fieldname": "razorpay_keys_updated_by",
+   "fieldtype": "Data",
+   "label": "Razorpay Keys Updated By",
+   "read_only": 1,
+   "description": "User who last updated merchant Razorpay keys"
+  },
+  {
+   "fieldname": "razorpay_webhook_secret",
+   "fieldtype": "Password",
+   "label": "Razorpay Webhook Secret",
+   "description": "Optional merchant webhook secret for per-merchant webhook signature verification (store encrypted).",
+   "hidden": 1
+  },
+  {
+   "fieldname": "razorpay_token_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Token ID",
+   "read_only": 1,
+   "description": "Stored payment token / token id for recurring debit"
+  },
+  {
+   "fieldname": "mandate_status",
+   "fieldtype": "Select",
+   "label": "Mandate Status",
+   "options": "\ninactive\nactive\nfailed",
+   "default": "inactive",
+   "description": "Status of the stored mandate or token"
+  },
+  {
+   "fieldname": "billing_status",
+   "fieldtype": "Select",
+   "label": "Billing Status",
+   "options": "\nactive\noverdue\nsuspended",
+   "default": "active",
+   "description": "Subscription billing status for the restaurant"
+  },
+  {
+   "fieldname": "section_break_subscription",
+   "fieldtype": "Section Break",
+   "label": "Subscription Plan"
+  },
+  {
+   "fieldname": "plan_type",
+   "fieldtype": "Select",
+   "label": "Plan Tier",
+   "options": "\nSILVER\nGOLD",
+   "default": "SILVER",
+   "in_list_view": 1,
+   "reqd": 1,
+   "description": "Subscription plan tier (SILVER: Free - QR menu + ordering + loyalty, GOLD: Full automation 1.5% commission + CRM + marketing)"
+  },
+  {
+   "fieldname": "plan_activated_on",
+   "fieldtype": "Datetime",
+   "label": "Plan Activated On",
+   "read_only": 1,
+   "description": "Date and time when current plan was activated"
+  },
+  {
+   "fieldname": "column_break_subscription",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "plan_changed_by",
+   "fieldtype": "Link",
+   "label": "Plan Changed By",
+   "options": "User",
+   "read_only": 1,
+   "description": "User who last changed the subscription plan"
+  },
+  {
+   "fieldname": "plan_change_reason",
+   "fieldtype": "Small Text",
+   "label": "Plan Change Reason",
+   "description": "Reason for plan change (admin use only)"
+  },
+  {
+   "fieldname": "section_break_subscription_limits",
+   "fieldtype": "Section Break",
+   "label": "Subscription Limits & Metrics"
+  },
+  {
+   "fieldname": "max_images_silver",
+   "fieldtype": "Int",
+   "label": "Max Images (Silver)",
+   "default": "200",
+   "description": "Maximum number of images allowed for SILVER plan"
+  },
+  {
+   "fieldname": "current_image_count",
+   "fieldtype": "Int",
+   "label": "Current Image Count",
+   "default": "0",
+   "read_only": 1,
+   "description": "Current number of images uploaded"
+  },
+  {
+   "fieldname": "column_break_subscription_metrics",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_orders",
+   "fieldtype": "Int",
+   "label": "Total Orders",
+   "default": "0",
+   "read_only": 1,
+   "description": "Total number of orders processed (GOLD tier)"
+  },
+  {
+   "fieldname": "total_revenue",
+   "fieldtype": "Currency",
+   "label": "Total Revenue",
+   "default": "0",
+   "read_only": 1,
+   "description": "Total revenue from orders (GOLD tier)"
+  },
+  {
+   "fieldname": "commission_earned",
+   "fieldtype": "Currency",
+   "label": "Commission Earned",
+   "default": "0",
+   "read_only": 1,
+   "description": "Total commission earned by platform (1.5% of revenue)"
+  },
+  {
+   "fieldname": "deferred_plan_type",
+   "fieldtype": "Select",
+   "label": "Deferred Plan Type",
+   "options": "\nSILVER\nGOLD",
+   "description": "The plan that will be activated at midnight"
+  },
+  {
+   "fieldname": "plan_change_date",
+   "fieldtype": "Date",
+   "label": "Plan Change Date",
+   "description": "Date when the deferred plan becomes active"
+  },
+  {
+   "fieldname": "plan_change_history",
+   "fieldtype": "JSON",
+   "label": "Plan Change History",
+   "read_only": 1,
+   "hidden": 1,
+   "description": "Historical log of plan changes"
+  },
+  {
+   "fieldname": "section_break_coins",
+   "fieldtype": "Section Break",
+   "label": "Wallet & Autopay"
+  },
+  {
+   "fieldname": "coins_balance",
+   "fieldtype": "Float",
+   "label": "Wallet Balance (\u20b9)",
+   "default": "0",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Current platform balance (\u20b9)"
+  },
+  {
+   "fieldname": "auto_recharge_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Auto-Recharge",
+   "default": "0",
+   "description": "Automatically recharge balance when it falls below threshold"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_floor_recovery",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Enable Daily Floor Recovery",
+   "description": "If disabled, this restaurant will NOT be charged the daily floor/minimum recovery fee."
+  },
+  {
+   "fieldname": "floor_recovery_activated_on",
+   "fieldtype": "Date",
+   "label": "Floor Recovery Activated On",
+   "description": "The date when floor recovery was first enabled for this restaurant."
+  },
+  {
+   "fieldname": "last_floor_recovery_date",
+   "fieldtype": "Date",
+   "label": "Last Floor Recovery Date",
+   "description": "The date of the last monthly floor check/deduction."
+  },
+  {
+   "fieldname": "column_break_coins",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auto_recharge_threshold",
+   "fieldtype": "Float",
+   "label": "Recharge Threshold (\u20b9)",
+   "default": "200.0",
+   "description": "Trigger recharge when balance falls below this amount"
+  },
+  {
+   "fieldname": "auto_recharge_amount",
+   "fieldtype": "Float",
+   "label": "Recharge Amount (\u20b9)",
+   "default": "1000.0",
+   "description": "Amount to automatically recharge via Razorpay mandate"
+  },
+  {
+   "fieldname": "section_break_auto_recharge_safety",
+   "fieldtype": "Section Break",
+   "label": "Auto-Recharge Safety"
+  },
+  {
+   "fieldname": "daily_auto_recharge_limit",
+   "fieldtype": "Float",
+   "label": "Daily Auto-Recharge Limit (\u20b9)",
+   "default": "5000.0",
+   "description": "Maximum total auto-recharge amount allowed per day"
+  },
+  {
+   "fieldname": "daily_auto_recharge_count",
+   "fieldtype": "Float",
+   "label": "Day Auto-Recharge Volume (\u20b9)",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_safety",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_auto_recharge_date",
+   "fieldtype": "Date",
+   "label": "Last Auto-Recharge Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_ai_metrics",
+   "fieldtype": "Section Break",
+   "label": "AI Metrics"
+  },
+  {
+   "fieldname": "total_ai_generations",
+   "fieldtype": "Int",
+   "label": "Total AI Generations",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_ai_cost",
+   "fieldtype": "Float",
+   "label": "Total AI Cost (\u20b9)",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_coupon_generations_this_month",
+   "fieldtype": "Int",
+   "label": "AI Coupon Generations This Month",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_coupon_quota_reset_month",
+   "fieldtype": "Data",
+   "label": "AI Coupon Quota Reset Month",
+   "description": "Format: YYYY-MM. Auto-managed.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_pos",
+   "fieldtype": "Section Break",
+   "label": "POS Integration"
+  },
+  {
+   "fieldname": "pos_provider",
+   "fieldtype": "Select",
+   "label": "POS Provider",
+   "options": "\nPetpooja\nUrbanPiper"
+  },
+  {
+   "fieldname": "pos_enabled",
+   "fieldtype": "Check",
+   "label": "Enable POS Integration",
+   "default": 0
+  },
+  {
+   "fieldname": "pos_app_key",
+   "fieldtype": "Data",
+   "label": "POS App Key / API Key",
+   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
+  },
+  {
+   "fieldname": "pos_app_secret",
+   "fieldtype": "Password",
+   "label": "POS App Secret / Username",
+   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
+  },
+  {
+   "fieldname": "pos_access_token",
+   "fieldtype": "Password",
+   "label": "POS Access Token",
+   "depends_on": "eval:doc.pos_provider == 'Petpooja'"
+  },
+  {
+   "fieldname": "pos_merchant_id",
+   "fieldtype": "Data",
+   "label": "POS Merchant ID / Store ID",
+   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
+  },
+  {
+   "fieldname": "column_break_pos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pos_last_sync_at",
+   "fieldtype": "Datetime",
+   "label": "Last Sync At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pos_sync_status",
+   "fieldtype": "Small Text",
+   "label": "Sync Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pos_menu_sync_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Menu Sync",
+   "default": "1",
+   "insert_after": "pos_sync_status"
+  },
+  {
+   "fieldname": "pos_cgst_taxid",
+   "fieldtype": "Data",
+   "label": "Petpooja CGST Tax ID",
+   "insert_after": "pos_sync_status"
+  },
+  {
+   "fieldname": "pos_sgst_taxid",
+   "fieldtype": "Data",
+   "label": "Petpooja SGST Tax ID",
+   "insert_after": "pos_cgst_taxid"
+  },
+  {
+   "fieldname": "section_break_branding",
+   "fieldtype": "Section Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "hero_video",
+   "fieldtype": "Attach",
+   "label": "Hero Video"
+  },
+  {
+   "fieldname": "section_break_metadata",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_google_map",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "google_map_url",
+   "fieldtype": "Long Text",
+   "label": "Google Map URL",
+   "description": "Enter the Google Maps URL for your restaurant location"
+  },
+  {
+   "fieldname": "section_logistics_hub",
+   "fieldtype": "Section Break",
+   "label": "Logistics Hub (Advanced)"
+  },
+  {
+   "default": "Flash",
+   "fieldname": "preferred_logistics_provider",
+   "fieldtype": "Select",
+   "label": "Preferred Logistics Provider",
+   "options": "Borzo\nFlash\nSelf"
+  },
+  {
+   "fieldname": "flash_store_id",
+   "fieldtype": "Data",
+   "label": "Flash Store ID",
+   "description": "Unique Store ID from uEngage Flash dashboard"
+  },
+  {
+   "default": "Fixed",
+   "fieldname": "delivery_markup_type",
+   "fieldtype": "Select",
+   "label": "Logistics Markup Type",
+   "options": "Fixed\nPercentage"
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_markup_value",
+   "fieldtype": "Float",
+   "label": "Logistics Markup Value",
+   "description": "Additional profit for the restaurant on top of the courier fee."
+  },
+  {
+   "default": "10.0",
+   "fieldname": "max_delivery_distance",
+   "fieldtype": "Float",
+   "label": "Maximum Delivery Distance (km)",
+   "description": "Maximum road distance (approximate) for delivery serviceability."
+  },
+  {
+   "fieldname": "referral_code",
+   "fieldtype": "Data",
+   "label": "Referral Code",
+   "read_only": 1,
+   "unique": 1,
+   "description": "Unique referral code for this restaurant"
+  },
+  {
+   "fieldname": "referred_by_restaurant",
+   "fieldtype": "Link",
+   "label": "Referred By",
+   "options": "Restaurant",
+   "description": "The restaurant that referred this one"
+  },
+  {
+   "fieldname": "section_break_google_growth",
+   "fieldtype": "Section Break",
+   "label": "Google Growth"
+  },
+  {
+   "fieldname": "google_business_account_id",
+   "fieldtype": "Data",
+   "label": "Google Business Account ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "google_business_location_id",
+   "fieldtype": "Data",
+   "label": "Google Business Location ID"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_google_sync",
+   "fieldtype": "Check",
+   "label": "Enable Google Sync"
+  },
+  {
+   "fieldname": "google_review_url",
+   "fieldtype": "Data",
+   "label": "Google Review URL"
+  },
+  {
+   "fieldname": "google_insights_data",
+   "fieldtype": "JSON",
+   "label": "Google Insights Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "google_refresh_token",
+   "fieldtype": "Password",
+   "label": "Google Refresh Token",
+   "hidden": 1
+  },
+  {
+   "fieldname": "pos_store_status",
+   "fieldtype": "Select",
+   "label": "POS Store Status",
+   "options": "Open\nClosed",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-01-15 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Restaurant",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Flamezo Supervisor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Staff"
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "restaurant_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

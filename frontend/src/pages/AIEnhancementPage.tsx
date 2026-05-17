@@ -52,11 +52,11 @@ export default function AIEnhancementPage() {
   })
 
   // API Calls
-  const { call: enqueueEnhancement } = useFrappePostCall('dinematters.dinematters.api.ai_media.enqueue_enhancement')
-  const { call: getStatus } = useFrappePostCall('dinematters.dinematters.api.ai_media.get_enhancement_status')
-  const { call: applyToProduct } = useFrappePostCall('dinematters.dinematters.api.ai_media.apply_to_product')
-  const { call: uploadFile } = useFrappePostCall('dinematters.dinematters.api.ai_media.upload_base64_image')
-  const { call: getBillingInfo } = useFrappePostCall('dinematters.dinematters.api.coin_billing.get_coin_billing_info')
+  const { call: enqueueEnhancement } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.enqueue_enhancement')
+  const { call: getStatus } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.get_enhancement_status')
+  const { call: applyToProduct } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.apply_to_product')
+  const { call: uploadFile } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.upload_base64_image')
+  const { call: getBillingInfo } = useFrappePostCall('flamezo_backend.flamezo.api.coin_billing.get_coin_billing_info')
 
   const [variantCount, setVariantCount] = useState<string>('1')
   const [generationIds, setGenerationIds] = useState<string[]>([])
@@ -165,7 +165,7 @@ export default function AIEnhancementPage() {
             const errorMsg = getFrappeError(err)
             if (errorMsg.toLowerCase().includes('insufficient')) {
               toast.error('Insufficient Coins!', {
-                description: 'Please recharge your DineMatters coin wallet.',
+                description: 'Please recharge your Flamezo coin wallet.',
                 action: { label: 'Recharge', onClick: () => setShowRechargeModal(true) }
               })
               break
@@ -342,7 +342,7 @@ export default function AIEnhancementPage() {
 
   const handleDownload = async () => {
     if (!currentEnhancedUrl) return
-    const proxyUrl = `/api/method/dinematters.dinematters.api.ai_media.download_proxy?file_url=${encodeURIComponent(currentEnhancedUrl)}&filename=enhanced-${selectedProduct}.png`
+    const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(currentEnhancedUrl)}&filename=enhanced-${selectedProduct}.png`
     const link = document.createElement('a')
     link.href = proxyUrl
     link.download = `enhanced-${selectedProduct}.png`

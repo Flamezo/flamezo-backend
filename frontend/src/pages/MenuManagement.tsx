@@ -55,7 +55,7 @@ export default function MenuManagement() {
   const posProvider = restaurantDoc?.pos_provider || ''
 
   const [isSyncingMenu, setIsSyncingMenu] = useState(false)
-  const { call: syncMenuCall } = useFrappePostCall('dinematters.dinematters.api.pos.sync_menu')
+  const { call: syncMenuCall } = useFrappePostCall('flamezo_backend.flamezo.api.pos.sync_menu')
 
   const handleSyncMenu = async () => {
     if (!selectedRestaurant) return
@@ -107,10 +107,10 @@ export default function MenuManagement() {
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
 
   // API Hooks
-  const { call: updateDoc } = useFrappePostCall('dinematters.dinematters.api.documents.update_document')
-  const { call: deleteDoc } = useFrappePostCall('dinematters.dinematters.api.documents.delete_multiple_docs')
-  const { call: updateOrder } = useFrappePostCall('dinematters.dinematters.api.categories.update_category_order')
-  const { call: updateProductOrder } = useFrappePostCall('dinematters.dinematters.api.products.update_product_order')
+  const { call: updateDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.update_document')
+  const { call: deleteDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.delete_multiple_docs')
+  const { call: updateOrder } = useFrappePostCall('flamezo_backend.flamezo.api.categories.update_category_order')
+  const { call: updateProductOrder } = useFrappePostCall('flamezo_backend.flamezo.api.products.update_product_order')
 
   // Fetch ALL categories (flat list including sub-categories)
   const {
@@ -161,7 +161,7 @@ export default function MenuManagement() {
     data: productsData,
     isLoading: productsLoading,
     mutate: mutateProducts
-  } = useFrappeGetCall('dinematters.dinematters.api.products.get_products', {
+  } = useFrappeGetCall('flamezo_backend.flamezo.api.products.get_products', {
     restaurant_id: selectedRestaurant,
     category: searchQuery ? undefined : activeCategory?.category_name,
     search: searchQuery || undefined,

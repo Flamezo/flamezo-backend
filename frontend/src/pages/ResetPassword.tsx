@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
-import loginImage from '/images/login-dinematters.webp'
+import loginImage from '/images/login-flamezo_backend.webp'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
@@ -58,7 +58,7 @@ export default function ResetPassword() {
         setSuccess(true)
         // Auto redirect after 3 seconds
         setTimeout(() => {
-          window.location.href = '/dinematters'
+          window.location.href = '/flamezo_backend'
         }, 3000)
       } else {
         const data = await res.json().catch(() => ({}))
@@ -89,7 +89,7 @@ export default function ResetPassword() {
         <div className="absolute top-12 left-12 z-20">
           <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20">
             <ShieldCheck className="text-white h-6 w-6" />
-            <span className="text-white font-black tracking-widest text-sm uppercase">DineMatters Vault</span>
+            <span className="text-white font-black tracking-widest text-sm uppercase">Flamezo Vault</span>
           </div>
         </div>
       </div>

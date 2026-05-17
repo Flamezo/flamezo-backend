@@ -8,7 +8,7 @@
     "build": "vite build --base=/assets/flamezo_backend/flamezo_backend/ && yarn copy-html-entry",
     "lint": "eslint .",
     "preview": "vite preview",
-    "copy-html-entry": "cp /home/frappe/frappe-bench/apps/flamezo_backend/flamezo_backend/public/flamezo_backend/index.html /home/frappe/frappe-bench/apps/flamezo_backend/flamezo_backend/www/flamezo_backend.html"
+    "copy-html-entry": "cp ../flamezo_backend/public/flamezo_backend/index.html ../flamezo_backend/www/flamezo_backend.html"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

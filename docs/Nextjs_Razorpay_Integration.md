@@ -8,7 +8,7 @@ Overview
 - Frontend opens Razorpay Checkout with the returned `key_id` and `order_id`. Verification is done server-side or via webhooks.
 
 1) Backend API (already implemented)
-- `flamezo_backend.flamezo_backend.api.payments.create_payment_order(restaurant_id, order_items, total_amount, customer_name, customer_email, ...)`
+- `flamezo_backend.flamezo.api.payments.create_payment_order(restaurant_id, order_items, total_amount, customer_name, customer_email, ...)`
   - Uses `get_razorpay_client(restaurant_id)` — will use merchant keys if configured for the restaurant.
   - Returns: `{ success: true, data: { key_id, razorpay_order_id, amount, currency, order_id } }`
 
@@ -21,7 +21,7 @@ import fetch from 'node-fetch'
 export default async function handler(req, res) {
   const { restaurantId, items, total, customerName, customerEmail } = req.body
   // Call ERPNext backend (use your server-to-server auth/session)
-  const resp = await fetch(process.env.FRAPPE_BACKEND_URL + '/api/method/flamezo_backend.flamezo_backend.api.payments.create_payment_order', {
+  const resp = await fetch(process.env.FRAPPE_BACKEND_URL + '/api/method/flamezo_backend.flamezo.api.payments.create_payment_order', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ restaurant_id: restaurantId, order_items: JSON.stringify(items), total_amount: total, customer_name: customerName, customer_email: customerEmail })
@@ -90,7 +90,7 @@ export default function Checkout({ restaurantId }) {
 - Start local backend and Next.js app.
 - Expose backend to the web for webhooks (ngrok):
   - `ngrok http 8000` (or your frappe site port)
-  - Add webhook in Razorpay dashboard (Test mode) pointing to: `https://<ngrok-id>.ngrok.io/api/method/flamezo_backend.flamezo_backend.api.webhooks.razorpay_webhook`
+  - Add webhook in Razorpay dashboard (Test mode) pointing to: `https://<ngrok-id>.ngrok.io/api/method/flamezo_backend.flamezo.api.webhooks.razorpay_webhook`
 - Create an order from the Next.js frontend, open Checkout and complete payment in Razorpay test mode.
 - Verify:
   - Razorpay shows order created under merchant account (Orders dashboard).

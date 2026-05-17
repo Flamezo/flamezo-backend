@@ -158,7 +158,7 @@ export default function LoyaltyAnalytics() {
   const { selectedRestaurant } = useRestaurant()
 
   const { data: raw, isLoading } = useFrappeGetCall(
-    'dinematters.dinematters.api.loyalty.get_loyalty_analytics',
+    'flamezo_backend.flamezo.api.loyalty.get_loyalty_analytics',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `LoyaltyAnalytics-${selectedRestaurant}` : undefined,
   )

@@ -1,4 +1,4 @@
-// Permission utilities for dinematters UI
+// Permission utilities for flamezo_backend UI
 import { useFrappeGetCall } from '@/lib/frappe'
 
 export interface Permissions {
@@ -12,7 +12,7 @@ export interface Permissions {
 
 export function usePermissions(doctype: string) {
   const { data, error, isLoading } = useFrappeGetCall<{ message: Permissions }>(
-    'dinematters.dinematters.api.ui.get_user_permissions',
+    'flamezo_backend.flamezo.api.ui.get_user_permissions',
     { doctype },
     doctype ? `permissions-${doctype}` : null
   )

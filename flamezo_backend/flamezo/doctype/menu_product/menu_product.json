@@ -1,0 +1,322 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "title_field": "product_name",
+ "creation": "2024-01-15 10:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "product_name",
+  "product_id",
+  "category",
+  "category_name",
+  "seo_slug",
+  "column_break_1",
+  "product_type",
+  "main_category",
+  "is_active",
+  "display_order",
+  "section_break_pricing",
+  "price",
+  "original_price",
+  "column_break_pricing",
+  "has_no_media",
+  "section_break_details",
+  "description",
+  "calories",
+  "is_vegetarian",
+  "column_break_details",
+  "estimated_time",
+  "serving_size",
+  "section_break_media",
+  "product_media",
+  "section_break_customizations",
+  "customization_questions",
+  "section_break_recommendations",
+  "recommendations",
+  "section_break_google_sync",
+  "google_item_id",
+  "google_product_id"
+ ],
+ "fields": [
+  {
+   "depends_on": "eval:doc.name",
+   "fieldname": "product_id",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Product ID",
+   "read_only": 1,
+   "unique": 0
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Product Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "Menu Category"
+  },
+  {
+   "fetch_from": "category.category_name",
+   "fieldname": "category_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Category Name"
+  },
+  {
+   "description": "Clean URL for SEO (e.g., margherita-pizza). Auto-generated if left blank.",
+   "fieldname": "seo_slug",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "SEO Slug",
+   "unique": 0
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "product_type",
+   "fieldtype": "Select",
+   "label": "Product Type",
+   "options": "\ntop-picks\nchef-special"
+  },
+  {
+   "fieldname": "main_category",
+   "fieldtype": "Data",
+   "label": "Main Category",
+   "options": "\nbeverages\nfood\ndesserts\nitems"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Display Order",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_break_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price",
+   "reqd": 1
+  },
+  {
+   "fieldname": "original_price",
+   "fieldtype": "Currency",
+   "label": "Original Price"
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_no_media",
+   "fieldtype": "Check",
+   "label": "Has No Media"
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Product Details"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "calories",
+   "fieldtype": "Int",
+   "label": "Calories",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_vegetarian",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Vegetarian",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "estimated_time",
+   "fieldtype": "Int",
+   "label": "Estimated Time (minutes)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "serving_size",
+   "fieldtype": "Data",
+   "label": "Serving Size"
+  },
+  {
+   "fieldname": "section_break_media",
+   "fieldtype": "Section Break",
+   "label": "Product Media"
+  },
+  {
+   "fieldname": "product_media",
+   "fieldtype": "Table",
+   "label": "Media",
+   "options": "Product Media"
+  },
+  {
+   "fieldname": "section_break_customizations",
+   "fieldtype": "Section Break",
+   "label": "Customizations"
+  },
+  {
+   "fieldname": "customization_questions",
+   "fieldtype": "Table",
+   "label": "Customization Questions",
+   "options": "Customization Question"
+  },
+  {
+   "fieldname": "section_break_recommendations",
+   "fieldtype": "Section Break",
+   "label": "Recommendations"
+  },
+  {
+   "description": "AI-generated recommendations for this product (stored as JSON array)",
+   "fieldname": "recommendations",
+   "fieldtype": "JSON",
+   "label": "Recommendations"
+  },
+  {
+   "fieldname": "section_break_google_sync",
+   "fieldtype": "Section Break",
+   "label": "Google Business Sync"
+  },
+  {
+   "fieldname": "google_item_id",
+   "fieldtype": "Data",
+   "label": "Google Menu Item ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "google_product_id",
+   "fieldtype": "Data",
+   "label": "Google Product ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pos_id",
+   "fieldtype": "Data",
+   "label": "POS Item ID",
+   "in_list_view": 0,
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "make_attachments_public": 1,
+ "modified": "2025-12-07 11:30:34.780290",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Menu Product",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Flamezo Supervisor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Admin",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Staff",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

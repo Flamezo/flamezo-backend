@@ -54,7 +54,7 @@ export function usePrint() {
       </head>
       <body>
         <div class="header">
-          <h1 class="restaurant-name">${restaurant?.restaurant_name || 'DINEMATTERS RESTAURANT'}</h1>
+          <h1 class="restaurant-name">${restaurant?.restaurant_name || 'FLAMEZO RESTAURANT'}</h1>
           <p class="restaurant-info">${restaurant?.address || 'Restaurant Address'}</p>
           <p class="restaurant-info">PH: ${restaurant?.contact_phone || 'N/A'}</p>
         </div>
@@ -106,7 +106,7 @@ export function usePrint() {
 
         <div class="footer">
           <p>Thank you for dining with us!</p>
-          <p style="font-weight: bold; margin-top: 5px;">Powered by Dinematters</p>
+          <p style="font-weight: bold; margin-top: 5px;">Powered by Flamezo</p>
         </div>
       </body>
       </html>

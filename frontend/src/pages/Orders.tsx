@@ -118,7 +118,7 @@ export default function Orders() {
     setTableFilter('all')
   }
 
-  const { call: updateStatusApi } = useFrappePostCall('dinematters.dinematters.api.order_status.update_status')
+  const { call: updateStatusApi } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_status')
 
   const handleUpdateStatus = async (orderId: string, status: string) => {
     try {

@@ -137,8 +137,8 @@ export default function DynamicForm({
   // Track if address components were auto-filled from Google Places (makes them read-only)
   const [addressComponentsLocked, setAddressComponentsLocked] = useState(false)
 
-  const { call: insertDoc } = useFrappePostCall('dinematters.dinematters.api.documents.create_document')
-  const { call: updateDoc } = useFrappePostCall('dinematters.dinematters.api.documents.update_document')
+  const { call: insertDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.create_document')
+  const { call: updateDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.update_document')
 
   // Track if formData has been initialized to prevent overwriting user changes
   const [formDataInitialized, setFormDataInitialized] = useState(false)

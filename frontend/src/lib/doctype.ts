@@ -35,7 +35,7 @@ export interface DocTypeMeta {
 
 export function useDocTypeMeta(doctype: string) {
   const { data, error, isLoading } = useFrappeGetCall<{ message: DocTypeMeta }>(
-    'dinematters.dinematters.api.ui.get_doctype_meta',
+    'flamezo_backend.flamezo.api.ui.get_doctype_meta',
     { doctype },
     doctype ? `doctype-meta-${doctype}` : null
   )

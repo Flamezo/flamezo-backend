@@ -48,7 +48,7 @@ export default function MarketingOverview() {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const { call: fetchOverview } = useFrappePostCall('dinematters.dinematters.api.marketing.get_marketing_overview')
+  const { call: fetchOverview } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_marketing_overview')
 
   useEffect(() => {
     if (!selectedRestaurant || !isGold) return

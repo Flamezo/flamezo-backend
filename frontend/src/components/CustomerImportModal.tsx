@@ -250,7 +250,7 @@ export default function CustomerImportModal({ open, onClose, restaurantId, onImp
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { call: callImport } = useFrappePostCall(
-    'dinematters.dinematters.api.customers.import_customers'
+    'flamezo_backend.flamezo.api.customers.import_customers'
   )
 
   // ── Reset all state when modal closes ──────────────────────────────────────

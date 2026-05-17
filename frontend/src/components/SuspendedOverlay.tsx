@@ -39,7 +39,7 @@ export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
               
               <div className="grid gap-2">
                 <Button className="w-full gap-2 bg-foreground hover:bg-foreground/90 text-background h-11" asChild>
-                   <a href="mailto:support@dinematters.ono.menu">
+                   <a href="mailto:support@flamezo_backend.ono.menu">
                       <Mail className="h-4 w-4" />
                       Contact Billing Support
                    </a>
@@ -61,7 +61,7 @@ export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
             </div>
 
             <p className="text-[10px] text-muted-foreground text-center uppercase tracking-tighter opacity-70">
-              Only a DineMatters Systems Administrator can reactivate this account.
+              Only a Flamezo Systems Administrator can reactivate this account.
             </p>
           </CardContent>
         </Card>

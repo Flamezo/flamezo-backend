@@ -68,7 +68,7 @@ export default function LedgerPage() {
   const [balance, setBalance] = useState<number>(coinsBalance)
   
   const { data: platformSettingsData } = useFrappeGetCall(
-    'dinematters.dinematters.api.admin.get_platform_settings',
+    'flamezo_backend.flamezo.api.admin.get_platform_settings',
     {},
     'platform-settings-ledger'
   )
@@ -587,7 +587,7 @@ export default function LedgerPage() {
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
                     <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] text-amber-700 font-bold leading-tight">
-                        Disputing this transaction? Please contact DineMatters support with the Audit ID provided at the top.
+                        Disputing this transaction? Please contact Flamezo support with the Audit ID provided at the top.
                     </p>
                 </div>
             </div>

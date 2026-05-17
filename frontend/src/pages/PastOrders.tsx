@@ -46,7 +46,7 @@ export default function PastOrders() {
     searchQuery,
     setSearchQuery
   } = useDataTable({
-    customEndpoint: 'dinematters.dinematters.api.orders.get_orders',
+    customEndpoint: 'flamezo_backend.flamezo.api.orders.get_orders',
     customParams: {
       restaurant_id: selectedRestaurant,
       status: showBilledOnly ? 'billed' : (statusFilter === 'all' ? undefined : statusFilter),
@@ -64,7 +64,7 @@ export default function PastOrders() {
   })
 
   // API calls
-  const { call: updateOrderStatus } = useFrappePostCall('dinematters.dinematters.api.order_status.update_status')
+  const { call: updateOrderStatus } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_status')
 
   // Normalize status value (handle legacy "in_billing" format)
   const normalizeStatus = (status: string): string => {

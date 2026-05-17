@@ -89,7 +89,7 @@ export default function Customers() {
     mutate: refreshCustomers
   } = useDataTable
       <RestaurantCustomer>({
-        customEndpoint: 'dinematters.dinematters.api.customers.get_restaurant_customers',
+        customEndpoint: 'flamezo_backend.flamezo.api.customers.get_restaurant_customers',
         customParams: { restaurant_id: selectedRestaurant },
         paramNames: {
           page: 'page',
@@ -109,7 +109,7 @@ export default function Customers() {
   const isVerifyEnabled = restaurantConfig?.settings?.verifyMyUser ?? false
 
   const { call: setValue } = useFrappePostCall('frappe.client.set_value')
-  const { call: unlockCustomerApi } = useFrappePostCall('dinematters.dinematters.api.customers.unlock_customer_data')
+  const { call: unlockCustomerApi } = useFrappePostCall('flamezo_backend.flamezo.api.customers.unlock_customer_data')
 
   const handleUnlockCustomer = async (customerId: string) => {
     try {
@@ -149,7 +149,7 @@ export default function Customers() {
   }
 
   const { call: getCustomerProfile } = useFrappePostCall(
-    'dinematters.dinematters.api.customers.get_customer_profile'
+    'flamezo_backend.flamezo.api.customers.get_customer_profile'
   )
 
   const handleViewFullProfile = async (customerId: string) => {

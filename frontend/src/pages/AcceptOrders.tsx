@@ -316,7 +316,7 @@ export default function AcceptOrders() {
   )
 
   const { call: updateOrderStatus } = useFrappePostCall(
-    'dinematters.dinematters.api.order_status.update_status'
+    'flamezo_backend.flamezo.api.order_status.update_status'
   )
 
   const sensors = useSensors(

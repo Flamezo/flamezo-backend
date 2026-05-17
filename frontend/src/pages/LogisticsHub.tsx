@@ -41,7 +41,7 @@ export default function LogisticsHub() {
   }, [restaurantDoc])
 
   const { call: updateSettings } = useFrappePostCall<{ success: boolean; data: any }>(
-    'dinematters.dinematters.api.config.update_logistics_settings'
+    'flamezo_backend.flamezo.api.config.update_logistics_settings'
   )
 
   const handleSave = async () => {
@@ -141,7 +141,7 @@ export default function LogisticsHub() {
                     </div>
                     <div className="flex gap-2 items-start">
                       <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                      <span className="text-muted-foreground"><strong>DineMatters dispatches</strong> the rider from the shared provider account</span>
+                      <span className="text-muted-foreground"><strong>Flamezo dispatches</strong> the rider from the shared provider account</span>
                     </div>
                     <div className="flex gap-2 items-start">
                       <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0">3</span>
@@ -198,7 +198,7 @@ export default function LogisticsHub() {
               <div className="rounded-lg border bg-muted/40 p-3 flex gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium">Fully Managed by DineMatters</p>
+                  <p className="font-medium">Fully Managed by Flamezo</p>
                   <p className="text-muted-foreground text-xs mt-0.5">
                     Provider credentials, store ID, and dispatch are managed centrally. No setup required on your end.
                   </p>
@@ -301,7 +301,7 @@ export default function LogisticsHub() {
             {!isSelf && (
               <div className="flex justify-between py-1 border-b">
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <Coins className="w-3.5 h-3.5" /> Platform Fee (DineMatters)
+                  <Coins className="w-3.5 h-3.5" /> Platform Fee (Flamezo)
                 </span>
                 <span>+ ₹{platformFee}</span>
               </div>
