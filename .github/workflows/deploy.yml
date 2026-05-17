@@ -21,7 +21,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Production Server (backend.flamezo_backend.com)
+    name: Deploy to Production Server (backend.flamezo.in)
     runs-on: ubuntu-latest
 
     steps:
@@ -47,7 +47,7 @@ jobs:
             "export SITE_CONFIG_JSON=\$(cat); \
              cd /home/frappe/frappe-bench && \
              if [ -f apps/flamezo_backend/scripts/deploy.sh ]; then \
-               bash apps/flamezo_backend/scripts/deploy.sh $BRANCH backend.flamezo_backend.com; \
+               bash apps/flamezo_backend/scripts/deploy.sh $BRANCH backend.flamezo.in; \
              else \
                echo 'New script not found at apps/flamezo_backend/scripts/deploy.sh, falling back to ./deploy.sh for migration...'; \
                bash ./deploy.sh $BRANCH; \
@@ -59,7 +59,8 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           SCHEDULER_STATUS=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$SERVER_HOST \
-            "cd /home/frappe/frappe-bench && bench --site backend.flamezo_backend.com scheduler status")
+            "cd /home/frappe/frappe-bench && bench --site backend.flamezo.in scheduler status")
+
           echo "Scheduler status: $SCHEDULER_STATUS"
           if echo "$SCHEDULER_STATUS" | grep -q "disabled"; then
             echo "ERROR: Scheduler is still disabled after deployment!"
