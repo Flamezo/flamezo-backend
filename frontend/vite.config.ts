@@ -1,13 +1,13 @@
 import path from 'path';
 import { defineConfig } from 'vite';
 import tailwindcss from "@tailwindcss/vite"
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react';
 import proxyOptions from './proxyOptions';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, mode }) => {
 	const isDev = command === 'serve';
-	
+
 	return {
 		plugins: [react(), tailwindcss()],
 		// Use /flamezo_backend/ for dev, /assets/flamezo_backend/flamezo_backend/ for build
@@ -25,16 +25,20 @@ export default defineConfig(({ command, mode }) => {
 				'@': path.resolve(__dirname, './src')
 			}
 		},
+		esbuild: {
+			target: 'esnext',
+			legalComments: 'none',
+		},
 		build: {
 			outDir: '../flamezo_backend/public/flamezo_backend',
 			emptyOutDir: true,
-			target: 'esnext', // Use ESNext for better tree-shaking support
+			target: 'esnext',
 			minify: 'esbuild',
-			chunkSizeWarningLimit: 1000,
+			chunkSizeWarningLimit: 10000,
+			reportCompressedSize: false,
 			rollupOptions: {
 				output: {
 					manualChunks: {
-						// Split core vendor libraries
 						'vendor-react': ['react', 'react-dom', 'react-router-dom'],
 						'vendor-frappe': ['frappe-react-sdk'],
 						'vendor-ui': [
@@ -59,7 +63,11 @@ export default defineConfig(({ command, mode }) => {
 						'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge', 'zod', 'react-hook-form'],
 						'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
 						'vendor-charts': ['recharts'],
-						'vendor-excel': ['xlsx']
+						'vendor-excel': ['xlsx'],
+						'vendor-firebase': ['firebase/app', 'firebase/messaging'],
+						'vendor-table': ['@tanstack/react-table'],
+						'vendor-country': ['country-state-city'],
+						'vendor-misc': ['papaparse', 'class-variance-authority', '@hookform/resolvers', 'react-is']
 					}
 				}
 			}
