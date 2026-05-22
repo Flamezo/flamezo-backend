@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
-  Loader2, CheckCircle, Check, 
-  Settings, Image as ImageIcon, Sparkles, ChevronRight,
-  ArrowLeft, AlertTriangle, X, ShieldCheck, Zap
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { Stepper } from '@/components/ui/stepper'
+import {
+  Loader2, CheckCircle, Check,
+  Settings, Image as ImageIcon, Sparkles,
+  ArrowLeft, AlertTriangle, X, FileText, LayoutGrid
 } from 'lucide-react'
 import { toast } from 'sonner'
 import MenuImagesTable from './MenuImagesTable'
@@ -34,13 +37,24 @@ interface ExtractionStatus {
   status: string
   total_batches: number
   completed_batches: number
+  progress_pct: number
   extraction_log: string
   items_created: number
   categories_created: number
+  modified: string | null
 }
 
-export default function MenuImageExtractorForm({ 
-  docname, 
+const STEP_ORDER: Step[] = ['setup', 'images', 'processing', 'review']
+
+const STEPPER_STEPS = [
+  { id: 'setup', title: 'Setup' },
+  { id: 'images', title: 'Upload Images' },
+  { id: 'processing', title: 'Processing' },
+  { id: 'review', title: 'Review & Approve' },
+]
+
+export default function MenuImageExtractorForm({
+  docname,
   restaurantId,
   restaurantName: initialRestaurantName,
   onComplete,
@@ -68,7 +82,7 @@ export default function MenuImageExtractorForm({
 
   const { call: insertDoc } = useFrappePostCall('flamezo_backend.flamezo.api.documents.create_document')
   const { call: updateDocument } = useFrappePostCall('flamezo_backend.flamezo.api.documents.update_document')
-  
+
   const { call: extractMenuData } = useFrappePostCall(
     'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.extract_menu_data'
   )
@@ -79,6 +93,10 @@ export default function MenuImageExtractorForm({
 
   const { call: approveExtraction } = useFrappePostCall(
     'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.approve_extracted_data'
+  )
+
+  const { call: recoverExtraction } = useFrappePostCall(
+    'flamezo_backend.flamezo.doctype.menu_image_extractor.menu_image_extractor.recover_extraction'
   )
 
   useEffect(() => {
@@ -111,6 +129,13 @@ export default function MenuImageExtractorForm({
     }
 
     setIsPolling(true)
+    // Self-heal: if the backend modified timestamp doesn't change for ~30s
+    // consecutive polls, ask the backend to recover (re-aggregate if all batches
+    // are actually done, or mark Failed if truly stuck >5min on server side).
+    let lastModified: string | null = null
+    let stalePolls = 0
+    let recovering = false
+
     const interval = setInterval(async () => {
       try {
         const res = await getExtractionStatus({ docname: extractionDocName })
@@ -123,14 +148,42 @@ export default function MenuImageExtractorForm({
           clearInterval(interval)
           setIsPolling(false)
           setTimeout(async () => {
-            toast.success(`AI Extraction complete! Found ${newStatus.items_created} dishes in ${newStatus.categories_created} categories.`)
+            toast.success(`Extraction complete — found ${newStatus.items_created} dishes in ${newStatus.categories_created} categories.`)
             await refreshExtraction()
             setActiveStep('review')
           }, 800)
-        } else if (newStatus.status === 'Failed') {
+          return
+        }
+
+        if (newStatus.status === 'Failed') {
           clearInterval(interval)
           setIsPolling(false)
           toast.error('Extraction failed. Please check the error log and retry.')
+          return
+        }
+
+        // Stall detection
+        if (newStatus.modified && newStatus.modified === lastModified) {
+          stalePolls += 1
+        } else {
+          stalePolls = 0
+          lastModified = newStatus.modified
+        }
+
+        // After ~15 consecutive 2s polls with no doc updates (~30s), nudge backend.
+        if (stalePolls >= 15 && !recovering) {
+          recovering = true
+          try {
+            const r = await recoverExtraction({ docname: extractionDocName })
+            if (r?.message?.recovered) {
+              stalePolls = 0
+              lastModified = null
+            }
+          } catch (e) {
+            console.error('recover_extraction failed:', e)
+          } finally {
+            recovering = false
+          }
         }
       } catch (err) {
         console.error('Extraction status poll error:', err)
@@ -139,25 +192,6 @@ export default function MenuImageExtractorForm({
 
     return () => clearInterval(interval)
   }, [extractionDocName, activeStep, liveStatus?.status])
-
-  const [magicStatusIdx, setMagicStatusIdx] = useState(0)
-  const magicStatuses = [
-    'Deep scanning menu images...',
-    'Identifying food categories...',
-    'Extracting product names & prices...',
-    'Generating professional descriptions...',
-    'Refining menu structure...',
-    'Organizing dish metadata...',
-  ]
-
-  useEffect(() => {
-    if (activeStep === 'processing') {
-      const interval = setInterval(() => {
-        setMagicStatusIdx(prev => (prev + 1) % magicStatuses.length)
-      }, 2500)
-      return () => clearInterval(interval)
-    }
-  }, [activeStep])
 
   const handleStart = async () => {
     if (!restaurantId) return
@@ -174,7 +208,7 @@ export default function MenuImageExtractorForm({
       if (result?.message?.name) {
         setExtractionDocName(result.message.name)
         setActiveStep('images')
-        toast.success('Onboarding session started')
+        toast.success('Session started')
       }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to start session')
@@ -194,7 +228,7 @@ export default function MenuImageExtractorForm({
     setIsSaving(true)
     try {
       await extractMenuData({ docname: extractionDocName })
-      toast.success('AI extraction started!')
+      toast.success('Extraction started')
       setLiveStatus(null)
       setActiveStep('processing')
     } catch (err: any) {
@@ -207,17 +241,17 @@ export default function MenuImageExtractorForm({
   const handleApprove = async () => {
     if (!extractionDocName || isSaving) return
     const confirmed = await confirm({
-      title: 'Final Approval',
-      description: 'Create menu categories and products now?',
+      title: 'Approve & generate menu?',
+      description: 'This will create menu categories and products from the extracted data.',
       confirmText: 'Approve',
-      cancelText: 'Wait'
+      cancelText: 'Cancel'
     })
     if (!confirmed) return
 
     setIsSaving(true)
     try {
       await approveExtraction({ docname: extractionDocName })
-      toast.success('Extraction approved! Menu generated.')
+      toast.success('Menu generated successfully')
       refreshExtraction()
       onComplete?.(extractionDoc)
     } catch (err: any) {
@@ -227,58 +261,11 @@ export default function MenuImageExtractorForm({
     }
   }
 
-  const renderStepIndicator = () => (
-    <div className="flex items-center gap-4 px-2">
-      {[
-        { id: 'setup', label: 'Setup', icon: Settings },
-        { id: 'images', label: 'Images', icon: ImageIcon },
-        { id: 'processing', label: 'Magic', icon: Sparkles },
-        { id: 'review', label: 'Review', icon: CheckCircle }
-      ].map((step, idx) => {
-        const Icon = step.icon
-        const isActive = activeStep === step.id
-        const isPast = ['setup', 'images', 'processing', 'review'].indexOf(activeStep) > idx
-        
-        return (
-          <div key={step.id} className="flex items-center gap-3 shrink-0">
-            <div className={cn(
-              "flex flex-col items-center gap-1.5 transition-all duration-500",
-              isActive ? "scale-105" : "opacity-40"
-            )}>
-              <div className={cn(
-                "h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-500 relative",
-                isActive 
-                  ? "bg-primary text-white shadow-lg ring-2 ring-primary/20" 
-                  : isPast 
-                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
-                    : "bg-muted text-muted-foreground border border-border"
-              )}>
-                {isPast ? <Check className="h-4 w-4" /> : <Icon className={cn("h-4 w-4", isActive && "animate-pulse")} />}
-              </div>
-              <span className={cn(
-                "text-[9px] font-black uppercase tracking-widest",
-                isActive ? "text-primary" : isPast ? "text-emerald-600" : "text-muted-foreground"
-              )}>
-                {step.label}
-              </span>
-            </div>
-            {idx < 3 && (
-              <ChevronRight className={cn(
-                "h-4 w-4 opacity-10",
-                isPast && "text-emerald-500 opacity-30"
-              )} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-
   if (isDocLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 animate-pulse bg-background min-h-[500px]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary/20 mb-6" />
-        <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em]">Neural Interface Layering...</p>
+      <div className="flex flex-col items-center justify-center py-32 bg-background min-h-[500px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-sm text-muted-foreground">Loading session…</p>
       </div>
     )
   }
@@ -287,98 +274,134 @@ export default function MenuImageExtractorForm({
   const currentStatus = (isFinalState ? extractionDoc?.extraction_status : liveStatus?.status) || extractionDoc?.extraction_status
   const totalBatches = (isFinalState ? extractionDoc?.total_batches : (liveStatus?.total_batches || extractionDoc?.total_batches)) || 0
   const completedBatches = (isFinalState ? extractionDoc?.completed_batches : (liveStatus?.completed_batches || extractionDoc?.completed_batches)) || 0
-  
+
   const itemsFound = Math.max(liveStatus?.items_created || 0, extractionDoc?.items_created || 0)
   const categoriesFound = Math.max(liveStatus?.categories_created || 0, extractionDoc?.categories_created || 0)
 
+  const progressPct = liveStatus?.progress_pct
+    ?? (totalBatches > 0 ? Math.round((completedBatches / totalBatches) * 100) : 0)
+  const liveLogText = (liveStatus?.extraction_log || extractionDoc?.extraction_log || '').trim()
+  const firstLineOfLog = liveLogText.split('\n')[0] || 'Initializing…'
+
+  const currentStepIndex = STEP_ORDER.indexOf(activeStep)
+
+  const handleStepClick = (idx: number) => {
+    const target = STEP_ORDER[idx]
+    if (!target) return
+    if (idx > currentStepIndex) return
+    // Don't allow jumping back to setup once a session exists
+    if (target === 'setup' && extractionDocName) return
+    if (target === 'processing' && !extractionDocName) return
+    setActiveStep(target)
+  }
+
   return (
-    <div className="flex flex-col h-full bg-background relative selection:bg-primary selection:text-white">
-      {/* Premium Sticky Header */}
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b p-6 pb-6 shadow-sm">
-        <button 
+    <div className="flex flex-col h-full bg-background">
+      {/* Sticky Header — matches dashboard pattern */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b px-6 py-5">
+        <button
           onClick={onClose}
-          className="absolute right-6 top-6 p-2 rounded-full hover:bg-muted/80 transition-colors z-30"
+          className="absolute right-5 top-5 p-1.5 rounded-md hover:bg-muted transition-colors"
           aria-label="Close"
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </button>
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pr-12">
-          <DialogHeader>
-            <div className="flex items-center gap-2 mb-1">
-                <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase border-primary/30 text-primary">AI Workforce</Badge>
-                {extractionDocName && (
-                  <Badge variant="secondary" className="px-2 py-0.5 text-[10px] font-bold font-mono bg-muted/50 border-none">{extractionDocName}</Badge>
-                )}
-            </div>
-            <DialogTitle className="text-3xl font-black tracking-tight flex items-center gap-2">
-                Menu Transformation Hub
-            </DialogTitle>
-            <DialogDescription className="text-base font-medium">
-                Converting physical menus into digital intelligence for <span className="text-foreground">{restaurantName || 'your restaurant'}</span>.
-            </DialogDescription>
-          </DialogHeader>
 
-          {renderStepIndicator()}
-        </div>
+        <DialogHeader className="pr-10 mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="secondary" className="gap-1.5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+              <Sparkles className="h-3 w-3 text-primary" />
+              AI Menu Import
+            </Badge>
+            {extractionDocName && (
+              <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-mono">
+                {extractionDocName}
+              </Badge>
+            )}
+          </div>
+          <DialogTitle className="text-xl font-semibold tracking-tight">
+            Import menu from images
+          </DialogTitle>
+          <DialogDescription className="text-sm">
+            Upload photos of your physical menu — we'll extract categories, dishes, and prices
+            {restaurantName ? <> for <span className="text-foreground font-medium">{restaurantName}</span></> : ''}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Stepper
+          steps={STEPPER_STEPS}
+          currentStep={currentStepIndex}
+          onStepClick={handleStepClick}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-[400px]">
         {/* STEP 1: SETUP */}
         {activeStep === 'setup' && (
-          <div className="p-8 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="space-y-12 py-6">
-              <div className="space-y-4">
+          <div className="p-6 max-w-2xl mx-auto space-y-6">
+            <Card className="shadow-xs">
+              <CardHeader>
                 <div className="flex items-center gap-3">
-                   <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                      <Settings className="h-5 w-5" />
-                   </div>
-                   <h2 className="text-xl font-black tracking-tight uppercase">Environmental Context</h2>
-                </div>
-                <div className="space-y-4">
-                  <div className="space-y-2.5">
-                    <Label className="text-[10px] lowercase font-black tracking-[0.2em] text-muted-foreground/80 pl-1 uppercase">Restaurant Brand Name</Label>
-                    <Input 
-                      placeholder="e.g. The Gourmet Yard"
-                      value={restaurantName}
-                      onChange={(e) => setRestaurantName(e.target.value)}
-                      className="h-14 text-lg font-bold bg-muted/30 border-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-all rounded-2xl px-6"
-                    />
-                    <p className="text-[10px] text-muted-foreground/60 leading-relaxed font-medium mt-2 px-1 italic">
-                      Vision models use the brand context to resolve ambiguous text and optimize dish metadata.
-                    </p>
+                  <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                    <Settings className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle>Restaurant details</CardTitle>
+                    <CardDescription>Provide the brand name to improve extraction accuracy</CardDescription>
                   </div>
                 </div>
-              </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="restaurant-name" className="text-sm font-medium">
+                    Restaurant brand name
+                  </Label>
+                  <Input
+                    id="restaurant-name"
+                    placeholder="e.g. The Gourmet Yard"
+                    value={restaurantName}
+                    onChange={(e) => setRestaurantName(e.target.value)}
+                    className="h-10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used as context when reading menu images — helps resolve ambiguous text and item names.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="p-6 rounded-[2rem] border bg-card/50 space-y-3 hover:border-primary/20 transition-all group">
-                    <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                       <Sparkles className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-tight">AI Copywriting</h3>
-                    <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                      Models will generate professional, appetizing descriptions based on dish names.
-                    </p>
-                 </div>
-                 <div className="p-6 rounded-[2rem] border bg-card/50 space-y-3 hover:border-emerald/20 transition-all group">
-                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                       <CheckCircle className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-tight">Clustering</h3>
-                    <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                      Automatically maps items to logical menu categories found in the source images.
-                    </p>
-                 </div>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="shadow-xs">
+                <CardHeader className="pb-3">
+                  <div className="h-9 w-9 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <CardTitle className="text-sm">Auto descriptions</CardTitle>
+                  <CardDescription className="text-xs">
+                    Generates short, professional descriptions for each dish based on its name.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="shadow-xs">
+                <CardHeader className="pb-3">
+                  <div className="h-9 w-9 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2">
+                    <LayoutGrid className="h-4 w-4" />
+                  </div>
+                  <CardTitle className="text-sm">Smart categorization</CardTitle>
+                  <CardDescription className="text-xs">
+                    Maps items to logical menu sections detected in the source images.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
             </div>
           </div>
         )}
 
         {/* STEP 2: IMAGES */}
         {activeStep === 'images' && (
-          <div className="p-8 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <MenuImagesTable 
+          <div className="p-6 max-w-4xl mx-auto">
+            <MenuImagesTable
               ownerDoctype="Menu Image Extractor"
               ownerName={extractionDocName}
               value={extractionDoc?.menu_images || []}
@@ -404,190 +427,225 @@ export default function MenuImageExtractorForm({
 
         {/* STEP 3: PROCESSING */}
         {activeStep === 'processing' && (
-          <div className="p-8 max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[400px] animate-in zoom-in-95 duration-1000">
-            <div className="relative w-40 h-40 mb-12">
-               {/* Pulsing Aura */}
-               <div className="absolute inset-0 bg-primary/20 rounded-full blur-[60px] animate-pulse" />
-               <div className="relative w-full h-full bg-gradient-to-br from-primary via-indigo-600 to-purple-700 rounded-[2.5rem] flex items-center justify-center shadow-2xl border border-white/20">
-                  <Sparkles className="h-16 w-16 text-white animate-bounce" />
-               </div>
-               <div className="absolute -inset-4 border-2 border-primary/10 rounded-[3rem] animate-[spin_10s_linear_infinite]" />
-            </div>
-
-            <div className="text-center space-y-6 max-w-sm">
-               <h2 className="text-3xl font-black tracking-tight bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">Neural Core Active</h2>
-               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/5 text-primary border border-primary/10">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">{magicStatuses[magicStatusIdx]}</span>
-               </div>
-               
-               <div className="pt-8 space-y-3">
-                  <div className="relative h-2.5 w-full bg-muted rounded-full overflow-hidden">
-                     <div 
-                        className="absolute inset-0 bg-gradient-to-r from-primary via-indigo-500 to-primary transition-all duration-1000 ease-out"
-                        style={{ width: `${totalBatches > 0 ? (completedBatches / totalBatches) * 100 : 15}%` }}
-                     >
-                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:40px_40px] animate-[shimmer_2s_linear_infinite]" />
-                     </div>
-                  </div>
-                  <div className="flex justify-between text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.1em]">
-                     <span>Extraction Process</span>
-                     <span>{totalBatches > 0 ? Math.round((completedBatches / totalBatches) * 100) : 15}%</span>
-                  </div>
-               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-8 w-full mt-16">
-               <div className="p-6 rounded-3xl bg-muted/30 border border-border/50 text-center space-y-1">
-                  <p className="text-3xl font-black text-primary">{itemsFound}</p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Items Mapped</p>
-               </div>
-               <div className="p-6 rounded-3xl bg-muted/30 border border-border/50 text-center space-y-1">
-                  <p className="text-3xl font-black text-primary">{categoriesFound}</p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Categories</p>
-               </div>
-            </div>
-
-            {currentStatus === 'Failed' && (
-              <div className="mt-12 p-6 rounded-2xl bg-destructive/5 border border-destructive/20 text-destructive flex gap-4 items-start animate-in shake duration-500">
-                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                <div className="space-y-2">
-                  <p className="font-bold text-sm">Extraction Halted</p>
-                  <p className="text-xs opacity-80 leading-relaxed font-medium">{liveStatus?.extraction_log || extractionDoc?.extraction_log || 'A neural processing exception occurred.'}</p>
-                   <Button variant="ghost" size="sm" className="h-8 text-xs font-bold px-4 rounded-lg bg-white/50 border-destructive/10 border mt-2" onClick={() => setActiveStep('images')}>
-                    Back to Images
-                  </Button>
+          <div className="p-6 max-w-2xl mx-auto">
+            <Card className="shadow-xs">
+              <CardHeader className="text-center pb-4">
+                <div className="mx-auto h-14 w-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              </div>
-            )}
+                <CardTitle className="text-lg">Processing your menu</CardTitle>
+                <CardDescription>
+                  This usually takes 1–3 minutes depending on the number of images.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {/* Status line */}
+                <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-muted/40 border border-border/60">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-xs font-medium text-muted-foreground truncate">
+                    {firstLineOfLog}
+                  </span>
+                </div>
+
+                {/* Progress */}
+                <div className="space-y-2">
+                  <Progress value={Math.max(progressPct, 3)} className="h-2" />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      {totalBatches > 0 ? `Batch ${completedBatches} of ${totalBatches}` : 'Starting…'}
+                    </span>
+                    <span className="font-semibold text-foreground">{progressPct}%</span>
+                  </div>
+                </div>
+
+                {/* Live counters */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-md border bg-card p-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Items found
+                      </span>
+                      <Sparkles className="h-3.5 w-3.5 text-primary/60" />
+                    </div>
+                    <p className="text-2xl font-bold tracking-tight">{itemsFound}</p>
+                  </div>
+                  <div className="rounded-md border bg-card p-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Categories
+                      </span>
+                      <LayoutGrid className="h-3.5 w-3.5 text-primary/60" />
+                    </div>
+                    <p className="text-2xl font-bold tracking-tight">{categoriesFound}</p>
+                  </div>
+                </div>
+
+                {currentStatus === 'Failed' && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 flex gap-3 items-start">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+                    <div className="space-y-2 flex-1">
+                      <p className="font-semibold text-sm text-destructive">Extraction failed</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {liveStatus?.extraction_log || extractionDoc?.extraction_log || 'Something went wrong while processing the images.'}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setActiveStep('images')}
+                      >
+                        Back to images
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {/* STEP 4: REVIEW */}
         {activeStep === 'review' && (
-          <div className="p-8 max-w-5xl mx-auto space-y-12 animate-in fade-in duration-1000">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="p-6 max-w-5xl mx-auto space-y-6">
+            {/* Summary stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Cloud Categories', val: categoriesFound, icon: ImageIcon, color: 'text-primary' },
-                { label: 'Neural Dishes', val: itemsFound, icon: Sparkles, color: 'text-indigo-600' },
-                { label: 'Doc Updates', val: extractionDoc?.items_updated, icon: CheckCircle, color: 'text-emerald-600' },
-                { label: 'Neural Skips', val: extractionDoc?.items_skipped, icon: X, color: 'text-rose-600' }
+                { label: 'Categories', val: categoriesFound, icon: LayoutGrid, color: 'text-primary' },
+                { label: 'Dishes Found', val: itemsFound, icon: Sparkles, color: 'text-indigo-600 dark:text-indigo-400' },
+                { label: 'Updated', val: extractionDoc?.items_updated || 0, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400' },
+                { label: 'Skipped', val: extractionDoc?.items_skipped || 0, icon: X, color: 'text-rose-600 dark:text-rose-400' }
               ].map((stat, i) => (
-                <div key={i} className="flex flex-col bg-card border p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-primary/20 transition-all group">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[9px] text-muted-foreground uppercase font-black tracking-widest opacity-60">{stat.label}</span>
-                    <stat.icon className={cn("h-4 w-4 opacity-20", stat.color)} />
-                  </div>
-                  <span className={cn("text-3xl font-black", stat.color)}>{stat.val || 0}</span>
-                </div>
+                <Card key={i} className="shadow-xs">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">
+                        {stat.label}
+                      </span>
+                      <stat.icon className={cn("h-3.5 w-3.5", stat.color)} />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className={cn("text-2xl font-bold tracking-tight", stat.color)}>
+                      {stat.val}
+                    </p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
 
             {extractionDoc?.extracted_dishes?.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-1.5 bg-primary rounded-full" />
-                  <h3 className="text-lg font-black tracking-wide uppercase">Refine & Verify Intelligence</h3>
-                </div>
-                <div className="border rounded-3xl overflow-hidden bg-white shadow-2xl shadow-black/5">
+              <Card className="shadow-xs overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-base">Review extracted dishes</CardTitle>
+                  <CardDescription>
+                    Edit names, prices, or remove items before approving. Approved items will be added to your menu.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
                   <EditableExtractedDishesTable
                     dishes={extractionDoc.extracted_dishes}
                     docname={extractionDocName!}
                     onUpdate={refreshExtraction}
                   />
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
             {isFinalState && currentStatus === 'Completed' && (
-              <div className="p-12 text-center bg-muted/30 rounded-[3rem] border-2 border-dashed border-border/50">
-                <div className="h-16 w-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-12">
-                   <CheckCircle className="h-8 w-8" />
-                </div>
-                <h4 className="text-2xl font-black tracking-tight mb-2">Transformation Successful</h4>
-                <p className="text-muted-foreground font-medium max-w-xs mx-auto text-sm leading-relaxed italic">
-                  The menu data has been successfully synchronized and mapped to your restaurant ecosystem.
-                </p>
-              </div>
+              <Card className="shadow-xs border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20">
+                <CardContent className="py-8 text-center">
+                  <div className="h-12 w-12 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Check className="h-6 w-6" />
+                  </div>
+                  <h4 className="text-base font-semibold mb-1">Menu generated successfully</h4>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    Your categories and products are now live. You can manage them from Menu Management.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
         )}
       </div>
 
-      {/* STICKY ACTION FOOTER */}
-      <div className="sticky bottom-0 z-50 bg-background/95 backdrop-blur-md border-t p-6 px-8 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
-         <div className="flex items-center gap-6 text-[10px] text-muted-foreground font-black uppercase tracking-widest">
-            {activeStep !== 'setup' ? (
-               <button 
-                onClick={() => {
-                  if (activeStep === 'images') setActiveStep('setup')
-                  else if (activeStep === 'processing' || activeStep === 'review') setActiveStep('images')
-                }}
-                className="hover:text-primary transition-colors flex items-center gap-2 group border-r pr-6 border-muted-foreground/20 h-10"
-                disabled={isSaving || isPolling}
-               >
-                 <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" />
-                 Navigate Back
-               </button>
-            ) : (
-                <div className="flex items-center gap-4 border-r pr-6 border-muted-foreground/20 h-10">
-                    <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Neural Safety</span>
-                    <span className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> High Precision</span>
-                </div>
-            )}
-            
-            <div className="hidden md:flex items-center gap-4 opacity-70">
-                <span className="italic normal-case font-medium">99.2% Accuracy SLA</span>
-            </div>
-         </div>
+      {/* Sticky Action Footer */}
+      <div className="sticky bottom-0 z-20 bg-background/95 backdrop-blur-sm border-t px-6 py-3.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {activeStep !== 'setup' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (activeStep === 'images') setActiveStep('setup')
+                else if (activeStep === 'processing' || activeStep === 'review') setActiveStep('images')
+              }}
+              disabled={isSaving || isPolling}
+              className="gap-1.5 text-muted-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </Button>
+          )}
+        </div>
 
-         <div className="flex items-center gap-3">
-            {activeStep === 'setup' && (
-              <Button 
-                onClick={handleStart}
-                disabled={isSaving || !restaurantName}
-                className="h-12 w-48 rounded-xl bg-primary text-white font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start Session'}
-              </Button>
-            )}
+        <div className="flex items-center gap-2">
+          {activeStep === 'setup' && (
+            <Button
+              onClick={handleStart}
+              disabled={isSaving || !restaurantName}
+              className="min-w-[140px]"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Continue
+                </>
+              )}
+            </Button>
+          )}
 
-            {activeStep === 'images' && (
-              <Button 
-                onClick={handleExtract}
-                disabled={isSaving || (!hasUploadedImages && (!extractionDoc?.menu_images || extractionDoc.menu_images.length === 0))}
-                className="h-12 w-64 rounded-xl bg-primary text-white font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all gap-2"
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Transform Images
-                  </>
-                )}
-              </Button>
-            )}
+          {activeStep === 'images' && (
+            <Button
+              onClick={handleExtract}
+              disabled={isSaving || (!hasUploadedImages && (!extractionDoc?.menu_images || extractionDoc.menu_images.length === 0))}
+              className="min-w-[180px] gap-2"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Extract menu
+                </>
+              )}
+            </Button>
+          )}
 
-            {activeStep === 'review' && currentStatus !== 'Completed' && (
-              <Button 
-                onClick={handleApprove}
-                disabled={isSaving}
-                className="h-12 w-64 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all gap-2"
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Finalize Sync
-                  </>
-                )}
-              </Button>
-            )}
+          {activeStep === 'review' && currentStatus !== 'Completed' && (
+            <Button
+              onClick={handleApprove}
+              disabled={isSaving}
+              className="min-w-[180px] gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Approve & generate menu
+                </>
+              )}
+            </Button>
+          )}
 
-            {(currentStatus === 'Completed' || activeStep === 'review') && (
-              <Button variant="ghost" className="h-12 rounded-xl text-muted-foreground font-bold" onClick={onClose}>
-                Close Interface
-              </Button>
-            )}
-         </div>
+          {(currentStatus === 'Completed' || activeStep === 'review') && (
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          )}
+        </div>
       </div>
 
       {ConfirmDialogComponent}

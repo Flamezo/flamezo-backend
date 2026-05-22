@@ -5,7 +5,66 @@ import frappe
 import urllib.request
 import os
 import tempfile
+import time
+import random
 from io import BytesIO
+from functools import wraps
+
+
+# MySQL error codes that mean "transient, retry me":
+#   1213 = Deadlock found when trying to get lock; try restarting transaction
+#   1205 = Lock wait timeout exceeded; try restarting transaction
+_MYSQL_TRANSIENT_ERROR_CODES = (1213, 1205)
+
+
+def _is_transient_db_error(exc):
+	"""Return True if the exception is a retryable MySQL deadlock / lock-wait."""
+	args = getattr(exc, "args", None)
+	if args and isinstance(args, tuple) and len(args) > 0:
+		code = args[0]
+		if isinstance(code, int) and code in _MYSQL_TRANSIENT_ERROR_CODES:
+			return True
+	# Fall back to message sniffing for wrapped exceptions
+	msg = str(exc).lower()
+	return "deadlock" in msg or "lock wait timeout" in msg
+
+
+def retry_on_deadlock(max_attempts=6, base_delay=0.1, max_delay=4.0):
+	"""
+	Decorator: retry a function on MySQL deadlocks / lock-wait timeouts with
+	exponential backoff + jitter. Rolls back the transaction before each retry.
+
+	Use on any function that performs database writes which might contend with
+	concurrent jobs (e.g. media variant inserts, child-table replacements).
+	Non-transient exceptions are re-raised immediately. Returns the function's
+	value on the first successful attempt.
+	"""
+
+	def decorator(fn):
+		@wraps(fn)
+		def wrapper(*args, **kwargs):
+			last_exc = None
+			for attempt in range(max_attempts):
+				try:
+					return fn(*args, **kwargs)
+				except Exception as e:
+					last_exc = e
+					if not _is_transient_db_error(e):
+						raise
+					try:
+						frappe.db.rollback()
+					except Exception:
+						pass
+					if attempt >= max_attempts - 1:
+						break
+					delay = min(max_delay, base_delay * (2 ** attempt))
+					time.sleep(delay + random.random() * base_delay)
+			# All retries exhausted - re-raise the last transient error.
+			raise last_exc  # type: ignore[misc]
+
+		return wrapper
+
+	return decorator
 
 def safe_log_error(title, message=None, reference_doctype=None, reference_name=None):
 	"""

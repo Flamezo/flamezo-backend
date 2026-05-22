@@ -295,6 +295,11 @@ scheduler_events = {
 			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_activate_scheduled_coupons",
 			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_deactivate_expired_coupons",
 		],
+		# Menu extraction self-heal: sweep docs stuck in 'Processing' for >5min
+		# (worker restart / transient failures) and re-aggregate or mark Failed.
+		"*/5 * * * *": [
+			"flamezo_backend.flamezo.tasks.extraction_recovery.recover_stuck_extractions",
+		],
 	}
 }
 

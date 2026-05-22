@@ -2,6 +2,7 @@ import json
 import os
 import base64
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import frappe
@@ -399,6 +400,27 @@ The response must be valid JSON with this structure:
   "filters": [...]
 }}"""
 
+def _fallback_description(dish: Dict[str, Any]) -> str:
+    """Generate a sensible placeholder description when GPT can't be reached.
+
+    Never returns empty. Used as the last-resort safety net so the menu never
+    ships with literally blank descriptions.
+    """
+    name = (dish.get("name") or "this dish").strip()
+    category = (dish.get("category") or dish.get("mainCategory") or "").strip()
+    veg = dish.get("isVegetarian")
+
+    veg_phrase = ""
+    if veg is True:
+        veg_phrase = "vegetarian "
+    elif veg is False:
+        veg_phrase = ""
+
+    if category:
+        return f"Freshly prepared {veg_phrase}{name.lower()} from our {category.lower()} selection."
+    return f"Freshly prepared {veg_phrase}{name.lower()}, made to order."
+
+
 class DescriptionGenerator:
     """Generate premium descriptions for menu items missing descriptions"""
     
@@ -414,42 +436,46 @@ class DescriptionGenerator:
         categories: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Generate descriptions for dishes that are missing them
+        Generate descriptions for any dish missing one, via GPT-4o.
+
+        Guarantee: every dish in the returned list has a non-empty `description`.
+        If GPT fails for a particular dish, a name+category-based template fills in.
+        Dish order is preserved.
         """
-        # Identify dishes missing descriptions
-        dishes_needing_descriptions = [
-            dish for dish in dishes
-            if not dish.get("description") or dish.get("description").strip() == ""
-        ]
-        
-        if not dishes_needing_descriptions:
+
+        def needs_description(d):
+            return not (d.get("description") or "").strip()
+
+        # Preserve original order; only the dishes that need help get sent to GPT.
+        missing = [d for d in dishes if needs_description(d)]
+        if not missing:
             return dishes
-        
-        # Process in batches of 20 dishes at a time
+
+        # Generate in batches of 20.
         batch_size = 20
-        updated_dishes = []
-        dishes_with_descriptions = {dish["id"]: dish for dish in dishes if dish.get("description")}
-        
-        for i in range(0, len(dishes_needing_descriptions), batch_size):
-            batch = dishes_needing_descriptions[i:i + batch_size]
-            generated_descriptions = self._generate_batch_descriptions(
+        generated_all: Dict[str, str] = {}
+        for i in range(0, len(missing), batch_size):
+            batch = missing[i:i + batch_size]
+            descriptions = self._generate_batch_descriptions(
                 batch=batch,
                 restaurant_name=restaurant_name,
                 categories=categories,
-                all_dishes_context=dishes
+                all_dishes_context=dishes,
             )
-            
-            # Update dishes with generated descriptions
-            for dish in batch:
-                dish_id = dish["id"]
-                if dish_id in generated_descriptions:
-                    dish["description"] = generated_descriptions[dish_id]
-                updated_dishes.append(dish)
-        
-        # Combine
-        existing_dishes = [d for d in dishes if d["id"] in dishes_with_descriptions]
-        result = existing_dishes + updated_dishes
-        return result
+            for k, v in descriptions.items():
+                generated_all[str(k)] = v
+
+        # Apply in place, with fallback template for anything GPT didn't return.
+        for dish in dishes:
+            if not needs_description(dish):
+                continue
+            dish_id = str(dish.get("id") or "")
+            if dish_id and dish_id in generated_all:
+                dish["description"] = generated_all[dish_id]
+            else:
+                dish["description"] = _fallback_description(dish)
+
+        return dishes
     
     def _generate_batch_descriptions(
         self,
@@ -488,32 +514,66 @@ class DescriptionGenerator:
             category_context=category_context
         )
         
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {{"role": "system", "content": system_prompt}},
-                    {{"role": "user", "content": user_prompt}}
-                ],
-                temperature=0.8,
-                max_tokens=2048,
-                response_format={{"type": "json_object"}}
-            )
-            
-            result_data = json.loads(response.choices[0].message.content)
-            
-            descriptions = {}
-            if "descriptions" in result_data:
-                for item in result_data["descriptions"]:
-                    dish_id = item.get("id")
-                    description = item.get("description", "").strip()
-                    if dish_id and description:
-                        descriptions[dish_id] = description
-            
-            return descriptions
-        except Exception as e:
-            logger.error(f"Error during description generation: {e}")
-            return {}
+        # Up to 3 attempts. The OpenAI call occasionally returns malformed JSON or
+        # times out; retrying once or twice almost always succeeds.
+        last_err = None
+        for attempt in range(3):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.8,
+                    max_tokens=2048,
+                    response_format={"type": "json_object"},
+                )
+
+                content = response.choices[0].message.content or ""
+                result_data = json.loads(content)
+
+                descriptions: Dict[str, str] = {}
+                if isinstance(result_data, dict) and isinstance(result_data.get("descriptions"), list):
+                    for item in result_data["descriptions"]:
+                        if not isinstance(item, dict):
+                            continue
+                        dish_id = item.get("id")
+                        description = (item.get("description") or "").strip()
+                        if dish_id and description:
+                            descriptions[str(dish_id)] = description
+
+                # Match-by-name fallback in case the model returns slightly off IDs.
+                # Build a name->id map for this batch, then look up by lowercased name.
+                if len(descriptions) < len(batch):
+                    name_to_id = {
+                        (d.get("name") or "").strip().lower(): d.get("id")
+                        for d in batch if d.get("id")
+                    }
+                    if isinstance(result_data, dict) and isinstance(result_data.get("descriptions"), list):
+                        for item in result_data["descriptions"]:
+                            if not isinstance(item, dict):
+                                continue
+                            description = (item.get("description") or "").strip()
+                            if not description:
+                                continue
+                            maybe_name = (item.get("name") or "").strip().lower()
+                            if maybe_name and maybe_name in name_to_id:
+                                dish_id = name_to_id[maybe_name]
+                                if dish_id and str(dish_id) not in descriptions:
+                                    descriptions[str(dish_id)] = description
+
+                return descriptions
+
+            except Exception as e:
+                last_err = e
+                logger.error(f"Description generation attempt {attempt + 1} failed: {e}")
+                if attempt < 2:
+                    time.sleep(1 + attempt)
+                    continue
+
+        logger.error(f"Description generation gave up after retries: {last_err}")
+        return {}
     
     def _get_generation_prompt(self) -> str:
         """Get the system prompt for description generation"""

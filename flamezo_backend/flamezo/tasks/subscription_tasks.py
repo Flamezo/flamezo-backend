@@ -3,8 +3,11 @@ Flamezo Subscription Billing Tasks
 Handles daily floor recovery and deferred plan transitions.
 """
 
+from datetime import date, datetime, time, timedelta
+
 import frappe
-from frappe.utils import getdate
+import pytz
+from frappe.utils import getdate, date_diff, now_datetime
 from flamezo_backend.flamezo.api.coin_billing import deduct_coins
 
 def process_daily_subscription_floors():
@@ -23,10 +26,6 @@ def process_daily_subscription_floors():
 
     for res in gold_restaurants:
         try:
-            from datetime import datetime, time, timedelta
-            import pytz
-            from frappe.utils import date_diff
-
             res_tz = pytz.timezone(res.timezone or "UTC")
             local_now = datetime.now(res_tz)
             local_today_date = local_now.date()
@@ -37,28 +36,44 @@ def process_daily_subscription_floors():
             end_utc = end_of_day_local.astimezone(pytz.utc)
 
             # GOLD Monthly Floor Check (every 30 days)
-            last_check = res.last_floor_recovery_date or res.floor_recovery_activated_on or res.creation
-            if date_diff(today, last_check) < 30:
+            last_check_raw = (
+                res.last_floor_recovery_date
+                or res.floor_recovery_activated_on
+                or res.creation
+            )
+            if not last_check_raw:
+                continue  # No reference date yet — skip until floor recovery is configured
+            last_check = getdate(last_check_raw)
+            if not last_check or not today:
+                continue  # Defensive: bail out if either bound is unparseable
+            days_since_last = date_diff(today, last_check) or 0
+            if days_since_last < 30:
                 continue  # Not time yet for the monthly guarantee check
 
             # Check total commissions for the last 30 days
-            total_commissions = frappe.db.sql("""
+            commission_rows = frappe.db.sql(
+                """
                 SELECT SUM(amount)
                 FROM `tabCoin Transaction`
                 WHERE restaurant = %s
                 AND transaction_type = 'Commission Deduction'
                 AND creation >= %s AND creation < %s
-            """, (res.name, last_check, end_utc))[0][0] or 0.0
+                """,
+                (res.name, last_check, end_utc),
+            )
+            total_commissions = 0.0
+            if commission_rows and commission_rows[0] and commission_rows[0][0] is not None:
+                total_commissions = float(commission_rows[0][0])
 
             floor_target = float(res.monthly_minimum or 399.0)
-            shortfall = max(0, floor_target - abs(float(total_commissions)))
+            shortfall = max(0.0, floor_target - abs(total_commissions))
 
             if shortfall > 0:
                 deduct_coins(
                     restaurant=res.name,
                     amount=shortfall,
                     type="Monthly GOLD Floor",
-                    description=f"Monthly GOLD Floor Recovery (Min Guarantee: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(float(total_commissions)):.2f}, Period: {last_check} to {today})"
+                    description=f"Monthly GOLD Floor Recovery (Min Guarantee: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(total_commissions):.2f}, Period: {last_check} to {today})"
                 )
 
             # Update last_floor_recovery_date to today to start the next 30-day cycle
@@ -79,8 +94,14 @@ def sync_restaurant_subscription(restaurant):
     # check if switch is required (deferred plan exists and date is reached/passed)
     if not res_doc.deferred_plan_type or not res_doc.plan_change_date:
         return False
-    
-    if getdate(res_doc.plan_change_date) > today:
+
+    raw_plan_change = res_doc.plan_change_date
+    if not isinstance(raw_plan_change, (str, date, datetime)):
+        return False
+    plan_change_date = getdate(raw_plan_change)
+    if not plan_change_date or not today:
+        return False
+    if plan_change_date > today:
         return False
 
     try:
@@ -90,7 +111,7 @@ def sync_restaurant_subscription(restaurant):
         # Atomically update to avoid race conditions during JIT + scheduler
         frappe.db.set_value("Restaurant", restaurant, {
             "plan_type": new_plan,
-            "plan_activated_on": frappe.utils.now_datetime(),
+            "plan_activated_on": now_datetime(),
             "deferred_plan_type": None,
             "plan_change_date": None
         })

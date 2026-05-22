@@ -5,6 +5,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 from flamezo_backend.flamezo.media.utils import get_allowed_roles, get_actual_media_role, get_restaurant_from_owner
+from flamezo_backend.flamezo.utils.common import retry_on_deadlock
 import hashlib
 
 
@@ -57,26 +58,34 @@ class MediaAsset(Document):
 				f"does not match owner document restaurant '{owner_restaurant}'"
 			)
 	
+	@retry_on_deadlock()
 	def mark_as_uploaded(self):
 		"""Mark media as uploaded"""
+		self.reload()
 		self.status = "uploaded"
 		self.save(ignore_permissions=True)
-	
+
+	@retry_on_deadlock()
 	def mark_as_processing(self):
 		"""Mark media as processing"""
+		self.reload()
 		self.status = "processing"
 		self.processing_attempts = (self.processing_attempts or 0) + 1
 		self.save(ignore_permissions=True)
-	
+
+	@retry_on_deadlock()
 	def mark_as_ready(self):
 		"""Mark media as ready"""
+		self.reload()
 		self.status = "ready"
 		self.processed_at = now_datetime()
 		self.last_error = None
 		self.save(ignore_permissions=True)
-	
+
+	@retry_on_deadlock()
 	def mark_as_failed(self, error_message):
 		"""Mark media as failed"""
+		self.reload()
 		self.status = "failed"
 		self.last_error = error_message
 		self.save(ignore_permissions=True)
