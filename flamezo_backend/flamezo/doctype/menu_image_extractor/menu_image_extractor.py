@@ -7,7 +7,8 @@ from frappe import _
 from frappe.utils.file_manager import get_file_path
 import json
 import time
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 import os
 import re
 import requests
@@ -217,11 +218,10 @@ def scrub_price(price_val):
 @frappe.whitelist()
 def get_extraction_status(docname):
 	"""
-	Dedicated status polling API - reads DIRECTLY from DB, bypasses all SDK caching.
-	Returns current state of extraction: status, batch progress, and metadata.
-	Mirrors the pattern used by AI Enhancement's get_enhancement_status.
+	Polling endpoint for the Magic stage UI. Reads directly from DB to bypass
+	any SDK caching. Includes a `modified` timestamp the client can use to
+	detect stalls and trigger recover_extraction().
 	"""
-	# Read directly from DB - no doc cache
 	result = frappe.db.get_value(
 		"Menu Image Extractor",
 		docname,
@@ -232,55 +232,67 @@ def get_extraction_status(docname):
 			"extraction_log",
 			"items_created",
 			"categories_created",
+			"modified",
 		],
-		as_dict=True
+		as_dict=True,
 	)
 	if not result:
 		frappe.throw("Extraction document not found: {}".format(docname))
 
+	total = result.total_batches or 0
+	completed = result.completed_batches or 0
+	progress_pct = int((completed / total) * 100) if total > 0 else 0
+
 	return {
 		"status": result.extraction_status,
-		"total_batches": result.total_batches or 0,
-		"completed_batches": result.completed_batches or 0,
-		"extraction_log": result.extraction_log,
+		"total_batches": total,
+		"completed_batches": completed,
+		"progress_pct": progress_pct,
+		"extraction_log": result.extraction_log or "",
 		"items_created": result.items_created or 0,
 		"categories_created": result.categories_created or 0,
+		"modified": str(result.modified) if result.modified else None,
 	}
 
 
 
 def _extract_batch_internal(docname, batch_images, batch_number, total_batches):
 	"""
-	Process a single batch of images
-	This runs as a background job - no timeouts, processes in parallel with other batches
+	Process a single batch of images.
+
+	Runs as a background job. INVARIANT: this function MUST always record a batch
+	completion exactly once (success or failure), via the `finally` block. That
+	guarantee is what prevents the frontend from getting stuck at < 100%.
 	"""
+	temp_files = []
+	succeeded = False
+	result_data = None
+	processing_time = 0.0
+	start_time = time.time()
+
 	try:
-		# Log that batch processing started
 		frappe.log_error(
 			title="Menu Extraction - Batch Start",
 			message=(
 				f"Batch {batch_number}/{total_batches} started processing\n"
 				f"Document: {docname}\n"
 				f"Images in batch: {len(batch_images)}"
-			)
+			),
 		)
-		
+
 		doc = frappe.get_doc("Menu Image Extractor", docname)
-		
-		# Check if document still exists and is in Processing status
+
+		# Skip if user navigated away / extraction was reset
 		if doc.extraction_status != "Processing":
 			frappe.log_error(
 				title="Menu Extraction - Batch Skip",
-				message=f"Batch {batch_number} skipped: Document status is {doc.extraction_status}, not Processing"
+				message=f"Batch {batch_number} skipped: Document status is {doc.extraction_status}, not Processing",
 			)
 			return
-		
-		start_time = time.time()
-		
-		# Internal extraction logic
-		image_paths = []
-		temp_files = []  # Track files to delete later
 
+		_set_progress(docname, _("Batch {0}/{1}: downloading images...").format(batch_number, total_batches))
+
+		image_paths = []
 		for image_url in batch_images:
 			try:
 				local_path, is_temp = _get_local_image_path(image_url)
@@ -289,64 +301,121 @@ def _extract_batch_internal(docname, batch_images, batch_number, total_batches):
 					if is_temp:
 						temp_files.append(local_path)
 				else:
-					frappe.log_error(title="Menu Extraction - Path Error", message=f"Batch {batch_number}: Could not resolve image path for {image_url}")
+					frappe.log_error(
+						title="Menu Extraction - Path Error",
+						message=f"Batch {batch_number}: Could not resolve image path for {image_url}",
+					)
 			except Exception as e:
-				frappe.log_error(title="Menu Extraction - Resolution Error", message=f"Batch {batch_number}: Error resolving image {image_url}\n{str(e)}")
+				frappe.log_error(
+					title="Menu Extraction - Resolution Error",
+					message=f"Batch {batch_number}: Error resolving image {image_url}\n{str(e)}",
+				)
 
 		if not image_paths:
-			frappe.log_error(title="Menu Extraction - Batch Empty", message=f"Batch {batch_number}: No valid image files found")
-			_update_batch_completion(docname, batch_number, total_batches, None, None)
-			return
+			frappe.log_error(
+				title="Menu Extraction - Batch Empty",
+				message=f"Batch {batch_number}: No valid image files found",
+			)
+			return  # finally records this as a failed batch
 
-		# Call local AI service
 		restaurant_name_for_api = doc.restaurant_name
 		if not restaurant_name_for_api and doc.restaurant:
 			restaurant_name_for_api = frappe.db.get_value("Restaurant", doc.restaurant, "restaurant_name")
 
-		result = extract_and_generate(
-			image_paths=image_paths,
-			restaurant_name=restaurant_name_for_api,
-			generate_descriptions=bool(doc.generate_descriptions)
-		)
-		
-		# Log successful result
-		frappe.log_error(
-			title="Menu Extraction - Internal Success",
-			message=(
-				f"Batch {batch_number}: Extraction Success\n"
-				f"Success: {result.get('success')}\n"
-				f"Categories: {len(result.get('data', {}).get('categories', []))}\n"
-				f"Dishes: {len(result.get('data', {}).get('dishes', []))}"
-			)
-		)
-		
+		_set_progress(docname, _("Batch {0}/{1}: extracting menu data ({2} images)...").format(
+			batch_number, total_batches, len(image_paths)
+		))
+
+		# Vision model call - retry transient failures up to 2 times
+		result = None
+		last_err = None
+		for attempt in range(3):
+			try:
+				result = extract_and_generate(
+					image_paths=image_paths,
+					restaurant_name=restaurant_name_for_api,
+					generate_descriptions=bool(doc.generate_descriptions),
+				)
+				if result and result.get("success"):
+					break
+				last_err = (result or {}).get("error") or "Unknown extraction error"
+			except Exception as e:
+				last_err = str(e)
+				frappe.log_error(
+					title="Menu Extraction - Vision Call Error",
+					message=f"Batch {batch_number} attempt {attempt + 1}: {last_err}\n{frappe.get_traceback()}",
+				)
+			if attempt < 2:
+				time.sleep(2 ** attempt)  # 1s, 2s backoff
+
 		processing_time = time.time() - start_time
-		
-		# Process batch result
-		if result.get('success'):
-			data = result.get('data', {})
-			# Store batch results temporarily
-			_store_batch_results(docname, batch_number, data, processing_time)
+
+		if result and result.get("success"):
+			succeeded = True
+			result_data = result.get("data", {})
+			frappe.log_error(
+				title="Menu Extraction - Internal Success",
+				message=(
+					f"Batch {batch_number}: Extraction Success\n"
+					f"Categories: {len(result_data.get('categories', []))}\n"
+					f"Dishes: {len(result_data.get('dishes', []))}"
+				),
+			)
 		else:
 			frappe.log_error(
 				title="Menu Extraction - Batch Service Error",
-				message=f"Batch {batch_number} extraction returned success=False: {result.get('error', 'Unknown error')}"
+				message=f"Batch {batch_number} extraction failed after retries: {last_err}",
 			)
-			_update_batch_completion(docname, batch_number, total_batches, None, None)
-	
+
 	except Exception as e:
-		frappe.log_error(title="Menu Extraction - Batch Error", message=f"Batch {batch_number} failed: {str(e)}\n{frappe.get_traceback()}")
-		_update_batch_completion(docname, batch_number, total_batches, None, None)
-	
+		# Any uncaught error still falls through to `finally` for the counter bump.
+		frappe.log_error(
+			title="Menu Extraction - Batch Error",
+			message=f"Batch {batch_number} failed: {str(e)}\n{frappe.get_traceback()}",
+		)
+
 	finally:
-		# CLEANUP: Delete temporary downloaded files
-		if 'temp_files' in locals() and temp_files:
-			for temp_file in temp_files:
-				try:
-					if os.path.exists(temp_file):
-						os.remove(temp_file)
-				except Exception as cleanup_err:
-					frappe.log_error(title="Menu Extraction - Cleanup Error", message=f"Failed to cleanup temp file {temp_file}: {str(cleanup_err)}")
+		# GUARANTEED single completion record - this is what prevents stuck-at-50%.
+		try:
+			_atomic_record_and_maybe_aggregate(
+				docname=docname,
+				batch_number=batch_number,
+				data=result_data,
+				processing_time=processing_time,
+				succeeded=succeeded,
+			)
+		except Exception as e:
+			# Last-resort safety net: log and try to flip status so the frontend
+			# unblocks instead of polling forever.
+			frappe.log_error(
+				title="Menu Extraction - Record Catastrophic Error",
+				message=f"Batch {batch_number} failed to record completion: {str(e)}\n{frappe.get_traceback()}",
+			)
+			try:
+				frappe.db.rollback()
+				frappe.db.sql(
+					"""
+					UPDATE `tabMenu Image Extractor`
+					SET extraction_status = 'Failed',
+					    extraction_log = %s
+					WHERE name = %s
+					""",
+					(f"Internal error recording batch {batch_number}: {str(e)[:200]}", docname),
+				)
+				frappe.db.commit()
+			except Exception:
+				pass
+
+		# Cleanup temp files (best-effort; never raises out of finally)
+		for temp_file in temp_files:
+			try:
+				if os.path.exists(temp_file):
+					os.remove(temp_file)
+			except Exception as cleanup_err:
+				frappe.log_error(
+					title="Menu Extraction - Cleanup Error",
+					message=f"Failed to cleanup temp file {temp_file}: {str(cleanup_err)}",
+				)
 
 
 def _get_local_image_path(image_url):
@@ -420,149 +489,318 @@ def _get_local_image_path(image_url):
 	return None, False
 
 
-def _store_batch_results(docname, batch_number, data, processing_time):
-	"""Store results from a single batch and check if all batches are complete"""
-	try:
-		doc = frappe.get_doc("Menu Image Extractor", docname)
-		
-		# Get existing batch results or initialize
-		batch_results = json.loads(doc.get('batch_results') or '{}')
-		batch_results[str(batch_number)] = {
-			'data': data,
-			'processing_time': processing_time,
-			'completed_at': datetime.now().isoformat()
-		}
-		
-		# Store batch results
-		doc.db_set('batch_results', json.dumps(batch_results), update_modified=False)
-		
-		# Update completed batches count
-		completed = (doc.get('completed_batches') or 0) + 1
-		doc.db_set('completed_batches', completed, update_modified=False)
-		
-		total_batches = doc.get('total_batches') or 1
-		
-		# Update progress log
-		extraction_log = _("Processing batches... {0}/{1} completed").format(completed, total_batches)
-		doc.db_set('extraction_log', extraction_log, update_modified=False)
+def _set_progress(docname, message):
+	"""Push a granular progress message to the extraction_log field.
 
-		# Check if all batches are complete
-		if completed >= total_batches:
-			# All batches complete - aggregate and process
-			_aggregate_and_process_batches(docname)
-		
-		frappe.db.commit()
-	
-	except Exception as e:
-		frappe.log_error(
-			title="Menu Extraction - Store Batch Error",
-			message=f"Error storing batch {batch_number} results: {str(e)}\n{frappe.get_traceback()}"
+	Non-blocking, deadlock-tolerant. The frontend polls extraction_log every 2s
+	and renders this as the live status line under "Neural Core Active".
+	"""
+	try:
+		frappe.db.sql(
+			"""
+			UPDATE `tabMenu Image Extractor`
+			SET extraction_log = %s
+			WHERE name = %s
+			""",
+			(str(message)[:500], docname),
 		)
+		frappe.db.commit()
+	except Exception:
+		# Best-effort: progress text is cosmetic, never fail the worker for it.
+		try:
+			frappe.db.rollback()
+		except Exception:
+			pass
+
+
+def _atomic_record_and_maybe_aggregate(docname, batch_number, data, processing_time, succeeded):
+	"""
+	Atomically merge one batch's result and bump completed_batches; if that was the
+	last batch, run aggregation. Retries on MySQL deadlocks / lock-wait timeouts.
+
+	This is the choke-point that guarantees the frontend always reaches a terminal
+	state (100% + Pending Approval, or Failed). Concurrent batch jobs serialize on
+	SELECT ... FOR UPDATE; deadlocks back off and retry; aggregation runs at most
+	once because it's gated on `completed >= total` while still inside the lock.
+	"""
+	last_err = None
+	for attempt in range(6):
+		try:
+			row = frappe.db.sql(
+				"""
+				SELECT batch_results, completed_batches, total_batches
+				FROM `tabMenu Image Extractor`
+				WHERE name = %s
+				FOR UPDATE
+				""",
+				(docname,),
+				as_dict=True,
+			)
+			if not row:
+				frappe.db.commit()
+				return None, None
+			r = row[0]
+
+			existing = {}
+			raw_results = r.get("batch_results")
+			if raw_results:
+				try:
+					existing = json.loads(raw_results) or {}
+				except Exception:
+					existing = {}
+
+			already_recorded = str(batch_number) in existing
+
+			if not already_recorded:
+				existing[str(batch_number)] = {
+					"data": data if succeeded else None,
+					"succeeded": bool(succeeded),
+					"processing_time": processing_time,
+					"completed_at": datetime.now().isoformat(),
+				}
+				completed = (r.get("completed_batches") or 0) + 1
+			else:
+				completed = r.get("completed_batches") or 0
+
+			total = r.get("total_batches") or 1
+			log_text = _("Processed {0}/{1} batches").format(completed, total)
+
+			frappe.db.sql(
+				"""
+				UPDATE `tabMenu Image Extractor`
+				SET batch_results = %s,
+				    completed_batches = %s,
+				    extraction_log = %s
+				WHERE name = %s
+				""",
+				(json.dumps(existing), completed, log_text, docname),
+			)
+			frappe.db.commit()  # releases row lock
+
+			# Aggregate exactly once - the last batch to commit wins this check.
+			if not already_recorded and completed >= total:
+				_aggregate_and_process_batches(docname)
+
+			return completed, total
+
+		except Exception as e:
+			last_err = e
+			try:
+				frappe.db.rollback()
+			except Exception:
+				pass
+			# Backoff: 0.1s, 0.2s, 0.4s, 0.8s, 1.6s, 3.2s + jitter
+			if attempt < 5:
+				time.sleep(0.1 * (2 ** attempt) + random.random() * 0.1)
+				continue
+
+	frappe.log_error(
+		title="Menu Extraction - Atomic Record Failed",
+		message=(
+			f"Could not record batch {batch_number} for {docname} after retries.\n"
+			f"Last error: {last_err}\n{frappe.get_traceback() if last_err else ''}"
+		),
+	)
+	return None, None
+
+
+# Legacy entry points retained so external callers / older queued jobs don't break.
+def _store_batch_results(docname, batch_number, data, processing_time):
+	_atomic_record_and_maybe_aggregate(docname, batch_number, data, processing_time, succeeded=True)
 
 
 def _update_batch_completion(docname, batch_number, total_batches, data, processing_time):
-	"""Update batch completion status"""
-	try:
-		doc = frappe.get_doc("Menu Image Extractor", docname)
-		completed = doc.get('completed_batches') or 0
-		doc.db_set('completed_batches', completed + 1, update_modified=False)
-		
-		if completed + 1 >= total_batches:
-			# All batches complete (even if some failed)
-			_aggregate_and_process_batches(docname)
-		else:
-			doc.db_set('extraction_log',
-				_("Processing batches... {0}/{1} completed").format(completed + 1, total_batches),
-				update_modified=False)
-		
-		frappe.db.commit()
-	except Exception as e:
-		frappe.log_error(title="Menu Extraction - Batch Update Error", message=f"Error updating batch completion: {str(e)}")
+	_atomic_record_and_maybe_aggregate(docname, batch_number, data, processing_time, succeeded=False)
 
 
 def _aggregate_and_process_batches(docname):
-	"""Aggregate results from all batches and process them"""
+	"""
+	Aggregate results from all batches and transition to Pending Approval (or Failed).
+
+	INVARIANT: This function MUST always set extraction_status to a terminal value
+	(Pending Approval / Completed / Failed). If it can't, it leaves a Failed status
+	with an explanatory log so the frontend never spins forever.
+	"""
 	try:
 		doc = frappe.get_doc("Menu Image Extractor", docname)
-		
-		# Get all batch results
-		batch_results = json.loads(doc.get('batch_results') or '{}')
-		
-		# Aggregate categories and dishes from all batches
+
+		# Idempotent: if another worker raced and already finished aggregation, bail.
+		if doc.extraction_status in ("Pending Approval", "Completed"):
+			return
+
+		batch_results = {}
+		try:
+			batch_results = json.loads(doc.get("batch_results") or "{}") or {}
+		except Exception:
+			batch_results = {}
+
 		all_categories = {}
 		all_dishes = []
-		
-		for batch_num, batch_data in batch_results.items():
-			data = batch_data.get('data', {})
-			categories = data.get('categories', [])
-			dishes = data.get('dishes', [])
-			
-			# Handle categories - can be list or dict
+		any_success = False
+
+		for _batch_num, batch_data in batch_results.items():
+			if not isinstance(batch_data, dict):
+				continue
+			if not batch_data.get("succeeded"):
+				continue
+			any_success = True
+			data = batch_data.get("data") or {}
+
+			categories = data.get("categories", [])
 			if isinstance(categories, dict):
 				categories = list(categories.values())
 			elif not isinstance(categories, list):
 				categories = []
-			
-			# Aggregate categories (deduplicate by id)
 			for cat in categories:
-				if isinstance(cat, dict) and cat.get('id'):
-					all_categories[cat['id']] = cat
-			
-			# Handle dishes - can be list or dict
+				if isinstance(cat, dict) and cat.get("id"):
+					all_categories[cat["id"]] = cat
+
+			dishes = data.get("dishes", [])
 			if isinstance(dishes, dict):
 				dishes = list(dishes.values())
 			elif not isinstance(dishes, list):
 				dishes = []
-			
-			# Aggregate dishes
-			all_dishes.extend(dishes)
-		
-		# Create aggregated data structure
+			all_dishes.extend([d for d in dishes if isinstance(d, dict)])
+
+		# If literally every batch failed, surface that clearly instead of
+		# showing a happy "0 dishes extracted" Pending Approval screen.
+		if not any_success:
+			doc.db_set("extraction_status", "Failed", update_modified=False)
+			doc.db_set(
+				"extraction_log",
+				_(
+					"Extraction failed: all {0} batch(es) errored. "
+					"Please check the error log and retry."
+				).format(len(batch_results) or 1),
+				update_modified=False,
+			)
+			frappe.db.commit()
+			return
+
 		aggregated_data = {
-			'categories': list(all_categories.values()),
-			'dishes': all_dishes,
-			'restaurantBrand': {}  # Can be merged if needed
+			"categories": list(all_categories.values()),
+			"dishes": all_dishes,
+			"restaurantBrand": {},
 		}
-		
-		# Store aggregated data
+
 		store_extracted_data(aggregated_data, doc)
-		
-		# Update metrics for display (frontend counts)
+
 		doc.categories_created = len(all_categories)
 		doc.items_created = len(all_dishes)
-		
-		# Update status
 		doc.extraction_status = "Pending Approval"
 		doc.approval_status = "Pending"
-		doc.extraction_log = f"Extraction completed successfully!\n\n" + \
-			f"Categories extracted: {len(all_categories)}\n" + \
-			f"Dishes extracted: {len(all_dishes)}\n\n" + \
-			"Please review the extracted data below and click 'Approve and Create Menu Items' to add them to the database."
+		doc.extraction_log = (
+			f"Extraction completed successfully!\n\n"
+			f"Categories extracted: {len(all_categories)}\n"
+			f"Dishes extracted: {len(all_dishes)}\n\n"
+			"Please review the extracted data below and click "
+			"'Approve and Create Menu Items' to add them to the database."
+		)
 		doc.extraction_date = datetime.now()
-		
-		# Calculate total processing time
-		total_time = sum(b.get('processing_time', 0) for b in batch_results.values())
+
+		total_time = sum(
+			(b.get("processing_time") or 0)
+			for b in batch_results.values()
+			if isinstance(b, dict)
+		)
 		doc.processing_time = f"{total_time:.2f} seconds"
-		
-		# Store raw response
-		doc.raw_response = json.dumps({'data': aggregated_data}, indent=2)
-		
+		doc.raw_response = json.dumps({"data": aggregated_data}, indent=2)
+
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
-		
+
 	except Exception as e:
 		frappe.log_error(
 			title="Menu Extraction - Aggregate Error",
-			message=f"Error aggregating batches: {str(e)}\n{frappe.get_traceback()}"
+			message=f"Error aggregating batches for {docname}: {str(e)}\n{frappe.get_traceback()}",
 		)
-		# Fallback to reload and set failed
+		# Force terminal state via raw SQL - bypasses any doc-level corruption.
 		try:
-			doc = frappe.get_doc("Menu Image Extractor", docname)
-			doc.db_set('extraction_status', 'Failed', update_modified=False)
-			doc.db_set('extraction_log', f"Error aggregating batch results: {str(e)}", update_modified=False)
-			frappe.db.commit()
-		except:
+			frappe.db.rollback()
+		except Exception:
 			pass
+		try:
+			frappe.db.sql(
+				"""
+				UPDATE `tabMenu Image Extractor`
+				SET extraction_status = 'Failed',
+				    extraction_log = %s
+				WHERE name = %s
+				""",
+				(f"Error aggregating batch results: {str(e)[:400]}", docname),
+			)
+			frappe.db.commit()
+		except Exception:
+			pass
+
+
+@frappe.whitelist()
+def recover_extraction(docname):
+	"""
+	Self-heal a stuck extraction. Safe to call any time from the frontend.
+
+	If status is 'Processing' but all batches are actually done (or stale > 5min
+	since last update), re-runs aggregation or marks Failed. The frontend should
+	call this when polling sees no progress for a while.
+	"""
+	try:
+		row = frappe.db.get_value(
+			"Menu Image Extractor",
+			docname,
+			[
+				"extraction_status",
+				"total_batches",
+				"completed_batches",
+				"modified",
+				"batch_results",
+			],
+			as_dict=True,
+		)
+		if not row:
+			return {"recovered": False, "reason": "not_found"}
+
+		if row.extraction_status not in ("Processing", "Failed"):
+			return {"recovered": False, "reason": "not_stuck", "status": row.extraction_status}
+
+		total = row.total_batches or 0
+		completed = row.completed_batches or 0
+
+		# Case 1: all batches actually finished but aggregation was missed.
+		if total > 0 and completed >= total:
+			_aggregate_and_process_batches(docname)
+			new_status = frappe.db.get_value("Menu Image Extractor", docname, "extraction_status")
+			return {"recovered": True, "reason": "aggregated", "status": new_status}
+
+		# Case 2: stale - no update in 5+ minutes. Mark failed so user can retry.
+		try:
+			last_modified = row.modified
+			if last_modified and (datetime.now() - last_modified) > timedelta(minutes=5):
+				frappe.db.sql(
+					"""
+					UPDATE `tabMenu Image Extractor`
+					SET extraction_status = 'Failed',
+					    extraction_log = %s
+					WHERE name = %s
+					""",
+					(
+						f"Extraction appears stuck ({completed}/{total} batches complete, "
+						f"no updates for >5 min). Please retry.",
+						docname,
+					),
+				)
+				frappe.db.commit()
+				return {"recovered": True, "reason": "marked_failed_stale"}
+		except Exception:
+			pass
+
+		return {"recovered": False, "reason": "still_processing", "completed": completed, "total": total}
+
+	except Exception as e:
+		frappe.log_error(
+			title="Menu Extraction - Recover Error",
+			message=f"recover_extraction({docname}) failed: {str(e)}\n{frappe.get_traceback()}",
+		)
+		return {"recovered": False, "reason": "error", "error": str(e)}
 
 
 def store_extracted_data(data, extractor_doc):

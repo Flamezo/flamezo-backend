@@ -7,7 +7,7 @@ Background jobs for media processing
 
 import frappe
 from frappe.utils import now_datetime
-from flamezo_backend.flamezo.utils.common import safe_log_error
+from flamezo_backend.flamezo.utils.common import safe_log_error, retry_on_deadlock
 from .storage import download_object, upload_object, delete_object, get_cdn_url, calculate_file_hash, generate_object_key
 from .processors import process_image, process_video
 import os
@@ -16,71 +16,115 @@ import tempfile
 
 def process_media_asset(media_asset_name):
 	"""
-	Process media asset - generate optimized variants
-	
-	This job is idempotent and can be safely retried.
+	Process a media asset: generate optimized variants and sync URLs back to owner.
+
+	This job is idempotent and self-healing:
+	  - Skips if already `ready`.
+	  - The inner DB-touching parts (variant save, owner sync, status flips) each
+	    retry transparently on MySQL deadlocks / lock-wait timeouts.
+	  - Re-uploading variants to R2 on retry is safe because object keys are
+	    deterministic from the asset name + variant name (upsert semantics).
 	"""
-	try:
-		# Get media asset
-		asset = frappe.get_doc("Media Asset", media_asset_name)
-		
-		# Skip if already ready or processing
-		if asset.status == "ready":
-			frappe.logger().info(f"Media asset {asset.media_id} already processed")
-			return
-		
-		# Mark as processing
-		asset.mark_as_processing()
-		
-		# Create temp directory
-		with tempfile.TemporaryDirectory() as temp_dir:
-			# Download raw file
-			raw_file_path = os.path.join(temp_dir, asset.source_filename)
-			download_object(asset.raw_object_key, raw_file_path)
-			
-			# Calculate hash if not already done
-			if not asset.source_sha256:
-				asset.source_sha256 = calculate_file_hash(raw_file_path)
-			
-			# Process based on media kind
-			if asset.media_kind == "image":
-				process_image_asset(asset, raw_file_path, temp_dir)
-			elif asset.media_kind == "video":
-				process_video_asset(asset, raw_file_path, temp_dir)
-			else:
-				raise Exception(f"Unsupported media kind: {asset.media_kind}")
-			
-			# Mark as ready
-			asset.mark_as_ready()
-			
-			# Sync back to owner document so UIs use CDN URLs (no legacy /files/)
-			sync_media_asset_to_owner(asset)
-			
-		frappe.logger().info(f"Successfully processed media asset {asset.media_id}")
-		
-	except Exception as e:
-		safe_log_error("Media Processing Error", f"Error processing media asset {media_asset_name}: {str(e)}")
-		
-		# Mark as failed
+	from pymysql.err import OperationalError  # local import to avoid hard dep at module load
+
+	def _is_transient(err):
+		args = getattr(err, "args", None)
+		if args and isinstance(args, tuple) and args and isinstance(args[0], int) and args[0] in (1213, 1205):
+			return True
+		m = str(err).lower()
+		return "deadlock" in m or "lock wait timeout" in m
+
+	max_attempts = 4
+	last_err = None
+
+	for attempt in range(max_attempts):
 		try:
 			asset = frappe.get_doc("Media Asset", media_asset_name)
-			asset.mark_as_failed(str(e))
-		except:
-			pass
-		
-		raise
+
+			# Idempotency: if a previous attempt finished, nothing to do.
+			if asset.status == "ready":
+				frappe.logger().info(f"Media asset {asset.media_id} already processed")
+				return
+
+			asset.mark_as_processing()
+
+			with tempfile.TemporaryDirectory() as temp_dir:
+				raw_file_path = os.path.join(temp_dir, asset.source_filename)
+				download_object(asset.raw_object_key, raw_file_path)
+
+				if not asset.source_sha256:
+					asset.source_sha256 = calculate_file_hash(raw_file_path)
+
+				if asset.media_kind == "image":
+					process_image_asset(asset, raw_file_path, temp_dir)
+				elif asset.media_kind == "video":
+					process_video_asset(asset, raw_file_path, temp_dir)
+				else:
+					raise Exception(f"Unsupported media kind: {asset.media_kind}")
+
+				asset.mark_as_ready()
+				sync_media_asset_to_owner(asset)
+
+			frappe.logger().info(f"Successfully processed media asset {asset.media_id}")
+			return
+
+		except OperationalError as e:
+			last_err = e
+			if not _is_transient(e) or attempt >= max_attempts - 1:
+				break
+			try:
+				frappe.db.rollback()
+			except Exception:
+				pass
+			# Backoff: 0.2s, 0.6s, 1.4s + jitter — gives the contending txn time to drain.
+			import time as _t
+			import random as _r
+			_t.sleep(0.2 + 0.4 * attempt + _r.random() * 0.3)
+			continue
+
+		except Exception as e:
+			last_err = e
+			# Generic deadlock check (wrapped in non-OperationalError sometimes)
+			if _is_transient(e) and attempt < max_attempts - 1:
+				try:
+					frappe.db.rollback()
+				except Exception:
+					pass
+				import time as _t
+				import random as _r
+				_t.sleep(0.2 + 0.4 * attempt + _r.random() * 0.3)
+				continue
+			break
+
+	# All retries exhausted (or non-retryable error): mark failed, log, and re-raise.
+	safe_log_error(
+		"Media Processing Error",
+		f"Error processing media asset {media_asset_name}: {str(last_err)}",
+	)
+	try:
+		asset = frappe.get_doc("Media Asset", media_asset_name)
+		asset.mark_as_failed(str(last_err))
+	except Exception:
+		pass
+	if last_err is not None:
+		raise last_err
 
 
+@retry_on_deadlock()
 def sync_media_asset_to_owner(asset):
-	"""Write processed CDN URLs back to the owner doc fields using direct SQL to avoid timestamp conflicts."""
+	"""Write processed CDN URLs back to the owner doc fields using direct SQL to avoid timestamp conflicts.
+
+	Wrapped with retry_on_deadlock — concurrent media jobs on different assets
+	targeting the same owner doctype can interlock on row locks. On deadlock we
+	roll back and retry with backoff.
+	"""
 	try:
 		if asset.status != "ready":
 			return
-		
+
 		if not asset.owner_doctype or not asset.owner_name:
 			return
-		
-		# Define field mappings for all DocTypes
+
 		field_mappings = {
 			"Home Feature": {"home_feature_image": "image_src"},
 			"Restaurant Config": {
@@ -101,27 +145,33 @@ def sync_media_asset_to_owner(asset):
 			"Legacy Testimonial Image": {"legacy_testimonial_dish_image": "image"},
 			"Menu Category": {"category_image": "category_image"},
 		}
-		
-		# Get field name for this DocType and role
+
 		doctype_map = field_mappings.get(asset.owner_doctype)
 		if not doctype_map:
 			return
-		
+
 		fieldname = doctype_map.get(asset.media_role)
 		if not fieldname:
 			return
-		
-		# Use direct SQL UPDATE to avoid timestamp conflicts
-		frappe.db.sql("""
+
+		frappe.db.sql(
+			"""
 			UPDATE `tab{doctype}`
 			SET `{field}` = %s, `modified` = NOW()
 			WHERE `name` = %s
-		""".format(doctype=asset.owner_doctype, field=fieldname), (asset.primary_url, asset.owner_name))
-		
+			""".format(doctype=asset.owner_doctype, field=fieldname),
+			(asset.primary_url, asset.owner_name),
+		)
 		frappe.db.commit()
-	
+
 	except Exception as e:
-		safe_log_error("Media Owner Sync Error", f"Failed to sync media asset {asset.name} to owner {asset.owner_doctype} {asset.owner_name}: {str(e)}")
+		# Re-raise transient errors so retry_on_deadlock can handle them.
+		if "deadlock" in str(e).lower() or "lock wait timeout" in str(e).lower():
+			raise
+		safe_log_error(
+			"Media Owner Sync Error",
+			f"Failed to sync media asset {asset.name} to owner {asset.owner_doctype} {asset.owner_name}: {str(e)}",
+		)
 
 
 def process_image_asset(asset, raw_file_path, temp_dir):
@@ -217,12 +267,19 @@ def process_image_asset(asset, raw_file_path, temp_dir):
 		asset.primary_url = primary_variant["file_url"]
 		asset.primary_object_key = primary_variant["object_key"]
 	
-	# Clear existing variants and add new ones
-	asset.media_variants = []
-	for variant_data in variants_data:
-		asset.append("media_variants", variant_data)
-	
-	asset.save(ignore_permissions=True)
+	# Clear existing variants and add new ones. Wrapped with retry because
+	# concurrent jobs replacing child rows on `tabMedia Variant` can deadlock
+	# on InnoDB gap locks. Re-running is safe: variants_data is deterministic
+	# and R2 uploads are idempotent (same key overwrites itself).
+	@retry_on_deadlock()
+	def _save_image_variants():
+		asset.reload()
+		asset.media_variants = []
+		for variant_data in variants_data:
+			asset.append("media_variants", variant_data)
+		asset.save(ignore_permissions=True)
+
+	_save_image_variants()
 
 
 def process_video_asset(asset, source_path, temp_dir):
@@ -313,8 +370,14 @@ def process_video_asset(asset, source_path, temp_dir):
 		})
 		
 		asset.poster_url = poster_url
-	
-	asset.save(ignore_permissions=True)
+
+	# Save with retry: child-table replacement on `tabMedia Variant` can
+	# deadlock when concurrent video jobs collide on InnoDB gap locks.
+	@retry_on_deadlock()
+	def _save_video_asset():
+		asset.save(ignore_permissions=True)
+
+	_save_video_asset()
 
 
 def cleanup_deleted_media(media_asset_name):
