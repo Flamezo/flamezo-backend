@@ -551,23 +551,21 @@ def get_home_features(restaurant_id):
 				"is_mandatory",
 				"display_order"
 			],
-			filters={"restaurant": restaurant},
+			filters={"restaurant": restaurant, "feature_id": ["!=", "menu"]},
 			order_by="display_order asc"
 		)
 		
 		# If no features exist, create default ones
 		if not features:
 			default_features = [
-				{"id": "menu", "title": "Explore our Menu", "subtitle": "Food, Taste, Love",
-				 "image_src": "/files/explore.svg", "route": "/main-menu", "size": "large", "is_mandatory": 1},
 				{"id": "book-table", "title": "Book your Tables", "subtitle": "& banquets",
-				 "image_src": "/files/book-table.svg", "route": "/book-table", "size": "small", "is_mandatory": 1},
+				 "image_src": "/assets/flamezo_backend/images/ui/book-table.svg", "route": "/book-table", "size": "small", "is_mandatory": 1},
 				{"id": "legacy", "title": "The Place", "subtitle": "& it's legacy",
-				 "image_src": "/files/legacy.svg", "route": "/legacy", "size": "small", "is_mandatory": 1},
+				 "image_src": "/assets/flamezo_backend/images/ui/legacy.svg", "route": "/legacy", "size": "small", "is_mandatory": 1},
 				{"id": "offers-events", "title": "Events", "subtitle": "Treasure mine.",
-				 "image_src": "/files/events-offers.svg", "route": "/events", "size": "small", "is_mandatory": 0},
+				 "image_src": "/assets/flamezo_backend/images/ui/events-offers.svg", "route": "/events", "size": "small", "is_mandatory": 0},
 				{"id": "dine-play", "title": "Dine & Play", "subtitle": "Enjoy your bites",
-				 "image_src": "/files/experience-lounge.svg", "route": "/experience-lounge-splash", "size": "small", "is_mandatory": 0}
+				 "image_src": "/assets/flamezo_backend/images/ui/experience-lounge.svg", "route": "/experience-lounge-splash", "size": "small", "is_mandatory": 0}
 			]
 			
 			for idx, feat in enumerate(default_features, 1):
@@ -592,7 +590,7 @@ def get_home_features(restaurant_id):
 				"Home Feature",
 				fields=["name", "feature_id as id", "title", "subtitle", "image_src", "image_alt", "route",
 				        "size", "is_enabled", "is_mandatory", "display_order"],
-				filters={"restaurant": restaurant},
+				filters={"restaurant": restaurant, "feature_id": ["!=", "menu"]},
 				order_by="display_order asc"
 			)
 		

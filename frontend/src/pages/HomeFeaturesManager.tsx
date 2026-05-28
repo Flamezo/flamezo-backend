@@ -18,7 +18,7 @@ export default function HomeFeaturesManager() {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const filteredFeatures = features.filter(f =>
-    ['menu', 'legacy', 'dine-play', 'offers-events', 'book-table'].includes(f.id)
+    ['legacy', 'dine-play', 'offers-events', 'book-table'].includes(f.id)
   )
 
   const fetchFeatures = useCallback(async (): Promise<any[] | null> => {

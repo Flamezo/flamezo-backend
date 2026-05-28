@@ -332,6 +332,7 @@ class Restaurant(Document):
 
 		# Generate QR codes if tables field is set
 		if hasattr(self, "_generate_qr_codes") and self._generate_qr_codes:
+			# pyrefly: ignore [unsupported-operation]
 			if self.tables and self.tables > 0:
 				self.generate_table_qr_codes_pdf()
 	
@@ -972,16 +973,14 @@ def create_default_home_features(self):
 		
 		# Create default Home Features
 		default_features = [
-			{"feature_id": "menu", "title": "Explore our Menu", "subtitle": "Food, Taste, Love",
-			 "image_src": "/files/explore.svg", "route": "/main-menu", "size": "large", "is_mandatory": 1},
 			{"feature_id": "book-table", "title": "Book your Tables", "subtitle": "& banquets",
-			 "image_src": "/files/book-table.svg", "route": "/book-table", "size": "small", "is_mandatory": 0},
+			 "image_src": "/assets/flamezo_backend/images/ui/book-table.svg", "route": "/book-table", "size": "small", "is_mandatory": 0},
 			{"feature_id": "legacy", "title": "The Place", "subtitle": "& it's legacy",
-			 "image_src": "/files/legacy.svg", "route": "/legacy", "size": "small", "is_mandatory": 1},
+			 "image_src": "/assets/flamezo_backend/images/ui/legacy.svg", "route": "/legacy", "size": "small", "is_mandatory": 1},
 			{"feature_id": "offers-events", "title": "Events", "subtitle": "Treasure mine.",
-			 "image_src": "/files/events-offers.svg", "route": "/events", "size": "small", "is_mandatory": 0},
+			 "image_src": "/assets/flamezo_backend/images/ui/events-offers.svg", "route": "/events", "size": "small", "is_mandatory": 0},
 			{"feature_id": "dine-play", "title": "Dine & Play", "subtitle": "Enjoy your bites",
-			 "image_src": "/files/experience-lounge.svg", "route": "/experience-lounge-splash", "size": "small", "is_mandatory": 0}
+			 "image_src": "/assets/flamezo_backend/images/ui/experience-lounge.svg", "route": "/experience-lounge-splash", "size": "small", "is_mandatory": 0}
 		]
 		
 		for idx, feat in enumerate(default_features, 1):
