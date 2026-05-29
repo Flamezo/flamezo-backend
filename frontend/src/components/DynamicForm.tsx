@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import MenuImagesTable from './MenuImagesTable'
 import ExtractedDishesTable from './ExtractedDishesTable'
 import ProductMediaTable from './ProductMediaTable'
-import CustomizationQuestionsTable from './CustomizationQuestionsTable'
+import ProductAddonGroupLinker from './ProductAddonGroupLinker'
 import ProductRecommendationsTable from './ProductRecommendationsTable'
 import { uploadToR2 } from '@/lib/r2Upload'
 import {
@@ -1392,20 +1392,26 @@ export default function DynamicForm({
             </div>
           )
         }
-        // Handle Customization Questions table
-        if (field.fieldname === 'customization_questions' && field.options === 'Customization Question') {
+        // Handle Addon Groups linker table
+        if (field.fieldname === 'addon_groups' && field.options === 'Product Addon Group') {
+          console.log('[DynamicForm] addon_groups field - formData.restaurant:', formData?.restaurant, 'doctype:', doctype, 'docname:', docname)
           return (
             <div key={field.fieldname} className="space-y-2">
-              <CustomizationQuestionsTable
+              <ProductAddonGroupLinker
                 value={Array.isArray(value) ? value : []}
-                onChange={(questions) => handleFieldChange(field.fieldname, questions)}
+                onChange={(links) => handleFieldChange(field.fieldname, links)}
                 disabled={isReadOnly}
+                restaurantId={formData?.restaurant || undefined}
               />
               {field.description && (
                 <p className="text-xs text-muted-foreground">{field.description}</p>
               )}
             </div>
           )
+        }
+        // Hide legacy Customization Questions when addon_groups is present (replaced by ProductAddonGroupLinker)
+        if (field.fieldname === 'customization_questions' && field.options === 'Customization Question') {
+          return null
         }
         // Handle Extracted Dishes table - display read-only
         if (field.fieldname === 'extracted_dishes' && field.options === 'Extracted Dish') {
@@ -1563,6 +1569,11 @@ export default function DynamicForm({
   if (meta?.fields) {
     for (const field of meta.fields) {
       if (field.hidden || hideFields.includes(field.fieldname) || (showOnlyFields && !showOnlyFields.includes(field.fieldname) && field.fieldtype !== 'Section Break' && field.fieldtype !== 'Column Break')) {
+        continue
+      }
+
+      // Skip legacy customizations section entirely (replaced by Addon Groups)
+      if (field.fieldname === 'section_break_customizations' || field.fieldname === 'customization_questions') {
         continue
       }
 

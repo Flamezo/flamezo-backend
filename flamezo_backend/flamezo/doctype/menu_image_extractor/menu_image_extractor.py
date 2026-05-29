@@ -1444,6 +1444,78 @@ def process_extracted_data(data, extractor_doc):
 					
 					cq.insert(ignore_permissions=True)
 
+				# ── Also create Addon Groups (new system) ──
+				# Deduplicate: reuse existing addon group if same name+restaurant exists
+				for q_idx, custom_data in enumerate(dish_data.get('customizationQuestions', [])):
+					if not isinstance(custom_data, dict): continue
+					options_list = custom_data.get('options')
+					if not isinstance(options_list, list) or len(options_list) == 0: continue
+					valid_options = [opt for opt in options_list if isinstance(opt, dict) and opt.get('label')]
+					if not valid_options: continue
+
+					group_name = custom_data.get('title', '').strip()
+					if not group_name: continue
+					q_type = custom_data.get('type', 'multiple')
+					has_priced_options = any(float(opt.get('price', 0) or 0) > 0 for opt in valid_options)
+					group_type = 'variation' if (q_type == 'single' and has_priced_options) else 'addon'
+
+					# Check if addon group with same name already exists for this restaurant
+					existing_ag = frappe.db.get_value(
+						"Addon Group",
+						{"group_name": group_name, "restaurant": product_doc.restaurant, "status": "Active"}
+					)
+
+					if not existing_ag:
+						ag = frappe.new_doc("Addon Group")
+						ag.group_name = group_name
+						ag.group_type = group_type
+						ag.restaurant = product_doc.restaurant
+						ag.is_required = 1 if custom_data.get('required') else 0
+						ag.min_selections = 1 if custom_data.get('required') else 0
+						ag.max_selections = 1 if group_type == 'variation' else 0
+						ag.display_order = q_idx
+						ag.status = "Active"
+
+						for opt_idx, option_data in enumerate(valid_options):
+							raw_price = option_data.get('price', 0)
+							if isinstance(raw_price, str):
+								raw_price = re.sub(r'[^\d.]', '', raw_price)
+								opt_price = float(raw_price) if raw_price else 0
+							else:
+								opt_price = float(raw_price or 0)
+
+							ag.append('items', {
+								'item_name': option_data.get('label', ''),
+								'price': opt_price,
+								'is_default': 1 if option_data.get('isDefault') else 0,
+								'is_vegetarian': 1 if option_data.get('isVegetarian') else 0,
+								'in_stock': 1,
+								'display_order': opt_idx
+							})
+
+						try:
+							ag.insert(ignore_permissions=True)
+							existing_ag = ag.name
+						except Exception as ag_err:
+							frappe.log_error(title="Addon Group Creation Error", message=str(ag_err))
+							continue
+
+					# Link to product (avoid duplicates)
+					already_linked = frappe.db.exists("Product Addon Group", {
+						"parent": product_doc.name,
+						"parenttype": "Menu Product",
+						"addon_group": existing_ag
+					})
+					if not already_linked:
+						pag = frappe.new_doc("Product Addon Group")
+						pag.parent = product_doc.name
+						pag.parenttype = "Menu Product"
+						pag.parentfield = "addon_groups"
+						pag.addon_group = existing_ag
+						pag.is_enabled = 1
+						pag.display_order = q_idx
+						pag.insert(ignore_permissions=True)
+
 		except Exception as e:
 			raw_err = str(e)
 			display_name = product_name[:30] + "..." if len(product_name) > 30 else product_name

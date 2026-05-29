@@ -17,6 +17,7 @@ from flamezo_backend.flamezo.utils.api_helpers import (
 from flamezo_backend.flamezo.media.utils import get_media_asset_data
 from flamezo_backend.flamezo.utils.currency_helpers import get_restaurant_currency_info
 from flamezo_backend.flamezo.utils.customization_helpers import get_customization_options_map, load_product_customizations
+from flamezo_backend.flamezo.utils.addon_group_helpers import bulk_load_addon_groups, format_addon_groups_for_api
 import json
 from collections import defaultdict
 
@@ -263,17 +264,30 @@ def format_products_for_listing(products):
 	questions_by_product, question_names = get_customization_questions_map(product_names)
 	options_by_question = get_customization_options_map(question_names)
 
+	# Load addon groups (new system) in bulk
+	addon_groups_by_product = bulk_load_addon_groups(product_names)
+
 	formatted_products = []
 	for product in products:
 		docname = product.get("docname")
-		formatted_products.append(
-			format_product_from_row(
-				product,
-				media_by_product.get(docname, []),
-				questions_by_product.get(docname, []),
-				options_by_question
-			)
+		formatted = format_product_from_row(
+			product,
+			media_by_product.get(docname, []),
+			questions_by_product.get(docname, []),
+			options_by_question
 		)
+
+		# Attach addon groups (new system)
+		product_addon_groups = addon_groups_by_product.get(docname, [])
+		if product_addon_groups:
+			formatted["addonGroups"] = format_addon_groups_for_api(product_addon_groups)
+			formatted["addon_groups"] = formatted["addonGroups"]
+			# Set hasCustomizations if either old or new system has data
+			formatted["hasCustomizations"] = True
+		elif not formatted.get("hasCustomizations"):
+			formatted["hasCustomizations"] = False
+
+		formatted_products.append(formatted)
 
 	return formatted_products
 

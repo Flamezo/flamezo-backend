@@ -15,6 +15,10 @@ from flamezo_backend.flamezo.utils.api_helpers import (
 	get_product_from_id
 )
 from flamezo_backend.flamezo.utils.customization_helpers import load_product_customizations, validate_customizations
+from flamezo_backend.flamezo.utils.addon_group_helpers import (
+	load_product_addon_groups, validate_addon_selections,
+	calculate_addon_price, serialize_addon_selections
+)
 from flamezo_backend.flamezo.utils.currency_helpers import get_restaurant_currency_info
 import json
 import random
@@ -60,7 +64,10 @@ def add_to_cart(restaurant_id, dish_id, quantity=1, customizations=None, session
 		
 		# Load customization options (nested child table)
 		load_product_customizations(product)
-		
+
+		# Load addon groups (new system)
+		addon_groups = load_product_addon_groups(product)
+
 		# Validate product belongs to restaurant
 		if product.restaurant != restaurant:
 			return {
@@ -70,7 +77,7 @@ def add_to_cart(restaurant_id, dish_id, quantity=1, customizations=None, session
 					"message": f"Product {dish_id} not found for restaurant {restaurant_id}"
 				}
 			}
-		
+
 		if not product.is_active:
 			return {
 				"success": False,
@@ -79,33 +86,38 @@ def add_to_cart(restaurant_id, dish_id, quantity=1, customizations=None, session
 					"message": f"Product {dish_id} is not active"
 				}
 			}
-		
+
 		# Parse and Validate customizations
 		if isinstance(customizations, str):
 			customizations = json.loads(customizations) if customizations else {}
 		customizations = customizations or {}
-		
-		# Validate required customizations
-		validate_customizations(product, customizations)
-		
-		# Calculate unit price (base + customizations)
-		unit_price = flt(product.price)
-		
-		# Add customization prices
-		if customizations and product.customization_questions:
-			for question in product.customization_questions:
-				question_id = question.question_id
-				if question_id in customizations:
-					selected_options = customizations[question_id]
-					if isinstance(selected_options, str):
-						selected_options = [selected_options]
-					
-					for option_id in selected_options:
-						# Find option in question
-						for option in question.options:
-							if option.option_id == option_id:
-								unit_price += flt(option.price) or 0
-								break
+
+		# Use addon groups (new) if available, else fall back to old customization questions
+		use_addon_groups = bool(addon_groups)
+		customizations_to_store = None
+
+		if use_addon_groups:
+			# New addon group system
+			validate_addon_selections(addon_groups, customizations)
+			unit_price, _breakdown = calculate_addon_price(addon_groups, customizations, flt(product.price))
+			customizations_to_store = serialize_addon_selections(addon_groups, customizations)
+		else:
+			# Legacy customization questions system
+			validate_customizations(product, customizations)
+			unit_price = flt(product.price)
+			if customizations and product.customization_questions:
+				for question in product.customization_questions:
+					question_id = question.question_id
+					if question_id in customizations:
+						selected_options = customizations[question_id]
+						if isinstance(selected_options, str):
+							selected_options = [selected_options]
+						for option_id in selected_options:
+							for option in question.options:
+								if option.option_id == option_id:
+									unit_price += flt(option.price) or 0
+									break
+			customizations_to_store = customizations if customizations else None
 		
 		# Check if identical item exists in cart (for same restaurant)
 		existing_entry = find_existing_cart_entry(user, session_id, restaurant, dish_id, customizations)
@@ -141,7 +153,7 @@ def add_to_cart(restaurant_id, dish_id, quantity=1, customizations=None, session
 				"session_id": session_id,
 				"product": dish_id,
 				"quantity": cint(quantity),
-				"customizations": json.dumps(customizations) if customizations else None,
+				"customizations": json.dumps(customizations_to_store) if customizations_to_store else None,
 				"unit_price": unit_price,
 				"total_price": unit_price * cint(quantity),
 				"table_number": parsed_table_number

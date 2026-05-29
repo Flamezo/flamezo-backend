@@ -1,0 +1,163 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "title_field": "group_name",
+ "creation": "2026-05-29 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "group_name",
+  "group_id",
+  "group_type",
+  "restaurant",
+  "column_break_1",
+  "status",
+  "is_required",
+  "min_selections",
+  "max_selections",
+  "display_order",
+  "section_break_items",
+  "items",
+  "section_break_pos",
+  "pos_addon_group_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Group Name",
+   "reqd": 1,
+   "description": "e.g., Choice of Size, Extra Toppings, Sauce"
+  },
+  {
+   "fieldname": "group_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Group ID",
+   "unique": 0,
+   "read_only": 1,
+   "description": "Auto-generated slug identifier"
+  },
+  {
+   "fieldname": "group_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Type",
+   "options": "addon\nvariation",
+   "default": "addon",
+   "reqd": 1,
+   "description": "addon = extras (multi-select), variation = size/type (single-select, replaces base price)"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Required",
+   "description": "Customer must select from this group"
+  },
+  {
+   "default": "0",
+   "fieldname": "min_selections",
+   "fieldtype": "Int",
+   "label": "Min Selections",
+   "non_negative": 1,
+   "description": "0 = no minimum"
+  },
+  {
+   "default": "0",
+   "fieldname": "max_selections",
+   "fieldtype": "Int",
+   "label": "Max Selections",
+   "non_negative": 1,
+   "description": "0 = unlimited. Variations are always 1."
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Default Display Order",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Addon Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pos",
+   "fieldtype": "Section Break",
+   "label": "POS Integration",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "pos_addon_group_id",
+   "fieldtype": "Data",
+   "label": "POS Addon Group ID",
+   "read_only": 1,
+   "description": "Mapped ID from POS system (e.g., Petpooja addongroupid)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-29 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Addon Group",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "group_name, restaurant, group_type",
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -15,6 +15,10 @@ from flamezo_backend.flamezo.utils.api_helpers import (
 	get_product_from_id
 )
 from flamezo_backend.flamezo.utils.customization_helpers import load_product_customizations, validate_customizations
+from flamezo_backend.flamezo.utils.addon_group_helpers import (
+	load_product_addon_groups, validate_addon_selections,
+	calculate_addon_price, serialize_addon_selections
+)
 from flamezo_backend.flamezo.utils.currency_helpers import get_restaurant_currency_info
 from flamezo_backend.flamezo.utils.feature_gate import require_plan
 from flamezo_backend.flamezo.utils.roles import is_supervisor, is_global_admin
@@ -197,31 +201,36 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			dish_id = actual_dish_id
 			product = frappe.get_doc("Menu Product", dish_id)
 			load_product_customizations(product)
-			
-			# Validate customizations
-			validate_customizations(product, customizations)
-			
+			addon_groups = load_product_addon_groups(product)
+
 			if product.restaurant != restaurant:
 				return {"success": False, "error": {"code": "PRODUCT_NOT_FOUND", "message": f"Product {dish_id} invalid for restaurant"}}
-			
-			# Calculate unit price (base + customizations)
-			unit_price = flt(product.price)
-			if customizations and product.customization_questions:
-				for question in product.customization_questions:
-					qid = question.question_id
-					if qid in customizations:
-						selected = customizations[qid]
-						if isinstance(selected, str): selected = [selected]
-						for opt_id in selected:
-							for opt in question.options:
-								if opt.option_id == opt_id:
-									unit_price += flt(opt.price) or 0
-									break
-			
+
+			# Validate and calculate price — addon groups (new) or legacy customizations
+			if addon_groups:
+				validate_addon_selections(addon_groups, customizations)
+				unit_price, _breakdown = calculate_addon_price(addon_groups, customizations, flt(product.price))
+				customizations_to_store = serialize_addon_selections(addon_groups, customizations)
+			else:
+				validate_customizations(product, customizations)
+				unit_price = flt(product.price)
+				if customizations and product.customization_questions:
+					for question in product.customization_questions:
+						qid = question.question_id
+						if qid in customizations:
+							selected = customizations[qid]
+							if isinstance(selected, str): selected = [selected]
+							for opt_id in selected:
+								for opt in question.options:
+									if opt.option_id == opt_id:
+										unit_price += flt(opt.price) or 0
+										break
+				customizations_to_store = customizations if customizations else None
+
 			order_items.append({
 				"product": dish_id,
 				"quantity": quantity,
-				"customizations": json.dumps(customizations) if customizations else None,
+				"customizations": json.dumps(customizations_to_store) if customizations_to_store else None,
 				"unit_price": unit_price,
 				"total_price": unit_price * quantity
 			})
@@ -1059,31 +1068,36 @@ def update_order_items(order_id, items, restaurant_id):
 			
 			product = frappe.get_doc("Menu Product", dish_id)
 			load_product_customizations(product)
-			
-			# Validate customizations (ensures dashboard edits follow business rules)
-			validate_customizations(product, customizations)
-			
+			addon_groups = load_product_addon_groups(product)
+
 			if product.restaurant != restaurant:
 				return {"success": False, "error": {"code": "PRODUCT_NOT_FOUND", "message": f"Product {dish_id} invalid for restaurant"}}
-			
-			# Calculate unit price (base + customizations)
-			unit_price = flt(product.price)
-			if customizations and product.customization_questions:
-				for question in product.customization_questions:
-					qid = question.question_id
-					if qid in customizations:
-						selected = customizations[qid]
-						if isinstance(selected, str): selected = [selected]
-						for opt_id in selected:
-							for opt in question.options:
-								if opt.option_id == opt_id:
-									unit_price += flt(opt.price) or 0
-									break
-			
+
+			# Validate and calculate — addon groups (new) or legacy
+			if addon_groups:
+				validate_addon_selections(addon_groups, customizations)
+				unit_price, _breakdown = calculate_addon_price(addon_groups, customizations, flt(product.price))
+				customizations_to_store = serialize_addon_selections(addon_groups, customizations)
+			else:
+				validate_customizations(product, customizations)
+				unit_price = flt(product.price)
+				if customizations and product.customization_questions:
+					for question in product.customization_questions:
+						qid = question.question_id
+						if qid in customizations:
+							selected = customizations[qid]
+							if isinstance(selected, str): selected = [selected]
+							for opt_id in selected:
+								for opt in question.options:
+									if opt.option_id == opt_id:
+										unit_price += flt(opt.price) or 0
+										break
+				customizations_to_store = customizations if customizations else None
+
 			order_doc.append("order_items", {
 				"product": dish_id,
 				"quantity": quantity,
-				"customizations": json.dumps(customizations) if customizations else None,
+				"customizations": json.dumps(customizations_to_store) if customizations_to_store else None,
 				"unit_price": unit_price,
 				"total_price": unit_price * quantity
 			})

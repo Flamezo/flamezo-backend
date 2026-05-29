@@ -33,6 +33,8 @@
   "serving_size",
   "section_break_media",
   "product_media",
+  "section_break_addon_groups",
+  "addon_groups",
   "section_break_customizations",
   "customization_questions",
   "section_break_recommendations",
@@ -202,15 +204,29 @@
    "options": "Product Media"
   },
   {
+   "fieldname": "section_break_addon_groups",
+   "fieldtype": "Section Break",
+   "label": "Addon Groups"
+  },
+  {
+   "fieldname": "addon_groups",
+   "fieldtype": "Table",
+   "label": "Addon Groups",
+   "options": "Product Addon Group",
+   "description": "Link reusable addon groups to this product"
+  },
+  {
    "fieldname": "section_break_customizations",
    "fieldtype": "Section Break",
-   "label": "Customizations"
+   "label": "Customizations (Legacy)",
+   "collapsible": 1
   },
   {
    "fieldname": "customization_questions",
    "fieldtype": "Table",
    "label": "Customization Questions",
-   "options": "Customization Question"
+   "options": "Customization Question",
+   "description": "Deprecated: Use Addon Groups above instead"
   },
   {
    "fieldname": "section_break_recommendations",
