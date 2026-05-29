@@ -107,9 +107,12 @@ def run(dry_run=False):
                 }
 
                 for idx, opt in enumerate(q["options"]):
-                    item_slug = re.sub(r'[^a-z0-9]+', '-', opt.label.lower()).strip('-')
+                    label = (opt.label or "").strip()
+                    if not label:
+                        continue
+                    item_slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-') or f"opt-{idx}"
                     group_data["items"].append({
-                        "item_name": opt.label,
+                        "item_name": label,
                         "item_id": f"{slug}--{item_slug}",
                         "price": flt(opt.price),
                         "is_default": cint(opt.is_default),

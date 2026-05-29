@@ -147,16 +147,23 @@ def get_categories(restaurant_id, include_inactive=0):
 				"name",
 			)
 
+			# Find product image — check direct products first, then subcategory products
+			category_names_to_search = [frappe_name]
+			if children:
+				category_names_to_search.extend([c.get("docname") or c.get("name") for c in children])
+
+			product_names_with_images = frappe.get_all(
+				"Menu Product",
+				filters={"category": ["in", category_names_to_search], "is_active": 1, "restaurant": restaurant},
+				pluck="name",
+			)
+
 			first_product_media = frappe.db.get_value(
 				"Product Media",
 				{
 					"parenttype": "Menu Product",
 					"media_type": "image",
-					"parent": ["in", frappe.get_all(
-						"Menu Product",
-						filters={"category": frappe_name, "is_active": 1, "restaurant": restaurant},
-						pluck="name",
-					) or ["__no_match__"]],
+					"parent": ["in", product_names_with_images or ["__no_match__"]],
 				},
 				["name", "media_url"],
 				order_by="idx asc",
