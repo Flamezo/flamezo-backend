@@ -65,6 +65,7 @@ const BoostNewCampaign = lazy(() => import('./pages/BoostNewCampaign'))
 const BoostCampaignDetail = lazy(() => import('./pages/BoostCampaignDetail'))
 const BoostRedeem = lazy(() => import('./pages/BoostRedeem'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
+const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
 
 
@@ -177,6 +178,7 @@ function AppContent() {
 								<Route path="/team" element={<TeamManagement />} />
 
 								<Route path="/menu" element={<MenuManagement />} />
+								<Route path="/addon-groups" element={<AddonGroupManagement />} />
 								<Route path="/qr-codes" element={<QRCodes />} />
 
 								<Route path="/home-features" element={<HomeFeaturesManager />} />

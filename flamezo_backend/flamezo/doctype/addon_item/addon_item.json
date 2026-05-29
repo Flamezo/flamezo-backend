@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-05-29 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_name",
+  "item_id",
+  "price",
+  "column_break_1",
+  "is_default",
+  "is_vegetarian",
+  "in_stock",
+  "display_order",
+  "section_break_pos",
+  "pos_addon_item_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item ID",
+   "unique": 0,
+   "description": "Auto-generated slug identifier"
+  },
+  {
+   "default": "0",
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Additional Price",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "Is Default"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_vegetarian",
+   "fieldtype": "Check",
+   "label": "Is Vegetarian"
+  },
+  {
+   "default": "1",
+   "fieldname": "in_stock",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "In Stock"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pos",
+   "fieldtype": "Section Break",
+   "label": "POS Integration",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "pos_addon_item_id",
+   "fieldtype": "Data",
+   "label": "POS Addon Item ID",
+   "read_only": 1,
+   "description": "Mapped ID from POS system (e.g., Petpooja addonitemid)"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-29 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Addon Item",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}
