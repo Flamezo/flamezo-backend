@@ -67,7 +67,7 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
   const restaurantId = propRestaurantId || selectedRestaurant
   const { formatAmountNoDecimals } = useCurrency()
 
-  console.log('[AddonGroupLinker] propRestaurantId:', propRestaurantId, 'selectedRestaurant:', selectedRestaurant, 'resolved:', restaurantId)
+
 
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false)
@@ -148,14 +148,16 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
   // ─── Link Existing Group ───────────────────────────────────────────────
 
   const handleLinkExisting = (group: any) => {
+    // Only send fields that Frappe needs — addon_group_name/type are fetch_from (auto-populated)
     const newLink: AddonGroupLink = {
       addon_group: group.id,
-      addon_group_name: group.groupName,
-      addon_group_type: group.groupType || group.type,
       is_enabled: 1,
       display_order: currentValue.length,
+      // Keep these for UI display only (not saved to DB — they're fetch_from fields)
+      addon_group_name: group.groupName,
+      addon_group_type: group.groupType || group.type,
     }
-    onChange?.([...currentValue, newLink])
+    emitChange([...currentValue, newLink])
     setIsLinkDialogOpen(false)
     toast.success(`Linked "${group.groupName}"`)
   }
@@ -189,7 +191,7 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
     }
 
     if (linked > 0) {
-      onChange?.(updated)
+      emitChange(updated)
       toast.success(`Linked ${linked} group${linked > 1 ? 's' : ''} from "${product.name}"`)
     } else {
       toast.info('All groups from this item are already linked')
@@ -200,9 +202,22 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
 
   // ─── Remove Group ──────────────────────────────────────────────────────
 
+  // Normalize any link format to Frappe child table format before emitting onChange
+  const toFrappeFormat = (raw: any): AddonGroupLink => ({
+    addon_group: raw.addon_group || raw.id || '',
+    addon_group_name: raw.addon_group_name || raw.groupName || raw.name || '',
+    addon_group_type: raw.addon_group_type || raw.groupType || raw.type || 'addon',
+    is_enabled: raw.is_enabled !== undefined ? raw.is_enabled : 1,
+    display_order: raw.display_order ?? raw.displayOrder ?? 0,
+  })
+
+  const emitChange = (links: any[]) => {
+    onChange?.(links.map((l, idx) => ({ ...toFrappeFormat(l), display_order: idx })))
+  }
+
   const handleRemoveGroup = (index: number) => {
-    const updated = currentValue.filter((_, i) => i !== index).map((l, idx) => ({ ...l, display_order: idx }))
-    onChange?.(updated)
+    const updated = currentValue.filter((_, i) => i !== index)
+    emitChange(updated)
     expandedGroups.delete(index)
     setExpandedGroups(new Set(expandedGroups))
   }
@@ -211,8 +226,10 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
 
   const handleToggleEnabled = (index: number) => {
     const updated = [...currentValue]
-    updated[index] = { ...updated[index], is_enabled: updated[index].is_enabled ? 0 : 1 }
-    onChange?.(updated)
+    const normalized = toFrappeFormat(updated[index])
+    normalized.is_enabled = normalized.is_enabled ? 0 : 1
+    updated[index] = normalized
+    emitChange(updated)
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────
@@ -267,14 +284,23 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
           </div>
         ) : (
           <div className="space-y-3">
-            {currentValue.map((link, groupIndex) => {
+            {currentValue.map((rawLink, groupIndex) => {
+              // Normalize: handle both Frappe child table format AND API response format
+              const link = {
+                addon_group: rawLink.addon_group || (rawLink as any).id || '',
+                addon_group_name: rawLink.addon_group_name || (rawLink as any).groupName || (rawLink as any).name || '',
+                addon_group_type: rawLink.addon_group_type || (rawLink as any).groupType || (rawLink as any).type || 'addon',
+                is_enabled: rawLink.is_enabled !== undefined ? rawLink.is_enabled : 1,
+                display_order: rawLink.display_order ?? (rawLink as any).displayOrder ?? groupIndex,
+              }
               const isExpanded = expandedGroups.has(groupIndex)
               const gName = link.addon_group_name || link.addon_group || 'Unnamed Group'
               const gType = link.addon_group_type || 'addon'
               const isVariation = gType === 'variation'
               const enabled = !!link.is_enabled
               const groupDetail = groupDetailsMap[link.addon_group || '']
-              const itemCount = groupDetail?.items?.length || 0
+              // Also check if rawLink itself has items (API format)
+              const itemCount = groupDetail?.items?.length || (rawLink as any).items?.length || 0
 
               return (
                 <Card key={link.addon_group || groupIndex} className={cn(
@@ -315,11 +341,11 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
                   </CardHeader>
 
                   {isExpanded && (() => {
-                  const groupDetail = groupDetailsMap[link.addon_group || '']
-                  const groupItems = groupDetail?.items || []
-                  const isReq = groupDetail?.isRequired
-                  const maxSel = groupDetail?.maxSelections || 0
-                  const minSel = groupDetail?.minSelections || 0
+                  const groupDetail2 = groupDetailsMap[link.addon_group || '']
+                  const groupItems = groupDetail2?.items || (rawLink as any).items || []
+                  const isReq = groupDetail2?.isRequired || (rawLink as any).isRequired
+                  const maxSel = groupDetail2?.maxSelections || (rawLink as any).maxSelections || 0
+                  const minSel = groupDetail2?.minSelections || (rawLink as any).minSelections || 0
 
                   return (
                     <CardContent className="p-4 pt-0 border-t border-border/40 bg-muted/5">

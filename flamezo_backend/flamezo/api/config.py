@@ -95,6 +95,7 @@ def get_restaurant_config(restaurant_id):
 		)
 		
 		# Get restaurant document for plan_type
+		# pyrefly: ignore [bad-argument-type]
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
 		
 		# If config doesn't exist, get from Restaurant doctype
@@ -388,8 +389,10 @@ def get_restaurant_config(restaurant_id):
 			for c in coupons:
 				v_from = frappe.utils.getdate(c.get("valid_from"))
 				v_until = frappe.utils.getdate(c.get("valid_until"))
+				# pyrefly: ignore [unsupported-operation]
 				if v_from and v_from > today:
 					continue
+				# pyrefly: ignore [unsupported-operation]
 				if v_until and v_until < today:
 					continue
 
@@ -428,6 +431,7 @@ def get_restaurant_config(restaurant_id):
 
 					# Savings calculation
 					combo_price = flt(c.get("combo_price") or 0)
+					# pyrefly: ignore [no-matching-overload]
 					original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
 					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
 
@@ -890,6 +894,7 @@ def update_order_settings(restaurant_id, settings):
 			settings = json.loads(settings)
 		
 		# Get restaurant document
+		# pyrefly: ignore [bad-argument-type]
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
 		
 		# Update fields
@@ -974,6 +979,7 @@ def update_logistics_settings(restaurant_id, settings):
 			settings = json.loads(settings)
 		
 		# Get restaurant document
+		# pyrefly: ignore [bad-argument-type]
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
 		
 		# Update allowed fields

@@ -340,188 +340,201 @@ class PetpoojaProvider(POSProvider):
     def _format_order(self, order_doc):
         """
         Map Flamezo Order to Petpooja 'Save Order' 2026 schema.
+        Uses the correct nested structure: orderinfo → OrderInfo → { Restaurant, Customer, Order, OrderItem, Tax }
         Supports: Dine-In (D), Takeaway (P), Delivery (H)
         """
         from frappe.utils import get_url, get_datetime
+        from flamezo_backend.flamezo.utils.addon_group_helpers import deserialize_addon_selections
 
         callback_url = get_url("/api/method/flamezo_backend.flamezo.api.pos.petpooja_callback")
 
-        # ── item-level tax: split order-level CGST/SGST proportionally across items ──
-        # Order doctype stores cgst and sgst as Currency fields at order level.
-        # We distribute proportionally by item subtotal weight.
-        order_subtotal = float(order_doc.subtotal or 0) or 1  # avoid div-by-zero
+        # ── Tax setup ──
+        order_subtotal = float(order_doc.subtotal or 0) or 1
         order_cgst = float(order_doc.cgst or 0)
         order_sgst = float(order_doc.sgst or 0)
-        tax_rate_half = float(order_doc.tax_percent or 0) / 2  # e.g. 2.5 for 5% GST
+        tax_rate_half = float(order_doc.tax_percent or 0) / 2
 
-        # Fetch Petpooja taxids from restaurant's last synced menu (stored in pos_sync_status meta or defaults)
-        # We use the known sandbox taxids (2201=CGST, 2202=SGST) as defaults.
-        # When menu push happens, _sync_category stores per-category tax — but for order relay
-        # Petpooja uses the taxids registered in their system for this restID.
         cgst_taxid = frappe.db.get_value("Restaurant", self.restaurant.name, "pos_cgst_taxid") or "2201"
         sgst_taxid = frappe.db.get_value("Restaurant", self.restaurant.name, "pos_sgst_taxid") or "2202"
 
+        # ── Build order items ──
         order_items = []
         for item in order_doc.order_items:
             item_subtotal = float(item.unit_price or 0) * int(item.quantity or 1)
             weight = item_subtotal / order_subtotal if order_subtotal else 1
-
             item_cgst_amt = round(order_cgst * weight, 2)
             item_sgst_amt = round(order_sgst * weight, 2)
 
-            # item_tax fields per official schema (petpoojamarkdown2.md §7):
-            # id, name, tax_percentage, amount  ← as used by Petpooja item-level tax
             item_tax = []
             if tax_rate_half > 0:
                 item_tax = [
                     {"id": cgst_taxid, "name": "CGST", "tax_percentage": str(tax_rate_half), "amount": str(item_cgst_amt)},
                     {"id": sgst_taxid, "name": "SGST", "tax_percentage": str(tax_rate_half), "amount": str(item_sgst_amt)},
                 ]
-            # Note: item-level tax uses "name"/"amount" (per markdown2 example).
-            # Order-level tax_details uses "title"/"tax"/"type"/"price"/"restaurant_liable_amt" (different schema).
 
-            # Resolve Petpooja item ID — use pos_id from Menu Product if menu has been synced
             petpooja_item_id = frappe.db.get_value("Menu Product", item.product, "pos_id") or item.product
 
-            # Parse addon/variation from customizations JSON field
-            addon_items = []
+            # Parse addon/variation from customizations — supports v2 (addon groups) and legacy
+            addon_details = []
             variation_name = ""
             variation_id = ""
             if item.customizations:
                 try:
-                    cust = json.loads(item.customizations) if isinstance(item.customizations, str) else item.customizations
-                    # Variation: expect {"variation": {"name": "...", "id": "..."}}
-                    variation = cust.get("variation") or {}
-                    variation_name = str(variation.get("name", ""))
-                    variation_id = str(variation.get("id", ""))
-                    # Addons: expect {"addons": [{"id": "...", "name": "...", "quantity": 1, "price": "..."}]}
-                    for addon in (cust.get("addons") or []):
-                        addon_items.append({
-                            "id": str(addon.get("id", "")),
-                            "name": str(addon.get("name", "")),
-                            "quantity": str(addon.get("quantity", 1)),
-                            "price": str(addon.get("price", "0")),
-                            "final_price": str(addon.get("price", "0")),
-                            "item_tax": []
-                        })
+                    version, cust = deserialize_addon_selections(item.customizations)
+                    if version == 2:
+                        # v2 addon group format — has POS IDs
+                        for group in cust.get("groups", []):
+                            if group.get("group_type") == "variation":
+                                for sel in group.get("selected_items", []):
+                                    variation_name = sel.get("item_name", "")
+                                    variation_id = sel.get("pos_addon_item_id", "")
+                            else:
+                                for sel in group.get("selected_items", []):
+                                    addon_details.append({
+                                        "id": sel.get("pos_addon_item_id") or sel.get("item_id", ""),
+                                        "name": sel.get("item_name", ""),
+                                        "group_name": group.get("group_name", ""),
+                                        "price": str(sel.get("price", 0)),
+                                        "group_id": group.get("pos_addon_group_id") or "",
+                                        "quantity": "1"
+                                    })
+                    else:
+                        # Legacy format
+                        variation = cust.get("variation") or {}
+                        variation_name = str(variation.get("name", ""))
+                        variation_id = str(variation.get("id", ""))
+                        for addon in (cust.get("addons") or []):
+                            addon_details.append({
+                                "id": str(addon.get("id", "")),
+                                "name": str(addon.get("name", "")),
+                                "group_name": str(addon.get("group_name", "")),
+                                "price": str(addon.get("price", "0")),
+                                "group_id": str(addon.get("group_id", "")),
+                                "quantity": str(addon.get("quantity", 1))
+                            })
                 except Exception:
-                    pass  # malformed customizations — skip, don't break the order push
+                    pass
 
             order_items.append({
                 "id": str(petpooja_item_id),
                 "name": item.product_name,
-                "quantity": str(item.quantity),
-                "price": str(item.unit_price),
-                "final_price": str(item.total_price),
-                "item_discount": "",
                 "tax_inclusive": False,
                 "gst_liability": "restaurant",
                 "item_tax": item_tax,
+                "item_discount": "",
+                "price": str(item.unit_price),
+                "final_price": str(item.total_price),
+                "quantity": str(item.quantity),
+                "description": "",
                 "variation_name": variation_name,
-                "variation_id": variation_id,
-                "addon_items": addon_items
+                "variation_id": str(variation_id) if variation_id else "",
+                "AddonItem": {
+                    "details": addon_details
+                }
             })
 
-        # ── order type ──
+        # ── Order type, payment, timestamps ──
         order_type = {"dine_in": "D", "takeaway": "P", "delivery": "H"}.get(order_doc.order_type, "P")
 
-        # ── delivery address ──
         full_address = order_doc.delivery_address or ""
         if order_doc.delivery_landmark:
             full_address += f" (Landmark: {order_doc.delivery_landmark})"
 
-        # ── payment type ──
         pm = (order_doc.payment_method or "").lower()
-        if pm == "card":
-            payment_type = "CARD"
-        elif pm in ("online", "upi", "wallet"):
-            payment_type = "ONLINE"
-        else:
-            payment_type = "COD"
+        payment_type = "CARD" if pm == "card" else ("ONLINE" if pm in ("online", "upi", "wallet") else "COD")
 
-        # ── timestamps ──
-        tax_percent = str(order_doc.tax_percent or 0)
         creation_dt = get_datetime(order_doc.creation)
-        order_date  = creation_dt.strftime("%Y-%m-%d")
-        order_time  = creation_dt.strftime("%H:%M:%S")
-        created_on  = creation_dt.strftime("%Y-%m-%d %H:%M:%S")
+        order_date = creation_dt.strftime("%Y-%m-%d")
+        order_time = creation_dt.strftime("%H:%M:%S")
+        created_on = creation_dt.strftime("%Y-%m-%d %H:%M:%S")
+        tax_percent = str(order_doc.tax_percent or 0)
 
-        # ── order-level tax_details array ──
-        # Per official schema (pet-pooja.md + petpoojamarkdown2.md §8):
-        # Key is "tax_details" (NOT "tax"), fields: id, title, type, price (as "X%"), tax, restaurant_liable_amt
-        # Doc says: "For discounts avoid discount object — use discount_total + discount_type in order object"
-        tax_rate_str = f"{tax_rate_half}%"
-        order_tax_details = []
+        # ── Order-level tax (Tax.details array) ──
+        tax_details = []
         if order_cgst > 0:
-            order_tax_details.append({
-                "id": cgst_taxid,
-                "title": "CGST",
-                "type": "P",
-                "price": tax_rate_str,
-                "tax": str(round(order_cgst, 2)),
+            tax_details.append({
+                "id": cgst_taxid, "title": "CGST", "type": "P",
+                "price": str(tax_rate_half), "tax": str(round(order_cgst, 2)),
                 "restaurant_liable_amt": str(round(order_cgst, 2))
             })
         if order_sgst > 0:
-            order_tax_details.append({
-                "id": sgst_taxid,
-                "title": "SGST",
-                "type": "P",
-                "price": tax_rate_str,
-                "tax": str(round(order_sgst, 2)),
+            tax_details.append({
+                "id": sgst_taxid, "title": "SGST", "type": "P",
+                "price": str(tax_rate_half), "tax": str(round(order_sgst, 2)),
                 "restaurant_liable_amt": str(round(order_sgst, 2))
             })
 
-        # Discounts: per doc, do NOT send a discount array object.
-        # Use only discount_total + discount_type inside the "order" object (already done below).
+        discount_total = str(round(float(order_doc.discount or 0) + float(order_doc.loyalty_discount or 0), 2))
 
+        # ── Build payload in Petpooja's actual nested structure ──
         payload = {
             "app_key": self.settings["app_key"],
             "app_secret": self.settings["app_secret"],
             "access_token": self.settings["access_token"],
-            "restID": self.settings["merchant_id"],
-            "res_name": self.restaurant.restaurant_name or self.restaurant.name,
-            "address": self.restaurant.address or "",
-            "Contact_information": self.restaurant.contact_number or "",
-            "device_type": "Web",
-            "OrderInfo": {
-                "customer": {
-                    "name": order_doc.customer_name or "Guest",
-                    "phone": order_doc.customer_phone or "",
-                    "email": order_doc.customer_email or "",
-                    "address": full_address,
-                    "city": order_doc.delivery_city or "",
-                    "zip": order_doc.delivery_zip_code or "",
-                    "latitude": str(order_doc.delivery_latitude) if getattr(order_doc, "delivery_latitude", None) else "",
-                    "longitude": str(order_doc.delivery_longitude) if getattr(order_doc, "delivery_longitude", None) else ""
+            "orderinfo": {
+                "OrderInfo": {
+                    "Restaurant": {
+                        "details": {
+                            "res_name": self.restaurant.restaurant_name or self.restaurant.name,
+                            "address": self.restaurant.address or "",
+                            "contact_information": self.restaurant.contact_number or "",
+                            "restID": self.settings["merchant_id"]
+                        }
+                    },
+                    "Customer": {
+                        "details": {
+                            "email": order_doc.customer_email or "",
+                            "name": order_doc.customer_name or "Guest",
+                            "address": full_address,
+                            "phone": order_doc.customer_phone or "",
+                            "latitude": str(order_doc.delivery_latitude) if getattr(order_doc, "delivery_latitude", None) else "",
+                            "longitude": str(order_doc.delivery_longitude) if getattr(order_doc, "delivery_longitude", None) else ""
+                        }
+                    },
+                    "Order": {
+                        "details": {
+                            "orderID": order_doc.name,
+                            "preorder_date": order_date,
+                            "preorder_time": order_time,
+                            "service_charge": "0",
+                            "sc_tax_amount": "0",
+                            "delivery_charges": str(order_doc.delivery_fee or 0),
+                            "dc_tax_percentage": tax_percent if order_doc.delivery_fee else "0",
+                            "dc_tax_amount": "0",
+                            "dc_gst_details": [],
+                            "packing_charges": str(order_doc.packaging_fee or 0),
+                            "pc_tax_amount": "0",
+                            "pc_tax_percentage": tax_percent if order_doc.packaging_fee else "0",
+                            "pc_gst_details": [],
+                            "order_type": order_type,
+                            "ondc_bap": "",
+                            "advanced_order": "N",
+                            "urgent_order": False,
+                            "urgent_time": 0,
+                            "payment_type": payment_type,
+                            "table_no": str(order_doc.table_number) if order_type == "D" and order_doc.table_number else "",
+                            "no_of_persons": "0",
+                            "discount_total": discount_total,
+                            "tax_total": str(round(float(order_doc.tax or 0), 2)),
+                            "discount_type": "F",
+                            "total": str(order_doc.total),
+                            "description": order_doc.delivery_instructions or "",
+                            "created_on": created_on,
+                            "enable_delivery": 1,
+                            "min_prep_time": 20,
+                            "callback_url": callback_url
+                        }
+                    },
+                    "OrderItem": {
+                        "details": order_items
+                    },
+                    "Tax": {
+                        "details": tax_details
+                    }
                 },
-                "order": {
-                    "orderID": order_doc.name,
-                    "preorder_date": order_date,
-                    "preorder_time": order_time,
-                    "created_on": created_on,
-                    "advanced_order": "N",
-                    "order_type": order_type,
-                    "total": str(order_doc.total),
-                    "tax_total": str(round(float(order_doc.tax or 0), 2)),
-                    "payment_type": payment_type,
-                    "delivery_charges": str(order_doc.delivery_fee or 0),
-                    "packing_charges": str(order_doc.packaging_fee or 0),
-                    "discount_total": str(round(float(order_doc.discount or 0) + float(order_doc.loyalty_discount or 0), 2)),
-                    "discount_type": "F",
-                    "description": order_doc.delivery_instructions or "",
-                    "callback_url": callback_url,
-                    "urgent_order": "N",
-                    "urgent_time": "",
-                    "enable_delivery": "1",
-                    "dc_tax_percentage": tax_percent if order_doc.delivery_fee else "0",
-                    "pc_tax_percentage": tax_percent if order_doc.packaging_fee else "0"
-                },
-                "orderItem": order_items,
-                "tax_details": order_tax_details
+                "udid": "",
+                "device_type": "Web"
             }
         }
-
-        if order_type == "D" and order_doc.table_number:
-            payload["OrderInfo"]["order"]["table_no"] = str(order_doc.table_number)
 
         return payload

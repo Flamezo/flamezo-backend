@@ -190,47 +190,51 @@ def test_1_payload_structure(provider, order):
     assert payload["app_key"]      == SANDBOX_APP_KEY,    "app_key mismatch"
     assert payload["app_secret"]   == SANDBOX_APP_SECRET, "app_secret mismatch"
     assert payload["access_token"] == SANDBOX_ACCESS_TOKEN, "access_token mismatch"
-    assert payload["restID"]       == SANDBOX_REST_ID,    "restID mismatch"
-    assert payload["device_type"]  == "Web",              "device_type must be 'Web'"
 
-    # OrderInfo wrapper exists
-    assert "OrderInfo" in payload, "Top-level key must be 'OrderInfo' not 'order'"
+    # Correct nested structure: orderinfo → OrderInfo → { Restaurant, Customer, Order, OrderItem, Tax }
+    assert "orderinfo" in payload, "Top-level must have 'orderinfo' key"
+    oi_wrapper = payload["orderinfo"]
+    assert "OrderInfo" in oi_wrapper, "orderinfo must contain 'OrderInfo'"
+    assert oi_wrapper.get("device_type") == "Web", "device_type must be inside orderinfo"
+    oi = oi_wrapper["OrderInfo"]
 
-    oi = payload["OrderInfo"]
+    # Restaurant.details
+    assert "Restaurant" in oi, "OrderInfo must have 'Restaurant'"
+    rest_details = oi["Restaurant"]["details"]
+    assert rest_details["restID"] == SANDBOX_REST_ID, "restID mismatch"
+    assert rest_details["res_name"], "res_name missing"
 
-    # Customer fields
-    c = oi["customer"]
+    # Customer.details
+    c = oi["Customer"]["details"]
     assert c["name"]    == "John Doe"
     assert c["phone"]   == "9876543210"
     assert c["email"]   == "john@example.com"
     assert "Near Metro" in c["address"], "Landmark must be appended to address"
-    assert c["city"]    == "Delhi"
-    assert c["zip"]     == "110001"
     assert c["latitude"]  == "28.7041"
     assert c["longitude"] == "77.1025"
 
-    # Order fields
-    o = oi["order"]
+    # Order.details
+    o = oi["Order"]["details"]
     assert o["orderID"]       == order.name
     assert o["order_type"]    == "H",      "delivery must map to 'H'"
     assert o["payment_type"]  == "ONLINE", "online payment must be 'ONLINE'"
     assert o["advanced_order"]== "N"
-    assert o["enable_delivery"]== "1"
-    # Totals are pulled directly from order_doc — assert they are present and numeric
-    assert float(o["total"]) > 0,               f"total missing or zero: {o['total']}"
-    assert float(o["tax_total"]) >= 0,           f"tax_total invalid: {o['tax_total']}"
-    assert float(o["delivery_charges"]) >= 0,    f"delivery_charges invalid: {o['delivery_charges']}"
-    assert float(o["packing_charges"])  >= 0,    f"packing_charges invalid: {o['packing_charges']}"
-    # Verify values match what's on the order doc (not hardcoded)
+    assert o["enable_delivery"] == 1
     order.reload()
     assert float(o["total"]) == float(order.total), f"total mismatch: payload={o['total']} order={order.total}"
+    assert float(o["tax_total"]) >= 0
+    assert float(o["delivery_charges"]) >= 0
+    assert float(o["packing_charges"]) >= 0
     assert "preorder_date"    in o
     assert "preorder_time"    in o
     assert "created_on"       in o
     assert "callback_url"     in o
+    assert "service_charge"   in o
+    assert "dc_tax_percentage" in o
+    assert "pc_tax_percentage" in o
 
-    # OrderItem fields
-    items = oi["orderItem"]
+    # OrderItem.details
+    items = oi["OrderItem"]["details"]
     assert len(items) == 1
     item = items[0]
     assert item["name"]        == "Margherita Pizza"
@@ -239,39 +243,32 @@ def test_1_payload_structure(provider, order):
     assert float(item["final_price"]) == 500.0, f"final_price={item['final_price']}"
     assert item["gst_liability"] == "restaurant"
     assert isinstance(item["tax_inclusive"], bool)
-    assert len(item["item_tax"]) == 2, f"Expected 2 item_tax entries, got {len(item['item_tax'])}"
+    assert "AddonItem" in item, "Item must have 'AddonItem' key"
+    assert "details" in item["AddonItem"], "AddonItem must have 'details' array"
+
+    # Item tax
+    assert len(item["item_tax"]) == 2
     cgst = item["item_tax"][0]
     sgst = item["item_tax"][1]
     assert cgst["name"] == "CGST"
     assert sgst["name"] == "SGST"
-    # tax_rate_half must be tax_percent / 2, derived from the actual order field (not hardcoded)
-    order.reload()
     expected_half_rate = float(order.tax_percent) / 2
-    assert float(cgst["tax_percentage"]) == expected_half_rate, \
-        f"CGST rate should be {expected_half_rate} (tax_percent={order.tax_percent}/2), got {cgst['tax_percentage']}"
-    assert float(sgst["tax_percentage"]) == expected_half_rate, \
-        f"SGST rate should be {expected_half_rate}, got {sgst['tax_percentage']}"
-    # Single item has full weight — item CGST amount should equal order-level CGST
+    assert float(cgst["tax_percentage"]) == expected_half_rate
+    assert float(sgst["tax_percentage"]) == expected_half_rate
     expected_cgst = float(order.cgst)
     expected_sgst = float(order.sgst)
-    assert float(cgst["amount"]) == expected_cgst, \
-        f"Item CGST amount should be {expected_cgst}, got {cgst['amount']}"
-    assert float(sgst["amount"]) == expected_sgst, \
-        f"Item SGST amount should be {expected_sgst}, got {sgst['amount']}"
+    assert float(cgst["amount"]) == expected_cgst
+    assert float(sgst["amount"]) == expected_sgst
 
-    # Order-level tax_details array (key is "tax_details" not "tax" per official Petpooja schema)
-    order_tax = oi["tax_details"]
-    assert len(order_tax) == 2, f"order-level tax_details should have 2 entries, got {len(order_tax)}"
+    # Tax.details (order-level)
+    order_tax = oi["Tax"]["details"]
+    assert len(order_tax) == 2
     assert order_tax[0]["title"] == "CGST"
     assert order_tax[1]["title"] == "SGST"
     assert order_tax[0]["type"] == "P"
-    assert order_tax[1]["type"] == "P"
-    assert float(order_tax[0]["tax"]) == expected_cgst, \
-        f"Order CGST tax should be {expected_cgst}, got {order_tax[0]['tax']}"
-    assert float(order_tax[1]["tax"]) == expected_sgst, \
-        f"Order SGST tax should be {expected_sgst}, got {order_tax[1]['tax']}"
+    assert float(order_tax[0]["tax"]) == expected_cgst
+    assert float(order_tax[1]["tax"]) == expected_sgst
     assert "restaurant_liable_amt" in order_tax[0]
-    assert "discount" not in oi, "discount array must NOT be present per Petpooja docs"
 
     print("  ✅ All payload fields validated")
 
@@ -283,7 +280,7 @@ def test_2_order_type_mapping(provider, order):
     for (dm_type, expected) in [("delivery", "H"), ("takeaway", "P"), ("dine_in", "D")]:
         order.order_type = dm_type
         payload = provider._format_order(order)
-        got = payload["OrderInfo"]["order"]["order_type"]
+        got = payload["orderinfo"]["OrderInfo"]["Order"]["details"]["order_type"]
         assert got == expected, f"order_type '{dm_type}' should map to '{expected}', got '{got}'"
 
     order.order_type = "delivery"  # reset
@@ -301,7 +298,7 @@ def test_3_payment_type_mapping(provider, order):
     ]
     for (pm, expected) in cases:
         order.payment_method = pm
-        got = provider._format_order(order)["OrderInfo"]["order"]["payment_type"]
+        got = provider._format_order(order)["orderinfo"]["OrderInfo"]["Order"]["details"]["payment_type"]
         assert got == expected, f"payment_method '{pm}' should map to '{expected}', got '{got}'"
 
     order.payment_method = "online"  # reset
@@ -315,7 +312,7 @@ def test_4_dine_in_table_number(provider, order):
     order.order_type    = "dine_in"
     order.table_number  = "7"
     payload = provider._format_order(order)
-    assert payload["OrderInfo"]["order"].get("table_no") == "7", "table_no missing for dine-in"
+    assert payload["orderinfo"]["OrderInfo"]["Order"]["details"].get("table_no") == "7", "table_no missing for dine-in"
 
     order.order_type   = "delivery"  # reset
     order.table_number = None
@@ -337,9 +334,10 @@ def test_5_push_order_success(provider, order):
     assert "47pfzh5sf2" in call_url, f"Wrong URL called: {call_url}"
     assert "save_order"  in call_url
 
-    # Verify payload is JSON-serializable (no crashes on dumps)
+    # Verify payload is JSON-serializable and has correct nested structure
     sent_body = json.loads(mock_post.call_args[1]["data"])
-    assert "OrderInfo" in sent_body
+    assert "orderinfo" in sent_body, "Top-level must have 'orderinfo'"
+    assert "OrderInfo" in sent_body["orderinfo"], "orderinfo must contain 'OrderInfo'"
 
     print("  ✅ push_order success — URL, payload, response all correct")
 

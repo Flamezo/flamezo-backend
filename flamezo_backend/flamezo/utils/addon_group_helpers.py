@@ -427,7 +427,7 @@ def format_addon_groups_for_api(addon_groups):
             })
 
         result.append({
-            "id": group.get("group_id") or str(group.get("name", "")),
+            "id": str(group.get("name", "")) or group.get("group_id", ""),
             "groupId": group.get("group_id") or str(group.get("name", "")),
             "name": group.get("group_name", ""),
             "groupName": group.get("group_name", ""),

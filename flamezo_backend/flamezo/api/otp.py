@@ -186,6 +186,137 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 
 
 @frappe.whitelist(allow_guest=True)
+def send_flamezo_otp(phone, purpose="verification", channel=None):
+	"""
+	Send a platform-level OTP for the FLAMEZO consumer super-app.
+	No restaurant_id is required. Uses "Flamezo" as the brand.
+	"""
+	try:
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": "INVALID_PHONE", "message": "Invalid phone number"}
+
+		# Rate limit
+		rate_key = f"otp_rate:{normalized}"
+		count = int(frappe.cache().get_value(rate_key) or 0)
+		if count >= OTP_MAX_PER_HOUR:
+			return {"success": False, "error": "RATE_LIMIT_EXCEEDED", "message": "Max 3 OTPs per hour. Try again later."}
+
+		cooldown_key = f"otp_cooldown:{normalized}"
+		if frappe.cache().get_value(cooldown_key):
+			return {"success": False, "error": "COOLDOWN", "message": "Wait 30 seconds before resending."}
+
+		settings = frappe.get_single("Flamezo Settings")
+		otp = "".join(random.choices(string.digits, k=OTP_LENGTH))
+		used_channel = None
+
+		# Try Evolution API (WhatsApp) with default "Flamezo" brand
+		if channel != "sms":
+			site_config = frappe.get_site_config()
+			evo_url = site_config.get("evolution_api_url") or settings.evolution_api_url
+			evo_key = site_config.get("evolution_api_key") or settings.get_password("evolution_api_key")
+			evo_inst = site_config.get("evolution_api_instance") or settings.evolution_api_instance
+			if evo_url and evo_key and evo_inst:
+				if send_otp_via_evolution_api(evo_url, evo_key, evo_inst, normalized, otp, restaurant_name="Flamezo"):
+					used_channel = "whatsapp"
+
+		# Fallback to SMS if WhatsApp fails
+		if not used_channel:
+			if send_otp_via_sms(normalized, otp, settings):
+				used_channel = "sms"
+
+		if not used_channel:
+			_create_otp_log("Flamezo", phone, channel or "whatsapp", 0, purpose, "All channels failed")
+			return {"success": False, "error": "OTP_SEND_FAILED", "message": "Failed to send OTP"}
+
+		# Store OTP in cache
+		token = frappe.generate_hash(length=32)
+		frappe.cache().set_value(
+			f"otp:{normalized}:{token}",
+			{"otp": otp, "purpose": purpose, "attempts": 0},
+			expires_in_sec=OTP_EXPIRY_MINUTES * 60
+		)
+
+		# Rate limit & cooldown
+		frappe.cache().set_value(rate_key, count + 1, expires_in_sec=3600)
+		frappe.cache().set_value(cooldown_key, "1", expires_in_sec=OTP_RESEND_COOLDOWN)
+
+		_create_otp_log("Flamezo", phone, used_channel, 0, purpose, None)
+
+		return {
+			"success": True,
+			"token": token,
+			"expires_in": OTP_EXPIRY_MINUTES * 60,
+			"channel": used_channel,
+			"message": "OTP sent successfully"
+		}
+	except Exception as e:
+		frappe.log_error(f"send_flamezo_otp error: {e}", "OTP_Flamezo_Send_Error")
+		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_flamezo_otp(phone, otp, token, name=None, email=None):
+	"""
+	Verify platform-level OTP.
+	Creates/retrieves a Customer and returns a unified session token.
+	"""
+	try:
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": "INVALID_PHONE"}
+
+		cached = frappe.cache().get_value(f"otp:{normalized}:{token}")
+		if not cached:
+			return {"success": False, "error": "OTP_EXPIRED_OR_INVALID"}
+
+		# Anti-Brute Force: 5-Strikes Rule
+		attempts = cached.get("attempts", 0)
+		if attempts >= 5:
+			frappe.cache().delete_value(f"otp:{normalized}:{token}")
+			return {"success": False, "error": "MAX_ATTEMPTS_EXCEEDED", "message": "Too many failed attempts. Request a new OTP."}
+
+		if cached.get("otp") != otp:
+			# Increment attempts
+			cached["attempts"] = attempts + 1
+			frappe.cache().set_value(f"otp:{normalized}:{token}", cached, expires_in_sec=OTP_EXPIRY_MINUTES * 60)
+			return {"success": False, "error": "INVALID_OTP", "message": f"Invalid OTP. {5 - (attempts + 1)} attempts remaining."}
+
+		frappe.cache().delete_value(f"otp:{normalized}:{token}")
+
+		customer = get_or_create_customer(phone=normalized, name=name, email=email)
+		if not customer:
+			return {"success": False, "error": "CUSTOMER_CREATE_FAILED"}
+
+		# Update verified_at and ensure phone is set
+		now_ts = frappe.utils.now()
+		if frappe.db.has_column("Customer", "verified_at"):
+			current = frappe.db.get_value("Customer", customer.name, "verified_at")
+			if not current:
+				frappe.db.set_value("Customer", customer.name, "verified_at", now_ts)
+		
+		if frappe.db.has_column("Customer", "phone"):
+			current_phone = frappe.db.get_value("Customer", customer.name, "phone")
+			if not current_phone:
+				frappe.db.set_value("Customer", customer.name, "phone", normalized)
+		frappe.db.commit()
+
+		# Generate unified session token
+		session_token = create_customer_session(phone=normalized, customer_id=customer.name)
+
+		return {
+			"success": True,
+			"verified": True,
+			"customer_id": customer.name,
+			"customer_name": customer.customer_name,
+			"session_token": session_token
+		}
+	except Exception as e:
+		frappe.log_error(f"verify_flamezo_otp error: {e}", "OTP_Flamezo_Verify_Error")
+		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
 def check_session(session_token):
 	"""
 	Validate a session token. Returns customer_id and phone if valid.

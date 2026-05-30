@@ -516,6 +516,19 @@ export default function DynamicForm({
           }
         })
 
+        // Always include addon_groups — normalize from any format to Frappe child table format
+        if (formData.addon_groups !== undefined && Array.isArray(formData.addon_groups)) {
+          updates.addon_groups = formData.addon_groups.map((raw: any) => ({
+            addon_group: raw.addon_group || raw.id || '',
+            addon_group_name: raw.addon_group_name || raw.groupName || raw.name || '',
+            addon_group_type: raw.addon_group_type || raw.groupType || raw.type || 'addon',
+            is_enabled: raw.is_enabled !== undefined ? raw.is_enabled : 1,
+            display_order: raw.display_order ?? raw.displayOrder ?? 0,
+          })).filter((l: any) => l.addon_group) // skip empty links
+        }
+
+
+
         if (Object.keys(updates).length > 0) {
           result = await updateDoc({
             doctype,
@@ -1394,7 +1407,6 @@ export default function DynamicForm({
         }
         // Handle Addon Groups linker table
         if (field.fieldname === 'addon_groups' && field.options === 'Product Addon Group') {
-          console.log('[DynamicForm] addon_groups field - formData.restaurant:', formData?.restaurant, 'doctype:', doctype, 'docname:', docname)
           return (
             <div key={field.fieldname} className="space-y-2">
               <ProductAddonGroupLinker
