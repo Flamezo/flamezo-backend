@@ -33,8 +33,10 @@ export async function compressImage(file: File): Promise<File> {
     return file
   }
 
-  // Skip videos entirely
-  if (file.type.startsWith('video/')) {
+  // Skip videos entirely (check both MIME type and extension for Android empty-type case)
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv']
+  if (file.type.startsWith('video/') || videoExts.includes(ext)) {
     return file
   }
 

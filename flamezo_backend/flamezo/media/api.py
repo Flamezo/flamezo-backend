@@ -356,12 +356,15 @@ def get_media_kind_from_mime(content_type):
 
 def validate_content_type(content_type, media_kind):
 	"""Validate content type matches media kind"""
-	# Accept all image/* and video/* types
+	# Empty or octet-stream types are already accepted by get_media_kind_from_mime — skip strict check
+	if not content_type or content_type == "application/octet-stream":
+		return
+
 	if media_kind == 'image' and not content_type.startswith('image/'):
 		frappe.throw(
 			_(f"Content type '{content_type}' is not an image type. Expected image/*")
 		)
-	
+
 	if media_kind == 'video' and not content_type.startswith('video/'):
 		frappe.throw(
 			_(f"Content type '{content_type}' is not a video type. Expected video/*")

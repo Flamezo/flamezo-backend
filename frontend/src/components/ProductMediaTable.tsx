@@ -176,12 +176,12 @@ export default function ProductMediaTable({ value = [], onChange, required, disa
       return
     }
 
-    setUploading(true)
-
     if (!productName) {
       toast.error('Product must be saved before uploading media')
       return
     }
+
+    setUploading(true)
 
     try {
       // Sequential upload for mobile reliability (Promise.all overwhelms mobile bandwidth)
