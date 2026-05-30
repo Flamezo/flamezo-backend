@@ -1,7 +1,7 @@
 import { useRestaurant } from '@/contexts/RestaurantContext'
-import { useFrappePostCall, useFrappeGetCall } from '@/lib/frappe'
-import { useEffect, useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useFrappePostCall, useFrappeGetCall, useFrappeGetDoc } from '@/lib/frappe'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   CheckCircle2, XCircle, Sparkles, RefreshCw, Zap, ChevronLeft, ChevronRight,
   DollarSign, Eye, CreditCard, ImagePlus, Upload, X, Loader2, Heart, MessageCircle,
@@ -53,7 +53,13 @@ interface Campaign {
 export default function BoostNewCampaign() {
   const { selectedRestaurant } = useRestaurant()
   const navigate = useNavigate()
-  const [stepIndex, setStepIndex] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Read initial state from URL params (persists across refreshes)
+  const urlCampaignId = searchParams.get('id') || ''
+  const urlStep = parseInt(searchParams.get('step') || '0', 10)
+
+  const [stepIndex, setStepIndexRaw] = useState(urlStep)
   const [prereqs, setPrereqs] = useState<any>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,8 +81,32 @@ export default function BoostNewCampaign() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [showGalleryDialog, setShowGalleryDialog] = useState(false)
 
+  // Sync step changes to URL (so refresh preserves position)
+  const setStepIndex = useCallback((step: number) => {
+    setStepIndexRaw(step)
+    const params = new URLSearchParams(searchParams)
+    params.set('step', String(step))
+    if (campaign?.campaign_id) params.set('id', campaign.campaign_id)
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams, campaign])
+
   // Success state
   const [success, setSuccess] = useState(false)
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false)
+
+  // Get restaurant name
+  const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', selectedRestaurant ? undefined : null)
+  const restaurantName = (restaurantDoc as any)?.restaurant_name || selectedRestaurant || '{restaurantName}'
+
+  // Load Razorpay script
+  useEffect(() => {
+    if ((window as any).Razorpay) { setRazorpayLoaded(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = () => setRazorpayLoaded(true)
+    script.onerror = () => toast.error('Failed to load payment gateway')
+    document.body.appendChild(script)
+  }, [])
 
   // API calls
   const { call: fetchPrereqs } = useFrappePostCall('flamezo_backend.flamezo.api.boost.check_prerequisites')
@@ -96,21 +126,71 @@ export default function BoostNewCampaign() {
   const existingMedia = useMemo(() => {
     const response = (poolData as any)?.message || poolData
     const allMedia = response?.data?.media || []
-    // Filter to images only (no videos) and return with primary_url
-    return allMedia.filter((m: any) => m.media_type === 'image' && m.primary_url)
+    // Media pool returns: { url, type, source_title, source_type, category }
+    // Filter to images only (no videos), exclude branding assets
+    return allMedia
+      .filter((m: any) => m.type === 'image' && m.url && m.category !== 'Branding')
+      .map((m: any) => ({ ...m, primary_url: m.url, alt_text: m.source_title || '' }))
   }, [poolData])
+
+  const { call: fetchCampaignPerf } = useFrappePostCall('flamezo_backend.flamezo.api.boost.get_boost_performance')
 
   useEffect(() => {
     if (!selectedRestaurant) return
     setLoading(true)
-    Promise.all([
+
+    const promises: Promise<any>[] = [
       fetchPrereqs({ restaurant_id: selectedRestaurant }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
       fetchTemplates({}).then((r: any) => r?.message?.data || r?.data).catch(() => []),
-    ]).then(([pr, t]) => {
+    ]
+
+    // If we have a campaign ID from URL, reload it
+    if (urlCampaignId) {
+      promises.push(
+        fetchCampaignPerf({ campaign_id: urlCampaignId })
+          .then((r: any) => r?.message?.data || r?.data)
+          .catch(() => null)
+      )
+    }
+
+    Promise.all(promises).then(([pr, t, existingCampaign]) => {
       setPrereqs(pr)
       setTemplates(t || [])
+
+      // Restore campaign state from DB if reloading
+      if (existingCampaign && urlCampaignId) {
+        setCampaign({
+          campaign_id: existingCampaign.campaign_id,
+          ad_primary_text: existingCampaign.ad_primary_text || '',
+          ad_headline: existingCampaign.ad_headline || '',
+          offer_description: existingCampaign.offer_description || '',
+          coupon_code: existingCampaign.coupon_code || '',
+          budget_total: existingCampaign.budget_total || 0,
+          ad_spend_allocated: existingCampaign.ad_spend_allocated || 0,
+          flamezo_fee: existingCampaign.flamezo_fee || 0,
+          gst_on_fee: existingCampaign.gst_on_fee || 0,
+          guaranteed_redemptions: existingCampaign.guaranteed_redemptions || 0,
+          is_first_campaign: existingCampaign.is_first_campaign || false,
+          location_grade: existingCampaign.location_grade || 'A',
+        })
+        setPkg(existingCampaign.package_tier || 'Growth')
+        setOffer(existingCampaign.offer_amount || 100)
+        setTemplateId(existingCampaign.template_id || '')
+        if (existingCampaign.ad_image_url) {
+          setAdImageUrl(existingCampaign.ad_image_url)
+          setImagePreview(existingCampaign.ad_image_url)
+        }
+        // Stay on the URL step
+        setStepIndexRaw(urlStep)
+      } else if (pr?.passed && !urlCampaignId) {
+        // New campaign — skip to package step
+        setStepIndexRaw(1)
+        const params = new URLSearchParams(searchParams)
+        params.set('step', '1')
+        setSearchParams(params, { replace: true })
+      }
+
       setLoading(false)
-      if (pr?.passed) setStepIndex(1)
     })
   }, [selectedRestaurant])
 
@@ -130,8 +210,14 @@ export default function BoostNewCampaign() {
         hero_dish_name: heroDish.trim() || undefined,
         ad_image_url: adImageUrl || undefined,
       })
-      setCampaign(res?.message?.data || res?.data)
-      setStepIndex(3)
+      const newCampaign = res?.message?.data || res?.data
+      setCampaign(newCampaign)
+      // Save campaign ID to URL so refresh preserves state
+      setStepIndexRaw(3)
+      const params = new URLSearchParams(searchParams)
+      params.set('step', '3')
+      params.set('id', newCampaign.campaign_id)
+      setSearchParams(params, { replace: true })
     } catch (e: any) {
       setError(e.message || 'Failed to create campaign')
     } finally { setSubmitting(false) }
@@ -139,6 +225,7 @@ export default function BoostNewCampaign() {
 
   const handlePay = async () => {
     if (!campaign) return
+    if (!razorpayLoaded) { toast.error('Payment gateway is loading. Please wait.'); return }
     setSubmitting(true); setError(null)
     try {
       await approveCreative({ campaign_id: campaign.campaign_id })
@@ -422,7 +509,7 @@ export default function BoostNewCampaign() {
                         <Zap className="h-3.5 w-3.5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold truncate">Your Restaurant</p>
+                        <p className="text-[11px] font-semibold truncate">{restaurantName}</p>
                         <p className="text-[9px] text-muted-foreground">Sponsored</p>
                       </div>
                       <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -483,11 +570,11 @@ export default function BoostNewCampaign() {
                   <CardContent>
                     {existingMedia && existingMedia.length > 0 ? (
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-56 overflow-y-auto">
-                        {existingMedia.map((m: any) => (
-                          <button key={m.name} onClick={() => { setAdImageUrl(m.primary_url); setImagePreview(m.primary_url) }}
+                        {existingMedia.map((m: any, idx: number) => (
+                          <button key={m.primary_url || idx} onClick={() => { setAdImageUrl(m.primary_url); setImagePreview(m.primary_url) }}
                             className={cn('aspect-square rounded-lg overflow-hidden border-2 transition-all',
                               imagePreview === m.primary_url ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-transparent hover:border-orange-300')}>
-                            <img src={m.primary_url} alt={m.alt_text || ''} className="w-full h-full object-cover" />
+                            <img src={encodeURI(m.primary_url)} alt={m.alt_text || ''} className="w-full h-full object-cover" />
                           </button>
                         ))}
                       </div>

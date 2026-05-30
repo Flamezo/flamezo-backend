@@ -9,7 +9,7 @@ Ref: https://developers.facebook.com/docs/marketing-api/reference/
 import json
 import requests
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt  # noqa: F401
 
 
 def _conf(key):
@@ -99,7 +99,8 @@ def create_campaign(boost_campaign):
 		"name": f"BOOST | {boost_campaign.restaurant} | {boost_campaign.name}",
 		"objective": "OUTCOME_TRAFFIC",
 		"status": "PAUSED",
-		"special_ad_categories": [],
+		"special_ad_categories": "[]",
+		"is_adset_budget_sharing_enabled": False,
 	}
 	result = _post(f"{_ad_account()}/campaigns", data)
 	return result["id"]
@@ -121,9 +122,7 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 		},
 		"age_min": int(boost_campaign.target_age_min or 18),
 		"age_max": int(boost_campaign.target_age_max or 55),
-		"publisher_platforms": ["facebook", "instagram"],
-		"facebook_positions": ["feed", "story"],
-		"instagram_positions": ["stream", "story", "reels"],
+		"targeting_automation": {"advantage_audience": 0},
 	}
 
 	data = {
@@ -131,7 +130,8 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 		"campaign_id": meta_campaign_id,
 		"billing_event": "IMPRESSIONS",
 		"optimization_goal": "LINK_CLICKS",
-		"daily_budget": daily_budget_paisa,
+		"daily_budget": str(daily_budget_paisa),
+		"bid_amount": "500",
 		"targeting": json.dumps(targeting),
 		"status": "ACTIVE",
 	}
@@ -140,17 +140,22 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 
 
 def upload_ad_image(image_url):
-	"""Upload an image from URL to the ad account. Returns image_hash."""
-	data = {
-		"url": image_url,
-		"access_token": _token(),
-	}
+	"""Upload an image to the ad account. Downloads first, then uploads as multipart file."""
+	# Download the image
+	img_resp = requests.get(image_url, timeout=30)
+	if img_resp.status_code != 200:
+		frappe.throw(f"Failed to download image from {image_url}: HTTP {img_resp.status_code}")
+
+	filename = image_url.split('/')[-1].split('?')[0] or 'boost_ad.jpg'
+	content_type = img_resp.headers.get('content-type', 'image/jpeg')
+
 	url = f"{_base()}/{_ad_account()}/adimages"
-	resp = requests.post(url, data=data, timeout=60)
+	files = {"filename": (filename, img_resp.content, content_type)}
+	data = {"access_token": _token()}
+	resp = requests.post(url, data=data, files=files, timeout=60)
 	body = resp.json()
 	if "error" in body:
 		frappe.throw(f"Meta image upload error: {body['error'].get('message', 'Unknown')}")
-	# Response: {"images": {"bytes": {"hash": "abc123..."}}} — extract first hash
 	images = body.get("images", {})
 	for key, val in images.items():
 		return val.get("hash", "")

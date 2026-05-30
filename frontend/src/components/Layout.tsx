@@ -148,6 +148,7 @@ const navigation: NavItem[] = [
     ],
   },
   { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
+  { type: 'link', name: 'Manage Offer/Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
   { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
   {
     type: 'group',
@@ -207,8 +208,8 @@ const navigation: NavItem[] = [
       { name: 'Setup Wizard', href: '/setup', icon: Sparkles },
       { name: 'Team Management', href: '/team', icon: Users, adminOnly: true },
       { name: 'POS Integration', href: '/pos-integration', icon: Settings, feature: 'pos_integration' },
-      { name: 'Manage Offer and Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
-      { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
+      { name: 'Petpooja Testing', href: '/petpooja-testing', icon: Activity, feature: 'pos_integration' },
+{ name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
       { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
       { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
       { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
@@ -780,6 +781,8 @@ export default function Layout({ children }: LayoutProps) {
                         placeholder="Search..."
                         value={restaurantDropdownSearch}
                         onChange={e => setRestaurantDropdownSearch(e.target.value)}
+                        onKeyDown={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
                         className="flex-1 bg-transparent text-[13px] outline-none text-foreground placeholder:text-muted-foreground/60"
                       />
                     </div>

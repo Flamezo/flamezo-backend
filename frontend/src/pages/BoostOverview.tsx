@@ -253,7 +253,15 @@ export default function BoostOverview() {
                   {filteredCampaigns.map(c => {
                     const spentPct = c.budget_total > 0 ? Math.min(100, Math.round((c.amount_spent_meta / (c.budget_total * 0.7)) * 100)) : 0
                     return (
-                      <TableRow key={c.name} className="cursor-pointer group" onClick={() => navigate(`/boost/campaign?id=${c.name}`)}>
+                      <TableRow key={c.name} className="cursor-pointer group" onClick={() => {
+                        // Draft/Pending Payment campaigns → open in wizard to continue
+                        if (c.status === 'Draft' || c.status === 'Pending Payment') {
+                          const step = c.status === 'Pending Payment' ? 4 : 3
+                          navigate(`/boost/new?id=${c.name}&step=${step}`)
+                        } else {
+                          navigate(`/boost/campaign?id=${c.name}`)
+                        }
+                      }}>
                         <TableCell>
                           <div>
                             <p className="font-medium text-sm">{c.campaign_name}</p>
