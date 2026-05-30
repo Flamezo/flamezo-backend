@@ -656,7 +656,8 @@ Unique thirdparty order id / Client Order ID
 
 string, required
 external_order_id
-PetPooja Order Id [Pass this blank]
+PetPooja Order I
+d [Pass this blank]
 
 string
 rider_data

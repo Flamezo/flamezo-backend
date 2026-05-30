@@ -243,7 +243,7 @@ def create_boost_campaign(restaurant_id, template_id, package_tier,
 	campaign = frappe.get_doc({
 		"doctype": "Boost Campaign",
 		"restaurant": restaurant_id,
-		"campaign_name": f"Boost - {restaurant.restaurant_name} - {template_id}",
+		"campaign_name": f"{restaurant.restaurant_name} — {frappe.db.get_value('Boost Template', template_id, 'template_name') or template_id}",
 		"status": "Draft",
 		"package_tier": package_tier,
 		"campaign_duration": str(campaign_duration),
@@ -556,6 +556,12 @@ def get_boost_performance(campaign_id):
 		"coupon_code": campaign.coupon_code,
 		"offer_amount": campaign.offer_amount,
 		"template_id": campaign.template_id,
+		"ad_primary_text": campaign.ad_primary_text,
+		"ad_headline": campaign.ad_headline,
+		"ad_image_url": campaign.ad_image_url,
+		"offer_description": campaign.offer_description,
+		"flamezo_fee": campaign.flamezo_fee,
+		"gst_on_fee": campaign.gst_on_fee,
 		"redemptions": redemptions,
 	}
 
