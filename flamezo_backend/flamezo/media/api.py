@@ -48,9 +48,12 @@ def request_upload_session(owner_doctype, owner_name, media_role, filename, cont
 	# Validate media role for doctype
 	validate_media_role_for_doctype(owner_doctype, media_role)
 	
+	# Normalize content type (None → "" for downstream safety)
+	content_type = content_type or ""
+
 	# Determine media kind from content type
 	media_kind = get_media_kind_from_mime(content_type)
-	
+
 	# Validate content type
 	validate_content_type(content_type, media_kind)
 	

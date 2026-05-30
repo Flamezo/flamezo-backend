@@ -96,13 +96,16 @@ def generate_signed_upload_url(object_key, content_type, expiration=600):
 		client = get_r2_client()
 		config = get_r2_config()
 		
+		# Fallback empty/None content_type to application/octet-stream for R2 signing
+		safe_content_type = content_type if content_type else "application/octet-stream"
+
 		# Generate presigned URL
 		url = client.generate_presigned_url(
 			'put_object',
 			Params={
 				'Bucket': config["bucket_name"],
 				'Key': object_key,
-				'ContentType': content_type
+				'ContentType': safe_content_type
 			},
 			ExpiresIn=expiration,
 			HttpMethod='PUT'
@@ -111,7 +114,7 @@ def generate_signed_upload_url(object_key, content_type, expiration=600):
 		return {
 			"upload_url": url,
 			"headers": {
-				"Content-Type": content_type
+				"Content-Type": safe_content_type
 			},
 			"expires_in": expiration
 		}
