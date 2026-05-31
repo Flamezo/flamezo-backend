@@ -239,13 +239,17 @@ def add_combo_to_cart(restaurant_id, combo_id, selected_items=None, table_number
 		if combo.valid_until and frappe.utils.getdate(combo.valid_until) < today:
 			return {"success": False, "error": {"code": "COMBO_EXPIRED", "message": "This combo has expired"}}
 
-		# Day-of-week validity
+		# Day-of-week validity (JSON array, e.g. ["monday", "wednesday"])
 		if combo.valid_days_of_week:
 			now = frappe.utils.now_datetime()
-			current_day = now.strftime("%A")
-			allowed = [d.strip() for d in combo.valid_days_of_week.split(",")]
-			if current_day not in allowed:
-				return {"success": False, "error": {"code": "COMBO_NOT_TODAY", "message": f"This combo is only available on {combo.valid_days_of_week}"}}
+			current_day = now.strftime("%A").lower()
+			try:
+				allowed = json.loads(combo.valid_days_of_week) if isinstance(combo.valid_days_of_week, str) else combo.valid_days_of_week
+			except (json.JSONDecodeError, TypeError):
+				allowed = None
+			if allowed and isinstance(allowed, list):
+				if current_day not in [d.lower() for d in allowed]:
+					return {"success": False, "error": {"code": "COMBO_NOT_TODAY", "message": f"This combo is only available on {', '.join(allowed)}"}}
 
 		# Time-of-day validity
 		now = frappe.utils.now_datetime()

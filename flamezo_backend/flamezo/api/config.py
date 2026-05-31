@@ -400,12 +400,16 @@ def get_restaurant_config(restaurant_id):
 				if v_until and v_until < today:
 					continue
 
-				# Day-of-week filter (e.g. "Monday,Wednesday,Friday")
+				# Day-of-week filter (JSON array, e.g. ["monday", "wednesday", "friday"])
 				valid_days = c.get("valid_days_of_week")
 				if valid_days:
-					allowed_days = [d.strip() for d in valid_days.split(",")]
-					if current_day not in allowed_days:
-						continue
+					try:
+						allowed_days = json.loads(valid_days) if isinstance(valid_days, str) else valid_days
+					except (json.JSONDecodeError, TypeError):
+						allowed_days = None
+					if allowed_days and isinstance(allowed_days, list):
+						if current_day.lower() not in [d.lower() for d in allowed_days]:
+							continue
 
 				# Time-of-day filter
 				time_start = c.get("valid_time_start")
