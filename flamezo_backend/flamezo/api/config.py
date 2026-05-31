@@ -413,15 +413,35 @@ def get_restaurant_config(restaurant_id):
 						rows = frappe.get_all(
 							"Menu Product",
 							filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
-							fields=["product_id", "product_name", "price"],
+							fields=["name", "product_id", "product_name", "price"],
 						)
 						lookup = {r.product_id: r for r in rows}
+
+						# Batch-fetch first image for each product from Product Media
+						product_names = [r.name for r in rows]
+						image_lookup = {}
+						if product_names:
+							media_rows = frappe.get_all(
+								"Product Media",
+								filters={
+									"parent": ["in", product_names],
+									"parenttype": "Menu Product",
+									"parentfield": "product_media",
+									"media_type": "image",
+								},
+								fields=["parent", "media_url"],
+								order_by="display_order asc, idx asc",
+							)
+							for mr in media_rows:
+								if mr.parent not in image_lookup:
+									image_lookup[mr.parent] = mr.media_url
+
 						return [
 							{
 								"dishId": pid,
 								"name": lookup[pid].product_name if pid in lookup else pid,
 								"price": flt(lookup[pid].price) if pid in lookup else 0,
-								"image": None,
+								"image": image_lookup.get(lookup[pid].name) if pid in lookup else None,
 							}
 							for pid in ids
 						]
