@@ -205,6 +205,163 @@ def add_to_cart(restaurant_id, dish_id, quantity=1, customizations=None, session
 
 
 @frappe.whitelist(allow_guest=True)
+def add_combo_to_cart(restaurant_id, combo_id, selected_items=None, table_number=None):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.cart.add_combo_to_cart
+	Atomically add an entire combo to cart in a single transaction.
+	Validates combo validity (active, date, day-of-week, time) and item pool
+	constraints before adding anything.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		user = frappe.session.user if frappe.session.user != "Guest" else None
+		session_id = None
+		if not user:
+			session_id = frappe.session.get("session_id") or generate_session_id()
+
+		# ── Load and validate the combo coupon ────────────────────────────
+		combo = frappe.db.get_value(
+			"Coupon",
+			{"name": combo_id, "restaurant": restaurant, "is_active": 1, "offer_type": "combo"},
+			["name", "code", "combo_type", "combo_name", "required_items", "item_pool",
+			 "items_to_select", "combo_price", "valid_from", "valid_until",
+			 "valid_days_of_week", "valid_time_start", "valid_time_end"],
+			as_dict=True,
+		)
+		if not combo:
+			return {"success": False, "error": {"code": "COMBO_NOT_FOUND", "message": "Combo deal not found or inactive"}}
+
+		# Date validity
+		today = frappe.utils.getdate()
+		if combo.valid_from and frappe.utils.getdate(combo.valid_from) > today:
+			return {"success": False, "error": {"code": "COMBO_NOT_VALID", "message": "This combo is not yet available"}}
+		if combo.valid_until and frappe.utils.getdate(combo.valid_until) < today:
+			return {"success": False, "error": {"code": "COMBO_EXPIRED", "message": "This combo has expired"}}
+
+		# Day-of-week validity
+		if combo.valid_days_of_week:
+			now = frappe.utils.now_datetime()
+			current_day = now.strftime("%A")
+			allowed = [d.strip() for d in combo.valid_days_of_week.split(",")]
+			if current_day not in allowed:
+				return {"success": False, "error": {"code": "COMBO_NOT_TODAY", "message": f"This combo is only available on {combo.valid_days_of_week}"}}
+
+		# Time-of-day validity
+		now = frappe.utils.now_datetime()
+		current_time = now.time()
+		if combo.valid_time_start and current_time < frappe.utils.get_time(combo.valid_time_start):
+			return {"success": False, "error": {"code": "COMBO_NOT_NOW", "message": "This combo is not available at this time"}}
+		if combo.valid_time_end and current_time > frappe.utils.get_time(combo.valid_time_end):
+			return {"success": False, "error": {"code": "COMBO_NOT_NOW", "message": "This combo is not available at this time"}}
+
+		# ── Determine which items to add ─────────────────────────────────
+		combo_type = combo.combo_type or "fixed_bundle"
+		items_to_select = int(combo.items_to_select or 2)
+
+		# Parse stored JSON arrays
+		required_ids = json.loads(combo.required_items) if combo.required_items else []
+		pool_ids = json.loads(combo.item_pool) if combo.item_pool else []
+
+		if combo_type == "fixed_bundle":
+			# Add all required items — ignore selected_items
+			dish_ids = required_ids
+		else:
+			# bogo / build_your_own — validate user selection against pool
+			if isinstance(selected_items, str):
+				selected_items = json.loads(selected_items)
+			selected_items = selected_items or []
+
+			if len(selected_items) != items_to_select:
+				return {"success": False, "error": {"code": "INVALID_SELECTION",
+					"message": f"Please select exactly {items_to_select} items"}}
+
+			# Validate each selected item is in the allowed pool
+			allowed_pool = set(pool_ids if pool_ids else required_ids)
+			for sid in selected_items:
+				if sid not in allowed_pool:
+					return {"success": False, "error": {"code": "INVALID_ITEM",
+						"message": f"Item {sid} is not part of this combo"}}
+
+			dish_ids = selected_items
+
+		if not dish_ids:
+			return {"success": False, "error": {"code": "EMPTY_COMBO", "message": "No items in this combo"}}
+
+		# ── Resolve product names and add to cart ────────────────────────
+		parsed_table_number = None
+		if table_number:
+			parsed_table_number = parse_table_number_from_qr(table_number, restaurant_id)
+
+		added_items = []
+		for dish_slug in dish_ids:
+			actual_dish_id = get_product_from_id(dish_slug, restaurant)
+			if not actual_dish_id:
+				continue  # Skip unknown items silently
+
+			product = frappe.get_doc("Menu Product", actual_dish_id)
+			if product.restaurant != restaurant:
+				continue
+
+			unit_price = flt(product.price)
+
+			existing_entry = find_existing_cart_entry(user, session_id, restaurant, actual_dish_id, None)
+			if existing_entry:
+				entry_doc = frappe.get_doc("Cart Entry", existing_entry)
+				entry_doc.quantity += 1
+				entry_doc.total_price = unit_price * entry_doc.quantity
+				if parsed_table_number:
+					entry_doc.table_number = parsed_table_number
+				entry_doc.save(ignore_permissions=True)
+				entry_id = entry_doc.entry_id
+				qty = entry_doc.quantity
+			else:
+				entry_id = generate_entry_id(product.product_id or dish_slug)
+				entry_doc = frappe.get_doc({
+					"doctype": "Cart Entry",
+					"entry_id": entry_id,
+					"restaurant": restaurant,
+					"user": user,
+					"session_id": session_id,
+					"product": actual_dish_id,
+					"quantity": 1,
+					"unit_price": unit_price,
+					"total_price": unit_price,
+					"table_number": parsed_table_number,
+				})
+				entry_doc.insert(ignore_permissions=True)
+				qty = 1
+
+			added_items.append({
+				"entryId": entry_id,
+				"dishId": product.product_id or dish_slug,
+				"quantity": qty,
+				"unitPrice": unit_price,
+				"totalPrice": unit_price * qty,
+			})
+
+		# ── Return cart summary with the combo coupon applied ────────────
+		cart_summary = get_cart_summary(
+			user, session_id, restaurant, coupon_code=combo.code
+		)
+
+		return {
+			"success": True,
+			"data": {
+				"comboId": combo.name,
+				"comboCode": combo.code,
+				"addedItems": added_items,
+				"cart": cart_summary,
+			}
+		}
+	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
+		return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": str(e)}}
+	except Exception as e:
+		frappe.log_error("Error in add_combo_to_cart", str(e))
+		return {"success": False, "error": {"code": "COMBO_CART_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_cart(restaurant_id, session_id=None, coupon_code=None, loyalty_coins=0, order_type=None, latitude=None, longitude=None):
 	"""
 	GET /api/v1/cart
