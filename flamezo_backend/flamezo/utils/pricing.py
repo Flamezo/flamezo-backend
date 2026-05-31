@@ -100,19 +100,26 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	total_item_discount = 0
 	total_delivery_discount = 0
 
-	# Savings-Corner gate: when the customer is unverified, skip ALL coupons + auto-offers.
-	# This is the backend half of the "lock icon" UX on the cart page.
+	# Savings-Corner gate: when the customer is unverified, skip coupons + auto-offers.
+	# Exception: combo offers with a matching coupon_code always apply — they are
+	# product bundles, not savings features.
 	all_offers = frappe.get_all(
 		"Coupon",
 		filters={"restaurant": restaurant, "is_active": 1},
 		fields=["*"]
-	) if savings_unlocked else []
+	) if savings_unlocked else (
+		# Even when savings are locked, load combo offers that match the coupon_code
+		frappe.get_all(
+			"Coupon",
+			filters={"restaurant": restaurant, "is_active": 1, "offer_type": "combo", "code": coupon_code},
+			fields=["*"]
+		) if coupon_code else []
+	)
 
 	eligible_offers = []
 	for offer in all_offers:
 		is_manual = (coupon_code and offer.code == coupon_code)
 		is_auto = (offer.offer_type == "auto")
-
 		if not (is_manual or is_auto):
 			continue
 
@@ -356,7 +363,15 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, deliv
 				discount_amount = max(0, selected_total - flt(offer.combo_price))
 
 			elif combo_type == "fixed_bundle" and offer.combo_price is not None:
-				discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
+				# Sum only the required combo items, not the entire cart
+				required = []
+				if offer.required_items:
+					try:
+						required = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
+					except Exception:
+						pass
+				combo_items_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in required)
+				discount_amount = max(0, combo_items_total - flt(offer.combo_price))
 
 			else:
 				discount_amount = flt(offer.discount_value)
