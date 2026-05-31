@@ -376,6 +376,7 @@ def get_restaurant_config(restaurant_id):
 				fields=[
 					"name", "code", "min_order_amount", "discount_type", "discount_value",
 					"description", "offer_type", "free_item", "valid_from", "valid_until",
+					"valid_days_of_week", "valid_time_start", "valid_time_end",
 					"combo_type", "combo_name", "required_items", "item_pool",
 					"items_to_select", "combo_price", "display_on_menu",
 				],
@@ -383,6 +384,9 @@ def get_restaurant_config(restaurant_id):
 			)
 
 			today = frappe.utils.getdate()
+			now = frappe.utils.now_datetime()
+			current_day = now.strftime("%A")  # e.g. "Monday", "Tuesday"
+			current_time = now.time()
 			coupon_milestones = []
 			combo_deals = []  # Rich combo cards for menu page
 
@@ -394,6 +398,21 @@ def get_restaurant_config(restaurant_id):
 					continue
 				# pyrefly: ignore [unsupported-operation]
 				if v_until and v_until < today:
+					continue
+
+				# Day-of-week filter (e.g. "Monday,Wednesday,Friday")
+				valid_days = c.get("valid_days_of_week")
+				if valid_days:
+					allowed_days = [d.strip() for d in valid_days.split(",")]
+					if current_day not in allowed_days:
+						continue
+
+				# Time-of-day filter
+				time_start = c.get("valid_time_start")
+				time_end = c.get("valid_time_end")
+				if time_start and current_time < (frappe.utils.get_time(time_start)):
+					continue
+				if time_end and current_time > (frappe.utils.get_time(time_end)):
 					continue
 
 				# ── Combo deals section (display_on_menu) ──────────────────────
