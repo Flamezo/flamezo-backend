@@ -292,20 +292,29 @@ def add_combo_to_cart(restaurant_id, combo_id, selected_items=None, table_number
 		if not dish_ids:
 			return {"success": False, "error": {"code": "EMPTY_COMBO", "message": "No items in this combo"}}
 
-		# ── Resolve product names and add to cart ────────────────────────
+		# ── Validate all items exist before adding any ──────────────────
+		resolved_products = []
+		for dish_slug in dish_ids:
+			actual_dish_id = get_product_from_id(dish_slug, restaurant)
+			if not actual_dish_id:
+				return {"success": False, "error": {"code": "ITEM_UNAVAILABLE",
+					"message": f"'{dish_slug}' is no longer available"}}
+			product = frappe.get_doc("Menu Product", actual_dish_id)
+			if product.restaurant != restaurant:
+				return {"success": False, "error": {"code": "ITEM_UNAVAILABLE",
+					"message": f"'{dish_slug}' is not available at this restaurant"}}
+			if not product.is_active:
+				return {"success": False, "error": {"code": "ITEM_UNAVAILABLE",
+					"message": f"'{product.product_name}' is currently unavailable"}}
+			resolved_products.append((dish_slug, actual_dish_id, product))
+
+		# ── Add all validated items to cart ────────────────────────────
 		parsed_table_number = None
 		if table_number:
 			parsed_table_number = parse_table_number_from_qr(table_number, restaurant_id)
 
 		added_items = []
-		for dish_slug in dish_ids:
-			actual_dish_id = get_product_from_id(dish_slug, restaurant)
-			if not actual_dish_id:
-				continue  # Skip unknown items silently
-
-			product = frappe.get_doc("Menu Product", actual_dish_id)
-			if product.restaurant != restaurant:
-				continue
+		for dish_slug, actual_dish_id, product in resolved_products:
 
 			unit_price = flt(product.price)
 
