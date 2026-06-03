@@ -726,38 +726,23 @@ def get_customer_orders(restaurant_id, phone, page=1, limit=20, include_items=Fa
 				"error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}
 			}
 
-		# Production-ready auth gate:
-		# - When verify_my_user=ON: require a valid session token OR a DB-verified phone.
-		#   The DB check acts as a grace fallback for expired tokens (e.g. after Redis restart).
-		#   This prevents the "keeps verifying my user" loop while maintaining security.
-		# - When verify_my_user=OFF: skip auth entirely — any phone can retrieve their order history.
-		# Robust token detection: Check X-Customer-Token, x-customer-token, and Authorization header
+		# Production Auth Gate: always require valid session token or verified phone
 		session_token = get_customer_token()
-		
-		verify_required = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
-		
+
 		# Bypass strict auth for recent WhatsApp shadow orders to allow guest tracking
 		is_shadow_request = recent_only or (frappe.request.headers.get("X-Shadow-Request") == "true") if frappe.request else recent_only
-		
-		has_valid_session = False
-		has_verified_phone = False
-		
-		if verify_required:
-			has_valid_session = validate_customer_session(phone, session_token)
-			has_verified_phone = is_phone_verified(phone)
-			
-			# If no valid session/verified phone, only allow if this is a recent shadow order request
-			if not has_valid_session and not has_verified_phone:
-				if not is_shadow_request:
-					return {
-						"success": False,
-						"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to view your orders."}
-					}
-				# For shawdow/recent requests, the query below will naturally filter to <= 24h
-				# We just need to make sure we also filter for is_whatsapp_order if it's a guest
-				pass
 
-		is_authenticated = has_valid_session or has_verified_phone if verify_required else True
+		has_valid_session = validate_customer_session(phone, session_token)
+		has_verified_phone = is_phone_verified(phone)
+
+		if not has_valid_session and not has_verified_phone:
+			if not is_shadow_request:
+				return {
+					"success": False,
+					"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to view your orders."}
+				}
+
+		is_authenticated = has_valid_session or has_verified_phone
 		
 		customer_id = _find_customer_by_normalized_phone(normalized)
 		phone_variants = get_phone_variants_for_lookup(normalized)

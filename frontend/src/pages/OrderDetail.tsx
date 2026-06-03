@@ -16,7 +16,7 @@ import {
 import { useCurrency } from '@/hooks/useCurrency'
 import { cn } from '@/lib/utils'
 
-type LogisticsProvider = 'Borzo' | 'Flash' | 'Self'
+type LogisticsProvider = 'Self'
 
 export default function OrderDetail() {
   const { formatAmount, formatAmountNoDecimals } = useCurrency()
@@ -31,11 +31,11 @@ export default function OrderDetail() {
   // Restaurant doc — fetch logistics provider config
   const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', order?.restaurant || '', {
     enabled: !!order?.restaurant,
-    fields: ['name', 'tables', 'latitude', 'longitude', 'restaurant_name', 'preferred_logistics_provider']
+    fields: ['name', 'tables', 'latitude', 'longitude', 'restaurant_name']
   })
 
-  const logisticsProvider: LogisticsProvider = (restaurantDoc?.preferred_logistics_provider || 'Flash') as LogisticsProvider
-  const isSelfDelivery = logisticsProvider === 'Self'
+  const logisticsProvider: LogisticsProvider = 'Self'
+  const isSelfDelivery = true
 
   // Pre-set delivery mode based on restaurant logistics config
   const [deliveryMode, setDeliveryMode] = useState<'auto' | 'manual'>('manual')
@@ -43,9 +43,9 @@ export default function OrderDetail() {
   // Sync deliveryMode when restaurantDoc loads
   useEffect(() => {
     if (restaurantDoc) {
-      setDeliveryMode(isSelfDelivery ? 'manual' : 'auto')
+      setDeliveryMode('manual')
     }
-  }, [restaurantDoc, isSelfDelivery])
+  }, [restaurantDoc])
 
   // Table update API call
   const { call: updateTableNumber } = useFrappePostCall('flamezo_backend.flamezo.api.order_status.update_table_number')
@@ -87,21 +87,18 @@ export default function OrderDetail() {
     try {
       const payload: any = {
         order_id: order.name,
-        delivery_mode: deliveryMode,
-        // Always pass the restaurant's configured provider
-        partner_name: isSelfDelivery ? 'manual' : (logisticsProvider?.toLowerCase() || 'flash'),
-      }
-      if (deliveryMode === 'manual') {
-        payload.rider_name = manualForm.rider_name
-        payload.rider_phone = manualForm.rider_phone
-        payload.eta = manualForm.eta
+        delivery_mode: 'manual',
+        partner_name: 'manual',
+        rider_name: manualForm.rider_name,
+        rider_phone: manualForm.rider_phone,
+        eta: manualForm.eta,
       }
 
       const res = await assignDeliveryAPI(payload)
       const result = (res as any)?.message || res
       if (!result?.success) throw new Error(result?.error || 'Failed to assign delivery')
 
-      toast.success(isSelfDelivery ? 'Rider assigned manually' : `Delivery booked via ${logisticsProvider}`)
+      toast.success('Rider assigned manually')
       window.location.reload()
     } catch (e: any) {
       toast.error(e.message || 'Error occurred')
@@ -166,14 +163,9 @@ export default function OrderDetail() {
 
   const isDeliveryAssigned = !!(order.delivery_id || order.delivery_partner)
   const isDeliveryActive = isDeliveryAssigned && order.delivery_status !== 'cancelled' && order.delivery_status !== 'delivered'
-  const isManualMode = order.delivery_partner === 'manual' || order.delivery_mode === 'manual' || isSelfDelivery
 
   // Provider badge config
-  const providerBadge = {
-    Borzo: { color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <Truck className="w-3.5 h-3.5" /> },
-    Flash: { color: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: <Zap className="w-3.5 h-3.5" /> },
-    Self:  { color: 'bg-blue-100 text-blue-700 border-blue-200',   icon: <User className="w-3.5 h-3.5" /> },
-  }[logisticsProvider]
+  const providerBadge = { color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <User className="w-3.5 h-3.5" /> }
 
   return (
     <div className="space-y-6">
@@ -326,7 +318,6 @@ export default function OrderDetail() {
               <CardTitle className="flex items-center gap-2">
                 <Truck className="h-5 w-5 text-primary" />
                 Delivery Management
-                {/* Provider badge from restaurant config */}
                 {restaurantDoc && (
                   <span className={cn(
                     'ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border uppercase tracking-wide',
@@ -349,136 +340,50 @@ export default function OrderDetail() {
               {/* ── Not yet assigned ─────────────────────────────────────── */}
               {!order.delivery_id && order.status !== 'cancelled' && (
                 <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
-
-                  {/* Provider info row */}
-                  <div className="flex items-center gap-3 pb-2 border-b">
-                    <span className="text-sm text-muted-foreground">Active Logistics Config:</span>
-                    <span className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border',
-                      providerBadge.color
-                    )}>
-                      {providerBadge.icon}
-                      {isSelfDelivery ? 'Self / Own Riders (Manual)' : `${logisticsProvider} — Flamezo Managed`}
-                    </span>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Assign your own rider's details below. No API dispatch. No coins deducted.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rider Name</label>
+                        <input
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={manualForm.rider_name}
+                          onChange={e => setManualForm({ ...manualForm, rider_name: e.target.value })}
+                          placeholder="e.g. Rahul Kumar"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rider Phone</label>
+                        <input
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={manualForm.rider_phone}
+                          onChange={e => setManualForm({ ...manualForm, rider_phone: e.target.value })}
+                          placeholder="e.g. 9987654321"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ETA (mins)</label>
+                        <input
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={manualForm.eta}
+                          onChange={e => setManualForm({ ...manualForm, eta: e.target.value })}
+                          placeholder="e.g. 30"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleAssignDelivery}
+                        disabled={assigningDelivery}
+                        className="font-black uppercase text-xs tracking-widest bg-blue-600 hover:bg-blue-700"
+                      >
+                        <User className="h-4 w-4 mr-2" />
+                        {assigningDelivery ? 'Assigning...' : 'Assign Delivery'}
+                      </Button>
+                    </div>
                   </div>
-
-                  {/* ── SELF / MANUAL DELIVERY UI ──────────────────────── */}
-                  {isSelfDelivery && (
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        Assign your own rider's details below. No API dispatch. No coins deducted.
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rider Name</label>
-                          <input
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                            value={manualForm.rider_name}
-                            onChange={e => setManualForm({ ...manualForm, rider_name: e.target.value })}
-                            placeholder="e.g. Rahul Kumar"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rider Phone</label>
-                          <input
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                            value={manualForm.rider_phone}
-                            onChange={e => setManualForm({ ...manualForm, rider_phone: e.target.value })}
-                            placeholder="e.g. 9987654321"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ETA (mins)</label>
-                          <input
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                            value={manualForm.eta}
-                            onChange={e => setManualForm({ ...manualForm, eta: e.target.value })}
-                            placeholder="e.g. 30"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          onClick={handleAssignDelivery}
-                          disabled={assigningDelivery}
-                          className="font-black uppercase text-xs tracking-widest bg-blue-600 hover:bg-blue-700"
-                        >
-                          <User className="h-4 w-4 mr-2" />
-                          {assigningDelivery ? 'Assigning...' : 'Assign Delivery'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── INTEGRATED (Borzo / Flash) DELIVERY UI ─────────── */}
-                  {!isSelfDelivery && (
-                    <div className="space-y-4">
-                      {!quote ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-                          onClick={handleGetQuote}
-                          disabled={isQuoting}
-                        >
-                          <Calculator className="h-4 w-4 mr-2" />
-                          {isQuoting ? 'Fetching Estimate...' : `Get ${logisticsProvider} Delivery Estimate`}
-                        </Button>
-                      ) : (
-                        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/20 dark:to-blue-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-4 shadow-sm">
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-center gap-2">
-                              <Wallet className="h-4 w-4 text-indigo-600" />
-                              <span className="text-xs font-black uppercase text-indigo-600 tracking-wider">
-                                {quote.provider || logisticsProvider} Estimate
-                              </span>
-                            </div>
-                            <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setQuote(null)}>Reset</Button>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div className="p-3 bg-white/50 dark:bg-black/20 rounded-lg border border-indigo-100/50">
-                              <p className="text-[10px] font-bold text-indigo-600/70 uppercase mb-1">Base Courier</p>
-                              <p className="text-lg font-black">{formatAmount(quote.courier_fee)}</p>
-                            </div>
-                            <div className="p-3 bg-white/50 dark:bg-black/20 rounded-lg border border-indigo-100/50">
-                              <p className="text-[10px] font-bold text-indigo-600/70 uppercase mb-1">Merchant Markup</p>
-                              <p className="text-lg font-black text-emerald-600">+{formatAmount(quote.markup)}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between items-end border-t border-indigo-100 pt-3 mt-3">
-                            <div>
-                              <p className="text-3xl font-black tracking-tighter text-indigo-900 dark:text-indigo-100">
-                                {formatAmountNoDecimals(quote.delivery_fee)}
-                              </p>
-                              <p className="text-[10px] font-bold text-indigo-600/70 mt-1 uppercase tracking-widest leading-none">Total Customer Price</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 mb-1">Incl. Platform Fee</p>
-                              <div className="flex items-center gap-1 justify-end text-emerald-600">
-                                <Clock className="h-3 w-3" />
-                                <span className="text-[10px] font-black uppercase tracking-tight">{quote.eta_mins || 30} Mins ETA</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex justify-end">
-                        <Button
-                          onClick={handleAssignDelivery}
-                          disabled={assigningDelivery || !quote}
-                          className="font-black uppercase text-xs tracking-widest bg-indigo-600 hover:bg-indigo-700"
-                        >
-                          <Zap className="h-4 w-4 mr-2" />
-                          {assigningDelivery
-                            ? 'Booking...'
-                            : `Confirm & Book ${quote?.provider || logisticsProvider}`}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -488,24 +393,13 @@ export default function OrderDetail() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg border">
                     <div>
                       <p className="font-semibold capitalize flex items-center gap-2">
-                        {isManualMode
-                          ? <><User className="w-4 h-4 text-blue-600" /> Self / Manual Delivery</>
-                          : <><Zap className="w-4 h-4 text-indigo-600" /> {order.delivery_partner} Delivery</>
-                        }
+                        <User className="w-4 h-4 text-blue-600" /> Self / Manual Delivery
                       </p>
 
-                      {!isManualMode && order.delivery_id && (
-                        <p className="text-sm text-muted-foreground font-mono mt-1">
-                          ID: {order.delivery_id} | Status:{' '}
-                          <span className="font-semibold text-primary">{order.delivery_status}</span>
-                        </p>
-                      )}
-                      {isManualMode && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Status:{' '}
-                          <span className="font-semibold text-primary">{order.delivery_status || 'Assigned'}</span>
-                        </p>
-                      )}
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Status:{' '}
+                        <span className="font-semibold text-primary">{order.delivery_status || 'Assigned'}</span>
+                      </p>
                       {order.delivery_eta && (
                         <p className="text-sm text-muted-foreground mt-1">ETA: {order.delivery_eta}</p>
                       )}
@@ -518,13 +412,6 @@ export default function OrderDetail() {
                     </div>
 
                     <div className="flex flex-col gap-2 w-full sm:w-auto">
-                      {!isManualMode && order.delivery_tracking_url && isDeliveryActive && (
-                        <Button variant="outline" asChild className="w-full sm:w-auto">
-                          <a href={order.delivery_tracking_url} target="_blank" rel="noopener noreferrer">
-                            Track Rider
-                          </a>
-                        </Button>
-                      )}
                       {isDeliveryActive && (
                         <Button
                           variant="destructive"
@@ -538,8 +425,8 @@ export default function OrderDetail() {
                     </div>
                   </div>
 
-                  {/* Live Map — only for integrated providers */}
-                  {!isManualMode && (order.delivery_latitude || order.delivery_location_pin || order.rider_latitude) && (
+                  {/* Delivery Map */}
+                  {(restaurantDoc?.latitude || order.delivery_latitude || order.delivery_location_pin) && (
                     <DeliveryMap
                       restaurantName={restaurantDoc?.restaurant_name || restaurantDoc?.name}
                       pickupLocation={restaurantDoc?.latitude && restaurantDoc?.longitude ? {

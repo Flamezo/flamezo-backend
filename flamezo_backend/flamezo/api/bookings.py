@@ -39,17 +39,15 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
 		
-		# Production Auth Gate: require valid session token when verify_my_user is on
+		# Production Auth Gate: always require valid session token
 		phone = customer_info.get("phone")
 		if phone:
-			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "verify_my_user")
-			if config:
-				session_token = get_customer_token()
-				if not validate_customer_session(phone, session_token):
-					return {
-						"success": False,
-						"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
-					}
+			session_token = get_customer_token()
+			if not validate_customer_session(phone, session_token):
+				return {
+					"success": False,
+					"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
+				}
 		
 		# Get platform customer for linking
 		platform_customer = None
@@ -319,17 +317,15 @@ def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, ti
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
 		
-		# Production Auth Gate: require valid session token when verify_my_user is on
+		# Production Auth Gate: always require valid session token
 		phone = customer_info.get("phone")
 		if phone:
-			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "verify_my_user")
-			if config:
-				session_token = get_customer_token()
-				if not validate_customer_session(phone, session_token):
-					return {
-						"success": False,
-						"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
-					}
+			session_token = get_customer_token()
+			if not validate_customer_session(phone, session_token):
+				return {
+					"success": False,
+					"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
+				}
 		
 		# Get platform customer for linking
 		platform_customer = None

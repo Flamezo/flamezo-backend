@@ -55,7 +55,7 @@ const MarketingAutomation = lazy(() => import('./pages/MarketingAutomation'))
 const MarketingSegments = lazy(() => import('./pages/MarketingSegments'))
 const MarketingAnalytics = lazy(() => import('./pages/MarketingAnalytics'))
 const Events = lazy(() => import('./pages/Events'))
-const LogisticsHub = lazy(() => import('./pages/LogisticsHub'))
+
 const GoogleGrowth = lazy(() => import('./pages/GoogleGrowth'))
 const GoogleGrowthSync = lazy(() => import('./pages/GoogleGrowthSync'))
 const GoogleGrowthReviews = lazy(() => import('./pages/GoogleGrowthReviews'))
@@ -68,6 +68,9 @@ const MenuManagement = lazy(() => import('./pages/MenuManagement'))
 const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
 const PetpoojaLiveTesting = lazy(() => import('./pages/PetpoojaLiveTesting'))
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
+const UGCConfig = lazy(() => import('./pages/UGCConfig'))
+const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
+const UGCAnalytics = lazy(() => import('./pages/UGCAnalytics'))
 
 
 function AppContent() {
@@ -128,6 +131,11 @@ function AppContent() {
 								<Route element={<FeatureProtectedRoute feature="loyalty_insights" />}>
 									<Route path="/loyalty-insights" element={<CustomerInsights />} />
 								</Route>
+
+								{/* UGC Cashback — story-for-cashback growth loop */}
+								<Route path="/ugc-cashback/config" element={<UGCConfig />} />
+								<Route path="/ugc-cashback/approvals" element={<UGCApprovals />} />
+								<Route path="/ugc-cashback/analytics" element={<UGCAnalytics />} />
 
 								<Route element={<FeatureProtectedRoute feature="tableBooking" />}>
 									<Route path="/bookings" element={<Bookings />} />
@@ -193,7 +201,6 @@ function AppContent() {
 
 								<Route path="/Legacy Content" element={<LegacyContent />} />
 								<Route path="/Legacy Signature Dish" element={<LegacySignatureDish />} />
-								<Route path="/logistics-hub" element={<LogisticsHub />} />
 								<Route path="/restaurant/:restaurantId/payment" element={<Payment />} />
 								<Route path="/restaurant/:restaurantId/billing" element={<PaymentSettings />} />
 								<Route path="/restaurant/:restaurantId/route-kyc" element={<RouteKycPage />} />

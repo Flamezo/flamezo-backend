@@ -47,7 +47,7 @@ export function SubscriptionComparisonModal({
     { name: 'Gamification (Spin-the-Wheel)', gold: true },
     { name: 'Table & banquet booking', gold: true },
     { name: 'POS integration (PetPooja, UrbanPiper, RestroWorks)', gold: 'Deep Sync' },
-    { name: 'Delivery hub (Flash / Borzo)', gold: true },
+    { name: 'Self-Managed Delivery (custom rates per km)', gold: true },
     { name: 'Coupons & targeted offers', gold: true },
     { name: 'Data ownership', gold: 'You' },
     { name: 'Success Share on online orders', gold: `${planDefaults.gold_commission}%` },

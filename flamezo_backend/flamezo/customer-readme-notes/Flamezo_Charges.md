@@ -73,11 +73,10 @@ Communication costs are charged directly from your Unified Wallet per message se
 ## 4. Logistics & Order Fulfillment
 Transparency in delivery operations ensures a smooth experience for both you and your customers.
 
-- **Delivery Extra Handling Charge (₹5.00)**: Flamezo takes a flat ₹5 handling fee for every delivery processed through our integrated logistics partners (Borzo/Flash).
-- **Default Delivery Fee**: Fully configurable by the restaurant to pass on carrier costs to the customer.
+- **Self-Managed Delivery**: Restaurants manage delivery fulfillment using their own riders.
+- **Default Delivery Fee**: Fully configurable by the restaurant (e.g. base fee plus rate per km).
 - **Packaging & Operational Fee**: (Labeled as "Packaging Fee + Operation Overhead").
     - **Marketing Audit**: Recommend renaming to **"Eco-Packaging & Premium Handling"** for better customer reception.
-- **Logistics Markup**: You can set a % or Fixed markup on real-time carrier rates to ensure your delivery operations remain profitable.
 
 ---
 

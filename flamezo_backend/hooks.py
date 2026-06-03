@@ -154,6 +154,8 @@ permission_query_conditions = {
 	"Media Asset": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Media Upload Session": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Coupon Usage": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"UGC Cashback Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"UGC Story Submission": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Referral Link": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"WhatsApp Lead Unlock": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"AI credit Transaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
@@ -329,6 +331,11 @@ scheduler_events = {
 		# Boost — midnight: finalize expired campaigns, calculate guarantee
 		"0 0 * * *": [
 			"flamezo_backend.flamezo.tasks.boost_tasks.finalize_completed_boosts",
+		],
+		# UGC Cashback — hourly: send proof-upload reminders (max 2) and expire
+		# claims whose proof window has elapsed.
+		"15 * * * *": [
+			"flamezo_backend.flamezo.tasks.ugc_tasks.send_proof_reminders",
 		],
 	}
 }

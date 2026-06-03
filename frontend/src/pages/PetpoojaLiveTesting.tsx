@@ -42,6 +42,53 @@ interface LogEntry {
 }
 
 
+// ─── Status Icon ────────────────────────────────────────────────────────
+
+function StatusIcon({ status }: { status: TestStatus }) {
+  if (status === 'running') return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+  if (status === 'pass') return <CheckCircle2 className="w-4 h-4 text-green-500" />
+  if (status === 'fail') return <XCircle className="w-4 h-4 text-red-500" />
+  return <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
+}
+
+
+// ─── Test Card Component ────────────────────────────────────────────────────
+
+function TestCard({ icon, title, description, result, onRun, note }: {
+  icon: React.ReactNode
+  title: string
+  description: string
+  result?: TestResult
+  onRun: () => void
+  note?: string
+}) {
+  const status = result?.status || 'idle'
+  return (
+    <div className={cn("border rounded-lg p-3 transition-all", {
+      'border-green-200 bg-green-500/5': status === 'pass',
+      'border-red-200 bg-red-500/5': status === 'fail',
+      'border-blue-200 bg-blue-500/5': status === 'running',
+    })}>
+      <div className="flex items-center gap-3">
+        <div className="text-primary">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold">{title}</h3>
+          <p className="text-[10px] text-muted-foreground">{description}</p>
+        </div>
+        <StatusIcon status={status} />
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRun}
+          disabled={status === 'running'}>
+          {status === 'running' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+        </Button>
+      </div>
+      {result?.time && <p className="text-[10px] text-muted-foreground mt-1 ml-7">{result.time}ms</p>}
+      {result?.error && <p className="text-[10px] text-red-500 mt-1 ml-7">{result.error}</p>}
+      {note && <p className="text-[10px] text-muted-foreground/60 mt-1 ml-7 italic">{note}</p>}
+    </div>
+  )
+}
+
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function PetpoojaLiveTesting() {
@@ -199,15 +246,6 @@ export default function PetpoojaLiveTesting() {
     await fireOrder('S4_Discount', 'D', undefined, undefined, 43.9)
     await fireOrder('S5_AddonVar', 'D', { name: 'Small', id: '8481' }, { id: '41110', name: 'Nugget & Sauce', group_name: 'Choice Of Sauce', price: '0', group_id: 9675, quantity: '1' })
     addLog('info', '━━━ All 5 scenarios fired ━━━')
-  }
-
-  // ─── Status Icon ────────────────────────────────────────────────────────
-
-  const StatusIcon = ({ status }: { status: TestStatus }) => {
-    if (status === 'running') return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-    if (status === 'pass') return <CheckCircle2 className="w-4 h-4 text-green-500" />
-    if (status === 'fail') return <XCircle className="w-4 h-4 text-red-500" />
-    return <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
   }
 
   const passCount = Object.values(results).filter(r => r.status === 'pass').length
@@ -415,38 +453,4 @@ export default function PetpoojaLiveTesting() {
 }
 
 
-// ─── Test Card Component ────────────────────────────────────────────────────
 
-function TestCard({ icon, title, description, result, onRun, note }: {
-  icon: React.ReactNode
-  title: string
-  description: string
-  result?: TestResult
-  onRun: () => void
-  note?: string
-}) {
-  const status = result?.status || 'idle'
-  return (
-    <div className={cn("border rounded-lg p-3 transition-all", {
-      'border-green-200 bg-green-500/5': status === 'pass',
-      'border-red-200 bg-red-500/5': status === 'fail',
-      'border-blue-200 bg-blue-500/5': status === 'running',
-    })}>
-      <div className="flex items-center gap-3">
-        <div className="text-primary">{icon}</div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold">{title}</h3>
-          <p className="text-[10px] text-muted-foreground">{description}</p>
-        </div>
-        <StatusIcon status={status} />
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRun}
-          disabled={status === 'running'}>
-          {status === 'running' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-        </Button>
-      </div>
-      {result?.time && <p className="text-[10px] text-muted-foreground mt-1 ml-7">{result.time}ms</p>}
-      {result?.error && <p className="text-[10px] text-red-500 mt-1 ml-7">{result.error}</p>}
-      {note && <p className="text-[10px] text-muted-foreground/60 mt-1 ml-7 italic">{note}</p>}
-    </div>
-  )
-}

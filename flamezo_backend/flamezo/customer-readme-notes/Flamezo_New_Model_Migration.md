@@ -61,7 +61,6 @@ Flamezo operates as a **two-sided restaurant platform**:
 | WhatsApp messages | ₹1.20/msg | Margin ₹0.43/msg |
 | SMS | ₹0.25/msg | Margin ₹0.07/msg |
 | Email | ₹0.05/msg | High margin |
-| Delivery handling | ₹5/order | Via Borzo/Flash |
 | AI dish generation | ₹10/image | Per-use |
 | AI image enhancement | ₹5/image | Per-use |
 | Lead unlock | ₹1/lead (>24h) | Customer data access |

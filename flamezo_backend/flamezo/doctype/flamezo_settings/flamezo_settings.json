@@ -11,10 +11,6 @@
   "fast2sms_dlt_template_id",
   "otp_expiry_minutes",
   "column_break_otp",
-  "section_borzo",
-  "borzo_api_token",
-  "borzo_webhook_token",
-  "borzo_mode",
   "google_maps_api_key",
   "section_subscription_defaults",
   "gold_monthly_fee",
@@ -43,14 +39,6 @@
   "column_break_fatigue",
   "marketing_max_msgs_per_window",
   "marketing_fatigue_window_days",
-  "section_flash",
-  "flash_access_token",
-  "flash_store_id",
-  "flash_mode",
-  "flash_webhook_header_key",
-  "flash_webhook_header_value",
-  "section_platform_logistics",
-  "platform_delivery_convenience_fee",
   "section_hostinger_email",
   "hostinger_email",
   "hostinger_password",
@@ -91,30 +79,6 @@
   {
    "fieldname": "column_break_otp",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "section_borzo",
-   "fieldtype": "Section Break",
-   "label": "Borzo Delivery Configuration"
-  },
-  {
-   "fieldname": "borzo_api_token",
-   "fieldtype": "Password",
-   "label": "Borzo API Token",
-   "description": "Business API token from Borzo dashboard"
-  },
-  {
-   "fieldname": "borzo_webhook_token",
-   "fieldtype": "Data",
-   "label": "Borzo Webhook Token",
-   "description": "Optional. Token to verify Borzo webhooks"
-  },
-  {
-   "default": "Sandbox",
-   "fieldname": "borzo_mode",
-   "fieldtype": "Select",
-   "label": "Borzo Mode",
-   "options": "Sandbox\nProduction"
   },
   {
    "fieldname": "google_maps_api_key",
@@ -286,53 +250,6 @@
    "fieldname": "marketing_fatigue_window_days",
    "fieldtype": "Int",
    "label": "Fatigue Window (Days)"
-  },
-  {
-   "fieldname": "section_flash",
-   "fieldtype": "Section Break",
-   "label": "uEngage Flash Configuration"
-  },
-  {
-   "fieldname": "flash_access_token",
-   "fieldtype": "Password",
-   "label": "Flash Access Token"
-  },
-  {
-   "fieldname": "flash_store_id",
-   "fieldtype": "Data",
-   "label": "Flash Store ID (Global)",
-   "description": "Store ID from uEngage Flash dashboard. Production Store ID: 68035. All restaurant deliveries are routed through this Flamezo aggregator account."
-  },
-  {
-   "default": "Sandbox",
-   "fieldname": "flash_mode",
-   "fieldtype": "Select",
-   "label": "Flash Mode",
-   "options": "Sandbox\nProduction"
-  },
-  {
-   "fieldname": "flash_webhook_header_key",
-   "fieldtype": "Data",
-   "label": "Flash Webhook Header Key",
-   "description": "Header Key configured in uEngage Dashboard > Configuration > Configure Webhook (e.g. Authorization). Used to verify incoming Flash status callbacks."
-  },
-  {
-   "fieldname": "flash_webhook_header_value",
-   "fieldtype": "Password",
-   "label": "Flash Webhook Header Value (Secret)",
-   "description": "Header Value / secret token configured in uEngage Dashboard > Configure Webhook (e.g. Bearer xxx). Keep this private."
-  },
-  {
-   "fieldname": "section_platform_logistics",
-   "fieldtype": "Section Break",
-   "label": "Flamezo Platform Revenue (Logistics)"
-  },
-  {
-   "default": "5.0",
-   "fieldname": "platform_delivery_convenience_fee",
-   "fieldtype": "Currency",
-   "label": "Logistics Platform Fee (\u20b9)",
-   "description": "Fee Flamezo earns for every delivery booked through the system."
   },
   {
    "fieldname": "section_hostinger_email",

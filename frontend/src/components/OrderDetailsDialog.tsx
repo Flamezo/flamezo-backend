@@ -102,21 +102,16 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
       ? `DeliveryDialog-Restaurant-${restaurantConfig.restaurant.name}`
       : null
   )
-  const logisticsProvider: 'Borzo' | 'Flash' | 'Self' =
-    (restaurantDoc?.preferred_logistics_provider || 'Flash') as any
-  const isSelfDelivery = logisticsProvider === 'Self'
+  const logisticsProvider: 'Self' = 'Self'
+  const isSelfDelivery = true
 
   useEffect(() => {
     if (restaurantDoc) {
-      setDeliveryMode(isSelfDelivery ? 'manual' : 'auto')
+      setDeliveryMode('manual')
     }
-  }, [restaurantDoc, isSelfDelivery])
+  }, [restaurantDoc])
 
-  const providerBadge = {
-    Borzo: { color: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-900', icon: <Truck className="w-3 h-3" /> },
-    Flash: { color: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900', icon: <Zap className="w-3 h-3" /> },
-    Self: { color: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900', icon: <User className="w-3 h-3" /> },
-  }[logisticsProvider]
+  const providerBadge = { color: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900', icon: <User className="w-3 h-3" /> }
 
   const { call: assignDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.assign_delivery')
   const { call: cancelDeliveryAPI } = useFrappePostCall('flamezo_backend.flamezo.api.delivery.cancel_delivery')
@@ -274,7 +269,7 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
       const payload: any = {
         order_id: order.name,
         delivery_mode: deliveryMode,
-        partner_name: isSelfDelivery ? 'manual' : (logisticsProvider?.toLowerCase() || 'flash'),
+        partner_name: 'manual',
       }
       if (deliveryMode === 'manual') {
         payload.rider_name = manualForm.rider_name
@@ -286,7 +281,7 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
       const result = (res as any)?.message || res
       if (!result?.success) throw new Error(result?.error || 'Failed to assign delivery')
 
-      toast.success(isSelfDelivery ? 'Rider assigned manually' : `Delivery booked via ${logisticsProvider}`)
+      toast.success('Rider assigned manually')
       mutate()
     } catch (e: any) {
       toast.error('Failed to assign delivery', { description: getFrappeError(e) })
@@ -572,61 +567,29 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
                     <div className="p-4 space-y-4">
                       {!order.delivery_id && order.status !== 'cancelled' && (
                         <div className="p-4 bg-slate-50 dark:bg-zinc-800/50 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 space-y-4">
-                          {/* Provider info row */}
-                          <div className="flex items-center gap-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
-                            <span className="text-[10px] text-muted-foreground font-medium">Config:</span>
-                            <span className={cn(
-                              'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold border uppercase tracking-wide',
-                              providerBadge.color
-                            )}>
-                              {providerBadge.icon}
-                              {isSelfDelivery ? 'Self / Own Riders' : `${logisticsProvider} — Managed`}
-                            </span>
+                          <div className="space-y-3">
+                            <p className="text-[10px] text-muted-foreground">Assign your own rider. No API dispatch. No wallet balance deducted.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground">Rider Name</label>
+                                <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.rider_name} onChange={e => setManualForm({ ...manualForm, rider_name: e.target.value })} placeholder="Rider Name" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground">Rider Phone</label>
+                                <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.rider_phone} onChange={e => setManualForm({ ...manualForm, rider_phone: e.target.value })} placeholder="Rider Phone" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground">ETA (mins)</label>
+                                <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.eta} onChange={e => setManualForm({ ...manualForm, eta: e.target.value })} placeholder="e.g. 30" />
+                              </div>
+                            </div>
+                            <div className="flex justify-end">
+                              <Button size="sm" onClick={handleAssignDelivery} disabled={assigningDelivery} className="h-8 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700">
+                                <User className="w-3.5 h-3.5 mr-1.5" />
+                                {assigningDelivery ? 'Assigning...' : 'Assign Delivery'}
+                              </Button>
+                            </div>
                           </div>
-
-                          {/* ── SELF / MANUAL UI ── */}
-                          {isSelfDelivery && (
-                            <div className="space-y-3">
-                              <p className="text-[10px] text-muted-foreground">Assign your own rider. No API dispatch. No wallet balance deducted.</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <label className="text-[10px] font-black uppercase text-muted-foreground">Rider Name</label>
-                                  <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.rider_name} onChange={e => setManualForm({ ...manualForm, rider_name: e.target.value })} placeholder="Rider Name" />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[10px] font-black uppercase text-muted-foreground">Rider Phone</label>
-                                  <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.rider_phone} onChange={e => setManualForm({ ...manualForm, rider_phone: e.target.value })} placeholder="Rider Phone" />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[10px] font-black uppercase text-muted-foreground">ETA (mins)</label>
-                                  <input className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary" value={manualForm.eta} onChange={e => setManualForm({ ...manualForm, eta: e.target.value })} placeholder="e.g. 30" />
-                                </div>
-                              </div>
-                              <div className="flex justify-end">
-                                <Button size="sm" onClick={handleAssignDelivery} disabled={assigningDelivery} className="h-8 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700">
-                                  <User className="w-3.5 h-3.5 mr-1.5" />
-                                  {assigningDelivery ? 'Assigning...' : 'Assign Delivery'}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* ── BORZO / FLASH INTEGRATED UI ── */}
-                          {!isSelfDelivery && (
-                            <div className="space-y-3">
-                              <div className="flex justify-end">
-                                <Button
-                                  size="sm"
-                                  onClick={handleAssignDelivery}
-                                  disabled={assigningDelivery}
-                                  className="h-8 text-xs font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700"
-                                >
-                                  <Zap className="w-3.5 h-3.5 mr-1.5" />
-                                  {assigningDelivery ? 'Booking...' : `Book via ${logisticsProvider}`}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
 
@@ -636,18 +599,11 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
                             <div>
                               <p className="text-xs font-black uppercase tracking-tighter text-muted-foreground mb-1">Assigned Partner</p>
                               <p className="text-sm font-bold flex items-center gap-1.5">
-                                {order.delivery_partner === 'borzo' ? <><Truck className="w-3.5 h-3.5" /> Borzo Delivery</> :
-                                  order.delivery_partner === 'flash' ? <><Zap className="w-3.5 h-3.5 text-indigo-600" /> Flash Delivery</> :
-                                    order.delivery_partner === 'manual' || order.delivery_mode === 'manual' ? <><User className="w-3.5 h-3.5 text-blue-600" /> Manual Delivery</> :
-                                      'Unassigned'}
+                                {order.delivery_partner || order.delivery_mode === 'manual' ? <><User className="w-3.5 h-3.5 text-blue-600" /> Manual Delivery</> :
+                                  'Unassigned'}
                               </p>
 
-                              {order.delivery_id && order.delivery_partner !== 'manual' && order.delivery_mode !== 'manual' && (
-                                <p className="text-[10px] font-mono mt-1 bg-gray-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded inline-block">
-                                  ID: {order.delivery_id} | Status: <span className="font-bold text-primary">{order.delivery_status}</span>
-                                </p>
-                              )}
-                              {(order.delivery_partner === 'manual' || order.delivery_mode === 'manual') && (
+                              {(order.delivery_partner || order.delivery_mode === 'manual') && (
                                 <p className="text-[10px] font-bold mt-1 bg-gray-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded inline-block">
                                   Status: <span className="text-primary">{order.delivery_status || 'Assigned'}</span>
                                 </p>
@@ -664,7 +620,7 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
                                 </Button>
                               )}
                               {/* Self delivery: edit rider info toggle */}
-                              {(order.delivery_partner === 'manual') && order.delivery_status !== 'DELIVERED' && order.delivery_status !== 'delivered' && order.delivery_status !== 'cancelled' && (
+                              {(order.delivery_partner || order.delivery_mode === 'manual') && order.delivery_status !== 'DELIVERED' && order.delivery_status !== 'delivered' && order.delivery_status !== 'cancelled' && (
                                 <Button
                                   size="sm" variant="outline"
                                   onClick={() => {
@@ -684,7 +640,7 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, startInEditMod
                           </div>
 
                           {/* ── Inline edit rider form (self-delivery only) ── */}
-                          {isEditingRiderInfo && (order.delivery_partner === 'manual') && (
+                          {isEditingRiderInfo && (order.delivery_partner || order.delivery_mode === 'manual') && (
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/50">
                               <div className="space-y-1">
                                 <label className="text-[10px] font-black uppercase text-muted-foreground">Rider Name</label>

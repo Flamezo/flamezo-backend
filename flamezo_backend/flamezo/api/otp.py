@@ -3,7 +3,7 @@
 
 """
 OTP verification API — send, verify, check.
-SMS primary, WhatsApp fallback. Platform-wide verification.
+WhatsApp (Meta Cloud API) primary, SMS fallback. Platform-wide verification.
 """
 
 import random
@@ -16,6 +16,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	create_customer_session
 )
 from flamezo_backend.flamezo.utils.otp_service import (
+	send_otp_via_whatsapp,
 	send_otp_via_sms,
 	send_otp_via_evolution_api,
 	OTP_LENGTH,
@@ -28,35 +29,14 @@ from flamezo_backend.flamezo.utils.otp_service import (
 @frappe.whitelist(allow_guest=True)
 def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None):
 	"""
-	Send OTP: MSG91 WhatsApp first, fallback to Fast2SMS SMS.
+	Send OTP via WhatsApp (Meta Cloud API) first, SMS (Fast2SMS) fallback.
+	Every user must verify via OTP — no skip path.
 	Returns: { success, token, expires_in, channel }
 	"""
 	try:
-		config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
-		if not config:
-			# verify_my_user is OFF — still issue a trust session token.
-			# Without this, the frontend has no X-Customer-Token for subsequent authenticated APIs
-			# (order history, loyalty balance) and will hit SECURE_SESSION_INVALID when the
-			# restaurant later enables verification.
-			normalized = normalize_phone(phone)
-			if normalized and len(normalized) == 10:
-				try:
-					customer = get_or_create_customer(normalized)
-					if customer:
-						# Generate session token using specialized helper (ensures DB persistence)
-						session_token = create_customer_session(phone=normalized, customer_id=customer.name)
-						frappe.db.commit()
-						return {"success": True, "skip_verification": True, "session_token": session_token}
-				except Exception as e:
-					frappe.log_error(f"send_otp skip_verification session error: {e}", "OTP_Skip_Session")
-					# Non-fatal: fall through to return without session token
-			return {"success": True, "skip_verification": True}
-
 		normalized = normalize_phone(phone)
 		if not normalized or len(normalized) != 10:
 			return {"success": False, "error": "INVALID_PHONE", "message": "Invalid phone number"}
-
-		# A user must now always have a session token or verify via OTP.
 
 		# Rate limit
 		rate_key = f"otp_rate:{normalized}"
@@ -72,20 +52,19 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 		otp = "".join(random.choices(string.digits, k=OTP_LENGTH))
 		used_channel = None
 
-		# 1. Try Evolution API (Strategic Preference - Free/Dedicated)
-		# site_config.json takes priority so config persists across deployments without DB changes
+		# 1. Meta Cloud API (WhatsApp Business) — production primary
 		if channel != "sms":
-			site_config = frappe.get_site_config()
-			evo_url = site_config.get("evolution_api_url") or settings.evolution_api_url
-			evo_key = site_config.get("evolution_api_key") or settings.get_password("evolution_api_key")
-			evo_inst = site_config.get("evolution_api_instance") or settings.evolution_api_instance
-			if evo_url and evo_key and evo_inst:
-				if send_otp_via_evolution_api(evo_url, evo_key, evo_inst, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
-					used_channel = "whatsapp"
+			if send_otp_via_whatsapp(normalized, otp, restaurant_name=restaurant_name or restaurant_id):
+				used_channel = "whatsapp"
 
-
-
-
+		# 2. Fallback to SMS if WhatsApp failed or was skipped
+		if not used_channel:
+			try:
+				sms_key = settings.get_password("fast2sms_api_key") if settings else None
+			except Exception:
+				sms_key = None
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
+				used_channel = "sms"
 
 		if not used_channel:
 			_create_otp_log(restaurant_id, phone, channel or "whatsapp", 0, purpose, "All channels failed")
@@ -210,19 +189,18 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 		otp = "".join(random.choices(string.digits, k=OTP_LENGTH))
 		used_channel = None
 
-		# Try Evolution API (WhatsApp) with default "Flamezo" brand
+		# 1. Meta Cloud API (WhatsApp Business) — production primary
 		if channel != "sms":
-			site_config = frappe.get_site_config()
-			evo_url = site_config.get("evolution_api_url") or settings.evolution_api_url
-			evo_key = site_config.get("evolution_api_key") or settings.get_password("evolution_api_key")
-			evo_inst = site_config.get("evolution_api_instance") or settings.evolution_api_instance
-			if evo_url and evo_key and evo_inst:
-				if send_otp_via_evolution_api(evo_url, evo_key, evo_inst, normalized, otp, restaurant_name="Flamezo"):
-					used_channel = "whatsapp"
+			if send_otp_via_whatsapp(normalized, otp, restaurant_name="Flamezo"):
+				used_channel = "whatsapp"
 
-		# Fallback to SMS if WhatsApp fails
+		# 2. Fallback to SMS
 		if not used_channel:
-			if send_otp_via_sms(normalized, otp, settings):
+			try:
+				sms_key = settings.get_password("fast2sms_api_key") if settings else None
+			except Exception:
+				sms_key = None
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name="Flamezo"):
 				used_channel = "sms"
 
 		if not used_channel:

@@ -325,6 +325,69 @@ def regenerate_creative(campaign_id):
 	}
 
 
+# ─── Ad Creative Image (AI refinement) ──────────────────────────────
+
+@frappe.whitelist()
+def generate_boost_creative(campaign_id, source_image_url):
+	"""
+	Refine a chosen food photo into a Meta-ready ad creative.
+
+	Runs in the background: analyses the photo, composites the Flamezo
+	branding + offer graphic + address as overlays (without regenerating the
+	dish), uploads the result to R2, and stores it on the campaign as
+	`ad_image_with_overlay`. Poll `get_boost_creative_status` for completion.
+	"""
+	if not source_image_url:
+		return {"success": False, "error": {"code": "NO_IMAGE", "message": "Pick a photo first"}}
+
+	campaign = frappe.get_doc("Boost Campaign", campaign_id)
+	if campaign.status not in ("Draft", "Pending Payment"):
+		return {"success": False, "error": {"code": "INVALID_STATUS", "message": "Creative can only be changed before payment"}}
+
+	from flamezo_backend.flamezo.services import boost_image
+
+	# Keep the chosen source immediately; the processed version follows.
+	frappe.db.set_value("Boost Campaign", campaign_id, "ad_image_url", source_image_url)
+	frappe.db.commit()
+
+	boost_image.set_creative_status(campaign_id, "Processing")
+	frappe.enqueue(
+		"flamezo_backend.flamezo.services.boost_image.process_boost_creative",
+		queue="default",
+		timeout=300,
+		enqueue_after_commit=True,
+		campaign_name=campaign_id,
+		source_image_url=source_image_url,
+	)
+
+	return {"success": True, "data": {"campaign_id": campaign_id, "status": "Processing"}}
+
+
+@frappe.whitelist()
+def get_boost_creative_status(campaign_id):
+	"""Poll the status of the AI creative refinement."""
+	from flamezo_backend.flamezo.services import boost_image
+
+	processed_url = frappe.db.get_value("Boost Campaign", campaign_id, "ad_image_with_overlay")
+	state = boost_image.get_creative_status(campaign_id) or {}
+	status = state.get("status")
+
+	# If the durable result exists, it's ready regardless of cache expiry.
+	if processed_url and status not in ("Processing",):
+		status = "Ready"
+	elif not status:
+		status = "Ready" if processed_url else "Idle"
+
+	return {
+		"success": True,
+		"data": {
+			"status": status,
+			"processed_url": processed_url or None,
+			"error": state.get("error"),
+		},
+	}
+
+
 # ─── Payment ────────────────────────────────────────────────────────
 
 @frappe.whitelist()

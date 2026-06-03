@@ -1,0 +1,292 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-06-02 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "customer",
+  "order",
+  "column_break_identity",
+  "status",
+  "order_amount",
+  "submission_date",
+  "section_break_story",
+  "template_used",
+  "story_shared_at",
+  "column_break_story",
+  "story_verified_by",
+  "story_verified_at",
+  "section_break_proof",
+  "proof_video",
+  "proof_video_hash",
+  "proof_submitted_at",
+  "section_break_ai",
+  "ai_view_count",
+  "ai_confidence",
+  "ai_provider",
+  "column_break_ai",
+  "ai_tamper_signals",
+  "ai_raw",
+  "section_break_outcome",
+  "cashback_coins",
+  "reward_entry",
+  "column_break_outcome",
+  "reviewed_by",
+  "review_notes",
+  "rejection_reason",
+  "section_break_reminders",
+  "reminder_count",
+  "last_reminder_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Order",
+   "options": "Order",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "offer_shown",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "offer_shown\nstory_shared\nstory_verified\nproof_submitted\ncredited\nflagged\nrejected\nexpired",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "order_amount",
+   "fieldtype": "Currency",
+   "label": "Order Amount (cap)",
+   "read_only": 1,
+   "description": "Snapshot of the order total at offer time — the cashback cap."
+  },
+  {
+   "fieldname": "submission_date",
+   "fieldtype": "Datetime",
+   "label": "Offer Started At",
+   "default": "now"
+  },
+  {
+   "fieldname": "section_break_story",
+   "fieldtype": "Section Break",
+   "label": "Story"
+  },
+  {
+   "fieldname": "template_used",
+   "fieldtype": "Link",
+   "label": "Template Used",
+   "options": "Media Asset"
+  },
+  {
+   "fieldname": "story_shared_at",
+   "fieldtype": "Datetime",
+   "label": "Story Shared At"
+  },
+  {
+   "fieldname": "column_break_story",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "story_verified_by",
+   "fieldtype": "Link",
+   "label": "Story Verified By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "story_verified_at",
+   "fieldtype": "Datetime",
+   "label": "Story Verified At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_proof",
+   "fieldtype": "Section Break",
+   "label": "View-Count Proof"
+  },
+  {
+   "fieldname": "proof_video",
+   "fieldtype": "Link",
+   "label": "Proof Video",
+   "options": "Media Asset"
+  },
+  {
+   "fieldname": "proof_video_hash",
+   "fieldtype": "Data",
+   "label": "Proof Video Hash",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Content hash used to detect re-used / duplicate proof videos."
+  },
+  {
+   "fieldname": "proof_submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Proof Submitted At"
+  },
+  {
+   "fieldname": "section_break_ai",
+   "fieldtype": "Section Break",
+   "label": "AI Verification"
+  },
+  {
+   "fieldname": "ai_view_count",
+   "fieldtype": "Int",
+   "label": "AI-Read View Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_confidence",
+   "fieldtype": "Float",
+   "label": "AI Confidence",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_provider",
+   "fieldtype": "Data",
+   "label": "AI Provider",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ai",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ai_tamper_signals",
+   "fieldtype": "Small Text",
+   "label": "Tamper / Anomaly Signals",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_raw",
+   "fieldtype": "Long Text",
+   "label": "AI Raw Response",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "default": "0",
+   "fieldname": "cashback_coins",
+   "fieldtype": "Int",
+   "label": "Cashback Credited (Cash)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reward_entry",
+   "fieldtype": "Link",
+   "label": "Loyalty Entry",
+   "options": "Restaurant Loyalty Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_outcome",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "review_notes",
+   "fieldtype": "Small Text",
+   "label": "Review Notes"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "section_break_reminders",
+   "fieldtype": "Section Break",
+   "label": "Reminders"
+  },
+  {
+   "default": "0",
+   "fieldname": "reminder_count",
+   "fieldtype": "Int",
+   "label": "Reminders Sent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_reminder_at",
+   "fieldtype": "Datetime",
+   "label": "Last Reminder At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "UGC Story Submission",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Admin"
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Staff"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

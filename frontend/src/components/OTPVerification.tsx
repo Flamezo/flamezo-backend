@@ -55,14 +55,6 @@ export function OTPVerification({
         purpose: 'checkout'
       })
       if (res?.success) {
-        if (res.skip_verification) {
-          onVerified()
-          return
-        }
-        if (res.skip_verification) {
-          onVerified()
-          return
-        }
         if (res.token) {
           setToken(res.token)
           setStep('verify')

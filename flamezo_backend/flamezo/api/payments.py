@@ -102,18 +102,14 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			except Exception:
 				pickup_datetime = None
 
-		# Auth gate: when verify_my_user is ON, require a valid session token OR a DB-verified phone.
-		# Session token is preferred (X-Customer-Token header); DB verified_at is the grace fallback.
-		# This prevents forced re-auth while keeping payment creation secure.
+		# Auth gate: always require a valid session token OR a DB-verified phone.
 		if customer_phone:
-			config = frappe.db.get_value("Restaurant Config", {"restaurant": _restaurant_name}, "verify_my_user")
-			if config:
-				session_token = get_customer_token()
-				normalized = normalize_phone(customer_phone)
-				has_valid_session = validate_customer_session(normalized, session_token) if session_token else False
-				has_verified_phone = is_phone_verified(normalized)
-				if not has_valid_session and not has_verified_phone:
-					return {"success": False, "error": {"code": "PHONE_NOT_VERIFIED", "message": "Please verify your phone with OTP first"}}
+			session_token = get_customer_token()
+			normalized = normalize_phone(customer_phone)
+			has_valid_session = validate_customer_session(normalized, session_token) if session_token else False
+			has_verified_phone = is_phone_verified(normalized)
+			if not has_valid_session and not has_verified_phone:
+				return {"success": False, "error": {"code": "PHONE_NOT_VERIFIED", "message": "Please verify your phone with OTP first"}}
 
 		# Get platform customer for linking
 		platform_customer = None

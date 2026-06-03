@@ -41,7 +41,7 @@ Streamline your backend so you can focus on the food.
 
 - **In-Store Table Ordering**: Reduce staff workload. Let customers order and pay directly from their tables using their phones.
 - **WhatsApp Direct Ordering**: The easiest way for regulars to order for home delivery—no app download required.
-- **Integrated Logistics Hub**: One-click delivery fulfillment via partners like **Borzo** and **Flash**. Track riders in real-time from your dashboard.
+- **Self-Managed Delivery**: Manage delivery fulfillment seamlessly using your own riders, with custom base rates and rates per km.
 - **Payment & POS Harmony**: Integrated payment gateways (Razorpay) with support for UPI, Cards, and Netbanking. Works alongside your existing POS or as a standalone system.
 
 ---

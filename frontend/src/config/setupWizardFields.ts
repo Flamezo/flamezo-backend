@@ -114,11 +114,8 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'packaging_fee_type',
       'minimum_order_value',
       'estimated_prep_time',
-      'preferred_logistics_provider',
-      'flash_store_id',
-      'delivery_markup_type',
-      'delivery_markup_value',
       'max_delivery_distance',
+      'delivery_charge_per_km',
       'currency',
 
       // Tax

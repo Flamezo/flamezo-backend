@@ -164,6 +164,17 @@ const navigation: NavItem[] = [
   },
   {
     type: 'group',
+    id: 'ugc-cashback',
+    name: 'UGC Cashback',
+    icon: Megaphone,
+    children: [
+      { name: 'Configure Offer', href: '/ugc-cashback/config', icon: Settings },
+      { name: 'Story Approvals', href: '/ugc-cashback/approvals', icon: CheckCircle2, badgeHref: '/ugc-cashback/approvals' },
+      { name: 'Analytics', href: '/ugc-cashback/analytics', icon: BarChart3 },
+    ],
+  },
+  {
+    type: 'group',
     id: 'marketing-studio',
     name: 'Marketing Studio',
     icon: Megaphone,
@@ -212,7 +223,6 @@ const navigation: NavItem[] = [
 { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
       { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
       { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
-      { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
       { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
       { name: 'Gallery Management', href: '/gallery-management', icon: Star },
     ],
@@ -1014,7 +1024,7 @@ export default function Layout({ children }: LayoutProps) {
                             hasActiveChild ? "text-primary" : "text-muted-foreground hover:text-sidebar-foreground",
                             isGroupFullyLocked && "opacity-60"
                           )}
-                          title={`${group.name}${(group.id === 'google-growth' || group.id === 'boost') ? ' (Beta)' : ''}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
+                          title={`${group.name}${(group.id === 'google-growth' || group.id === 'boost' || group.id === 'ugc-cashback') ? ' (Beta)' : ''}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
                         >
                           <Icon className="h-4 w-4" />
                           {isGroupFullyLocked && (
@@ -1113,7 +1123,7 @@ export default function Layout({ children }: LayoutProps) {
                         <>
                           <span className="flex-1 text-left flex items-center gap-1.5">
                             {group.name}
-                            {(group.id === 'google-growth' || group.id === 'boost') && (
+                            {(group.id === 'google-growth' || group.id === 'boost' || group.id === 'ugc-cashback') && (
                               <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20">
                                 BETA
                               </span>
@@ -1137,7 +1147,7 @@ export default function Layout({ children }: LayoutProps) {
                       {!showExpanded && (
                         <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-foreground text-background text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 shadow-lg">
                           {group.name}
-                          {(group.id === 'google-growth' || group.id === 'boost') && ' (Beta)'}
+                           {(group.id === 'google-growth' || group.id === 'boost' || group.id === 'ugc-cashback') && ' (Beta)'}
                           {isGroupFullyLocked && ' 🔒'}
                           {showBadge && ` (${groupBadgeCount} pending)`}
                         </span>

@@ -3,7 +3,7 @@ const common_site_config = require('../../../sites/common_site_config.json');
 const { webserver_port } = common_site_config;
 
 export default {
-	'^/api/(delivery|borzo|ai)': {
+	'^/api/(delivery|ai)': {
 		target: `http://127.0.0.1:8001`,
 		changeOrigin: true,
 	},

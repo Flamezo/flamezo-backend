@@ -140,6 +140,13 @@ export default function BoostOverview() {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase text-muted-foreground/60 mb-2">
+        <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-foreground">Boost</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -162,7 +169,7 @@ export default function BoostOverview() {
 
       {/* Prerequisites Banner */}
       {prereqs && !prereqs.passed && (
-        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+        <Card className="border-none bg-amber-50/50 dark:bg-amber-950/20 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start gap-4">
               {/* Progress Circle */}
@@ -199,19 +206,19 @@ export default function BoostOverview() {
       {/* KPI Cards */}
       {overview && overview.total_campaigns > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <StatCard icon={<DollarSign className="h-4 w-4" />} label="Total Spend" value={`₹${overview.total_spend.toLocaleString()}`} />
-          <StatCard icon={<Users className="h-4 w-4" />} label="Walk-ins" value={String(overview.total_redemptions)} highlight />
+          <StatCard icon={<DollarSign className="h-4 w-4" />} label="Total Spend" value={`₹${overview.total_spend.toLocaleString()}`} subtext="Meta budget spent" />
+          <StatCard icon={<Users className="h-4 w-4" />} label="Walk-ins" value={String(overview.total_redemptions)} highlight subtext="Redeemed coupons" />
           <StatCard icon={<TrendingDown className="h-4 w-4" />} label="Cost/Walk-in"
-            value={overview.total_redemptions > 0 ? `₹${Math.round(overview.avg_cost_per_redemption)}` : '—'} />
-          <StatCard icon={<Zap className="h-4 w-4" />} label="Active" value={String(overview.active_count)} />
-          <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Avg ROI" value={avgRoi > 0 ? `${avgRoi}x` : '—'} good={avgRoi >= 3} />
-          <StatCard icon={<Ticket className="h-4 w-4" />} label="Claimed" value={String(totalClaimed)} />
+            value={overview.total_redemptions > 0 ? `₹${Math.round(overview.avg_cost_per_redemption)}` : '—'} subtext="Avg acquisition cost" />
+          <StatCard icon={<Zap className="h-4 w-4" />} label="Active" value={String(overview.active_count)} subtext="Running campaigns" />
+          <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Avg ROI" value={avgRoi > 0 ? `${avgRoi}x` : '—'} good={avgRoi >= 3} subtext="Revenue multiplier" />
+          <StatCard icon={<Ticket className="h-4 w-4" />} label="Claimed" value={String(totalClaimed)} subtext="Instagram claims" />
         </div>
       )}
 
       {/* Campaign List */}
       {overview && overview.total_campaigns > 0 ? (
-        <Card>
+        <Card className="border-none bg-card shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
               <CardTitle className="text-base">Your Campaigns</CardTitle>
@@ -312,7 +319,7 @@ export default function BoostOverview() {
         </Card>
       ) : (
         /* Empty State */
-        <Card className="py-16">
+        <Card className="py-16 border-none bg-card shadow-sm">
           <CardContent className="text-center">
             <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-950/40 dark:to-amber-950/40 flex items-center justify-center mx-auto mb-5">
               <Zap className="h-8 w-8 text-orange-500" />
@@ -336,7 +343,7 @@ export default function BoostOverview() {
       {overview && overview.total_campaigns > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link to="/boost/redeem" className="group">
-            <Card className="hover:border-orange-300 dark:hover:border-orange-700 transition-colors">
+            <Card className="border-none bg-card shadow-sm hover:shadow-lg hover:bg-muted/10 transition-all duration-300">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
@@ -352,7 +359,7 @@ export default function BoostOverview() {
             </Card>
           </Link>
           <Link to="/boost/new" className="group">
-            <Card className="hover:border-orange-300 dark:hover:border-orange-700 transition-colors">
+            <Card className="border-none bg-card shadow-sm hover:shadow-lg hover:bg-muted/10 transition-all duration-300">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
@@ -375,24 +382,35 @@ export default function BoostOverview() {
 
 // ─── Stat Card ──────────────────────────────────────────────────
 
-function StatCard({ icon, label, value, highlight, good }: {
-  icon: React.ReactNode; label: string; value: string; highlight?: boolean; good?: boolean
+function StatCard({ icon, label, value, subtext, highlight, good }: {
+  icon: React.ReactNode; label: string; value: string; subtext?: string; highlight?: boolean; good?: boolean
 }) {
   return (
     <Card className={cn(
-      'transition-all',
-      highlight && 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20'
+      "relative overflow-hidden transition-all duration-300 hover:shadow-lg border-none bg-card shadow-sm",
+      highlight && "bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20"
     )}>
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
+      {highlight && (
+        <div className="absolute top-0 right-0 p-3 opacity-10">
           {icon}
-          <span className="text-[11px] font-medium uppercase tracking-wider">{label}</span>
         </div>
+      )}
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <CardTitle className={cn("text-xs font-medium uppercase tracking-wider", highlight ? "text-white/80" : "text-muted-foreground")}>
+          {label}
+        </CardTitle>
+        {!highlight && <div className={cn("text-orange-500", good && "text-emerald-500")}>{icon}</div>}
+      </CardHeader>
+      <CardContent>
         <p className={cn(
-          'text-2xl font-bold',
-          highlight && 'text-orange-600',
-          good && 'text-emerald-600'
+          'text-2xl font-bold tracking-tight',
+          highlight ? 'text-white' : good ? 'text-emerald-600' : 'text-foreground'
         )}>{value}</p>
+        {subtext && (
+          <p className={cn("text-[10px] mt-1.5", highlight ? "text-white/70" : "text-muted-foreground")}>
+            {subtext}
+          </p>
+        )}
       </CardContent>
     </Card>
   )

@@ -297,12 +297,7 @@ def revoke_customer_session(session_token: str) -> bool:
 
 
 def require_verified_phone(restaurant_id: str, phone: str) -> bool:
-	plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
-	if plan_type != "GOLD":
-		return True
-	config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
-	if not config:
-		return True
+	"""Verification is always required — no per-restaurant toggle."""
 	return is_phone_verified(phone)
 
 

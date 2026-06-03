@@ -61,13 +61,6 @@ class Settings(BaseSettings):
 	log_level: str = "INFO"
 	log_format: str = "json"
 	
-	# Borzo Delivery
-	borzo_api_token: str = ""
-	borzo_webhook_token: str = ""
-	borzo_api_url: str = "https://robot-in.borzodelivery.com/api/business/1.6"  # Production (India)
-	borzo_sandbox_url: str = "https://robotapitest-in.borzodelivery.com/api/business/1.6" # Sandbox (India)
-	borzo_mode: str = "sandbox"  # sandbox or production
-	
 	class Config:
 		env_file = ".env"
 		case_sensitive = False

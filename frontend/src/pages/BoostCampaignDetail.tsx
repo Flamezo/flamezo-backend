@@ -1,7 +1,7 @@
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import {
   ChevronLeft, Eye, MousePointerClick, Ticket, Users, DollarSign,
   Pause, Play, TrendingUp, XCircle, Copy, ExternalLink, Share2,
@@ -127,21 +127,34 @@ export default function BoostCampaignDetail() {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase text-muted-foreground/60 mb-2">
+        <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+        <ChevronRight className="h-3 w-3" />
+        <Link to="/boost" className="hover:text-foreground transition-colors">Boost</Link>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-foreground">Campaign Details</span>
+      </nav>
+
       <Button variant="ghost" size="sm" onClick={() => navigate('/boost')} className="-ml-2 gap-1">
         <ChevronLeft className="h-4 w-4" /> Back to Boost
       </Button>
 
       {/* Status Banner */}
-      <Card className={cn('border', status.bg)}>
-        <CardContent className="pt-4 pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+      <Card className="border-none bg-card shadow-sm">
+        <CardContent className="pt-6 pb-5">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className={cn('h-2.5 w-2.5 rounded-full shrink-0', status.dot)} />
-              <div>
-                <h1 className="text-xl font-bold">{data.campaign_name}</h1>
-                <p className="text-sm text-muted-foreground">{data.package_tier} · ₹{data.offer_amount} off</p>
+              <div className="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center text-orange-600">
+                <Zap className="h-5 w-5" />
               </div>
-              <Badge className={cn('ml-2', status.text, status.bg)}>{data.status}</Badge>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-foreground">{data.campaign_name}</h1>
+                  <Badge className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm', status.text, status.bg)}>{data.status}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{data.package_tier} · ₹{data.offer_amount} off</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {data.status === 'Live' && (
@@ -158,13 +171,13 @@ export default function BoostCampaignDetail() {
           </div>
           {/* Budget Bar */}
           {data.status === 'Live' && (
-            <div className="mt-3">
-              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>₹{Math.round(data.amount_spent_meta)} spent</span>
-                <span>{data.days_remaining} days left</span>
+            <div className="mt-5 pt-4 border-t border-border/40">
+              <div className="flex justify-between items-center text-xs text-muted-foreground mb-1.5">
+                <span className="font-semibold text-foreground">₹{Math.round(data.amount_spent_meta).toLocaleString()} spent</span>
+                <span className="bg-muted px-2.5 py-0.5 rounded-full font-bold">{data.days_remaining} days left</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: `${budgetPct}%` }} />
+                <div className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500" style={{ width: `${budgetPct}%` }} />
               </div>
             </div>
           )}
@@ -184,7 +197,7 @@ export default function BoostCampaignDetail() {
       {/* Two Column: Guarantee + Coupon */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Guarantee */}
-        <Card>
+        <Card className="border-none bg-card shadow-sm">
           <CardHeader className="pb-3"><CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Guarantee</CardTitle></CardHeader>
           <CardContent>
             {data.is_first_campaign ? (
@@ -213,10 +226,10 @@ export default function BoostCampaignDetail() {
         </Card>
 
         {/* Coupon Details */}
-        <Card>
+        <Card className="border-none bg-card shadow-sm">
           <CardHeader className="pb-3"><CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Coupon</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg border">
               <span className="text-lg font-mono font-bold text-orange-600 flex-1">{data.coupon_code}</span>
               <button onClick={() => { navigator.clipboard.writeText(data.coupon_code); toast.success('Copied!') }}
                 className="p-1.5 rounded hover:bg-background transition-colors"><Copy className="h-4 w-4 text-muted-foreground" /></button>
@@ -237,7 +250,7 @@ export default function BoostCampaignDetail() {
       </div>
 
       {/* Redemption Log */}
-      <Card>
+      <Card className="border-none bg-card shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Walk-in Log</CardTitle>
@@ -308,13 +321,31 @@ function KPICard({ icon, label, value, sub, highlight, good }: {
   icon: React.ReactNode; label: string; value: string; sub?: string; highlight?: boolean; good?: boolean
 }) {
   return (
-    <Card className={cn(highlight && 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20')}>
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
-          {icon}<span className="text-[11px] font-medium uppercase tracking-wider">{label}</span>
+    <Card className={cn(
+      "relative overflow-hidden transition-all duration-300 hover:shadow-lg border-none bg-card shadow-sm",
+      highlight && "bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20"
+    )}>
+      {highlight && (
+        <div className="absolute top-0 right-0 p-3 opacity-10">
+          {icon}
         </div>
-        <p className={cn('text-2xl font-bold', highlight && 'text-orange-600', good && 'text-emerald-600')}>{value}</p>
-        {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+      )}
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <CardTitle className={cn("text-xs font-medium uppercase tracking-wider", highlight ? "text-white/80" : "text-muted-foreground")}>
+          {label}
+        </CardTitle>
+        {!highlight && <div className={cn("text-orange-500", good && "text-emerald-500")}>{icon}</div>}
+      </CardHeader>
+      <CardContent>
+        <p className={cn(
+          'text-2xl font-bold tracking-tight',
+          highlight ? 'text-white' : good ? 'text-emerald-600' : 'text-foreground'
+        )}>{value}</p>
+        {sub && (
+          <p className={cn("text-[10px] mt-1.5", highlight ? "text-white/70" : "text-muted-foreground")}>
+            {sub}
+          </p>
+        )}
       </CardContent>
     </Card>
   )

@@ -23,6 +23,8 @@ export default function OrderSettings() {
     minimum_order_value: 0,
     estimated_prep_time: 30,
     default_delivery_fee: 0,
+    delivery_charge_per_km: 0,
+    max_delivery_distance: 10.0,
     no_ordering: 0,
     order_channel: 'Realtime' as 'Realtime' | 'WhatsApp',
     tax_rate: 5.0,
@@ -46,6 +48,8 @@ export default function OrderSettings() {
         minimum_order_value: restaurantDoc.minimum_order_value ?? 0,
         estimated_prep_time: restaurantDoc.estimated_prep_time ?? 30,
         default_delivery_fee: restaurantDoc.default_delivery_fee ?? 0,
+        delivery_charge_per_km: restaurantDoc.delivery_charge_per_km ?? 0,
+        max_delivery_distance: restaurantDoc.max_delivery_distance ?? 10.0,
         no_ordering: restaurantDoc.no_ordering ?? 0,
         order_channel: (restaurantDoc.order_channel as 'Realtime' | 'WhatsApp') || 'Realtime',
         tax_rate: restaurantDoc.tax_rate ?? 5.0,
@@ -72,6 +76,8 @@ export default function OrderSettings() {
           minimum_order_value: settings.minimum_order_value,
           estimated_prep_time: settings.estimated_prep_time,
           default_delivery_fee: settings.default_delivery_fee,
+          delivery_charge_per_km: settings.delivery_charge_per_km,
+          max_delivery_distance: settings.max_delivery_distance,
           no_ordering: settings.no_ordering,
           order_channel: settings.order_channel,
           tax_rate: settings.tax_rate,
@@ -293,7 +299,7 @@ export default function OrderSettings() {
               <div className="space-y-0.5">
                 <Label>Enable Delivery</Label>
                 <p className="text-sm text-muted-foreground">
-                  Show delivery option on the ordering page. Configure providers in the <a href="/admin/logistics-hub" className="text-primary hover:underline font-medium">Logistics Hub</a>.
+                  Show delivery option on the ordering page.
                 </p>
               </div>
               <Checkbox
@@ -305,30 +311,50 @@ export default function OrderSettings() {
             {settings.enable_delivery === 1 && (
               <>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label>Default Delivery Fee</Label>
-                    {(restaurantDoc?.preferred_logistics_provider === 'Borzo' || restaurantDoc?.preferred_logistics_provider === 'Flash') && (
-                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                        Managed by Logistics Hub
-                      </span>
-                    )}
-                  </div>
-                  <div className={`flex items-center rounded-md border border-input bg-background overflow-hidden ${(restaurantDoc?.preferred_logistics_provider === 'Borzo' || restaurantDoc?.preferred_logistics_provider === 'Flash') ? 'opacity-50 grayscale select-none cursor-not-allowed' : ''}`}>
+                  <Label>Base Delivery Fee</Label>
+                  <div className="flex items-center rounded-md border border-input bg-background overflow-hidden">
                     <span className="flex h-8 items-center border-r border-input px-3 text-sm leading-none text-muted-foreground font-medium">
                       ₹
                     </span>
                     <NumberInput
-                      
-                      disabled={restaurantDoc?.preferred_logistics_provider === 'Borzo' || restaurantDoc?.preferred_logistics_provider === 'Flash'}
                       className="h-8 border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0"
                       value={settings.default_delivery_fee || ''}
                       onChange={(e) => handleNumberChange('default_delivery_fee', e.target.value)}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {(restaurantDoc?.preferred_logistics_provider === 'Borzo' || restaurantDoc?.preferred_logistics_provider === 'Flash') 
-                      ? 'Fees are calculated dynamically based on courier cost + your markup.' 
-                      : 'Flat fee applied to all self-managed delivery orders.'}
+                    Initial fixed delivery charge applied to all orders.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Delivery Charge Per KM</Label>
+                  <div className="flex items-center rounded-md border border-input bg-background overflow-hidden">
+                    <span className="flex h-8 items-center border-r border-input px-3 text-sm leading-none text-muted-foreground font-medium">
+                      ₹
+                    </span>
+                    <NumberInput
+                      className="h-8 border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0"
+                      value={settings.delivery_charge_per_km || ''}
+                      onChange={(e) => handleNumberChange('delivery_charge_per_km', e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Additional charge rate per road kilometer between restaurant and customer.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Maximum Delivery Distance (km)</Label>
+                  <div className="flex items-center rounded-md border border-input bg-background overflow-hidden">
+                    <NumberInput
+                      className="h-8 border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0 px-3"
+                      value={settings.max_delivery_distance || ''}
+                      onChange={(e) => handleNumberChange('max_delivery_distance', e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Deliveries past this distance will be marked as unserviceable.
                   </p>
                 </div>
 
@@ -339,7 +365,6 @@ export default function OrderSettings() {
                       ₹
                     </span>
                     <NumberInput
-                      
                       className="h-8 border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0"
                       value={settings.minimum_order_value || ''}
                       onChange={(e) => handleNumberChange('minimum_order_value', e.target.value)}

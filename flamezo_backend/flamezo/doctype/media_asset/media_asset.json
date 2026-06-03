@@ -95,7 +95,7 @@
    "fieldname": "media_role",
    "fieldtype": "Select",
    "label": "Media Role",
-   "options": "product_image\nproduct_video\nproduct_video_poster\ncategory_image\nhome_feature_image\nrestaurant_logo\nrestaurant_hero_video\nrestaurant_banner\nrestaurant_gallery_image\nrestaurant_config_logo\nrestaurant_config_hero_video\napple_touch_icon\nevent_image\noffer_image\nlegacy_hero_media\nlegacy_hero_fallback\nlegacy_footer_media\nlegacy_member_image\nlegacy_testimonial_avatar\nlegacy_testimonial_dish_image\nlegacy_gallery_image",
+   "options": "product_image\nproduct_video\nproduct_video_poster\ncategory_image\nhome_feature_image\nrestaurant_logo\nrestaurant_hero_video\nrestaurant_banner\nrestaurant_gallery_image\nrestaurant_config_logo\nrestaurant_config_hero_video\napple_touch_icon\nevent_image\noffer_image\nlegacy_hero_media\nlegacy_hero_fallback\nlegacy_footer_media\nlegacy_member_image\nlegacy_testimonial_avatar\nlegacy_testimonial_dish_image\nlegacy_gallery_image\nugc_proof_video\nugc_template_image",
    "reqd": 1,
    "in_list_view": 1
   },
