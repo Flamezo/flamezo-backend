@@ -385,6 +385,7 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 			"Referral Share":   f"Someone clicked your invite link — you earned {coins} coins!",
 			"Referral Order":   f"Your friend placed their first order — you earned {coins} coins!",
 			"Birthday Bonus":   f"Happy Birthday! 🎂 We've gifted you {coins} coins at {restaurant_name}.",
+			"UGC Cashback":     f"🎉 Your story cashback is in! {coins} Cash added to your wallet from {restaurant_name}.",
 			"Manual Adjustment": f"You've received {coins} coins at {restaurant_name}.",
 		}
 

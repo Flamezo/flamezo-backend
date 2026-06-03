@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-06-02 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "customer",
+  "is_active",
+  "blocked_until",
+  "column_break_1",
+  "restaurant",
+  "reference_submission",
+  "section_break_reason",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active",
+   "description": "When active, this customer cannot earn UGC cashback."
+  },
+  {
+   "fieldname": "blocked_until",
+   "fieldtype": "Datetime",
+   "label": "Blocked Until",
+   "description": "Leave empty for a permanent block."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Restaurant (context)",
+   "options": "Restaurant",
+   "search_index": 1
+  },
+  {
+   "fieldname": "reference_submission",
+   "fieldtype": "Link",
+   "label": "Triggering Submission",
+   "options": "UGC Story Submission"
+  },
+  {
+   "fieldname": "section_break_reason",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "UGC Fraud Flag",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Flamezo Supervisor",
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

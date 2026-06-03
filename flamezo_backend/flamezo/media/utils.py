@@ -29,6 +29,8 @@ def get_allowed_roles():
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],
 		"Offer": ["offer_image"],
+		"UGC Cashback Config": ["ugc_template_image"],
+		"UGC Story Submission": ["ugc_proof_video"],
 		"Legacy Content": ["legacy_hero_media", "legacy_hero_fallback", "legacy_footer_media", "legacy_member_image", "legacy_testimonial_avatar", "legacy_testimonial_dish_image", "legacy_gallery_image"],
 		"Legacy Member": ["legacy_member_image"],
 		"Legacy Testimonial": ["legacy_testimonial_avatar", "legacy_testimonial_dish_image"],
@@ -375,6 +377,10 @@ def get_restaurant_from_owner(owner_doctype, owner_name):
 			parent_testimonial = frappe.db.get_value("Legacy Testimonial", parent, "parent")
 			if parent_testimonial:
 				return frappe.db.get_value("Legacy Content", parent_testimonial, "restaurant")
+	elif owner_doctype == "UGC Story Submission":
+		return frappe.db.get_value("UGC Story Submission", owner_name, "restaurant")
+	elif owner_doctype == "UGC Cashback Config":
+		return frappe.db.get_value("UGC Cashback Config", owner_name, "restaurant")
 	else:
 		from frappe import _
 		frappe.throw(_(f"Unsupported owner doctype: {owner_doctype}"))

@@ -8,11 +8,11 @@ Captures customer intent-to-order data when the customer redirects to WhatsApp.
 Creates a shadow Order record for analytics and CRM purposes.
 
 Design decisions:
-  - payment_method = "pay_at_counter"  (restaurant handles payment manually)
-  - status         = "confirmed"       (immediately visible in analytics dashboard)
+  - payment_method = customer-selected ("pay_online" or "pay_at_counter", default: pay_at_counter)
+  - status         = "pending_verification" (merchant waiting for WhatsApp confirmation)
   - payment_status = "pending"         (honest — we don't know if WA message was sent)
-  - order_type     = "dine_in"         (GOLD is dine-in only)
-  - No loyalty, no coupons, no delivery — GOLD feature boundary strictly enforced here.
+  - order_type     = from frontend     (dine_in, takeaway, delivery)
+  - Loyalty coins earned when payment_method is "pay_online"
   - Fire-and-forget design: any failure is swallowed and logged so the WA redirect
     is NEVER blocked by a backend error.
 """
@@ -246,6 +246,7 @@ def log_whatsapp_order(
     pickup_time=None,
     packaging_fee=0,
     delivery_fee=0,
+    payment_method=None,
 ):
     """
     POST /api/method/flamezo_backend.flamezo.api.whatsapp_ordering.log_whatsapp_order
@@ -422,7 +423,7 @@ def log_whatsapp_order(
             # - pay_at_counter: restaurant collects payment manually via WhatsApp confirmation
             # - status Pending Verification: signals merchant is waiting for WhatsApp msg
             # - payment_status pending: honest representation — we don't know if WA was sent
-            "payment_method":   "pay_at_counter",
+            "payment_method":   payment_method if payment_method in ("pay_online", "pay_at_counter") else "pay_at_counter",
             "status":           "pending_verification",
             "payment_status":   "pending",
             "is_whatsapp_order": 1,
@@ -442,8 +443,26 @@ def log_whatsapp_order(
             order_doc.append("order_items", item_data)
 
         order_doc.insert(ignore_permissions=True)
-        
-        # ── 8. Trigger real-time merchant notification ───────────────────────
+
+        # ── 8. Earn loyalty coins if paying online ──────────────────────────
+        resolved_pm = payment_method if payment_method in ("pay_online", "pay_at_counter") else "pay_at_counter"
+        if resolved_pm == "pay_online" and platform_customer:
+            try:
+                from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins, is_loyalty_enabled
+                if is_loyalty_enabled(restaurant):
+                    earn_loyalty_coins(
+                        customer=platform_customer,
+                        restaurant=restaurant,
+                        amount_paid=flt(order_doc.total),
+                        reason="WhatsApp Order",
+                        ref_doctype="Order",
+                        ref_name=order_doc.name,
+                        payment_method="pay_online",
+                    )
+            except Exception as e:
+                frappe.log_error(f"[WhatsApp Order] Loyalty earning failed: {e}", "WhatsApp Ordering")
+
+        # ── 9. Trigger real-time merchant notification ───────────────────────
         try:
             from flamezo_backend.flamezo.api.realtime import notify_whatsapp_intent
             notify_whatsapp_intent(order_doc)

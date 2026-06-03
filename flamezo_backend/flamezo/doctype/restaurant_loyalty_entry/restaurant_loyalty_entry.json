@@ -75,7 +75,7 @@
    "fieldname": "reason",
    "fieldtype": "Select",
    "label": "Reason",
-   "options": "Order\nReferral Share\nReferral Order\nWelcome Bonus\nBirthday Bonus\nRedemption\nManual Adjustment\nCancellation Refund\nCancellation Revert",
+   "options": "Order\nReferral Share\nReferral Order\nWelcome Bonus\nBirthday Bonus\nUGC Cashback\nRedemption\nManual Adjustment\nCancellation Refund\nCancellation Revert",
    "reqd": 1
   },
   {

@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { useFrappeGetDocList, useFrappeGetCall } from '@/lib/frappe'
-import { LogisticsHubCard } from '@/components/LogisticsHubCard'
+import { DeliveryTrackerCard } from '@/components/DeliveryTrackerCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   ShoppingCart, 
@@ -548,7 +548,7 @@ export default function Dashboard() {
             
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
               <div className="lg:col-span-2">
-                 <LogisticsHubCard orders={orders || []} isLoading={ordersLoading} />
+                 <DeliveryTrackerCard orders={orders || []} isLoading={ordersLoading} />
               </div>
               <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <StatCard 

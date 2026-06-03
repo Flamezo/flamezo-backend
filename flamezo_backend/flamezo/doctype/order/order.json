@@ -450,14 +450,14 @@
    "fieldname": "delivery_partner",
    "fieldtype": "Select",
    "label": "Delivery Partner",
-   "options": "borzo\nflash\nmanual"
+   "options": "manual"
   },
   {
    "fieldname": "delivery_mode",
    "fieldtype": "Select",
    "label": "Delivery Mode",
-   "options": "auto\nmanual",
-   "default": "auto"
+   "options": "manual",
+   "default": "manual"
   },
   {
    "fieldname": "delivery_id",

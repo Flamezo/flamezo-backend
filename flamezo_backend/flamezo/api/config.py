@@ -87,7 +87,7 @@ def get_restaurant_config(restaurant_id):
 			 "menu_theme_wallpapers", "menu_theme_main_index",
 			 "currency", "menu_layout", "enable_table_booking", "enable_banquet_booking",
 			 "menu_theme_background_enabled", "menu_theme_paid_until",
-			 "enable_events", "enable_offers", "enable_coupons", "enable_experience_lounge", "verify_my_user",
+			 "enable_events", "enable_offers", "enable_coupons", "enable_experience_lounge",
 			 "enable_loyalty",
 			 "google_review_link", "instagram_profile_link", "facebook_profile_link", "whatsapp_phone_number",
 			 "swiggy_link", "zomato_link"],
@@ -122,7 +122,6 @@ def get_restaurant_config(restaurant_id):
 				"enable_offers": 1,
 				"enable_coupons": 1,
 				"enable_experience_lounge": 1,
-				"verify_my_user": 0,
 				"google_review_link": "",
 				"instagram_profile_link": "",
 				"facebook_profile_link": "",
@@ -953,6 +952,8 @@ def update_order_settings(restaurant_id, settings):
 			"minimum_order_value", 
 			"estimated_prep_time", 
 			"default_delivery_fee",
+			"delivery_charge_per_km",
+			"max_delivery_distance",
 			"tax_rate",
 			"gst_number"
 		]
@@ -964,7 +965,7 @@ def update_order_settings(restaurant_id, settings):
 				if field in ["enable_takeaway", "enable_delivery", "enable_dine_in", "no_ordering"]:
 					value = 1 if value else 0
 				# Ensure correct type for Numeric fields
-				elif field in ["default_packaging_fee", "minimum_order_value", "default_delivery_fee"]:
+				elif field in ["default_packaging_fee", "minimum_order_value", "default_delivery_fee", "delivery_charge_per_km", "max_delivery_distance"]:
 					value = flt(value)
 				elif field == "estimated_prep_time":
 					value = cint(value)
@@ -1007,60 +1008,3 @@ def update_order_settings(restaurant_id, settings):
 		}
 
 
-@frappe.whitelist()
-def update_logistics_settings(restaurant_id, settings):
-	"""
-	POST /api/method/flamezo_backend.flamezo.api.config.update_logistics_settings
-	Update logistics hub configuration for a restaurant
-	"""
-	try:
-		# Validate restaurant access
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
-		
-		# Parse settings if string
-		if isinstance(settings, str):
-			settings = json.loads(settings)
-		
-		# Get restaurant document
-		# pyrefly: ignore [bad-argument-type]
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
-		
-		# Update allowed fields
-		updated_fields = []
-		allowed_fields = [
-			"preferred_logistics_provider",
-			"delivery_markup_type",
-			"delivery_markup_value",
-			"packaging_fee_type",
-			"default_packaging_fee" # Rebranded as Packaging + Operation Overhead
-		]
-		
-		for field in allowed_fields:
-			if field in settings:
-				value = settings[field]
-				# Numeric conversion
-				if field == "delivery_markup_value" or field == "default_packaging_fee":
-					value = flt(value)
-				
-				restaurant_doc.set(field, value)
-				updated_fields.append(field)
-		
-		if updated_fields:
-			restaurant_doc.save(ignore_permissions=True)
-		
-		return {
-			"success": True,
-			"message": _("Logistics settings updated successfully"),
-			"data": {
-				"updated_fields": updated_fields
-			}
-		}
-	except Exception as e:
-		frappe.log_error(f"Error in update_logistics_settings: {str(e)}")
-		return {
-			"success": False,
-			"error": {
-				"code": "LOGISTICS_UPDATE_ERROR",
-				"message": str(e)
-			}
-		}

@@ -292,10 +292,10 @@ function OrderCard({
                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-200/50 font-black text-[10px] h-4.5 px-1.5 uppercase">
                   DELIVERY
                 </Badge>
-                {order.delivery_partner === 'borzo' && (
+                {order.delivery_status && order.delivery_status !== 'delivered' && order.delivery_status !== 'cancelled' && (
                   <span className="flex items-center gap-1 text-[8px] font-black text-amber-600 uppercase animate-pulse">
                     <Navigation className="w-2 h-2" />
-                    {order.delivery_status || 'Finding...'}
+                    {order.delivery_status}
                   </span>
                 )}
                </div>

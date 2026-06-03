@@ -1,0 +1,228 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-06-02 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "is_active",
+  "section_break_eligibility",
+  "min_order_amount",
+  "max_per_customer_per_month",
+  "column_break_elig",
+  "proof_window_hours",
+  "section_break_budget",
+  "monthly_budget_coins",
+  "coins_issued_this_month",
+  "budget_period",
+  "column_break_budget",
+  "cashback_percent_cap",
+  "absolute_cap_coins",
+  "section_break_ai",
+  "ai_provider",
+  "ai_confidence_threshold",
+  "section_break_templates",
+  "template_assets",
+  "section_break_coupons",
+  "coupon_for_viewers",
+  "next_visit_coupon",
+  "section_break_terms",
+  "instructions",
+  "terms"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active",
+   "description": "Master toggle. When off, the cashback offer is never shown to diners."
+  },
+  {
+   "fieldname": "section_break_eligibility",
+   "fieldtype": "Section Break",
+   "label": "Eligibility"
+  },
+  {
+   "default": "0",
+   "fieldname": "min_order_amount",
+   "fieldtype": "Currency",
+   "label": "Minimum Order Amount",
+   "description": "Orders below this are not eligible. 0 = any completed order."
+  },
+  {
+   "default": "1",
+   "fieldname": "max_per_customer_per_month",
+   "fieldtype": "Int",
+   "label": "Max Claims per Customer / Month",
+   "description": "How many UGC cashback claims a single customer can make per calendar month at this restaurant."
+  },
+  {
+   "fieldname": "column_break_elig",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "48",
+   "fieldname": "proof_window_hours",
+   "fieldtype": "Int",
+   "label": "Proof Upload Window (hours)",
+   "description": "Hours after the order within which the diner must upload the view-count proof."
+  },
+  {
+   "fieldname": "section_break_budget",
+   "fieldtype": "Section Break",
+   "label": "Budget & Caps"
+  },
+  {
+   "default": "0",
+   "fieldname": "monthly_budget_coins",
+   "fieldtype": "Int",
+   "label": "Monthly Cashback Budget (Cash)",
+   "description": "Total cashback this restaurant will issue per month. 0 = unlimited. When exhausted, the offer is hidden."
+  },
+  {
+   "default": "0",
+   "fieldname": "coins_issued_this_month",
+   "fieldtype": "Int",
+   "label": "Issued This Month",
+   "read_only": 1,
+   "description": "Rolling counter, auto-reset each calendar month."
+  },
+  {
+   "fieldname": "budget_period",
+   "fieldtype": "Data",
+   "label": "Budget Period (YYYY-MM)",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "column_break_budget",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "100",
+   "fieldname": "cashback_percent_cap",
+   "fieldtype": "Int",
+   "label": "Cashback Cap (% of order)",
+   "description": "Maximum cashback as a percentage of the order amount. Default 100%."
+  },
+  {
+   "default": "1000",
+   "fieldname": "absolute_cap_coins",
+   "fieldtype": "Int",
+   "label": "Absolute Cap per Claim (Cash)",
+   "description": "Hard ceiling on a single cashback, regardless of views or order amount."
+  },
+  {
+   "fieldname": "section_break_ai",
+   "fieldtype": "Section Break",
+   "label": "AI View-Count Verification"
+  },
+  {
+   "default": "Gemini",
+   "fieldname": "ai_provider",
+   "fieldtype": "Select",
+   "label": "AI Provider",
+   "options": "Gemini\nOpenAI",
+   "description": "Model used to read the view count from the proof video. Gemini 2.5 Flash recommended (lowest cost)."
+  },
+  {
+   "default": "0.85",
+   "fieldname": "ai_confidence_threshold",
+   "fieldtype": "Float",
+   "label": "Auto-Approve Confidence Threshold",
+   "description": "Below this confidence the claim is routed to staff review instead of auto-credited. 0-1."
+  },
+  {
+   "fieldname": "section_break_templates",
+   "fieldtype": "Section Break",
+   "label": "Story Templates"
+  },
+  {
+   "fieldname": "template_assets",
+   "fieldtype": "Table",
+   "label": "Template Images",
+   "options": "UGC Template Asset",
+   "description": "Pre-approved story images the diner can share. Upload via the dashboard."
+  },
+  {
+   "fieldname": "section_break_coupons",
+   "fieldtype": "Section Break",
+   "label": "Linked Coupons (optional)"
+  },
+  {
+   "fieldname": "coupon_for_viewers",
+   "fieldtype": "Link",
+   "label": "Coupon for Story Viewers",
+   "options": "Coupon",
+   "description": "Existing coupon (from Manage Offers & Coupons) shown to the diner's friends who see the story."
+  },
+  {
+   "fieldname": "next_visit_coupon",
+   "fieldtype": "Link",
+   "label": "Next-Visit Coupon for Poster",
+   "options": "Coupon",
+   "description": "Existing coupon rewarded to the diner for their next visit."
+  },
+  {
+   "fieldname": "section_break_terms",
+   "fieldtype": "Section Break",
+   "label": "Customer-Facing Copy"
+  },
+  {
+   "fieldname": "instructions",
+   "fieldtype": "Small Text",
+   "label": "What the diner must do",
+   "description": "Short instructions shown on the offer screen (e.g. tag us, keep story live 24h)."
+  },
+  {
+   "fieldname": "terms",
+   "fieldtype": "Text Editor",
+   "label": "Terms & Conditions"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "UGC Cashback Config",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Admin"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

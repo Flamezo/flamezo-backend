@@ -36,6 +36,7 @@
   "tax_rate",
   "gst_number",
   "default_delivery_fee",
+  "delivery_charge_per_km",
   "enable_takeaway",
   "enable_delivery",
   "enable_dine_in",
@@ -128,11 +129,6 @@
   "description",
   "column_break_google_map",
   "google_map_url",
-  "section_logistics_hub",
-  "preferred_logistics_provider",
-  "flash_store_id",
-  "delivery_markup_type",
-  "delivery_markup_value",
   "max_delivery_distance",
   "referral_code",
   "referred_by_restaurant",
@@ -320,6 +316,13 @@
    "fieldtype": "Currency",
    "label": "Default Delivery Fee",
    "description": "Standard delivery charge for orders"
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_charge_per_km",
+   "fieldtype": "Currency",
+   "label": "Delivery Charge Per KM",
+   "description": "Rate charged per kilometer of delivery distance"
   },
   {
    "fieldname": "enable_takeaway",
@@ -924,38 +927,6 @@
    "fieldtype": "Long Text",
    "label": "Google Map URL",
    "description": "Enter the Google Maps URL for your restaurant location"
-  },
-  {
-   "fieldname": "section_logistics_hub",
-   "fieldtype": "Section Break",
-   "label": "Logistics Hub (Advanced)"
-  },
-  {
-   "default": "Flash",
-   "fieldname": "preferred_logistics_provider",
-   "fieldtype": "Select",
-   "label": "Preferred Logistics Provider",
-   "options": "Borzo\nFlash\nSelf"
-  },
-  {
-   "fieldname": "flash_store_id",
-   "fieldtype": "Data",
-   "label": "Flash Store ID",
-   "description": "Unique Store ID from uEngage Flash dashboard"
-  },
-  {
-   "default": "Fixed",
-   "fieldname": "delivery_markup_type",
-   "fieldtype": "Select",
-   "label": "Logistics Markup Type",
-   "options": "Fixed\nPercentage"
-  },
-  {
-   "default": "0",
-   "fieldname": "delivery_markup_value",
-   "fieldtype": "Float",
-   "label": "Logistics Markup Value",
-   "description": "Additional profit for the restaurant on top of the courier fee."
   },
   {
    "default": "10.0",

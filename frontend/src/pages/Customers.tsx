@@ -209,15 +209,9 @@ export default function Customers() {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-xl border border-border/50">
-                <Switch
-                  id="verify-user-card"
-                  checked={isVerifyEnabled}
-                  onCheckedChange={handleToggleVerify}
-                  disabled={isUpdatingVerify}
-                  className="scale-90"
-                />
-                <Label htmlFor="verify-user-card" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-1 cursor-pointer">Verify Users</Label>
+              <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-xl border border-green-500/30">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-green-600">OTP Verified</span>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />

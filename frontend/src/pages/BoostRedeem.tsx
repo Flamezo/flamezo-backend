@@ -1,7 +1,7 @@
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   ChevronLeft, CheckCircle2, XCircle, ScanLine, Zap, Ticket, Calendar, Hash
 } from 'lucide-react'
@@ -87,6 +87,15 @@ export default function BoostRedeem() {
 
   return (
     <div className="max-w-lg space-y-6">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase text-muted-foreground/60 mb-2">
+        <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+        <ChevronRight className="h-3 w-3" />
+        <Link to="/boost" className="hover:text-foreground transition-colors">Boost</Link>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-foreground">Redeem Coupon</span>
+      </nav>
+
       {/* Back */}
       <Button variant="ghost" size="sm" onClick={() => navigate('/boost')} className="-ml-2 gap-1">
         <ChevronLeft className="h-4 w-4" /> Back to Boost
@@ -106,15 +115,15 @@ export default function BoostRedeem() {
       {/* Quick Stats */}
       {!loading && (
         <div className="grid grid-cols-3 gap-3">
-          <Card><CardContent className="pt-3 pb-2 text-center">
+          <Card className="border-none bg-card shadow-sm"><CardContent className="pt-3 pb-2 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Today</p>
             <p className="text-2xl font-bold text-orange-600">{stats.today}</p>
           </CardContent></Card>
-          <Card><CardContent className="pt-3 pb-2 text-center">
+          <Card className="border-none bg-card shadow-sm"><CardContent className="pt-3 pb-2 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">This Week</p>
             <p className="text-2xl font-bold">{stats.week}</p>
           </CardContent></Card>
-          <Card><CardContent className="pt-3 pb-2 text-center">
+          <Card className="border-none bg-card shadow-sm"><CardContent className="pt-3 pb-2 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total</p>
             <p className="text-2xl font-bold">{stats.total}</p>
           </CardContent></Card>
@@ -124,8 +133,8 @@ export default function BoostRedeem() {
       {/* Result Banner */}
       {result && (
         <Card className={cn(
-          'animate-in zoom-in-95 duration-300 border',
-          result.success ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20'
+          'animate-in zoom-in-95 duration-300 border-none shadow-sm',
+          result.success ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-red-50 dark:bg-red-950/20'
         )}>
           <CardContent className="pt-4 pb-3 flex items-start gap-3">
             {result.success ? (
@@ -151,7 +160,7 @@ export default function BoostRedeem() {
       )}
 
       {/* Redeem Form */}
-      <Card>
+      <Card className="border-none bg-card shadow-sm">
         <CardContent className="pt-6 space-y-4">
           <div>
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Coupon Code</Label>
@@ -185,7 +194,7 @@ export default function BoostRedeem() {
 
       {/* Recent Activity */}
       {recentRedemptions.length > 0 && (
-        <Card>
+        <Card className="border-none bg-card shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active Campaigns</CardTitle>
           </CardHeader>
@@ -204,7 +213,7 @@ export default function BoostRedeem() {
       )}
 
       {/* Tips */}
-      <Card className="bg-muted/50">
+      <Card className="border-none bg-card shadow-sm">
         <CardContent className="pt-4 pb-3">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Tips for Staff</p>
           <ul className="text-xs text-muted-foreground space-y-1">
