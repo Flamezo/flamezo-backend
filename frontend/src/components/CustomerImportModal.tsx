@@ -537,7 +537,7 @@ export default function CustomerImportModal({ open, onClose, restaurantId, onImp
           We've auto-detected the columns below. Check they're correct and fix any that are wrong.
           Only <strong>Phone Number</strong> is required.
         </p>
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -707,7 +707,7 @@ export default function CustomerImportModal({ open, onClose, restaurantId, onImp
                 Download Error Report
               </Button>
             </div>
-            <div className="rounded-lg border max-h-52 overflow-y-auto">
+            <div className="rounded-lg border max-h-52 overflow-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>

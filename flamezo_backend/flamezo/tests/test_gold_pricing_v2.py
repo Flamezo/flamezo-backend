@@ -15,9 +15,15 @@ from flamezo_backend.flamezo.tests.utils import (
 
 _PREFIX = "TEST-PRICE-V2"
 
+@unittest.skip(
+    "GOLD monthly floor (₹399 guarantee) was removed from the model — "
+    "`process_daily_subscription_floors` is now a no-op. The no-op behaviour "
+    "is covered by TestFloorRecoveryRetired in test_subscription_tasks.py."
+)
 class TestGoldMonthlyFloor(unittest.TestCase):
     """
-    Production-grade tests for the GOLD Monthly Floor logic (₹399 guarantee).
+    LEGACY (retired): tests for the GOLD Monthly Floor (₹399 guarantee).
+    The floor was removed, so the billing task no longer charges.
     """
 
     @classmethod

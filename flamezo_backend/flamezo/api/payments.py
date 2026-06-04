@@ -619,8 +619,8 @@ def get_restaurant_payment_stats(restaurant_id):
 			"total_platform_fee": 0
 		}
 		
-		# Get monthly minimum info (ensure numeric values)
-		default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0)
+		# Monthly minimum / floor was removed from the model — there is no floor.
+		default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
 		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else default_floor)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
 		minimum_due = max(0, monthly_minimum - platform_fee_collected)
@@ -936,7 +936,7 @@ def schedule_monthly_billing():
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
 			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
-			default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0)
+			default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
 			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
 			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else default_floor)  # type: ignore
 			

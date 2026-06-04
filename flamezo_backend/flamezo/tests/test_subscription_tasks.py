@@ -58,13 +58,17 @@ _PREFIX = "TEST-SUB"
 
 # ─── 1. process_daily_subscription_floors() ──────────────────────────────────
 
+@unittest.skip(
+    "Monthly floor / minimum guarantee was removed from the model. "
+    "`process_daily_subscription_floors` is now a no-op and never charges — "
+    "these legacy assertions (which expect a floor deduction) no longer apply. "
+    "See TestFloorRecoveryRetired below for the current no-op coverage."
+)
 class TestDailySubscriptionFloors(unittest.TestCase):
     """
-    Validates the nightly billing task that recovers daily minimum fees.
-
-    GOLD  — flat ₹13.30/day (399 / 30), regardless of order commissions.
-    GOLD — monthly guarantee recovery: (monthly_min) - total commissions in 30 days.
-              Checked and charged only every 30 days.
+    LEGACY (retired): validated the nightly billing task that recovered the
+    daily/monthly minimum floor. The floor was removed from the model, so the
+    task no longer charges anything.
     """
 
     @classmethod
@@ -547,6 +551,53 @@ class TestSilverFeatureRenewals(unittest.TestCase):
         bal = frappe.db.get_value("Restaurant", name, "coins_balance")
         self.assertAlmostEqual(bal, 500.0, places=2,
                                msg="No charge when paid_until is still in the future")
+
+
+# ─── 5. Floor recovery retired — no-op coverage ──────────────────────────────
+
+class TestFloorRecoveryRetired(unittest.TestCase):
+    """
+    The ₹399 monthly floor was removed. `process_daily_subscription_floors`
+    must now be a no-op: even a GOLD restaurant that is 30+ days into its cycle
+    with zero commissions and floor recovery enabled must NOT be charged.
+    """
+
+    _PFX = _PREFIX + "-NOOP-"
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+        cleanup_restaurants_by_prefix(cls._PFX)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_restaurants_by_prefix(cls._PFX)
+
+    def setUp(self):
+        from flamezo_backend.flamezo.tasks.subscription_tasks import process_daily_subscription_floors
+        self.run_floors = process_daily_subscription_floors
+        self._name = f"{self._PFX}{frappe.generate_hash(length=6)}"
+
+    def tearDown(self):
+        cleanup_restaurant(self._name)
+
+    def test_no_floor_charge_even_when_due(self):
+        name = self._name
+        activation_date = add_days(today(), -30)
+        make_restaurant(name, plan="GOLD", balance=500.0, monthly_minimum=399.0,
+                        enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
+                        last_floor_recovery_date=activation_date)
+        clear_transactions(name)
+        balance_before = frappe.db.get_value("Restaurant", name, "coins_balance")
+
+        self.run_floors()
+
+        # No floor transaction, and the wallet is untouched.
+        txn = get_latest_transaction(name, "Monthly GOLD Floor")
+        self.assertIsNone(txn, "Floor recovery is retired — no charge must be created")
+        balance_after = frappe.db.get_value("Restaurant", name, "coins_balance")
+        self.assertAlmostEqual(balance_before, balance_after, places=2,
+                               msg="Wallet balance must be unchanged — no floor deduction")
 
 
 if __name__ == "__main__":

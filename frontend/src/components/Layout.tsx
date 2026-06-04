@@ -680,6 +680,9 @@ export default function Layout({ children }: LayoutProps) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border transform transition-all duration-200 ease-in-out shadow-sm",
+          // Mobile/tablet drawer: fixed 16rem width (a fixed element with no
+          // width shrinks to content and renders "out of range" — this pins it).
+          "w-64 max-w-[85vw]",
           // Mobile: slide in/out
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           // Desktop: width based on expanded state or hover

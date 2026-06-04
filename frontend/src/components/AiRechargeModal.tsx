@@ -230,7 +230,7 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
         </DialogHeader>
 
         {/* Bundle Selection */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
           {BUNDLES.map((bundle) => (
             <button
               key={bundle.id}

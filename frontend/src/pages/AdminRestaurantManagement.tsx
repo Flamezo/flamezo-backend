@@ -107,10 +107,8 @@ export default function AdminRestaurantManagement() {
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [editPlatformFee, setEditPlatformFee] = useState('')
-  const [editMonthlyMinimum, setEditMonthlyMinimum] = useState('')
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
-  const [editFloorRecovery, setEditFloorRecovery] = useState(true)
 
   const [isSupervisorOnly, setIsSupervisorOnly] = useState(false)
   
@@ -118,7 +116,7 @@ export default function AdminRestaurantManagement() {
   const [platformSettings, setPlatformSettings] = useState({
     charge_gst: false,
     gst_percent: 18,
-    gold_monthly_fee: 399,
+    gold_monthly_fee: 0,
     gold_commission_percent: 3.0,
     gold_upgrade_barrier: 1299
   })
@@ -292,10 +290,8 @@ export default function AdminRestaurantManagement() {
         restaurant_id: selectedRestaurant.restaurant_id,
         updates: {
           platform_fee_percent: editPlatformFee,
-          monthly_minimum: editMonthlyMinimum,
           restaurant_name: editName,
           owner_email: editEmail,
-          enable_floor_recovery: editFloorRecovery ? 1 : 0
         }
       }) as any
       if (result?.message?.success) {
@@ -306,8 +302,6 @@ export default function AdminRestaurantManagement() {
             restaurant_name: editName,
             owner_email: editEmail,
             platform_fee_percent: parseFloat(editPlatformFee),
-            monthly_minimum: parseFloat(editMonthlyMinimum),
-            enable_floor_recovery: editFloorRecovery ? 1 : 0
           })
         }
         setIsSettingsModalOpen(false)
@@ -730,27 +724,6 @@ export default function AdminRestaurantManagement() {
               </SelectContent>
             </Select>
 
-            {/* Floor Recovery */}
-            <Select
-              value={(() => {
-                const f = filters.find(f => f.fieldname === 'enable_floor_recovery')
-                if (!f) return 'all'
-                return f.value === 1 ? 'enabled' : 'disabled'
-              })()}
-              onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'enable_floor_recovery')
-                if (v !== 'all') next.push({ fieldname: 'enable_floor_recovery', operator: '=', value: v === 'enabled' ? 1 : 0 })
-                setFilters(next)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[124px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Recovery: All</SelectItem>
-                <SelectItem value="enabled">Recovery: On</SelectItem>
-                <SelectItem value="disabled">Recovery: Off</SelectItem>
-              </SelectContent>
-            </Select>
-
             {/* Clear-all chip — only when any filter is applied. */}
             {filters.length > 0 && (
               <Button
@@ -924,8 +897,6 @@ export default function AdminRestaurantManagement() {
                                   setEditName(restaurant.restaurant_name)
                                   setEditEmail(restaurant.owner_email || '')
                                   setEditPlatformFee(restaurant.platform_fee_percent.toString())
-                                  setEditMonthlyMinimum(restaurant.monthly_minimum.toString())
-                                  setEditFloorRecovery(!!restaurant.enable_floor_recovery)
                                   setIsSettingsModalOpen(true)
                                 }}>
                                   <Settings className="h-4 w-4 mr-2" />
@@ -1080,49 +1051,10 @@ export default function AdminRestaurantManagement() {
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Financial Parameters</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground ml-1">
-                    Monthly Floor (₹)
-                  </Label>
-                  <NumberInput value={editMonthlyMinimum} onChange={(e: any) => setEditMonthlyMinimum(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground ml-1">Network Fee (%)</Label>
-                  <NumberInput value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-muted-foreground ml-1">Success Share (%)</Label>
+                <NumberInput value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
               </div>
-            </div>
-
-            {/* Operational Controls Section */}
-            <div className="space-y-4 p-5 rounded-xl border bg-primary/5 border-primary/10">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Scale className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-bold">
-                      {selectedRestaurant?.plan_type === 'GOLD' ? 'Monthly Floor Guarantee' : 'Daily Floor Recovery'}
-                    </Label>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    {selectedRestaurant?.plan_type === 'GOLD'
-                      ? 'Control automatic monthly minimum fee deductions'
-                      : 'Control automatic nightly minimum fee deductions'}
-                  </p>
-                </div>
-                <Switch
-                  checked={editFloorRecovery}
-                  onCheckedChange={setEditFloorRecovery}
-                />
-              </div>
-              {!editFloorRecovery && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
-                  <Zap className="h-3 w-3 text-amber-600 mt-0.5" />
-                  <p className="text-[9px] text-amber-700 font-bold leading-tight uppercase">
-                    Billing Alert: {selectedRestaurant?.plan_type === 'GOLD' ? 'Monthly' : 'Nightly'} floor deduction is PAUSED for this restaurant.
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Tier Evolution Section */}
@@ -1162,7 +1094,7 @@ export default function AdminRestaurantManagement() {
                       label: 'Flamezo Plan',
                       icon: Trophy,
                       color: 'text-amber-500',
-                      desc: `Free onboarding · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% Success Share`,
+                      desc: `Free onboarding · ${platformSettings.gold_commission_percent}% Success Share on online orders`,
                     },
                   ].map((tier) => (
                     <SelectItem
@@ -1517,23 +1449,13 @@ export default function AdminRestaurantManagement() {
 
               <div className="h-px bg-stone-100" />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Monthly Fee</Label>
-                  <NumberInput
-                    value={platformSettings.gold_monthly_fee}
-                    onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_monthly_fee: parseFloat(e.target.value || '0') }))}
-                    className="h-12 rounded-xl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Success Share (%)</Label>
-                  <NumberInput
-                    value={platformSettings.gold_commission_percent}
-                    onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_commission_percent: parseFloat(e.target.value || '0') }))}
-                    className="h-12 rounded-xl"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-bold ml-1 text-amber-600">Gold Success Share (%)</Label>
+                <NumberInput
+                  value={platformSettings.gold_commission_percent}
+                  onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_commission_percent: parseFloat(e.target.value || '0') }))}
+                  className="h-12 rounded-xl"
+                />
               </div>
 
               <div className="space-y-3 p-5 rounded-2xl bg-muted/30 border border-muted/40">

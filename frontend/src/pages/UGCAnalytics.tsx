@@ -68,8 +68,6 @@ export default function UGCAnalytics() {
     by_status: {}
   })
 
-  const budgetPct = d && d.monthly_budget > 0 ? Math.min(100, Math.round((d.issued_this_month / d.monthly_budget) * 100)) : 0
-
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -182,20 +180,6 @@ export default function UGCAnalytics() {
             </div>
           </div>
 
-          {d.monthly_budget > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Monthly Budget</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">₹{d.issued_this_month} issued</span>
-                  <span className="text-muted-foreground">of ₹{d.monthly_budget}</span>
-                </div>
-                <div className="h-3 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${budgetPct}%` }} />
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           <Card>
             <CardHeader><CardTitle className="text-base">Funnel by status</CardTitle></CardHeader>

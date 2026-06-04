@@ -472,8 +472,8 @@
    "fieldname": "monthly_minimum",
    "fieldtype": "Currency",
    "label": "Monthly Minimum Fee",
-   "default": "399",
-   "description": "Minimum monthly platform fee (default: \u20b9399)"
+   "default": "0",
+   "description": "Retired \u2014 the monthly minimum/floor was removed from the model. Kept at 0; restaurants pay only a success share on orders."
   },
   {
    "fieldname": "razorpay_customer_id",
@@ -600,7 +600,7 @@
    "default": "GOLD",
    "in_list_view": 1,
    "reqd": 1,
-   "description": "Subscription plan tier. GOLD is the only active tier (free onboarding, ₹399/mo floor, 1.5% commission). SILVER retained for legacy records only."
+   "description": "Subscription plan tier. GOLD is the only active tier (free onboarding, no monthly floor, success share on orders). SILVER retained for legacy records only."
   },
   {
    "fieldname": "plan_activated_on",
@@ -718,12 +718,12 @@
    "description": "Automatically recharge balance when it falls below threshold"
   },
   {
-   "default": "1",
+   "default": "0",
    "fieldname": "enable_floor_recovery",
    "fieldtype": "Check",
    "hidden": 1,
    "label": "Enable Daily Floor Recovery",
-   "description": "If disabled, this restaurant will NOT be charged the daily floor/minimum recovery fee."
+   "description": "Retired — the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
   },
   {
    "fieldname": "floor_recovery_activated_on",

@@ -66,8 +66,8 @@ def process_restaurant_monthly_minimum(restaurant, month):
 		})
 		ledger.insert()
 	
-	# Calculate minimum due
-	monthly_minimum_paise = int(float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else 399.0) * 100)
+	# Monthly minimum / floor removed from the model — defaults to 0 (no floor).
+	monthly_minimum_paise = int(float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else 0) * 100)
 	total_platform_fee = ledger.total_platform_fee or 0
 	
 	if total_platform_fee < monthly_minimum_paise:

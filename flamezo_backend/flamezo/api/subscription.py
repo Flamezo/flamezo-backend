@@ -7,7 +7,7 @@ Subscription API Endpoints
 Provides API endpoints for subscription plan management and feature access checks.
 
 New model (May 2026): GOLD is the only active tier. Every onboarded restaurant
-gets the full feature set on day 1 — free onboarding, ₹399/mo floor, plus
+gets the full feature set on day 1 — free onboarding, no monthly floor, plus
 Success Share on online orders (default 3% for new restaurants, 1.5%
 grandfathered for ones onboarded before May 2026). The legacy SILVER tier is retained in the doctype
 schema for historical records only; no new restaurant should land on SILVER.
@@ -91,7 +91,7 @@ def get_plan_comparison(restaurant_id=None):
         except Exception:
             pass
 
-    price_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0
+    price_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0
 
     return {
         'SILVER': None,

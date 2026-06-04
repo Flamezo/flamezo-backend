@@ -137,7 +137,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
 
         # Dynamic defaults (settings already fetched above for filter math).
         def_comm = float(settings.gold_commission_percent or 3.0)
-        def_floor = float(settings.gold_monthly_fee or 399.0)
+        def_floor = float(settings.gold_monthly_fee or 0)
 
         # Common columns the admin restaurant-management table needs.
         # `mandate_status`, `outstanding_commission_paise`,
@@ -983,7 +983,7 @@ def get_platform_settings():
         'data': {
             'charge_gst': bool(settings.charge_gst),
             'gst_percent': float(settings.gst_percent or 18.0),
-            'gold_monthly_fee': float(settings.gold_monthly_fee or 399.0),
+            'gold_monthly_fee': float(settings.gold_monthly_fee or 0),
             'gold_commission_percent': float(settings.gold_commission_percent or 3.0),
             # Retired under the single-tier model — kept in the response as
             # 0.0 so old admin UIs that read it don't break.

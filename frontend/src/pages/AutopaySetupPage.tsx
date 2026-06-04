@@ -42,7 +42,7 @@ interface BillingInfo {
   monthly_minimum: number
   platform_fee_percent: number
   plan_defaults: {
-    gold_floor: number      // GOLD monthly floor guarantee (₹399)
+    gold_floor: number      // Retired — monthly floor removed (always 0)
     gold_commission: number // GOLD Success Share % (default 3.0 new / 1.5 grandfathered)
     gold_barrier: number    // Wallet balance needed to unlock GOLD (₹1299)
   }
@@ -286,10 +286,10 @@ export default function AutopaySetupPage() {
 
             <div className="p-5 flex flex-col justify-center min-w-[160px] w-full md:w-auto">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
-                Monthly Floor Guarantee
+                Success Share
               </p>
               <p className="text-base font-bold">
-                ₹{billingInfo?.plan_defaults?.gold_floor ?? 399}/mo floor
+                {billingInfo?.platform_fee_percent ?? billingInfo?.plan_defaults?.gold_commission ?? 3}% per order
               </p>
             </div>
 
@@ -495,7 +495,7 @@ export default function AutopaySetupPage() {
         open={showComparison}
         onClose={() => setShowComparison(false)}
         planDefaults={{
-          gold_floor: billingInfo?.plan_defaults.gold_floor ?? 399,
+          gold_floor: billingInfo?.plan_defaults.gold_floor ?? 0,
           gold_commission: billingInfo?.plan_defaults.gold_commission ?? 3.0,
         }}
       />
