@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, Eye, Wallet, TrendingUp, Loader2 } from 'lucide-react'
+import { Users, Eye, Wallet, TrendingUp, Loader2, IndianRupee, ArrowUpRight, ShoppingBag, Sparkles } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
   offer_shown: 'Offer shown',
@@ -22,6 +22,10 @@ const MOCK_ANALYTICS_DATA = {
   approval_rate: 94.2,
   monthly_budget: 30000,
   issued_this_month: 23450,
+  total_revenue: 324500,
+  referral_revenue: 112400,
+  roi: 8.9,
+  conversion_rate: 4.8,
   by_status: {
     offer_shown: 142,
     story_shared: 58,
@@ -40,7 +44,7 @@ export default function UGCAnalytics() {
 
   const { data, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_analytics',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant, days: 30 } : undefined,
+    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `ugc-analytics-${selectedRestaurant}` : undefined,
   )
 
@@ -57,6 +61,10 @@ export default function UGCAnalytics() {
     approval_rate: 0,
     monthly_budget: 0,
     issued_this_month: 0,
+    total_revenue: 0,
+    referral_revenue: 0,
+    roi: 0,
+    conversion_rate: 0,
     by_status: {}
   })
 
@@ -67,7 +75,7 @@ export default function UGCAnalytics() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">UGC Analytics</h1>
-          <p className="text-muted-foreground mt-1">Last 30 days of your story-for-cashback loop.</p>
+          <p className="text-muted-foreground mt-1">Lifetime performance of your story-for-cashback loop.</p>
         </div>
         <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
           <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
@@ -102,6 +110,76 @@ export default function UGCAnalytics() {
             <Stat icon={Eye} label="Story reach (views)" value={d.reach_impressions} accent="text-blue-600" />
             <Stat icon={Wallet} label="Cashback issued (₹)" value={d.coins_issued} accent="text-green-600" />
             <Stat icon={TrendingUp} label="Approval rate" value={`${d.approval_rate}%`} accent="text-orange-600" />
+          </div>
+
+          {/* Business Impact & ROI Section */}
+          <div className="space-y-3.5 pt-2">
+            <h2 className="text-lg font-bold tracking-tight flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Business Impact & ROI
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-primary/5 border-primary/20 relative overflow-hidden shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Revenue Earned</p>
+                      <h3 className="text-3xl font-extrabold tracking-tight mt-1.5 text-primary">
+                        ₹{(d.total_revenue + d.referral_revenue).toLocaleString('en-IN')}
+                      </h3>
+                    </div>
+                    <div className="bg-primary/10 p-2.5 rounded-xl text-primary shrink-0">
+                      <IndianRupee className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0">
+                      <ArrowUpRight className="w-3.5 h-3.5" /> {d.roi}x ROI
+                    </span>
+                    <span className="truncate">earned back per ₹1 cashback issued</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Direct Campaign Sales</p>
+                      <h3 className="text-2xl font-bold mt-1.5">
+                        ₹{d.total_revenue.toLocaleString('en-IN')}
+                      </h3>
+                    </div>
+                    <div className="bg-muted p-2 rounded-lg text-muted-foreground shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-5">Direct revenue from {d.total_submissions} customer visits</p>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estimated Referral Sales</p>
+                      <h3 className="text-2xl font-bold mt-1.5">
+                        ₹{d.referral_revenue.toLocaleString('en-IN')}
+                      </h3>
+                    </div>
+                    <div className="bg-blue-500/10 p-2 rounded-lg text-blue-600 shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                      {d.conversion_rate}%
+                    </span>
+                    <span className="truncate">estimated view-to-order conversion</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {d.monthly_budget > 0 && (

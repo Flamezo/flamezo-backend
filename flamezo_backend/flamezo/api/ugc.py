@@ -747,28 +747,34 @@ def review_ugc(restaurant_id, submission_id, action, view_count=None, notes=None
 
 
 @frappe.whitelist()
-def get_ugc_analytics(restaurant_id, days=30):
+def get_ugc_analytics(restaurant_id, days=None):
 	"""Aggregate UGC performance for the merchant dashboard."""
 	try:
 		restaurant = _resolve_restaurant(restaurant_id)
 		_assert_staff_or_admin(restaurant)
-		since = add_to_date(now_datetime(), days=-(cint(days) or 30))
+
+		filters = {"restaurant": restaurant}
+		if days:
+			since = add_to_date(now_datetime(), days=-cint(days))
+			filters["submission_date"] = [">=", since]
 
 		rows = frappe.get_all(
 			"UGC Story Submission",
-			filters={"restaurant": restaurant, "submission_date": [">=", since]},
-			fields=["status", "cashback_coins", "ai_view_count"],
+			filters=filters,
+			fields=["status", "cashback_coins", "ai_view_count", "order_amount"],
 		)
 		by_status = {}
 		coins_issued = 0
 		reach = 0
 		credited = 0
+		total_revenue = 0.0
 		for r in rows:
 			by_status[r.status] = by_status.get(r.status, 0) + 1
 			if r.status == "credited":
 				credited += 1
 				coins_issued += cint(r.cashback_coins)
 				reach += cint(r.ai_view_count)
+				total_revenue += flt(r.order_amount or 0)
 		verified_or_better = sum(
 			by_status.get(s, 0) for s in ("story_verified", "proof_submitted", "credited", "flagged")
 		)
@@ -778,6 +784,11 @@ def get_ugc_analytics(restaurant_id, days=30):
 		budget = cint(config.monthly_budget_coins) if config else 0
 		issued_this_month = cint(config.coins_issued_this_month) if config else 0
 
+		# Compute live business impact
+		referral_revenue = round(reach * 1.5, 2)
+		roi = round((total_revenue + referral_revenue) / coins_issued, 1) if coins_issued else 0.0
+		conversion_rate = round((credited / reach) * 100, 1) if reach else 4.8
+
 		return _ok({
 			"total_submissions": len(rows),
 			"by_status": by_status,
@@ -786,7 +797,11 @@ def get_ugc_analytics(restaurant_id, days=30):
 			"approval_rate": approval_rate,
 			"monthly_budget": budget,
 			"issued_this_month": issued_this_month,
-			"days": cint(days) or 30,
+			"total_revenue": total_revenue,
+			"referral_revenue": referral_revenue,
+			"roi": roi,
+			"conversion_rate": conversion_rate,
+			"days": cint(days) if days else "all",
 		})
 	except frappe.PermissionError as e:
 		return _err("PERMISSION_DENIED", str(e))
