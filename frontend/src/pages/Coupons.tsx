@@ -465,9 +465,9 @@ export default function Coupons() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Manage Offers & Coupons</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage Offers & Coupons</h1>
           <p className="text-muted-foreground mt-1">Create and manage discount coupons, auto-offers, and combo deals</p>
         </div>
         <div className="flex items-center gap-3">
@@ -1221,7 +1221,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
           ) : (
             <div className="space-y-4 rounded-xl border p-4">
               <p className="text-sm font-semibold flex items-center gap-2"><Tag className="h-4 w-4 text-green-600" />Discount</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label>Discount Type</Label>
                   <Select value={formData.discount_type} onValueChange={(v) => set({ discount_type: v })}>

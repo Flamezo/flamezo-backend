@@ -34,8 +34,19 @@ export default function Login() {
 
       if (res.ok) {
         toast.success('Logged in successfully')
+        // Return the merchant to where they were before re-auth, if preserved.
+        let target = '/flamezo_backend'
+        try {
+          const returnTo = sessionStorage.getItem('flamezo:return-to')
+          sessionStorage.removeItem('flamezo:return-to')
+          if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') && !returnTo.startsWith('/login')) {
+            target = '/flamezo_backend' + returnTo
+          }
+        } catch {
+          /* ignore */
+        }
         // Reload to let server set boot and session
-        window.location.href = '/flamezo_backend'
+        window.location.href = target
       } else {
         const data = await res.json().catch(() => ({}))
         const msg = data?.message || 'Login failed'

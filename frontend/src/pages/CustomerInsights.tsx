@@ -116,7 +116,7 @@ export default function CustomerInsights() {
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <Users className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Customer Insights</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Customer Insights</h1>
           </div>
           <p className="text-muted-foreground mt-2">
             View customer cash, history, and manually reward your loyal customers.
@@ -131,7 +131,7 @@ export default function CustomerInsights() {
               <User className="w-5 h-5 text-muted-foreground" />
               Customer Loyalty List
             </CardTitle>
-            <div className="relative w-72">
+            <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search name or phone..."

@@ -365,7 +365,7 @@ def get_coin_billing_info(restaurant):
         "platform_fee_percent": float(res.platform_fee_percent or 0),
         "plan_defaults": {
             "silver_monthly": 0.0,
-            "gold_floor": float(settings.gold_monthly_fee or 399.0),       # Monthly floor guarantee
+            "gold_floor": float(settings.gold_monthly_fee or 0),       # Monthly floor removed (always 0)
             "gold_commission": float(settings.gold_commission_percent or 3.0), # Success Share %
             # Retired in the new single-tier model — there is no GOLD unlock
             # barrier. Kept in the response as `0.0` so existing frontends

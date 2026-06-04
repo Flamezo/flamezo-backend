@@ -8,7 +8,7 @@ This module provides decorators and utilities to restrict feature access
 based on restaurant subscription plan.
 
 Plan model (May 2026, single-tier platform):
-  GOLD (Free onboarding · ₹399/mo floor · Success Share on online orders — default 3% new, 1.5% grandfathered):
+  GOLD (Free onboarding · no monthly floor · Success Share on online orders — default 3% new, 1.5% grandfathered):
         Every onboarded restaurant gets the full feature set immediately —
         QR menu, dine-in/takeaway/delivery ordering, CRM, marketing studio,
         coupons, analytics, POS integration, custom branding, FLAMEZO consumer

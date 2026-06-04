@@ -269,7 +269,7 @@ export default function Bookings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Table Bookings</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Table Bookings</h1>
         <p className="text-muted-foreground mt-1">Manage and track all restaurant reservations</p>
       </div>
 
@@ -337,7 +337,7 @@ export default function Bookings() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="min-w-[280px] justify-center"
+                  className="w-full sm:min-w-[280px] sm:w-auto justify-center"
                   onClick={() => setShowCalendarPicker(true)}
                 >
                   <Calendar className="w-4 h-4 mr-2" />

@@ -116,7 +116,7 @@ export default function AIMenuThemeHistoryPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link to="/ai-menu-theme-background">
@@ -124,7 +124,7 @@ export default function AIMenuThemeHistoryPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               Menu Theme History
             </h1>
           </div>

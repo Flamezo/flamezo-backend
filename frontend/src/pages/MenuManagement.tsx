@@ -426,7 +426,7 @@ export default function MenuManagement() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] -m-4 sm:-m-6 overflow-hidden">
-      <header className="bg-[#1e2433] dark:bg-card text-white dark:text-foreground p-4 flex items-center justify-between shadow-lg z-10 border-b dark:border-border">
+      <header className="bg-[#1e2433] dark:bg-card text-white dark:text-foreground p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg z-10 border-b dark:border-border">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-lg font-bold tracking-tight uppercase">Menu Management</h1>
@@ -468,11 +468,11 @@ export default function MenuManagement() {
         </div>
       )}
 
-      <div className="flex-1 flex overflow-hidden bg-muted/30 dark:bg-background">
-        {/* Resizable Sidebar */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-muted/30 dark:bg-background">
+        {/* Resizable Sidebar — stacks on top (capped height) on mobile, side panel on md+ */}
         <div
-          className="flex flex-col bg-card border-r relative"
-          style={{ width: `${sidebarWidth}px` }}
+          className="flex flex-col bg-card border-b md:border-b-0 md:border-r relative w-full md:w-[var(--menu-sw)] shrink-0 max-h-[45vh] md:max-h-none"
+          style={{ ['--menu-sw' as any]: `${sidebarWidth}px` }}
         >
           <div className="p-4 border-b space-y-4 bg-muted/20">
             <div className="relative">
@@ -543,10 +543,10 @@ export default function MenuManagement() {
             )}
           </div>
 
-          {/* Resize Handle */}
+          {/* Resize Handle — desktop only (sidebar is stacked full-width on mobile) */}
           <div
             className={cn(
-              "absolute top-0 -right-1 w-2 h-full cursor-col-resize hover:bg-primary/20 transition-colors z-20",
+              "hidden md:block absolute top-0 -right-1 w-2 h-full cursor-col-resize hover:bg-primary/20 transition-colors z-20",
               isResizing && "bg-primary/40"
             )}
             onMouseDown={() => setIsResizing(true)}

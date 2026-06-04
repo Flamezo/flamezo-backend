@@ -143,7 +143,7 @@ export default function Orders() {
           </h1>
           <p className="text-sm text-muted-foreground">Monitor and manage incoming orders in real-time.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View Switcher */}
           <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50 mr-2">
             <Button 

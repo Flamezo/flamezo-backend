@@ -134,7 +134,8 @@ class Restaurant(Document):
 			# Auto-set billing defaults for the new plan
 			settings = frappe.get_single("Flamezo Settings")
 			if self.plan_type == "GOLD":
-				self.monthly_minimum = settings.gold_monthly_fee or 399.0
+				# Monthly floor removed from the model — always 0 (no minimum).
+				self.monthly_minimum = settings.gold_monthly_fee or 0
 				self.platform_fee_percent = settings.gold_commission_percent or 3.0
 			elif self.plan_type == "SILVER":
 				self.monthly_minimum = 0.0
@@ -314,7 +315,7 @@ class Restaurant(Document):
 			updates["platform_fee_percent"] = float(settings_commission) if settings_commission is not None else 3.0
 		if not self.monthly_minimum:
 			settings_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee")
-			updates["monthly_minimum"] = float(settings_floor) if settings_floor is not None else 399.0
+			updates["monthly_minimum"] = float(settings_floor) if settings_floor is not None else 0
 		if updates:
 			frappe.db.set_value("Restaurant", self.name, updates)
 			# Reflect the writes back on the in-memory doc for the rest of after_insert.

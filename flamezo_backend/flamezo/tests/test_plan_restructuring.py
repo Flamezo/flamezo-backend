@@ -237,22 +237,22 @@ class TestSilverBillingExemption(unittest.TestCase):
 class TestGoldBillingDefaults(unittest.TestCase):
     """
     GOLD restaurants must have:
-      - monthly_minimum = 399.0 (or settings override)
+      - monthly_minimum = 0 (the monthly floor was removed from the model)
       - platform_fee_percent = 1.5 (or settings override)
-    These previously belonged to DIAMOND; now they are GOLD defaults.
     """
 
     def setUp(self):
         self.restaurant = f"{_PREFIX}-GOLD-BILL"
         make_restaurant(self.restaurant, plan="GOLD", balance=5000.0,
-                        monthly_minimum=399.0, platform_fee_percent=1.5)
+                        monthly_minimum=0, platform_fee_percent=1.5)
 
     def tearDown(self):
         cleanup_restaurant(self.restaurant)
 
-    def test_gold_has_correct_monthly_minimum(self):
+    def test_gold_has_no_monthly_minimum(self):
+        # Floor removed — GOLD restaurants carry no monthly minimum.
         val = frappe.db.get_value("Restaurant", self.restaurant, "monthly_minimum")
-        self.assertEqual(float(val), 399.0)
+        self.assertEqual(float(val or 0), 0.0)
 
     def test_gold_has_correct_platform_fee(self):
         val = frappe.db.get_value("Restaurant", self.restaurant, "platform_fee_percent")
@@ -322,7 +322,7 @@ class TestSubscriptionPlanUpdate(unittest.TestCase):
         # Set up as GOLD first
         frappe.db.set_value("Restaurant", self.restaurant, {
             "plan_type": "GOLD",
-            "monthly_minimum": 399.0,
+            "monthly_minimum": 500.0,
             "platform_fee_percent": 1.5,
         })
         frappe.db.commit()
@@ -512,11 +512,11 @@ class TestTwoPlanModelInvariants(unittest.TestCase):
             self.assertLessEqual(len(plans), 2,
                                  f"Feature '{feature}' has {len(plans)} plan entries — expected at most 2")
 
-    def test_gold_monthly_minimum_is_399(self):
-        """Global default for GOLD monthly minimum is ₹399."""
+    def test_gold_has_no_monthly_floor(self):
+        """Monthly floor was removed — the global GOLD monthly fee default is 0."""
         settings = frappe.get_single("Flamezo Settings")
-        fee = getattr(settings, 'gold_monthly_fee', None) or 399.0
-        self.assertEqual(float(fee), 399.0)
+        fee = getattr(settings, 'gold_monthly_fee', None) or 0
+        self.assertEqual(float(fee), 0.0)
 
     def test_gold_commission_percent_is_1_5(self):
         """Global default for GOLD commission is 1.5%."""

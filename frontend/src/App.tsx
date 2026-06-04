@@ -7,6 +7,7 @@ import { RestaurantProvider } from './contexts/RestaurantContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import FeatureProtectedRoute from './components/FeatureProtectedRoute'
+import SessionGuard from './components/SessionGuard'
 import { PageSkeleton } from './components/PageSkeleton'
 
 // Lazy load all page components for code-splitting
@@ -225,6 +226,7 @@ function App() {
 			siteName={(window as any)?.frappe?.boot?.sitename ?? import.meta.env.VITE_SITE_NAME}>
 			<ThemeProvider>
 				<RestaurantProvider>
+					<SessionGuard />
 					<AppContent />
 				</RestaurantProvider>
 			</ThemeProvider>

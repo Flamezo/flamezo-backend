@@ -815,7 +815,7 @@ function AdminRestaurantDetailsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Plan & Billing</CardTitle>
-                  <CardDescription>Success Share rate, monthly floor, and admin billing state</CardDescription>
+                  <CardDescription>Success Share rate and admin billing state</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
@@ -827,27 +827,15 @@ function AdminRestaurantDetailsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Success Share (%)</Label>
-                      <NumberInput
-                        value={restaurant.platform_fee_percent}
-                        onChange={(e) => setRestaurant({...restaurant, platform_fee_percent: parseFloat(e.target.value)})}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Default 3% for new restaurants, 1.5% grandfathered.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Monthly Floor (₹)</Label>
-                      <NumberInput
-                        value={restaurant.monthly_minimum}
-                        onChange={(e) => setRestaurant({...restaurant, monthly_minimum: parseFloat(e.target.value)})}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Minimum billed per month if Success Share doesn't cover it.
-                      </p>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Success Share (%)</Label>
+                    <NumberInput
+                      value={restaurant.platform_fee_percent}
+                      onChange={(e) => setRestaurant({...restaurant, platform_fee_percent: parseFloat(e.target.value)})}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Default 3% for new restaurants, 1.5% grandfathered.
+                    </p>
                   </div>
 
                   <Separator />
@@ -943,7 +931,7 @@ function AdminRestaurantDetailsPage() {
                       </Badge>
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-snug">
-                      Used for monthly floor billing + cash Success Share sweeps (Tier 2).
+                      Used for cash Success Share sweeps (Tier 2).
                     </p>
                   </div>
 

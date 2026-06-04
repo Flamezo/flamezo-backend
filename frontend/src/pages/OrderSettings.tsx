@@ -133,7 +133,7 @@ export default function OrderSettings() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Order Settings</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Order Settings</h1>
         <p className="text-muted-foreground mt-2">
           Configure takeaway, delivery options, and additional charges.
         </p>
@@ -165,7 +165,7 @@ export default function OrderSettings() {
           </div>
               {settings.no_ordering === 1 && (
                 <div className="mt-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-600 text-sm font-medium">
-                  Note: {Number(billingInfo?.platform_fee_percent || billingInfo?.plan_defaults?.gold_commission || 3.0)}% Success Share applies per order. When ordering is disabled, the ₹{billingInfo?.plan_defaults?.gold_floor || 399} monthly floor still applies.
+                  Note: {Number(billingInfo?.platform_fee_percent || billingInfo?.plan_defaults?.gold_commission || 3.0)}% Success Share applies per order. There is no monthly floor or minimum — you only pay a share of orders you process.
                 </div>
               )}
         </CardContent>
@@ -284,7 +284,7 @@ export default function OrderSettings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-primary" />
@@ -309,7 +309,7 @@ export default function OrderSettings() {
             </div>
 
             {settings.enable_delivery === 1 && (
-              <>
+              <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Base Delivery Fee</Label>
                   <div className="flex items-center rounded-md border border-input bg-background overflow-hidden">
@@ -372,7 +372,7 @@ export default function OrderSettings() {
                   </div>
                   <p className="text-xs text-muted-foreground">Minimum cart amount required for delivery</p>
                 </div>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>

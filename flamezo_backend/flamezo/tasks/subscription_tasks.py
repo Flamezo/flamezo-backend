@@ -12,76 +12,18 @@ from flamezo_backend.flamezo.api.coin_billing import deduct_coins
 
 def process_daily_subscription_floors():
     """
-    Nightly task (23:59) — GOLD plan monthly floor recovery.
-    GOLD restaurants pay ₹399/mo minimum; if commissions don't cover it, the
-    shortfall is deducted from their coin wallet every 30 days.
+    Retired — the monthly floor / minimum guarantee was removed from the model.
+
+    Previously this nightly task (23:59) charged GOLD restaurants a ₹399/mo
+    minimum: if their success share for the period fell short of the floor, the
+    shortfall was deducted from their coin wallet every 30 days.
+
+    Under the current model there is NO monthly minimum or floor — restaurants
+    pay only a success share on the orders they actually process. This function
+    is kept (as a no-op) so any existing scheduler entries or out-of-tree
+    callers continue to import and run without charging anything.
     """
-    today = getdate()
-
-    # Fetch all active GOLD restaurants with floor recovery enabled
-    gold_restaurants = frappe.get_all("Restaurant",
-        filters={"plan_type": "GOLD", "is_active": 1, "enable_floor_recovery": 1},
-        fields=["name", "plan_type", "coins_balance", "timezone", "monthly_minimum", "floor_recovery_activated_on", "last_floor_recovery_date", "creation"]
-    )
-
-    for res in gold_restaurants:
-        try:
-            res_tz = pytz.timezone(res.timezone or "UTC")
-            local_now = datetime.now(res_tz)
-            local_today_date = local_now.date()
-
-            start_of_day_local = res_tz.localize(datetime.combine(local_today_date, time.min))
-            end_of_day_local = start_of_day_local + timedelta(days=1)
-            start_utc = start_of_day_local.astimezone(pytz.utc)
-            end_utc = end_of_day_local.astimezone(pytz.utc)
-
-            # GOLD Monthly Floor Check (every 30 days)
-            last_check_raw = (
-                res.last_floor_recovery_date
-                or res.floor_recovery_activated_on
-                or res.creation
-            )
-            if not last_check_raw:
-                continue  # No reference date yet — skip until floor recovery is configured
-            last_check = getdate(last_check_raw)
-            if not last_check or not today:
-                continue  # Defensive: bail out if either bound is unparseable
-            days_since_last = date_diff(today, last_check) or 0
-            if days_since_last < 30:
-                continue  # Not time yet for the monthly guarantee check
-
-            # Check total commissions for the last 30 days
-            commission_rows = frappe.db.sql(
-                """
-                SELECT SUM(amount)
-                FROM `tabCoin Transaction`
-                WHERE restaurant = %s
-                AND transaction_type = 'Commission Deduction'
-                AND creation >= %s AND creation < %s
-                """,
-                (res.name, last_check, end_utc),
-            )
-            total_commissions = 0.0
-            if commission_rows and commission_rows[0] and commission_rows[0][0] is not None:
-                total_commissions = float(commission_rows[0][0])
-
-            floor_target = float(res.monthly_minimum or 399.0)
-            shortfall = max(0.0, floor_target - abs(total_commissions))
-
-            if shortfall > 0:
-                deduct_coins(
-                    restaurant=res.name,
-                    amount=shortfall,
-                    type="Monthly GOLD Floor",
-                    description=f"Monthly GOLD Floor Recovery (Min Guarantee: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(total_commissions):.2f}, Period: {last_check} to {today})"
-                )
-
-            # Update last_floor_recovery_date to today to start the next 30-day cycle
-            frappe.db.set_value("Restaurant", res.name, "last_floor_recovery_date", today)
-
-        except Exception as e:
-            _err_msg = f"Monthly floor recovery failed for {res.name}: {str(e)}"
-            frappe.log_error(_err_msg[:140], "Billing Task Error")
+    return
 
 def sync_restaurant_subscription(restaurant):
     """

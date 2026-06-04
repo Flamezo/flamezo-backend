@@ -81,7 +81,7 @@ export function SubscriptionComparisonModal({
               One plan. Every feature unlocked.
             </DialogTitle>
             <DialogDescription className="text-base">
-              Free onboarding. ₹{planDefaults.gold_floor}/month floor once you go live online. {planDefaults.gold_commission}% Success Share per online order. No tiers to chase.
+              Free onboarding. {planDefaults.gold_commission}% Success Share per online order — no monthly floor, no minimums, no tiers to chase.
             </DialogDescription>
           </DialogHeader>
 
@@ -93,11 +93,11 @@ export function SubscriptionComparisonModal({
               <div className="space-y-1">
                 <p className="text-sm font-bold uppercase tracking-tighter text-primary">Flamezo</p>
                 <p className="text-2xl font-black">
-                  ₹{planDefaults.gold_floor}
-                  <span className="text-sm font-medium">/mo floor</span>
+                  {planDefaults.gold_commission}%
+                  <span className="text-sm font-medium"> Success Share</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                  + {planDefaults.gold_commission}% Success Share · Free onboarding
+                  No monthly floor · Free onboarding
                 </p>
               </div>
               <Button size="sm" variant="ghost" className="w-full h-8 text-xs font-bold rounded-lg" disabled>

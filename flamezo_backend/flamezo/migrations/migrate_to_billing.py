@@ -7,7 +7,7 @@ def run_migration():
 	Also creates a DB unique index on Razorpay Webhook Log.event_id if not present.
 	"""
 	settings = frappe.get_single("Flamezo Settings")
-	floor_amt = (settings.gold_monthly_fee or 399) * 100
+	floor_amt = (settings.gold_monthly_fee or 0) * 100
 	gst_percent = settings.gst_percent or 18.0
 	charge_gst = settings.charge_gst
 

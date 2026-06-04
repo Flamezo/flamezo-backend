@@ -45,11 +45,11 @@ def test_it():
             "is_active": 1,
             "coins_balance": 5000,
             "timezone": "UTC",
-            "monthly_minimum": 399,
+            "monthly_minimum": 0,
             "tax_rate": 0.0
         }).insert(ignore_permissions=True)
     else:
-        frappe.db.set_value("Restaurant", gold_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
+        frappe.db.set_value("Restaurant", gold_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 0, "tax_rate": 0.0})
     
     gold_commission_name = "test-gold-commission-res-e2e"
     if not frappe.db.exists("Restaurant", gold_commission_name):
@@ -61,11 +61,11 @@ def test_it():
             "is_active": 1,
             "coins_balance": 5000,
             "timezone": "UTC",
-            "monthly_minimum": 399,
+            "monthly_minimum": 0,
             "tax_rate": 0.0
         }).insert(ignore_permissions=True)
     else:
-        frappe.db.set_value("Restaurant", gold_commission_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
+        frappe.db.set_value("Restaurant", gold_commission_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 0, "tax_rate": 0.0})
 
     # Clear today's data to start fresh
     today_start = getdate().strftime("%Y-%m-%d 00:00:00")

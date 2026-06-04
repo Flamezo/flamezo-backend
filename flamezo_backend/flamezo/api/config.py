@@ -305,7 +305,7 @@ def get_restaurant_config(restaurant_id):
 				"monthly_minimum": float(restaurant_doc.monthly_minimum or 0),
 				"platform_fee_percent": float(restaurant_doc.platform_fee_percent or 0),
 				"plan_defaults": {
-					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0),
+					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0),
 					"gold_commission": float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0),
 					# Retired in the single-tier model — no GOLD unlock barrier.
 					# Kept in the response as `0.0` for client backwards compat.

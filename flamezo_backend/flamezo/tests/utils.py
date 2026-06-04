@@ -26,12 +26,9 @@ def make_restaurant(name, plan="GOLD", balance=5000.0, **kwargs):
         "plan_type": plan,
         "coins_balance": balance,
         "is_active": 1,
-        "monthly_minimum": (
-            399.0 if plan == "GOLD" else
-            399.0 if plan == "GOLD" else
-            0.0
-        ),
-        "enable_floor_recovery": 1,
+        # Monthly floor removed from the model — default to no minimum / disabled.
+        "monthly_minimum": 0.0,
+        "enable_floor_recovery": 0,
         "auto_recharge_enabled": 0,
         "auto_recharge_threshold": 200.0,
         "auto_recharge_amount": 1000.0,

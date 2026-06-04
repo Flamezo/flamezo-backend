@@ -131,7 +131,7 @@ export default function ModuleDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <Link to={`/${doctype}`}>
             <Button variant="ghost" size="sm">
@@ -140,12 +140,12 @@ export default function ModuleDetail() {
             </Button>
           </Link>
           <div>
-            <h2 className="text-3xl font-bold tracking-tight capitalize">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight capitalize">
               {doctype?.replace(/_/g, ' ')}: {docname}
             </h2>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* QR Code buttons for Restaurant */}
           {doctype === 'Restaurant' && doc?.tables && doc.tables > 0 && mode === 'view' && (
             <>

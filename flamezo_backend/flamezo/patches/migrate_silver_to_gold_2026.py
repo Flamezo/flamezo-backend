@@ -7,7 +7,7 @@ Patch: Migrate every legacy SILVER restaurant to the new single-tier GOLD model.
 Background
 ----------
 As of May 2026 Flamezo runs a single-tier platform model: free onboarding, full
-feature access, ₹399/mo floor, 1.5% commission on online orders. The legacy
+feature access, no monthly floor, success share on online orders. The legacy
 SILVER tier had ordering + loyalty only and ran with several Restaurant Config
 feature flags forced to 0 (table booking, offers, coupons, etc.) plus several
 Home Features hidden.
@@ -31,7 +31,7 @@ import json
 import frappe
 
 
-_DEFAULT_FLOOR = 399.0
+_DEFAULT_FLOOR = 0.0  # Monthly floor removed from the model
 _DEFAULT_COMMISSION = 1.5
 _CONFIG_FEATURE_FIELDS = (
     "enable_table_booking",

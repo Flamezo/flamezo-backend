@@ -12,4 +12,5 @@ flamezo_backend.flamezo.patches.set_indian_timezone
 flamezo_backend.flamezo.patches.migrate_silver_to_gold_2026
 flamezo_backend.flamezo.patches.init_commission_engine
 flamezo_backend.flamezo.patches.grandfather_legacy_success_share
+flamezo_backend.flamezo.patches.remove_monthly_floor_2026
 

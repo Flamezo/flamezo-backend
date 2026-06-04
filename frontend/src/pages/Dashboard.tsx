@@ -213,14 +213,14 @@ function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-4 text-[10px] uppercase font-bold text-muted-foreground px-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 text-[10px] uppercase font-bold text-muted-foreground px-2">
         <span className="col-span-2">Dish Name</span>
         <span className="text-center">Views</span>
         <span className="text-right">Conv.</span>
       </div>
       <div className="space-y-1">
         {heatmap.map((item, i) => (
-          <div key={i} className="group grid grid-cols-4 items-center p-2 rounded-xl bg-muted/20 hover:bg-muted/40 transition-all border border-transparent hover:border-border/40">
+          <div key={i} className="group grid grid-cols-2 sm:grid-cols-4 items-center p-2 rounded-xl bg-muted/20 hover:bg-muted/40 transition-all border border-transparent hover:border-border/40">
             <div className="col-span-2 flex flex-col">
               <span className="text-xs font-bold truncate">{item.item_name}</span>
               <span className={cn(

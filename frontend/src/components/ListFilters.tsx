@@ -158,8 +158,8 @@ export function ListFilters({
                 {filters.map((filter, index) => {
                   const field = filterableFields.find(f => f.fieldname === filter.fieldname)
                   return (
-                    <div key={index} className="flex gap-2 items-end p-3 border border-border rounded-md bg-muted/50">
-                      <div className="flex-1 grid grid-cols-3 gap-2">
+                    <div key={index} className="flex flex-col sm:flex-row gap-2 sm:items-end p-3 border border-border rounded-md bg-muted/50">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {/* Field Select */}
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1 block">Field</Label>

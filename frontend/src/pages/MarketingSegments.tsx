@@ -509,7 +509,7 @@ export default function MarketingSegments() {
                     <p className="text-sm font-medium">Zero opt-outs! Your audience is highly engaged.</p>
                   </div>
                 ) : (
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border rounded-lg overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50 border-b">
                         <tr>
