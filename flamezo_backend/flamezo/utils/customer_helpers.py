@@ -351,7 +351,7 @@ def get_platform_customer_from_user(user_email: str):
 
 
 def mask_name(name):
-	"""Mask name for SILVER restaurants: 'Priya Sharma' -> 'Pr*** Sh***'"""
+	"""Mask name: 'Priya Sharma' -> 'Pr*** Sh***'"""
 	if not name: return "***"
 	parts = str(name).split()
 	masked_parts = []

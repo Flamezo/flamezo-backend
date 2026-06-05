@@ -56,7 +56,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
     )
     current_balance = (balance_info[0][0] if balance_info and balance_info[0][0] is not None else 0.0)
 
-    is_deduction = txn_type in ["AI Deduction", "Commission Deduction", "Daily SILVER Floor", "Daily GOLD Floor", "Lead Unlock", "Delivery Fee"]
+    is_deduction = txn_type in ["AI Deduction", "Commission Deduction", "Daily GOLD Floor", "Lead Unlock", "Delivery Fee"]
     
     if is_deduction:
         new_balance = current_balance - abs(amount)
@@ -94,7 +94,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
     txn.insert(ignore_permissions=True)
     
     # Trigger auto-recharge check if balance falls below threshold
-    if txn_type in ["AI Deduction", "Commission Deduction", "Daily SILVER Floor", "Daily GOLD Floor", "Delivery Fee"]:
+    if txn_type in ["AI Deduction", "Commission Deduction", "Daily GOLD Floor", "Delivery Fee"]:
         check_and_trigger_auto_recharge(restaurant, new_balance)
 
         # Check for system suspension (-100 grace limit)
@@ -338,11 +338,7 @@ def refund_coins(restaurant, amount, description="", ref_doctype=None, ref_name=
 @frappe.whitelist(allow_guest=False)
 def get_coin_billing_info(restaurant):
     """Returns the restaurant's coin balance and billing settings."""
-    from flamezo_backend.flamezo.tasks.subscription_tasks import sync_restaurant_subscription
-    # Fail-safe: Check for overdue plan switches before returning info
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
-    sync_restaurant_subscription(restaurant)
-    
     res = frappe.get_doc("Restaurant", restaurant)
     settings = frappe.get_single("Flamezo Settings")
     
@@ -364,7 +360,6 @@ def get_coin_billing_info(restaurant):
         "monthly_minimum": float(res.monthly_minimum or 0),
         "platform_fee_percent": float(res.platform_fee_percent or 0),
         "plan_defaults": {
-            "silver_monthly": 0.0,
             "gold_floor": float(settings.gold_monthly_fee or 0),       # Monthly floor removed (always 0)
             "gold_commission": float(settings.gold_commission_percent or 3.0), # Success Share %
             # Retired in the new single-tier model — there is no GOLD unlock
@@ -376,49 +371,9 @@ def get_coin_billing_info(restaurant):
 
 @frappe.whitelist(allow_guest=False)
 def update_subscription_plan(restaurant, plan_type):
-    """
-    Schedule a restaurant subscription tier update.
-
-    Under the May 2026 single-tier model GOLD is the only legal target — the
-    legacy SILVER tier is retained in the doctype schema for historical
-    records only and is no longer a valid plan. Self-service downgrade to
-    SILVER is therefore rejected here. Admins who genuinely need to flip
-    a record to SILVER (e.g. for forensic / billing-dispute purposes) can
-    still do it from the Frappe desk, where `Restaurant.validate_plan_change`
-    enforces the System Manager role.
-
-    All accepted changes follow the 'Tomorrow Rule' (effective at 00:00).
-    """
-    if plan_type != "GOLD":
-        frappe.throw(_("GOLD is the only available plan. Self-service downgrade to legacy tiers is not supported."))
-
-    restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
-    current_plan = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-    if current_plan == plan_type:
-        return {"success": True, "message": f"Already on {plan_type} plan."}
-
-    # Legacy GOLD wallet-balance "unlock barrier" (was ₹1,299) is retired under
-    # the new single-tier model — every restaurant onboards directly into the
-    # only active tier, so there is no upgrade gate to enforce here.
-
-    # Defer activation to Tomorrow 00:00
-    from frappe.utils import add_days, getdate
-    tomorrow = add_days(getdate(), 1)
-    
-    frappe.db.set_value("Restaurant", restaurant, {
-        "deferred_plan_type": plan_type,
-        "plan_change_date": tomorrow,
-        "plan_changed_by": frappe.session.user
-    })
-    
-    frappe.db.commit()
-    return {
-        "success": True, 
-        "deferred": True,
-        "plan_type": plan_type,
-        "effective_date": tomorrow,
-        "message": f"Plan change to {plan_type} scheduled. It will be effective from {tomorrow} at 12:00 AM."
-    }
+    """Retired — there is a single flat success-share model; no plan tiers to change."""
+    validate_restaurant_for_api(restaurant, frappe.session.user)
+    return {"success": True, "message": "There is a single plan — nothing to change."}
 
 @frappe.whitelist(allow_guest=False)
 def update_autopay_settings(restaurant, enabled, threshold, amount):

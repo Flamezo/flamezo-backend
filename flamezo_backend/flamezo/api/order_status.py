@@ -11,7 +11,7 @@ from flamezo_backend.flamezo.utils.feature_gate import require_plan
 
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def update_status(order_id, status):
 	"""
 	Update order status using db.set_value to bypass full document validation

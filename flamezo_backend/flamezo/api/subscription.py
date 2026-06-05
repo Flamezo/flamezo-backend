@@ -9,8 +9,7 @@ Provides API endpoints for subscription plan management and feature access check
 New model (May 2026): GOLD is the only active tier. Every onboarded restaurant
 gets the full feature set on day 1 — free onboarding, no monthly floor, plus
 Success Share on online orders (default 3% for new restaurants, 1.5%
-grandfathered for ones onboarded before May 2026). The legacy SILVER tier is retained in the doctype
-schema for historical records only; no new restaurant should land on SILVER.
+grandfathered for ones onboarded before May 2026).
 """
 
 import frappe
@@ -75,11 +74,9 @@ def check_access(restaurant_id, feature_name):
 @frappe.whitelist()
 def get_plan_comparison(restaurant_id=None):
     """
-    Return the single active plan description.
+    Return the active plan description.
 
-    Kept as `get_plan_comparison` for client backwards-compatibility. The shape
-    still includes a `GOLD` block so existing frontends keep rendering; the
-    SILVER block is now empty/None to signal the tier is retired.
+    Kept as `get_plan_comparison` for client backwards-compatibility.
     """
     default_rate = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0
     commission_rate = f"{float(default_rate)}%"
@@ -94,7 +91,6 @@ def get_plan_comparison(restaurant_id=None):
     price_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0
 
     return {
-        'SILVER': None,
         'GOLD': {
             'name': 'Flamezo',
             'price': f'Free onboarding · ₹{float(price_floor):.0f} floor / mo + {commission_rate} on online orders',

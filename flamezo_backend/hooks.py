@@ -249,6 +249,21 @@ doc_events = {
 	"File": {
 		"on_update": "flamezo_backend.flamezo.doctype.home_feature.home_feature.update_home_feature_from_file",
 	},
+	# Media R2 cleanup — when a media-owning doc is trashed, delete its Media
+	# Assets and their Cloudflare objects so storage never accumulates orphans.
+	# (Menu Product / Menu Category / Menu Image Extractor / UGC Story Submission
+	#  already handle their own media in dedicated controllers.)
+	"Offer": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Event": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Restaurant Config": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Home Feature": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"AI Image Generation": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Legacy Content": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Legacy Member": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Legacy Testimonial": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Legacy Gallery Image": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Legacy Testimonial Image": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"UGC Cashback Config": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
 }
 
 # Scheduled Tasks
@@ -261,11 +276,8 @@ scheduler_events = {
 		],
 		# The 23:59 floor-recovery cron was retired when the ₹399 monthly floor
 		# was removed from the model. `process_daily_subscription_floors` and
-		# `process_silver_feature_renewals` are now no-ops (kept importable);
+		# `process_legacy_feature_renewals` are now no-ops (kept importable);
 		# no monthly minimum / floor is ever charged.
-		"1 0 * * *": [    # Run daily at 00:01 for plan switches
-			"flamezo_backend.flamezo.tasks.subscription_tasks.apply_deferred_plan_changes",
-		],
 		# Marketing Studio: dispatch scheduled campaigns every 15 minutes
 		"*/15 * * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
@@ -332,6 +344,11 @@ scheduler_events = {
 		# claims whose proof window has elapsed.
 		"15 * * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.send_proof_reminders",
+		],
+		# UGC Cashback — daily 04:00: purge proof videos older than the retention
+		# window (privacy + storage), keeping the submission record for audit.
+		"0 4 * * *": [
+			"flamezo_backend.flamezo.tasks.ugc_tasks.purge_old_proof_videos",
 		],
 	}
 }

@@ -43,7 +43,7 @@ from datetime import datetime
 # Handled by customization_helpers
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def create_order(restaurant_id, items, cooking_requests=None, customer_info=None, delivery_info=None, session_id=None, table_number=None, coupon_code=None, payment_method=None, order_type=None, packaging_fee=None, delivery_fee=None, pickup_time=None, loyalty_coins_redeemed=0, referral_id=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None):
 	"""
 	POST /api/v1/orders
@@ -467,7 +467,7 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 					)
 				
 				# Referral cycle reset is handled by the monthly scheduler
-				# (reset_referral_cycles_monthly in loyalty_tasks.py — runs 1st of each month)
+				# (monthly reset task in loyalty_tasks.py — runs 1st of each month)
 		except Exception as e:
 			frappe.log_error(f"Error in loyalty earning/referral logic: {str(e)}")
 		

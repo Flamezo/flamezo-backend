@@ -60,11 +60,13 @@ def verify_submission(submission_name):
 	if sub.status != "proof_submitted":
 		return
 
-	from flamezo_backend.flamezo.api.ugc import _get_active_config, credit_ugc_cashback
+	from flamezo_backend.flamezo.api.ugc import (
+		credit_ugc_cashback, PLATFORM_AI_PROVIDER, PLATFORM_AI_CONFIDENCE,
+	)
 
-	config = _get_active_config(sub.restaurant)
-	provider = (config.ai_provider if config else "Gemini") or "Gemini"
-	threshold = flt(config.ai_confidence_threshold) if config else 0.85
+	# AI provider + auto-approve threshold are platform-fixed (same for all restaurants).
+	provider = PLATFORM_AI_PROVIDER
+	threshold = PLATFORM_AI_CONFIDENCE
 	sub.ai_provider = provider
 
 	# 2. Dedup — same proof video used on another live/credited claim = fraud.

@@ -60,10 +60,7 @@ class Restaurant(Document):
 		# Auto-generate subdomain if not provided
 		if not self.subdomain and self.restaurant_id:
 			self.subdomain = self.restaurant_id.lower().replace(" ", "-")
-		
-		# Validate plan change (admin-only)
-		self.validate_plan_change()
-	
+
 	def before_save(self):
 		"""
 		Safeguard: Prevent accidental wallet balance resets during standard doc.save() calls.
@@ -103,118 +100,9 @@ class Restaurant(Document):
 				self.referred_by_restaurant = referrer
 			else:
 				frappe.msgprint(_("Warning: Invalid referral code {0} ignored.").format(self.referred_by_restaurant_code))
-		
-		# Ensure floor recovery dates are initialized
-		self.handle_floor_recovery_activation()
-		
+
 		# Prevent non-admin reactivation if suspended for billing
 		self.validate_billing_reactivation()
-	
-	def validate_plan_change(self):
-		"""Validate subscription plan changes - admin only"""
-		if not self.is_new() and self.has_value_changed('plan_type'):
-			# Check if user has permission to change plan
-			if not frappe.has_permission('Restaurant', 'write'):
-				frappe.throw(_('You do not have permission to change subscription plans'))
-			
-			# Only System Manager and specific roles can change plans
-			allowed_roles = ['System Manager', 'Administrator']
-			user_roles = frappe.get_roles(frappe.session.user)
-			
-			if not any(role in allowed_roles for role in user_roles):
-				frappe.throw(
-					_('Only administrators can change subscription plans. Please contact support.'),
-					frappe.PermissionError
-				)
-			
-			# Set plan metadata
-			self.plan_changed_by = frappe.session.user
-			self.plan_activated_on = frappe.utils.now()
-
-			# Auto-set billing defaults for the new plan
-			settings = frappe.get_single("Flamezo Settings")
-			if self.plan_type == "GOLD":
-				# Monthly floor removed from the model — always 0 (no minimum).
-				self.monthly_minimum = settings.gold_monthly_fee or 0
-				self.platform_fee_percent = settings.gold_commission_percent or 3.0
-			elif self.plan_type == "SILVER":
-				self.monthly_minimum = 0.0
-				self.platform_fee_percent = 0.0
-			
-			# Waiver individual feature fees for GOLD (they are included)
-			if self.plan_type == "GOLD":
-				frappe.db.set_value("Restaurant Config", {"restaurant": self.name}, "menu_theme_paid_until", None)
-
-	def handle_floor_recovery_activation(self):
-		"""Ensure dates are set when floor recovery is enabled"""
-		if self.enable_floor_recovery:
-			if not self.floor_recovery_activated_on:
-				self.floor_recovery_activated_on = frappe.utils.today()
-			
-			if not self.last_floor_recovery_date:
-				# Initialize to today so the first 30-day window starts now
-				self.last_floor_recovery_date = frappe.utils.today()
-			
-			# Waiver individual feature fees for GOLD (they are included)
-			if self.plan_type == "GOLD":
-				frappe.db.set_value("Restaurant Config", {"restaurant": self.name}, "menu_theme_paid_until", None)
-			
-			# Log the change (will be created in on_update)
-			self._plan_changed = True
-	
-	def log_plan_change(self):
-		"""Create audit log for plan changes"""
-		if not hasattr(self, '_plan_changed') or not self._plan_changed:
-			return
-		
-		try:
-			# Get previous plan from database
-			previous_plan = frappe.db.get_value('Restaurant', self.name, 'plan_type')
-			
-			# Create Plan Change Log
-			plan_change_log = frappe.get_doc({
-				'doctype': 'Plan Change Log',
-				'restaurant': self.name,
-				'previous_plan': previous_plan,
-				'new_plan': self.plan_type,
-				'changed_by': frappe.session.user,
-				'changed_on': frappe.utils.now(),
-				'change_reason': self.plan_change_reason or '',
-				'ip_address': frappe.local.request_ip or 'Unknown'
-			})
-			plan_change_log.insert(ignore_permissions=True)
-			
-			# Update plan change history JSON
-			if not self.plan_change_history:
-				self.plan_change_history = []
-			
-			history_entry = {
-				'date': frappe.utils.now(),
-				'from': previous_plan,
-				'to': self.plan_type,
-				'by': frappe.session.user,
-				'reason': self.plan_change_reason or ''
-			}
-			
-			import json
-			if isinstance(self.plan_change_history, str):
-				self.plan_change_history = json.loads(self.plan_change_history or '[]')
-			
-			if not self.plan_change_history:
-				self.plan_change_history = []
-			
-			self.plan_change_history.append(history_entry)
-			
-			# Use db_set to avoid recursion in on_update and bypass strict list validation if it occurs
-			self.db_set('plan_change_history', json.dumps(self.plan_change_history), update_modified=False)
-			
-			frappe.msgprint(
-				_('Subscription plan changed from {0} to {1}').format(previous_plan, self.plan_type),
-				indicator='green'
-			)
-			
-		except Exception as e:
-			frappe.log_error(f'Error logging plan change: {str(e)}', 'Plan Change Log Error')
 
 	def validate_billing_reactivation(self):
 		"""
@@ -302,20 +190,9 @@ class Restaurant(Document):
 	
 	def after_insert(self):
 		"""Auto-assign owner when restaurant is created"""
-		# Initialize subscription metadata for the new (GOLD) onboarding model.
-		# Done here (not validate) so the values land on the very first insert without
-		# re-triggering the admin-only validate_plan_change() guard.
 		updates = {}
-		if not self.plan_type:
-			updates["plan_type"] = "GOLD"
-		if not self.plan_activated_on:
-			updates["plan_activated_on"] = frappe.utils.now()
 		if self.platform_fee_percent is None:
-			settings_commission = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent")
-			updates["platform_fee_percent"] = float(settings_commission) if settings_commission is not None else 3.0
-		if not self.monthly_minimum:
-			settings_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee")
-			updates["monthly_minimum"] = float(settings_floor) if settings_floor is not None else 0
+			updates["platform_fee_percent"] = 3.0
 		if updates:
 			frappe.db.set_value("Restaurant", self.name, updates)
 			# Reflect the writes back on the in-memory doc for the rest of after_insert.
@@ -339,8 +216,6 @@ class Restaurant(Document):
 	
 	def on_update(self):
 		"""Called after document is updated"""
-		# Log plan changes
-		self.log_plan_change()
 		
 		# QR codes are no longer auto-generated here
 		# They must be explicitly generated via the generate_qr_codes_pdf method

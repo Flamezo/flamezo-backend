@@ -22,7 +22,6 @@ export function usePlanType(_restaurantId?: string) {
   return {
     planType: 'GOLD' as const,
     isGold: true,
-    isSilver: false,
     loading: false,
   };
 }

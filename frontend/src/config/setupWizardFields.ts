@@ -108,7 +108,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       // Ordering / delivery (managed via dedicated settings page, not wizard)
       'enable_takeaway',
       'enable_delivery',
-      'no_ordering',
       'default_delivery_fee',
       'default_packaging_fee',
       'packaging_fee_type',

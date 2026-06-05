@@ -1,12 +1,12 @@
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, today, add_months
+from frappe.utils import flt, cint, today, add_months, add_days, getdate
 from flamezo_backend.flamezo.utils.platform_config import (
 	get_earn_percentage,
 	get_max_coins_per_order,
 	get_min_order_to_earn,
 	get_min_redemption_threshold,
-	get_expiry_months,
+	get_expiry_days,
 )
 
 def is_loyalty_enabled(restaurant):
@@ -41,11 +41,11 @@ def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	)
 	
 	balance = 0
-	curr_today = today()
+	curr_today = getdate(today())
 	for entry in entries:
 		if entry.transaction_type == "Earn":
 			# Only count Earn entries that haven't expired
-			if not entry.expiry_date or entry.expiry_date >= curr_today:
+			if not entry.expiry_date or getdate(entry.expiry_date) >= curr_today:
 				balance += entry.coins
 		else:
 			# Redemptions always deduct from balance
@@ -75,6 +75,28 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 			"Loyalty Clip Warning"
 		)
 		coins = balance
+
+	# Daily redemption cap enforcement
+	if reason != "Cancellation Revert":
+		from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
+		max_daily_cap = int(PLATFORM_LOYALTY.get("max_daily_redemption_inr", 500))
+
+		today_redemptions = frappe.db.get_all(
+			"Restaurant Loyalty Entry",
+			filters={
+				"customer": customer,
+				"transaction_type": "Redeem",
+				"reason": ["!=", "Cancellation Revert"],
+				"posting_date": today()
+			},
+			fields=["coins"]
+		)
+		today_total = sum(r.coins for r in today_redemptions)
+		remaining_cap = max_daily_cap - today_total
+		if remaining_cap <= 0:
+			frappe.throw(_("Daily redemption cap exhausted"))
+		if coins > remaining_cap:
+			coins = remaining_cap
 
 	if coins <= 0:
 		return 0
@@ -125,24 +147,23 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 			return 0
 
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
-	plan_type    = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 	min_order    = get_min_order_to_earn()     # ₹100
-	max_cap      = get_max_coins_per_order(plan_type)
-	expiry_months = get_expiry_months()        # 6
+	max_cap      = get_max_coins_per_order()   # 700
+	expiry_days  = get_expiry_days()           # 30
 
 	# ── Minimum Order Check ───────────────────────────────────────────────────
 	if min_order > 0 and flt(amount_paid) < min_order:
 		return 0  # Order doesn't qualify
 
-	# ── Coin Calculation: tiered by plan (7% GOLD / 5% SILVER) ──────────────
-	rate = get_earn_percentage(plan_type) / 100
+	# ── Coin Calculation (7% earn rate) ───────────────────────────────────────
+	rate = get_earn_percentage() / 100
 	coins_earned = int(flt(amount_paid) * rate)
 	coins_earned = min(coins_earned, max_cap)  # Hard cap
 
 	if coins_earned <= 0:
 		return 0
 
-	expiry_date = add_months(today(), expiry_months)
+	expiry_date = add_days(today(), expiry_days)
 
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
@@ -186,8 +207,8 @@ def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref
 		return 0
 
 	# Always use platform-standard expiry — no per-restaurant override
-	expiry_months = get_expiry_months()  # 6
-	expiry_date = add_months(today(), expiry_months)
+	expiry_days = get_expiry_days()  # 30
+	expiry_date = add_days(today(), expiry_days)
 		
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
@@ -325,10 +346,6 @@ def handle_loyalty_settlement(doc, method=None):
 	# If payment is completed, we always settle regardless of order status
 	if doc.payment_status == "completed" or current_status == settle_on or current_status == "billed" or (settle_on == "confirmed" and current_status in ["confirmed", "completed", "billed"]):
 		settle_loyalty_points(doc.name)
-		
-		# Reset referral cycle so user can earn sharing rewards again
-		from flamezo_backend.flamezo.api.loyalty import reset_referral_cycle
-		reset_referral_cycle(doc.platform_customer, doc.restaurant)
 
 
 def get_loyalty_tier(customer, restaurant=None):
@@ -390,6 +407,8 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 		}
 
 		body  = REASON_MESSAGES.get(reason, f"You earned {coins} coins at {restaurant_name}!")
+		# Urgency: Cash is short-lived now — always remind them of the window.
+		body += f" Use it within {get_expiry_days()} days."
 		title = f"🪙 +{coins} Coins Earned!"
 
 		from flamezo_backend.flamezo.api.push_notifications import _send_fcm_message

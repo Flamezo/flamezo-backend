@@ -721,8 +721,6 @@ def get_menu_theme_background_status(restaurant):
 def set_menu_theme_background_enabled(restaurant, enabled):
     """
     Toggles the Menu Theme Background feature.
-    - GOLD: Free.
-    - SILVER: 100 coins / 30 days.
     """
     config_name = _get_restaurant_config_name(restaurant)
     config_doc = frappe.get_doc("Restaurant Config", config_name)

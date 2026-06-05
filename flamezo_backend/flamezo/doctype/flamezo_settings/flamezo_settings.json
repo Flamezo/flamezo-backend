@@ -95,26 +95,26 @@
    "default": "0",
    "fieldname": "gold_monthly_fee",
    "fieldtype": "Float",
-   "label": "GOLD Monthly Floor"
+   "label": "Monthly Floor (Legacy)"
   },
   {
    "default": "0",
    "fieldname": "gold_monthly_floor_legacy",
    "fieldtype": "Float",
-   "label": "GOLD Monthly Floor (Legacy)"
+   "label": "Monthly Floor (Legacy)"
   },
   {
    "default": "3",
    "fieldname": "gold_commission_percent",
    "fieldtype": "Percent",
-   "label": "GOLD Success Share Percent"
+   "label": "Platform Success Share Percent"
   },
   {
    "default": "0",
    "fieldname": "gold_upgrade_barrier",
    "fieldtype": "Float",
-   "label": "GOLD Upgrade Barrier (Legacy)",
-   "description": "Legacy ₹1,299 wallet-balance unlock barrier. Retired in the May 2026 single-tier model — GOLD onboarding is now free. Default kept as 0.0 so legacy clients reading this value receive a no-op."
+   "label": "Upgrade Barrier (Legacy)",
+   "description": "Legacy ₹1,299 wallet-balance unlock barrier. Retired in the single-tier model. Default kept as 0.0 so legacy clients reading this value receive a no-op."
   },
   {
    "fieldname": "section_evolution_api",

@@ -25,7 +25,6 @@ export default function OrderSettings() {
     default_delivery_fee: 0,
     delivery_charge_per_km: 0,
     max_delivery_distance: 10.0,
-    no_ordering: 0,
     order_channel: 'Realtime' as 'Realtime' | 'WhatsApp',
     tax_rate: 5.0,
     gst_number: ''
@@ -50,7 +49,6 @@ export default function OrderSettings() {
         default_delivery_fee: restaurantDoc.default_delivery_fee ?? 0,
         delivery_charge_per_km: restaurantDoc.delivery_charge_per_km ?? 0,
         max_delivery_distance: restaurantDoc.max_delivery_distance ?? 10.0,
-        no_ordering: restaurantDoc.no_ordering ?? 0,
         order_channel: (restaurantDoc.order_channel as 'Realtime' | 'WhatsApp') || 'Realtime',
         tax_rate: restaurantDoc.tax_rate ?? 5.0,
         gst_number: restaurantDoc.gst_number ?? ''
@@ -78,7 +76,6 @@ export default function OrderSettings() {
           default_delivery_fee: settings.default_delivery_fee,
           delivery_charge_per_km: settings.delivery_charge_per_km,
           max_delivery_distance: settings.max_delivery_distance,
-          no_ordering: settings.no_ordering,
           order_channel: settings.order_channel,
           tax_rate: settings.tax_rate,
           gst_number: settings.gst_number
@@ -138,38 +135,6 @@ export default function OrderSettings() {
           Configure takeaway, delivery options, and additional charges.
         </p>
       </div>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" />
-            <CardTitle>Ordering Mode</CardTitle>
-          </div>
-          <CardDescription>
-            Completely disable ordering to use other platform features (Games, Events)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base">Disable All Ordering</Label>
-              <p className="text-sm text-muted-foreground">
-                When enabled, customers can only view the menu. Cart, coupons, and checkout will be hidden.
-              </p>
-            </div>
-            <Checkbox
-              checked={settings.no_ordering === 1}
-              onCheckedChange={() => handleToggle('no_ordering')}
-              className="h-6 w-6"
-            />
-          </div>
-              {settings.no_ordering === 1 && (
-                <div className="mt-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-600 text-sm font-medium">
-                  Note: {Number(billingInfo?.platform_fee_percent || billingInfo?.plan_defaults?.gold_commission || 3.0)}% Success Share applies per order. There is no monthly floor or minimum — you only pay a share of orders you process.
-                </div>
-              )}
-        </CardContent>
-      </Card>
 
       {/* Order Channel */}
       <Card className={!isGold ? 'opacity-70' : ''}>

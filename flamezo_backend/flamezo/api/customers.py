@@ -261,7 +261,7 @@ def get_customer_profile(customer_id, restaurant_id=None):
 
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 	"""
 	Restaurant: Get customers who have orders/bookings at this restaurant only. Supports search (name, phone), pagination.
@@ -418,27 +418,21 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 			if not phone and banquet_bookings:
 				phone = banquet_bookings[0].get("customer_phone")
 
-			# Check unlock status for this specific customer
-			# GOLD plan has full access, others need to unlock or be admin
-			plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-			is_gold = plan_type == "GOLD"
-			is_unlocked = is_gold or frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": cid})
-			
-			# Mask phone and data if not unlocked
-			display_phone = phone if is_unlocked else mask_phone(phone)
+			# Customer data is always unlocked
+			is_unlocked = True
 
 			final_customers.append({
 				"id": cid,
-				"phone": display_phone,
-				"customerName": c.get("customer_name") if is_unlocked else mask_name(c.get("customer_name")),
-				"email": c.get("email") if is_unlocked else "********",
+				"phone": phone,
+				"customerName": c.get("customer_name"),
+				"email": c.get("email") or "********",
 				"verifiedAt": str(c.get("verified_at")) if c.get("verified_at") else None,
 				"birthday": str(c.get("date_of_birth")) if c.get("date_of_birth") else None,
 				"lastVisited": str(c.get("last_visited")) if c.get("last_visited") else None,
 				"isImported": c.get("is_imported"),
-				"orders": orders if is_unlocked else [],
-				"tableBookings": table_bookings if is_unlocked else [],
-				"banquetBookings": banquet_bookings if is_unlocked else [],
+				"orders": orders,
+				"tableBookings": table_bookings,
+				"banquetBookings": banquet_bookings,
 				"is_unlocked": is_unlocked
 			})
 
@@ -465,7 +459,7 @@ def _link_customer_to_restaurant(customer_id: str, restaurant: str, updates: dic
 
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def import_customers(restaurant_id, rows):
 	"""
 	Bulk import customers for a restaurant.
@@ -739,50 +733,9 @@ def update_customer_profile(**kwargs):
 		return {"success": False, "error": "Internal server error"}
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
 def unlock_customer_data(restaurant_id, customer_id):
 	"""
 	Unlocks a customer's profile and phone number for a restaurant.
-	Costs 3 coins for SILVER restaurants.
+	Since all restaurants now run on the unified tier, customer data is always unlocked.
 	"""
-	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
-		
-		# 1. Check if already unlocked
-		if frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": customer_id}):
-			return {"success": True, "message": "Customer already unlocked."}
-			
-		# 2. Check Plan - Gold users get it for free
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-		if plan_type == "GOLD":
-			return {"success": True, "message": "Customer data accessible (GOLD Plan)."}
-
-		# 3. Deduct 5 coins
-		amount_to_deduct = 5
-
-		deduct_coins(
-			restaurant=restaurant,
-			amount=amount_to_deduct,
-			type="Lead Unlock",
-			description=f"Unlocked Customer Profile: {customer_id}",
-			ref_doctype="Customer",
-			ref_name=customer_id
-		)
-		
-		# 4. Record the unlock
-		unlock = frappe.get_doc({
-			"doctype": "Customer Data Unlock",
-			"restaurant": restaurant,
-			"customer": customer_id,
-			"unlocked_at": frappe.utils.now_datetime()
-		})
-		unlock.insert(ignore_permissions=True)
-		frappe.db.commit()
-		
-		return {"success": True, "message": "Profile successfully unlocked for 3 Coins."}
-		
-	except frappe.ValidationError as e:
-		return {"success": False, "error": str(e)}
-	except Exception as e:
-		frappe.log_error(f"[Customer Unlock] Error: {e}", "Customers API")
-		return {"success": False, "error": "Internal error occurred during unlock."}
+	return {"success": True, "message": "Customer data accessible."}

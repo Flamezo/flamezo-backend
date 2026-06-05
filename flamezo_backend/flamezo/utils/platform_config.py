@@ -19,30 +19,25 @@ PLATFORM_LOYALTY = {
     # Earn mode is always "Percentage of Bill" — flat modes are not supported
     # in the centralized model to keep the experience predictable.
     "earn_type":                    "Percentage of Bill",
-    "earn_percentage_silver":       5.0,   # SILVER: ₹1000 order → ₹50 cash  (matches MagicPin)
-    "earn_percentage_gold":         7.0,   # GOLD:   ₹1000 order → ₹70 cash  (beats market, drives Gold preference)
+    "earn_percentage":              7.0,   # 7% earn rate (₹1000 order → ₹70 cash)
     "min_order_to_earn":            100,   # Orders below ₹100 earn nothing
-    "max_coins_per_order_silver":   500,   # SILVER cap: 5% of ₹10,000
-    "max_coins_per_order_gold":     700,   # GOLD cap:   7% of ₹10,000
+    "max_coins_per_order":          700,   # Max cap: 7% of ₹10,000
 
     # ── Redemption ────────────────────────────────────────────────────────────
     "min_redemption_threshold":     100,   # Need ₹100 in wallet to redeem
     "min_billing_for_redemption":   200,   # Order must be ≥ ₹200 to allow redemption
-    "max_redemption_percent_silver": 20,   # SILVER: up to 20% of order value per redemption
-    "max_redemption_percent_gold":   30,   # GOLD:   up to 30% of order value per redemption
+    "max_redemption_percent":       30,   # Up to 30% of order value per redemption
     "max_daily_redemption_inr":     500,   # Max ₹500/day across all restaurants (fraud guard)
+    "max_manual_adjustment_coins":  500,   # Max adjustment cap
 
     # ── Coin Value (non-negotiable) ───────────────────────────────────────────
     "coin_value_in_inr":  1,         # 1 Flamezo Cash = ₹1. Always.
 
     # ── Expiry ───────────────────────────────────────────────────────────────
-    "loyalty_expiry_months_silver": 3,      # SILVER: Cash expires in 3 months
-    "loyalty_expiry_months_gold":   6,      # GOLD:   Cash expires in 6 months
-    "loyalty_expiry_months":        6,      # Fallback
+    "loyalty_expiry_days":          30,     # ALL Cash (loyalty, UGC, bonuses) expires 30 days after it is earned
 
     # ── Growth & Bonuses ──────────────────────────────────────────────────────
-    "birthday_bonus_coins_silver":  50,     # SILVER: ₹50 birthday bonus
-    "birthday_bonus_coins_gold":    100,    # GOLD:   ₹100 birthday bonus
+    "birthday_bonus_coins":         100,    # ₹100 birthday bonus
     "welcome_reward_coins":         50,   # New user welcome bonus (referee gets ₹50)
     "referral_share_coins":         30,   # Referrer earns ₹30 per verified new open
     "max_opens_rewarded_per_share": 10,   # Max rewards per share cycle (resets on next order)
@@ -58,25 +53,24 @@ PLATFORM_LOYALTY = {
 
 # Convenience helpers so callers don't have to dig into the dict
 
-def get_earn_percentage(plan_type="SILVER") -> float:
-    key = f"earn_percentage_{plan_type.lower() if plan_type else 'silver'}"
-    return float(PLATFORM_LOYALTY.get(key, PLATFORM_LOYALTY["earn_percentage_silver"]))  # type: ignore
+def get_earn_percentage(plan_type=None) -> float:
+    return float(PLATFORM_LOYALTY["earn_percentage"])
 
-def get_max_coins_per_order(plan_type="SILVER") -> int:
-    key = f"max_coins_per_order_{plan_type.lower() if plan_type else 'silver'}"
-    return int(PLATFORM_LOYALTY.get(key, PLATFORM_LOYALTY["max_coins_per_order_silver"]))  # type: ignore
+def get_max_coins_per_order(plan_type=None) -> int:
+    return int(PLATFORM_LOYALTY["max_coins_per_order"])
 
-def get_max_redemption_percent(plan_type="SILVER") -> int:
-    key = f"max_redemption_percent_{plan_type.lower() if plan_type else 'silver'}"
-    return int(PLATFORM_LOYALTY.get(key, PLATFORM_LOYALTY["max_redemption_percent_silver"]))  # type: ignore
+def get_max_redemption_percent(plan_type=None) -> int:
+    return int(PLATFORM_LOYALTY["max_redemption_percent"])
 
-def get_expiry_months(plan_type="SILVER") -> int:
-    key = f"loyalty_expiry_months_{plan_type.lower() if plan_type else 'silver'}"
-    return int(PLATFORM_LOYALTY.get(key, PLATFORM_LOYALTY["loyalty_expiry_months"]))  # type: ignore
+def get_expiry_days(plan_type=None) -> int:
+    return int(PLATFORM_LOYALTY["loyalty_expiry_days"])
 
-def get_birthday_bonus_coins(plan_type="SILVER") -> int:
-    key = f"birthday_bonus_coins_{plan_type.lower() if plan_type else 'silver'}"
-    return int(PLATFORM_LOYALTY.get(key, PLATFORM_LOYALTY["birthday_bonus_coins_silver"]))  # type: ignore
+def get_expiry_months(plan_type=None) -> int:
+    # Deprecated: Cash expiry is day-based now. Kept so any legacy caller still works.
+    return max(1, round(get_expiry_days() / 30))
+
+def get_birthday_bonus_coins(plan_type=None) -> int:
+    return int(PLATFORM_LOYALTY["birthday_bonus_coins"])
 
 def get_tier_threshold(tier_name="silver") -> int:
     """Returns the global lifetime earning threshold for a specific tier."""

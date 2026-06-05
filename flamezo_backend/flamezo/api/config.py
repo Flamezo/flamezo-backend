@@ -53,8 +53,6 @@ def get_restaurant_config(restaurant_id):
 	GET /api/method/flamezo_backend.flamezo.api.config.get_restaurant_config
 	Get restaurant branding, configuration, and settings
 	"""
-	from flamezo_backend.flamezo.tasks.subscription_tasks import sync_restaurant_subscription
-	
 	try:
 		cache_key = f"restaurant_config:{restaurant_id}"
 		# Cache full response for guests (60s TTL)
@@ -62,13 +60,6 @@ def get_restaurant_config(restaurant_id):
 			cached = frappe.cache().get_value(cache_key)
 			if cached:
 				return json.loads(cached)
-
-		# Fail-safe: Sync subscription if overdue (only for authenticated users to save guest performance)
-		if frappe.session.user != "Guest":
-			# Fast-path check: avoid loading full Doc if no plan switch is pending
-			is_pending = frappe.db.get_value("Restaurant", restaurant_id, "deferred_plan_type")
-			if is_pending:
-				sync_restaurant_subscription(restaurant_id)
 
 		# Validate restaurant
 		restaurant = validate_restaurant_for_api(restaurant_id, allow_inactive=True)
@@ -193,11 +184,7 @@ def get_restaurant_config(restaurant_id):
 		# Get currency info with symbol
 		currency_info = get_restaurant_currency_info(restaurant)
 		
-		# Menu theme background is included in the platform for every restaurant
-		# under the new single-tier model — no monetization gate, just honor the
-		# owner's toggle. `plan_type` is still computed because downstream code
-		# in this function references it.
-		plan_type = restaurant_doc.plan_type or "GOLD"
+		plan_type = 'GOLD'
 		menu_theme_background_enabled = bool(config.get("menu_theme_background_enabled", 1))
 		
 		# Include restaurant basic info and location (google map URL from restaurant context)
@@ -267,7 +254,6 @@ def get_restaurant_config(restaurant_id):
 					"enable_takeaway": bool(restaurant_doc.get("enable_takeaway", 1)),
 					"enable_delivery": bool(restaurant_doc.get("enable_delivery", 0)),
 					"enable_dine_in": bool(restaurant_doc.get("enable_dine_in", 1)),
-					"no_ordering": bool(restaurant_doc.get("no_ordering", 0)),
 					"order_channel": restaurant_doc.get("order_channel") or "Realtime",
 					"packaging_fee_type": restaurant_doc.get("packaging_fee_type") or "Fixed",
 					"default_packaging_fee": flt(restaurant_doc.get("default_packaging_fee", 0)),
@@ -275,8 +261,8 @@ def get_restaurant_config(restaurant_id):
 					"estimated_prep_time": cint(restaurant_doc.get("estimated_prep_time", 30) or 30)
 				},
 				"cartMilestones": [], # Will be populated from coupons below
-				"enableCartMilestones": plan_type == "GOLD", # Always available for GOLD if coupons exist
-				"planType": plan_type # Ensure plan type is available in settings too for simpler frontend checks
+				"enableCartMilestones": True, # Always available if coupons exist
+				"planType": "GOLD" # Ensure plan type is available in settings too for simpler frontend checks
 			},
 			"socialMedia": {
 				"googleReviewLink": config.get("google_review_link", ""),
@@ -287,13 +273,13 @@ def get_restaurant_config(restaurant_id):
 				"zomatoLink": config.get("zomato_link", "")
 			},
 			"subscription": {
-				"planType": restaurant_doc.plan_type or "GOLD",
+				"planType": "GOLD",
 				"billingStatus": restaurant_doc.billing_status or "active",
 				"coinsBalance": float(restaurant_doc.coins_balance or 0),
 				"referral_code": restaurant_doc.referral_code,
 				"isActive": bool(restaurant_doc.is_active),
-				"deferredPlanType": restaurant_doc.deferred_plan_type,
-				"planChangeDate": str(restaurant_doc.plan_change_date) if restaurant_doc.plan_change_date else None,
+				"deferredPlanType": None,
+				"planChangeDate": None,
 				"mandateActive": restaurant_doc.mandate_status == "active",
 				"autoRechargeEnabled": bool(restaurant_doc.auto_recharge_enabled),
 				"autoRechargeThreshold": float(restaurant_doc.auto_recharge_threshold or 0),
@@ -307,18 +293,11 @@ def get_restaurant_config(restaurant_id):
 				"plan_defaults": {
 					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0),
 					"gold_commission": float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0),
-					# Retired in the single-tier model — no GOLD unlock barrier.
-					# Kept in the response as `0.0` for client backwards compat.
 					"gold_barrier": 0.0,
 				},
 				# Current user's role for this restaurant (Admin vs Staff)
 				"userRole": _get_user_role_for_restaurant(frappe.session.user, restaurant),
 				"features": {
-					# Single-tier model: every onboarded restaurant has access to
-					# every feature on day one. Per-feature visibility is now
-					# driven solely by the owner's Restaurant Config toggles
-					# (`enable_table_booking`, `enable_offers`, etc.) checked
-					# downstream — not by plan tier.
 					"ordering": True,
 					"loyalty": True,
 					"order_settings": True,
@@ -360,14 +339,7 @@ def get_restaurant_config(restaurant_id):
 			"homeFeatures": []
 		}
 
-		# Active coupons are available to every restaurant under the
-		# single-tier model — the legacy `if plan_type == "GOLD":` gate was
-		# turned into an unconditional branch (kept as `if True:` to avoid a
-		# large dedent in this very long function). Do not remove the
-		# conditional without also dedenting the entire block below.
-		if True:
-			# Fetch active coupons — include all combo fields
-			coupons = frappe.db.get_list("Coupon",
+		coupons = frappe.db.get_list("Coupon",
 				filters={
 					"restaurant": restaurant_doc.name,
 					"is_active": 1,
@@ -382,158 +354,158 @@ def get_restaurant_config(restaurant_id):
 				ignore_permissions=True
 			)
 
-			today = frappe.utils.getdate()
-			now = frappe.utils.now_datetime()
-			current_day = now.strftime("%A")  # e.g. "Monday", "Tuesday"
-			current_time = now.time()
-			coupon_milestones = []
-			combo_deals = []  # Rich combo cards for menu page
+		today = frappe.utils.getdate()
+		now = frappe.utils.now_datetime()
+		current_day = now.strftime("%A")
+		current_time = now.time()
+		coupon_milestones = []
+		combo_deals = []
 
-			for c in coupons:
-				v_from = frappe.utils.getdate(c.get("valid_from"))
-				v_until = frappe.utils.getdate(c.get("valid_until"))
-				# pyrefly: ignore [unsupported-operation]
-				if v_from and v_from > today:
-					continue
-				# pyrefly: ignore [unsupported-operation]
-				if v_until and v_until < today:
-					continue
+		for c in coupons:
+			v_from = frappe.utils.getdate(c.get("valid_from"))
+			v_until = frappe.utils.getdate(c.get("valid_until"))
+			# pyrefly: ignore [unsupported-operation]
+			if v_from and v_from > today:
+				continue
+			# pyrefly: ignore [unsupported-operation]
+			if v_until and v_until < today:
+				continue
 
-				# Day-of-week filter (JSON array, e.g. ["monday", "wednesday", "friday"])
-				valid_days = c.get("valid_days_of_week")
-				if valid_days:
+			# Day-of-week filter (JSON array, e.g. ["monday", "wednesday", "friday"])
+			valid_days = c.get("valid_days_of_week")
+			if valid_days:
+				try:
+					allowed_days = json.loads(valid_days) if isinstance(valid_days, str) else valid_days
+				except (json.JSONDecodeError, TypeError):
+					allowed_days = None
+				if allowed_days and isinstance(allowed_days, list):
+					if current_day.lower() not in [d.lower() for d in allowed_days]:
+						continue
+
+			# Time-of-day filter
+			time_start = c.get("valid_time_start")
+			time_end = c.get("valid_time_end")
+			if time_start and current_time < (frappe.utils.get_time(time_start)):
+				continue
+			if time_end and current_time > (frappe.utils.get_time(time_end)):
+				continue
+
+			# ── Combo deals section (display_on_menu) ──────────────────────
+			if c.offer_type == "combo" and c.get("display_on_menu"):
+				combo_type = c.get("combo_type") or "fixed_bundle"
+
+				# Resolve product details for required_items / item_pool
+				def _resolve_items(json_field):
+					ids = []
 					try:
-						allowed_days = json.loads(valid_days) if isinstance(valid_days, str) else valid_days
-					except (json.JSONDecodeError, TypeError):
-						allowed_days = None
-					if allowed_days and isinstance(allowed_days, list):
-						if current_day.lower() not in [d.lower() for d in allowed_days]:
-							continue
+						raw = json_field
+						ids = json.loads(raw) if isinstance(raw, str) else list(raw or [])
+					except Exception:
+						pass
+					if not ids:
+						return []
+					rows = frappe.get_all(
+						"Menu Product",
+						filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
+						fields=["name", "product_id", "product_name", "price"],
+					)
+					lookup = {r.product_id: r for r in rows}
 
-				# Time-of-day filter
-				time_start = c.get("valid_time_start")
-				time_end = c.get("valid_time_end")
-				if time_start and current_time < (frappe.utils.get_time(time_start)):
-					continue
-				if time_end and current_time > (frappe.utils.get_time(time_end)):
-					continue
-
-				# ── Combo deals section (display_on_menu) ──────────────────────
-				if c.offer_type == "combo" and c.get("display_on_menu"):
-					combo_type = c.get("combo_type") or "fixed_bundle"
-
-					# Resolve product details for required_items / item_pool
-					def _resolve_items(json_field):
-						ids = []
-						try:
-							raw = json_field
-							ids = json.loads(raw) if isinstance(raw, str) else list(raw or [])
-						except Exception:
-							pass
-						if not ids:
-							return []
-						rows = frappe.get_all(
-							"Menu Product",
-							filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
-							fields=["name", "product_id", "product_name", "price"],
+					# Batch-fetch first image for each product from Product Media
+					product_names = [r.name for r in rows]
+					image_lookup = {}
+					if product_names:
+						media_rows = frappe.get_all(
+							"Product Media",
+							filters={
+								"parent": ["in", product_names],
+								"parenttype": "Menu Product",
+								"parentfield": "product_media",
+								"media_type": "image",
+							},
+							fields=["parent", "media_url"],
+							order_by="display_order asc, idx asc",
 						)
-						lookup = {r.product_id: r for r in rows}
+						for mr in media_rows:
+							if mr.parent not in image_lookup:
+								image_lookup[mr.parent] = mr.media_url
 
-						# Batch-fetch first image for each product from Product Media
-						product_names = [r.name for r in rows]
-						image_lookup = {}
-						if product_names:
-							media_rows = frappe.get_all(
-								"Product Media",
-								filters={
-									"parent": ["in", product_names],
-									"parenttype": "Menu Product",
-									"parentfield": "product_media",
-									"media_type": "image",
-								},
-								fields=["parent", "media_url"],
-								order_by="display_order asc, idx asc",
-							)
-							for mr in media_rows:
-								if mr.parent not in image_lookup:
-									image_lookup[mr.parent] = mr.media_url
+					return [
+						{
+							"dishId": pid,
+							"name": lookup[pid].product_name if pid in lookup else pid,
+							"price": flt(lookup[pid].price) if pid in lookup else 0,
+							"image": image_lookup.get(lookup[pid].name) if pid in lookup else None,
+						}
+						for pid in ids
+					]
 
-						return [
-							{
-								"dishId": pid,
-								"name": lookup[pid].product_name if pid in lookup else pid,
-								"price": flt(lookup[pid].price) if pid in lookup else 0,
-								"image": image_lookup.get(lookup[pid].name) if pid in lookup else None,
-							}
-							for pid in ids
-						]
+				required_items_detail = _resolve_items(c.get("required_items"))
+				item_pool_detail = _resolve_items(c.get("item_pool"))
 
-					required_items_detail = _resolve_items(c.get("required_items"))
-					item_pool_detail = _resolve_items(c.get("item_pool"))
+				# Savings calculation
+				combo_price = flt(c.get("combo_price") or 0)
+				# pyrefly: ignore [no-matching-overload]
+				original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
+				savings = max(0, original_price - combo_price) if combo_price and original_price else 0
 
-					# Savings calculation
-					combo_price = flt(c.get("combo_price") or 0)
-					# pyrefly: ignore [no-matching-overload]
-					original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
-					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
-
-					combo_deals.append({
-						"id": str(c.name),
-						"code": c.code,
-						"comboType": combo_type,
-						"comboName": c.get("combo_name") or c.description or c.code,
-						"description": c.description or "",
-						"comboPrice": combo_price,
-						"originalPrice": original_price,
-						"savings": savings,
-						"itemsToSelect": int(c.get("items_to_select") or 2),
-						"requiredItems": required_items_detail,
-						"itemPool": item_pool_detail,
-						# What to show on category badges (dish IDs in this combo)
-						"allDishIds": [i["dishId"] for i in required_items_detail + item_pool_detail],
-					})
-
-				# ── Cart milestones (for progress bar) — only if has min_order ─
-				if not flt(c.get("min_order_amount")):
-					continue
-
-				d_val = flt(c.get("discount_value"))
-				if c.discount_type == "percent":
-					label = f"{int(d_val)}% Off"
-				elif c.discount_type == "flat":
-					label = f"₹{int(d_val)} Off"
-				elif c.discount_type == "delivery":
-					label = "Free Delivery"
-				elif c.offer_type == "combo" and c.get("free_item"):
-					label = f"Free {(c.free_item or '').split(' - ')[-1]}"
-				elif c.offer_type == "combo":
-					cp = flt(c.get("combo_price") or 0)
-					label = f"Combo ₹{int(cp)}" if cp else "Combo Deal"
-				else:
-					label = f"Offer: {c.code}"
-
-				icon = "🎁"
-				if c.discount_type == "delivery":
-					icon = "🚚"
-				elif d_val > 50:
-					icon = "🔥"
-				elif c.offer_type == "combo":
-					icon = "🍱"
-
-				coupon_milestones.append({
-					"threshold": flt(c.get("min_order_amount")),
-					"rewardType": "message",
-					"rewardText": c.description or f"Use code {c.code} at checkout to save!",
-					"rewardLabel": label,
-					"icon": icon,
-					"couponCode": c.code,
-					"isCoupon": True,
+				combo_deals.append({
+					"id": str(c.name),
+					"code": c.code,
+					"comboType": combo_type,
+					"comboName": c.get("combo_name") or c.description or c.code,
+					"description": c.description or "",
+					"comboPrice": combo_price,
+					"originalPrice": original_price,
+					"savings": savings,
+					"itemsToSelect": int(c.get("items_to_select") or 2),
+					"requiredItems": required_items_detail,
+					"itemPool": item_pool_detail,
+					# What to show on category badges (dish IDs in this combo)
+					"allDishIds": [i["dishId"] for i in required_items_detail + item_pool_detail],
 				})
 
-			coupon_milestones.sort(key=lambda x: x.get("threshold", 0))
-			response_data["settings"]["cartMilestones"] = coupon_milestones
-			response_data["settings"]["enableCartMilestones"] = len(coupon_milestones) > 0
-			response_data["settings"]["comboDeals"] = combo_deals
+			# ── Cart milestones (for progress bar) — only if has min_order ─
+			if not flt(c.get("min_order_amount")):
+				continue
+
+			d_val = flt(c.get("discount_value"))
+			if c.discount_type == "percent":
+				label = f"{int(d_val)}% Off"
+			elif c.discount_type == "flat":
+				label = f"₹{int(d_val)} Off"
+			elif c.discount_type == "delivery":
+				label = "Free Delivery"
+			elif c.offer_type == "combo" and c.get("free_item"):
+				label = f"Free {(c.free_item or '').split(' - ')[-1]}"
+			elif c.offer_type == "combo":
+				cp = flt(c.get("combo_price") or 0)
+				label = f"Combo ₹{int(cp)}" if cp else "Combo Deal"
+			else:
+				label = f"Offer: {c.code}"
+
+			icon = "🎁"
+			if c.discount_type == "delivery":
+				icon = "🚚"
+			elif d_val > 50:
+				icon = "🔥"
+			elif c.offer_type == "combo":
+				icon = "🍱"
+
+			coupon_milestones.append({
+				"threshold": flt(c.get("min_order_amount")),
+				"rewardType": "message",
+				"rewardText": c.description or f"Use code {c.code} at checkout to save!",
+				"rewardLabel": label,
+				"icon": icon,
+				"couponCode": c.code,
+				"isCoupon": True,
+			})
+
+		coupon_milestones.sort(key=lambda x: x.get("threshold", 0))
+		response_data["settings"]["cartMilestones"] = coupon_milestones
+		response_data["settings"]["enableCartMilestones"] = len(coupon_milestones) > 0
+		response_data["settings"]["comboDeals"] = combo_deals
 
 		# Try to include Home Feature images (menu, book-table, legacy, offers-events, dine-play)
 		try:
@@ -711,9 +683,6 @@ def get_home_features(restaurant_id):
 			
 			formatted_features.append(feature_data)
 
-		# Under the single-tier model every restaurant has access to all home
-		# features; visibility is now driven solely by the owner's per-feature
-		# `is_enabled` toggle below.
 
 		# De-duplicate by feature id so each restaurant has at most one
 		# card per logical home feature (menu, book-table, etc.).
@@ -945,7 +914,6 @@ def update_order_settings(restaurant_id, settings):
 			"enable_takeaway",
 			"enable_delivery",
 			"enable_dine_in",
-			"no_ordering",
 			"order_channel",
 			"packaging_fee_type",
 			"default_packaging_fee", 
@@ -962,7 +930,7 @@ def update_order_settings(restaurant_id, settings):
 			if field in settings:
 				value = settings[field]
 				# Ensure correct type for Check fields
-				if field in ["enable_takeaway", "enable_delivery", "enable_dine_in", "no_ordering"]:
+				if field in ["enable_takeaway", "enable_delivery", "enable_dine_in"]:
 					value = 1 if value else 0
 				# Ensure correct type for Numeric fields
 				elif field in ["default_packaging_fee", "minimum_order_value", "default_delivery_fee", "delivery_charge_per_km", "max_delivery_distance"]:

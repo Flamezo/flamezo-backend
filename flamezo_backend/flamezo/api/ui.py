@@ -302,7 +302,7 @@ def get_setup_wizard_steps(restaurant=None):
 			filtered_steps.append(step)
 			continue
 			
-		required_plans = FEATURE_PLAN_MAP.get(feature, ['SILVER', 'GOLD'])
+		required_plans = FEATURE_PLAN_MAP.get(feature, ['GOLD'])
 		if plan_type in required_plans:
 			step_copy = step.copy()
 			step_copy['required_plans'] = required_plans

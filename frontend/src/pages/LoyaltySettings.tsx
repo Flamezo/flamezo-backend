@@ -14,18 +14,15 @@ import { Badge } from '@/components/ui/badge'
 
 // ── Flamezo Platform Constants (display only — actual enforcement is backend) ─
 //
-// Single-tier model (May 2026): every onboarded restaurant is GOLD. Loyalty
-// constants are no longer plan-tiered; what used to be the GOLD value is
-// simply "the default".
+// Centralized loyalty constants.
 //
-// The `tier:` block at the bottom is unrelated — those are **customer**
-// loyalty tiers (Bronze / Silver / Gold / Platinum) based on lifetime spend,
-// not the restaurant subscription plan.
+// Note: The `tier:` block is for customer loyalty tiers (Bronze / Silver / Gold / Platinum)
+// based on lifetime spend.
 const PLATFORM = {
   earn_percentage:            7,
   max_coins_per_order:        700,
   max_redemption_percent:     30,
-  loyalty_expiry_months:      6,
+  loyalty_expiry_days:        30,
   birthday_bonus_coins:       100,
   coin_value_in_inr:          1,
   min_order_to_earn:          100,
@@ -58,12 +55,12 @@ export default function LoyaltySettings() {
     selectedRestaurant ? `LoyaltyConfig-${selectedRestaurant}` : undefined
   )
 
-  // Resolved display values. Single-tier model → no `gold`/`silver` lookup.
+  // Resolved display values.
   const p = {
     earn_percentage:        PLATFORM.earn_percentage,
     max_coins_per_order:    PLATFORM.max_coins_per_order,
     max_redemption_percent: PLATFORM.max_redemption_percent,
-    expiry_months:          PLATFORM.loyalty_expiry_months,
+    expiry_days:            PLATFORM.loyalty_expiry_days,
     birthday_bonus:         PLATFORM.birthday_bonus_coins,
   }
 
@@ -100,10 +97,7 @@ export default function LoyaltySettings() {
     }
   }
 
-  // Single-tier model: loyalty toggle is a plain save. The legacy
-  // "Silver — disabling loyalty also turns off ordering" warning is gone
-  // because every onboarded restaurant has ordering on by default and
-  // it's not coupled to loyalty.
+  // Save handler for loyalty status toggle.
   const handleLoyaltyToggle = (checked: boolean) => saveSettings(checked)
 
   return (
@@ -226,7 +220,7 @@ export default function LoyaltySettings() {
                 { label: 'Earn Rate',           value: `${p.earn_percentage}% of bill` },
                 { label: 'Min. Order to Earn',  value: `₹${PLATFORM.min_order_to_earn}` },
                 { label: 'Max. Cash per Order', value: `₹${p.max_coins_per_order}` },
-                { label: 'Cash Valid for',      value: `${p.expiry_months} months` },
+                { label: 'Cash Valid for',      value: `${p.expiry_days} days` },
                 { label: 'Birthday Bonus',      value: `₹${p.birthday_bonus} Cash` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">

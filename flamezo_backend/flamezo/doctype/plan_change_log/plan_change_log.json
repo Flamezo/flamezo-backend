@@ -39,14 +39,14 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Previous Plan",
-   "options": "\nSILVER\nGOLD"
+   "options": "GOLD"
   },
   {
    "fieldname": "new_plan",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "New Plan",
-   "options": "\nSILVER\nGOLD",
+   "options": "GOLD",
    "reqd": 1
   },
   {

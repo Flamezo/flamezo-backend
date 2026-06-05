@@ -14,9 +14,7 @@ class MarketingCampaign(Document):
         self._check_coin_balance()
 
     def _check_plan(self):
-        plan = frappe.db.get_value("Restaurant", self.restaurant, "plan_type")
-        if plan != "GOLD":
-            frappe.throw(_("Marketing Studio requires a GOLD subscription."))
+        pass
 
     def _check_segment_match(self):
         seg_restaurant = frappe.db.get_value("Marketing Segment", self.target_segment, "restaurant")

@@ -13,6 +13,7 @@ import frappe
 from frappe.utils import now_datetime, get_datetime, add_to_date, cint
 
 from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_message
+from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 
 
 def _restaurant_name(restaurant):
@@ -59,7 +60,7 @@ def send_ugc_whatsapp(submission_name, kind):
 		),
 		"cashback_credited": (
 			f"🎉 Cashback credited! {cint(sub.cashback_coins)} Cash from {rname} is now in "
-			f"your Flamezo wallet — use it on your next order."
+			f"your Flamezo wallet — use it within {get_expiry_days()} days on your next order."
 		),
 		"proof_rejected": (
 			f"Your cashback claim at {rname} couldn't be approved. "
@@ -74,6 +75,36 @@ def send_ugc_whatsapp(submission_name, kind):
 		send_whatsapp_message(phone, message)
 	except Exception as e:
 		frappe.log_error(f"send_ugc_whatsapp({kind}) for {submission_name}: {e}", "UGC")
+
+
+def purge_old_proof_videos():
+	"""
+	Daily: delete diners' proof videos (Media Asset + Cloudflare R2 objects) once
+	they're older than the retention window. The submission record is KEPT for
+	audit/analytics — only the personal Instagram/Facebook content is removed.
+
+	This complements the 7-day staff-visibility cutoff (restaurants lose access
+	after a week; storage is purged after the retention window).
+	"""
+	from flamezo_backend.flamezo.api.ugc import PLATFORM_PROOF_RETENTION_DAYS
+
+	cutoff = add_to_date(now_datetime(), days=-PLATFORM_PROOF_RETENTION_DAYS)
+	rows = frappe.get_all(
+		"UGC Story Submission",
+		filters={"proof_video": ["is", "set"], "proof_submitted_at": ["<", cutoff]},
+		fields=["name", "proof_video"],
+		limit_page_length=500,
+	)
+	for r in rows:
+		try:
+			media_id = frappe.db.get_value("Media Asset", r.proof_video, "media_id")
+			frappe.db.set_value("UGC Story Submission", r.name, "proof_video", None)
+			if media_id:
+				from flamezo_backend.flamezo.media.api import delete_media_asset
+				delete_media_asset(media_id)  # soft-delete + async R2 cleanup
+			frappe.db.commit()
+		except Exception as e:
+			frappe.log_error(f"UGC proof purge failed for {r.name}: {e}", "UGC")
 
 
 def send_proof_reminders():
@@ -120,15 +151,11 @@ def send_proof_reminders():
 		fields=["name", "restaurant", "submission_date"],
 		limit_page_length=1000,
 	)
-	window_cache = {}
+	PROOF_WINDOW_HOURS = 48  # platform-fixed
 	for row in open_claims:
 		if not row.submission_date:
 			continue
-		if row.restaurant not in window_cache:
-			window_cache[row.restaurant] = cint(frappe.db.get_value(
-				"UGC Cashback Config", {"restaurant": row.restaurant}, "proof_window_hours"
-			)) or 48
-		deadline = add_to_date(get_datetime(row.submission_date), hours=window_cache[row.restaurant])
+		deadline = add_to_date(get_datetime(row.submission_date), hours=PROOF_WINDOW_HOURS)
 		if now > deadline:
 			try:
 				frappe.db.set_value("UGC Story Submission", row.name, "status", "expired", update_modified=False)

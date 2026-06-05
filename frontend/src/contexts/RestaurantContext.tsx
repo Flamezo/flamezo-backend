@@ -40,7 +40,6 @@ interface RestaurantContextType {
   refreshConfig: () => Promise<void>
   planType: 'GOLD'
   isGold: boolean
-  isSilver: boolean
   coinsBalance: number
   billingStatus: 'active' | 'overdue' | 'suspended'
   isActive: boolean
@@ -264,7 +263,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const coinsBalance = restaurantConfig?.subscription?.coinsBalance || 0
   const isActive = restaurantConfig?.subscription?.isActive ?? true
   const isGold = true
-  const isSilver = false
 
   // User role for the selected restaurant (populated by get_restaurant_config)
   const userRole = (restaurantConfig?.subscription?.userRole as 'Restaurant Admin' | 'Restaurant Staff' | null) ?? null
@@ -356,7 +354,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         refreshConfig: fetchConfig,
         planType,
         isGold,
-        isSilver,
         coinsBalance,
         billingStatus,
         isActive,

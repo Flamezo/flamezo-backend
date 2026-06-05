@@ -86,13 +86,13 @@ def make_loyalty_config(restaurant, **kwargs):
         "is_active": 1,
         # Earn config — locked by platform in production, set here for unit-test isolation
         "earn_type": "Percentage of Bill",
-        "earn_percentage": 5.0,        # Silver platform rate; tests may override for GOLD (7%)
+        "earn_percentage": 7.0,
         "earn_flat_coins": 50,
         "min_order_to_earn": 0,
-        "max_coins_per_order": 500,    # Silver platform cap; GOLD tests should pass 700
+        "max_coins_per_order": 700,
         # Legacy field — kept in sync with earn_percentage/100
-        "points_per_inr": 0.05,
-        "loyalty_expiry_months": 3,    # Silver platform expiry; GOLD tests should pass 6
+        "points_per_inr": 0.07,
+        "loyalty_expiry_months": 6,
         "coin_value_in_inr": 1.0,
         "earn_on_status": "Completed",
         "min_redemption_threshold": 100,
@@ -122,16 +122,23 @@ def make_loyalty_config(restaurant, **kwargs):
 
 def make_customer(phone="9000000001", name="Test Customer"):
     """Get or create a Frappe Customer for loyalty tests."""
-    normalized_phone = phone.lstrip("+91").lstrip("0")[-10:]
-    existing = frappe.db.get_value("Customer", {"mobile_no": normalized_phone}, "name")
+    import re
+    digits = re.sub(r"\D", "", str(phone))
+    normalized_phone = digits[-10:] if len(digits) >= 10 else digits
+    existing = frappe.db.get_value("Customer", {"phone": normalized_phone}, "name") or \
+               frappe.db.get_value("Customer", {"mobile_no": normalized_phone}, "name")
     if existing:
+        frappe.db.set_value("Customer", existing, "phone", normalized_phone)
+        frappe.db.commit()
         return frappe.get_doc("Customer", existing)
 
     doc = frappe.get_doc({
         "doctype": "Customer",
         "customer_name": name,
         "customer_type": "Individual",
+        "customer_group": "Individual",
         "mobile_no": normalized_phone,
+        "phone": normalized_phone,
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
@@ -171,8 +178,7 @@ def make_coin_transaction(restaurant, txn_type, amount, description="Test txn"):
     current = frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0.0
     is_deduction = txn_type in [
         "AI Deduction", "Commission Deduction",
-        "Daily SILVER Floor", "Daily GOLD Floor", "Daily GOLD Floor",
-        "Daily GOLD Floor", "Daily GOLD Floor",
+        "Daily GOLD Floor", "Monthly GOLD Floor",
         "Lead Unlock", "Delivery Fee",
     ]
     if is_deduction:
