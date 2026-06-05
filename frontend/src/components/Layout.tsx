@@ -737,20 +737,12 @@ export default function Layout({ children }: LayoutProps) {
                       <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
                         {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
                       </span>
-                      {planType === 'GOLD' || isGold ? (
-                        <span
-                          className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
-                          style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', color: '#FFF8E7' }}
-                        >
-                          <Crown className="h-2 w-2" />GOLD
-                        </span>
-                      ) : (
-                        <span
-                          className="inline-flex shrink-0 items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-sm"
-                        >
-                          SILVER
-                        </span>
-                      )}
+                      <span
+                        className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
+                        style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', color: '#FFF8E7' }}
+                      >
+                        <Crown className="h-2 w-2" />GOLD
+                      </span>
                     </div>
                     <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150", restaurantDropdownOpen && "rotate-180")} />
                   </button>

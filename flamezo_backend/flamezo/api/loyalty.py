@@ -33,7 +33,7 @@ import string
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def get_loyalty_summary(restaurant_id, phone):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.loyalty.get_loyalty_summary
@@ -121,28 +121,26 @@ def get_loyalty_config(restaurant_id):
 			as_dict=True
 		) or {}
 
-		# Plan-aware rates
+		# Platform loyalty config
 		from flamezo_backend.flamezo.utils.platform_config import (
 			get_earn_percentage, get_max_coins_per_order, get_max_redemption_percent,
-			get_expiry_months, get_birthday_bonus_coins,
+			get_expiry_days, get_birthday_bonus_coins,
 		)
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
-		is_gold = plan == "GOLD"
 
-		# Build config: plan-tiered platform constants + program metadata
+		# Build config: platform constants + program metadata
 		config = {
 			"program_name":                 restaurant_doc_config.get("program_name") or "Flamezo Rewards",
 			"earn_on_status":               restaurant_doc_config.get("earn_on_status") or "Completed",
-			"plan_type":                    plan,
-			"is_gold":                      is_gold,
-			# ── Plan-tiered rates ─────────────────────────────────────────────────
+			"plan_type":                    "GOLD",
+			"is_gold":                      True,
+			# ── Platform rates ───────────────────────────────────────────────────
 			"earn_type":                    PLATFORM_LOYALTY["earn_type"],
-			"earn_percentage":              get_earn_percentage(plan),          # 7% GOLD / 5% SILVER
-			"max_coins_per_order":          get_max_coins_per_order(plan),      # 700 / 500
-			"max_redemption_percent":       get_max_redemption_percent(plan),   # 30% / 20%
-			"loyalty_expiry_months":        get_expiry_months(plan),            # 6 (GOLD) / 3 (SILVER)
-			"birthday_bonus_coins":         get_birthday_bonus_coins(plan),     # 100 / 50
-			# ── Plan-independent constants ────────────────────────────────────────
+			"earn_percentage":              get_earn_percentage(),
+			"max_coins_per_order":          get_max_coins_per_order(),
+			"max_redemption_percent":       get_max_redemption_percent(),
+			"loyalty_expiry_days":          get_expiry_days(),
+			"birthday_bonus_coins":         get_birthday_bonus_coins(),
+			# ── Platform constants ───────────────────────────────────────────
 			"coin_value_in_inr":            PLATFORM_LOYALTY["coin_value_in_inr"],
 			"min_order_to_earn":            PLATFORM_LOYALTY["min_order_to_earn"],
 			"min_redemption_threshold":     PLATFORM_LOYALTY["min_redemption_threshold"],
@@ -261,7 +259,7 @@ def get_loyalty_config(restaurant_id):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.loyalty.generate_referral_link
@@ -405,7 +403,7 @@ def track_referral_visit(identifier, ip_address=None, user_agent=None):
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def claim_referral_reward(restaurant_id, referral_id, phone):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.loyalty.claim_referral_reward
@@ -555,24 +553,6 @@ def get_referral_details(identifier):
 		}
 	except Exception as e:
 		return {"success": False, "error": str(e)}
-		
-def reset_referral_cycle(customer, restaurant):
-	"""
-	Resets the rewarded_opens_in_cycle counter for all referral links 
-	owned by a customer at a specific restaurant.
-	Called after order placement to 'renew' the sharing limit.
-	"""
-	try:
-		frappe.db.sql("""
-			UPDATE `tabReferral Link` 
-			SET rewarded_opens_in_cycle = 0 
-			WHERE referrer = %s AND restaurant = %s
-		""", (customer, restaurant))
-		frappe.db.commit()
-		return True
-	except Exception as e:
-		frappe.log_error(f"Error in reset_referral_cycle: {str(e)}")
-		return False
 
 def process_referral_welcome_bonus(customer, restaurant, referral_id):
 	"""
@@ -630,7 +610,7 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 	"""
 	Update loyalty settings for a restaurant.
@@ -648,7 +628,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 			"earn_type", "earn_percentage", "earn_flat_coins", "points_per_inr",
 			"min_order_to_earn", "max_coins_per_order", "coin_value_in_inr",
 			"min_billing_for_redemption", "min_redemption_threshold",
-			"loyalty_expiry_months", "share_reward_coins", "birthday_bonus_coins",
+			"loyalty_expiry_months", "loyalty_expiry_days", "share_reward_coins", "birthday_bonus_coins",
 			"referral_order_reward_coins", "new_user_welcome_reward_coins",
 			"coins_per_unique_open", "max_opens_rewarded_per_share",
 			"welcome_coupon_discount",
@@ -657,14 +637,13 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		for field in _LOCKED_FIELDS:
 			config.pop(field, None)
 
-		# ── Write back plan-tiered platform constants into the doc ───────────────
+		# ── Write back platform constants into the doc ────────────────────────────
 		from flamezo_backend.flamezo.utils.platform_config import (
 			get_earn_percentage, get_expiry_months,
 		)
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 		config["earn_type"]       = PLATFORM_LOYALTY["earn_type"]
-		config["earn_percentage"] = get_earn_percentage(plan)
-		config["points_per_inr"]  = round(get_earn_percentage(plan) / 100, 4)
+		config["earn_percentage"] = get_earn_percentage()
+		config["points_per_inr"]  = round(get_earn_percentage() / 100, 4)
 		config["coin_value_in_inr"] = PLATFORM_LOYALTY["coin_value_in_inr"]
 
 		# ── Save the config document ─────────────────────────────────────────────
@@ -698,7 +677,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def get_customer_insights(restaurant_id, search_query=None):
 	"""
 	Get list of customers with their points for a restaurant.
@@ -825,8 +804,7 @@ def get_customer_insights(restaurant_id, search_query=None):
 			if lt >= silver_t: return "Silver"
 			return "Bronze"
 
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-		is_gold = plan_type == "GOLD"
+		plan_type = 'GOLD'
 		is_admin = "System Manager" in frappe.get_roles() or "Supervisor" in frappe.get_roles()
 
 		results = []
@@ -836,19 +814,16 @@ def get_customer_insights(restaurant_id, search_query=None):
 			lifetime = lifetime_map.get(cid, 0)
 			ref = referral_map.get(cid, frappe._dict(total_opens=0, cycle_opens=0))
 			
-			is_unlocked = is_gold or frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": cid})
+			is_unlocked = True
 			
 			phone = c.phone
-			display_phone = phone if is_unlocked else mask_phone(phone)
 			display_name = c.customer_name or cid
-			if not is_unlocked:
-				display_name = mask_name(display_name)
 
 			results.append({
 				"id": cid,
 				"name": display_name,
-				"phone": display_phone,
-				"birthday": str(c.date_of_birth) if c.date_of_birth and is_unlocked else "********",
+				"phone": phone,
+				"birthday": str(c.date_of_birth) if c.date_of_birth else "********",
 				"balance": balance,
 				"tier": _tier_from_lifetime(lifetime),
 				"lifetime_coins": lifetime,
@@ -867,7 +842,7 @@ def get_customer_insights(restaurant_id, search_query=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def get_customer_transactions(restaurant_id, customer_id):
 	"""
 	Get all loyalty transactions for a specific customer and restaurant
@@ -875,14 +850,8 @@ def get_customer_transactions(restaurant_id, customer_id):
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 		
-		# Check if unlocked for non-GOLD restaurants
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-		is_gold = plan_type == "GOLD"
-		is_admin = "System Manager" in frappe.get_roles() or "Supervisor" in frappe.get_roles()
-		is_unlocked = is_admin or is_gold or frappe.db.exists("Customer Data Unlock", {"restaurant": restaurant, "customer": customer_id})
-
-		if not is_unlocked:
-			return {"success": False, "error": "Access denied. Please unlock customer profile first."}
+		# Customer data is always unlocked
+		is_unlocked = True
 
 		# Get all loyalty entries for this customer at this restaurant
 		transactions = frappe.get_all(
@@ -898,7 +867,7 @@ def get_customer_transactions(restaurant_id, customer_id):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('SILVER', 'GOLD')
+@require_plan('GOLD')
 def get_loyalty_analytics(restaurant_id):
 	"""
 	Merchant loyalty analytics dashboard.
@@ -909,14 +878,12 @@ def get_loyalty_analytics(restaurant_id):
 	                customers_expiring_soon (within 7 days), redemption_rate_percent,
 	                avg_balance, daily_redemption_cap_utilization_today
 	  earn_by_reason — breakdown of Earn coins by reason (Order, Welcome Bonus, etc.)
-	  top_earners  — top 5 customers by lifetime coins (masked if Silver plan)
+	  top_earners  — top 5 customers by lifetime coins
 	  expiring_soon — list of customers with coins expiring ≤7 days (for operator action)
 	  daily_trend  — last 30 days of daily earn + redeem volumes
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
-		is_gold = plan_type == "GOLD"
 
 		from frappe.utils import today, add_days, getdate
 		today_str = today()
@@ -1040,9 +1007,6 @@ def get_loyalty_analytics(restaurant_id):
 			c = customer_names_map.get(r.customer, frappe._dict())
 			display_name = c.get("customer_name") or r.customer
 			display_phone = c.get("phone") or ""
-			if not is_gold:
-				display_name  = mask_name(display_name)
-				display_phone = mask_phone(display_phone)
 			top_earners.append({
 				"customer": r.customer,
 				"name": display_name,
@@ -1066,9 +1030,6 @@ def get_loyalty_analytics(restaurant_id):
 			c = exp_name_map.get(r.customer, frappe._dict())
 			display_name  = c.get("customer_name") or r.customer
 			display_phone = c.get("phone") or ""
-			if not is_gold:
-				display_name  = mask_name(display_name)
-				display_phone = mask_phone(display_phone)
 			expiring_list.append({
 				"customer": r.customer,
 				"name": display_name,

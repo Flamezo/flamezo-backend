@@ -77,7 +77,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
 		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 
-		# Active-restaurant gate (replaces legacy SILVER-plan payment block).
+		# Active-restaurant gate.
 		# New model: every onboarded restaurant gets online payments. The only
 		# reason to refuse is the account being inactive / suspended for billing.
 		if not restaurant.is_active:
@@ -229,8 +229,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 					if redeemed_coins > balance:
 						redeemed_coins = balance
 
-					# Plan-tiered redemption cap: GOLD 30% (single active tier; SILVER
-					# kept in the helper for legacy rows only).
+					# Plan-tiered redemption cap: GOLD 30% (single active tier).
 					plan = frappe.db.get_value("Restaurant", _restaurant_name, "plan_type") or "GOLD"
 					max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 					loyalty_discount = float(redeemed_coins)  # coin_value_in_inr is always 1

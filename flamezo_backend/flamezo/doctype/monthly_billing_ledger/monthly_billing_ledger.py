@@ -19,31 +19,16 @@ class MonthlyBillingLedger(Document):
         try:
             total_gmv = int(self.total_gmv or 0)
             
-            # Fetch commission settings and plan type from Restaurant.
-            # Monthly minimum / floor removed from the model — defaults to 0.
             platform_fee_percent = 3.0
-            monthly_min = 0
-            plan_type = "GOLD"
             if self.restaurant:
-                res_info = frappe.db.get_value("Restaurant", self.restaurant,
-                    ["platform_fee_percent", "monthly_minimum", "plan_type"], as_dict=True)
-                if res_info:
-                    platform_fee_percent = float(res_info.platform_fee_percent if res_info.platform_fee_percent is not None else 3.0)
-                    monthly_min = float(res_info.monthly_minimum if res_info.monthly_minimum is not None else 0)
-                    plan_type = res_info.plan_type or "GOLD"
+                res_fee = frappe.db.get_value("Restaurant", self.restaurant, "platform_fee_percent")
+                if res_fee is not None:
+                    platform_fee_percent = float(res_fee)
 
-            # 1. Calculate Base Commission based on Plan Type
-            min_amt_paise = int(monthly_min * 100)
-            
-            if plan_type == "GOLD":
-                # GOLD is fixed SaaS fee (Floor only)
-                base_commission = min_amt_paise
-                self.notes = f"GOLD Plan Fixed SaaS Fee: ₹{monthly_min:.2f}"
-            else:
-                # Transactional billing (max of floor vs commission)
-                calculated_fee = int(math.floor(total_gmv * (platform_fee_percent / 100.0)))
-                base_commission = max(min_amt_paise, calculated_fee)
-                self.notes = f"GOLD Plan Commission: ₹{calculated_fee/100:.2f} (Floor: ₹{monthly_min:.2f})"
+            # 1. Calculate Base Commission based on Success Share
+            calculated_fee = int(math.floor(total_gmv * (platform_fee_percent / 100.0)))
+            base_commission = calculated_fee
+            self.notes = f"Commission: ₹{calculated_fee/100:.2f} ({platform_fee_percent}%)"
             
             # 2. GST Compliance (Global Setting)
             settings = frappe.get_single("Flamezo Settings")

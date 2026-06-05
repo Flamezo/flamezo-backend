@@ -50,7 +50,6 @@ interface Restaurant {
   owner_phone?: string
   owner_name?: string
   is_active: number
-  plan_type: 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
@@ -86,7 +85,6 @@ interface Restaurant {
   enable_takeaway: number
   enable_delivery: number
   enable_dine_in: number
-  no_ordering: number
   tax_rate: number
   gst_number?: string
   default_delivery_fee: number
@@ -549,9 +547,7 @@ function AdminRestaurantDetailsPage() {
             <CardContent className="p-5">
               <p className="text-[10px] uppercase font-bold tracking-widest text-primary/60 mb-1">Success Share</p>
               {(() => {
-                // Single-tier model: plan_type is always GOLD. The
-                // meaningful number for an admin is the actual rate this
-                // restaurant pays — legacy 1.5% vs new 3% vs custom.
+                // Platform Success Share rate that this restaurant pays (legacy 1.5% vs new 3% vs custom).
                 const rate = Number(restaurant.platform_fee_percent ?? 0)
                 const isLegacy = Math.abs(rate - 1.5) < 0.001
                 return (
@@ -818,15 +814,6 @@ function AdminRestaurantDetailsPage() {
                   <CardDescription>Success Share rate and admin billing state</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label>Plan Tier</Label>
-                    <div className="flex items-center gap-2 p-3 rounded-xl border bg-muted/20">
-                      <Zap className="h-4 w-4 text-amber-500" />
-                      <span className="font-bold text-sm">Flamezo (Full Automation)</span>
-                      <Badge variant="outline" className="ml-auto text-[10px] font-mono">Single Tier</Badge>
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
                     <Label>Success Share (%)</Label>
                     <NumberInput

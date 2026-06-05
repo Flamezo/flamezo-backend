@@ -25,11 +25,12 @@ import hashlib
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, today, add_months, add_to_date, flt, cint, get_datetime
+from frappe.utils import now_datetime, today, add_days, add_to_date, flt, cint, get_datetime
 
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
 from flamezo_backend.flamezo.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES
+from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 from flamezo_backend.flamezo.media.storage import (
 	generate_object_key,
 	generate_signed_upload_url,
@@ -46,6 +47,35 @@ PROOF_OWNER_DOCTYPE = "UGC Story Submission"
 PROOF_MEDIA_ROLE = "ugc_proof_video"
 TEMPLATE_OWNER_DOCTYPE = "UGC Cashback Config"
 TEMPLATE_MEDIA_ROLE = "ugc_template_image"
+
+# Customer-facing copy is FIXED by Flamezo (not restaurant-editable).
+PLATFORM_HEADLINE = "Keep a story, get up to 100% cashback"
+PLATFORM_INSTRUCTIONS = (
+	"Share our story to your Instagram/Facebook and show it to our staff to verify. "
+	"Tomorrow, upload a screen recording of your story's view count — you get that many "
+	"rupees back as Flamezo Cash, up to 100% of your bill."
+)
+PLATFORM_TERMS = (
+	"Cashback = your story's view count in rupees, capped at the final amount you paid (max "
+	"100%). Up to 2 claims per restaurant every 30 days. Paid as Flamezo wallet cash, "
+	"redeemable on your next visit at any Flamezo restaurant. Stories must stay live for at "
+	"least 24 hours. Flamezo may reject views that appear edited, inflated, or fraudulent, and "
+	"repeat offenders lose eligibility."
+)
+
+# ── Platform-fixed rules (same for every Flamezo restaurant; not editable in the
+#    merchant dashboard — only the story template + linked coupons are). ──────────
+PLATFORM_MIN_ORDER = 250            # ₹ — min final paid amount to qualify
+PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D = 2   # rolling 30-day cap per restaurant (unlimited across different restaurants)
+PLATFORM_CASHBACK_PERCENT_CAP = 100  # % of the final paid amount
+PLATFORM_ABSOLUTE_CAP = 0          # 0 = no extra ₹ ceiling beyond the bill
+PLATFORM_PROOF_WINDOW_HOURS = 48
+PLATFORM_AI_PROVIDER = "Gemini"
+PLATFORM_AI_CONFIDENCE = 0.85
+# Privacy + storage: restaurants can view a diner's proof for 7 days; the proof
+# video is deleted from storage 30 days after it was submitted.
+PLATFORM_STAFF_PROOF_DAYS = 7
+PLATFORM_PROOF_RETENTION_DAYS = 30
 
 # Order is considered eligible (completed) when any of these hold.
 _COMPLETED_ORDER_STATUSES = {"confirmed", "preparing", "ready", "delivered", "billed", "completed"}
@@ -86,31 +116,16 @@ def _current_period():
 
 # ── Config / eligibility helpers ─────────────────────────────────────────────
 def _get_active_config(restaurant):
-	"""Return the active UGC Cashback Config doc for a restaurant, or None."""
-	name = frappe.db.get_value(
-		"UGC Cashback Config", {"restaurant": restaurant, "is_active": 1}, "name"
-	)
+	"""Return the UGC Cashback Config doc for a restaurant, or None.
+
+	UGC cashback is a mandatory, always-on platform feature — there is no
+	per-restaurant on/off switch. The offer simply surfaces to diners once the
+	restaurant has uploaded at least one story template (enforced in eligibility).
+	"""
+	name = frappe.db.get_value("UGC Cashback Config", {"restaurant": restaurant}, "name")
 	if not name:
 		return None
 	return frappe.get_doc("UGC Cashback Config", name)
-
-
-def _ensure_budget_period(config):
-	"""Roll the monthly counter over when the calendar month changes."""
-	period = _current_period()
-	if config.budget_period != period:
-		config.db_set("budget_period", period, update_modified=False)
-		config.db_set("coins_issued_this_month", 0, update_modified=False)
-		config.coins_issued_this_month = 0
-		config.budget_period = period
-
-
-def _budget_remaining(config):
-	"""Coins still issuable this month, or None when unlimited."""
-	budget = cint(config.monthly_budget_coins)
-	if budget <= 0:
-		return None
-	return max(0, budget - cint(config.coins_issued_this_month))
 
 
 def _is_blocked(customer):
@@ -127,15 +142,20 @@ def _is_blocked(customer):
 	return False
 
 
-def _monthly_claim_count(customer, restaurant):
-	period_start = _current_period() + "-01"
+def _claims_last_30d(customer, restaurant):
+	"""Claims this customer made at THIS restaurant in the last 30 days.
+
+	The platform cap is per-restaurant (PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D);
+	there is no global cap, so a diner can claim across many restaurants.
+	"""
+	since = add_to_date(now_datetime(), days=-30)
 	return frappe.db.count(
 		"UGC Story Submission",
 		filters={
 			"customer": customer,
 			"restaurant": restaurant,
 			"status": ["in", _ACTIVE_SUBMISSION_STATUSES],
-			"submission_date": [">=", period_start],
+			"submission_date": [">=", since],
 		},
 	)
 
@@ -146,15 +166,14 @@ def _order_is_eligible(order):
 	return (order.status or "").lower() in _COMPLETED_ORDER_STATUSES
 
 
-def _max_cashback(config, order_amount):
-	"""Ceiling for this order before the actual view count is known."""
-	pct = cint(config.cashback_percent_cap) or 100
-	cap = flt(order_amount) * pct / 100.0
-	if cint(config.absolute_cap_coins) > 0:
-		cap = min(cap, cint(config.absolute_cap_coins))
-	remaining = _budget_remaining(config)
-	if remaining is not None:
-		cap = min(cap, remaining)
+def _max_cashback(order_amount):
+	"""Ceiling for this order before the actual view count is known (platform rules).
+
+	order_amount is the order's final paid total (after offers + loyalty redemption).
+	"""
+	cap = flt(order_amount) * PLATFORM_CASHBACK_PERCENT_CAP / 100.0
+	if PLATFORM_ABSOLUTE_CAP > 0:
+		cap = min(cap, PLATFORM_ABSOLUTE_CAP)
 	return int(max(0, cap))
 
 
@@ -245,35 +264,35 @@ def get_ugc_eligibility(restaurant_id, order_id):
 				"submission_id": existing.name,
 				"status": existing.status,
 				"cashback_coins": cint(existing.cashback_coins),
-				"max_cashback": _max_cashback(config, existing.order_amount or order.total),
+				"max_cashback": _max_cashback(existing.order_amount or order.total),
 			})
 
 		if not _order_is_eligible(order):
 			return _ok({"eligible": False, "reason": "order_not_completed"})
 
-		if flt(order.total) < flt(config.min_order_amount):
+		if flt(order.total) < PLATFORM_MIN_ORDER:
 			return _ok({"eligible": False, "reason": "below_min_order"})
 
 		if _is_blocked(customer):
 			return _ok({"eligible": False, "reason": "not_eligible"})
 
-		_ensure_budget_period(config)
-		remaining = _budget_remaining(config)
-		if remaining is not None and remaining <= 0:
-			return _ok({"eligible": False, "reason": "budget_exhausted"})
+		# Mandatory feature, but only surfaces once a template is available to share.
+		templates = _resolve_templates(config)
+		if not templates:
+			return _ok({"eligible": False, "reason": "not_available"})
 
-		cap = cint(config.max_per_customer_per_month)
-		if cap > 0 and _monthly_claim_count(customer, restaurant) >= cap:
-			return _ok({"eligible": False, "reason": "monthly_limit_reached"})
+		if _claims_last_30d(customer, restaurant) >= PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D:
+			return _ok({"eligible": False, "reason": "limit_reached"})
 
 		return _ok({
 			"eligible": True,
 			"already_started": False,
-			"max_cashback": _max_cashback(config, order.total),
+			"max_cashback": _max_cashback(order.total),
 			"order_amount": flt(order.total),
-			"instructions": config.instructions,
-			"terms": config.terms,
-			"templates": _resolve_templates(config),
+			"headline": PLATFORM_HEADLINE,
+			"instructions": PLATFORM_INSTRUCTIONS,
+			"terms": PLATFORM_TERMS,
+			"templates": templates,
 			"viewer_coupon": _coupon_brief(config.coupon_for_viewers),
 			"next_visit_coupon": _coupon_brief(config.next_visit_coupon),
 		})
@@ -306,25 +325,23 @@ def start_ugc_offer(restaurant_id, order_id):
 			return _ok({
 				"submission_id": existing.name,
 				"status": existing.status,
-				"max_cashback": _max_cashback(config, existing.order_amount or order.total),
+				"max_cashback": _max_cashback(existing.order_amount or order.total),
 				"templates": _resolve_templates(config),
-				"instructions": config.instructions,
+				"headline": PLATFORM_HEADLINE,
+			"instructions": PLATFORM_INSTRUCTIONS,
 			})
 
 		# Re-run the eligibility gates server-side (never trust the client).
 		if not _order_is_eligible(order):
 			return _err("ORDER_NOT_COMPLETED")
-		if flt(order.total) < flt(config.min_order_amount):
+		if flt(order.total) < PLATFORM_MIN_ORDER:
 			return _err("BELOW_MIN_ORDER")
 		if _is_blocked(customer):
 			return _err("NOT_ELIGIBLE")
-		_ensure_budget_period(config)
-		remaining = _budget_remaining(config)
-		if remaining is not None and remaining <= 0:
-			return _err("BUDGET_EXHAUSTED")
-		cap = cint(config.max_per_customer_per_month)
-		if cap > 0 and _monthly_claim_count(customer, restaurant) >= cap:
-			return _err("MONTHLY_LIMIT_REACHED")
+		if not _resolve_templates(config):
+			return _err("NOT_AVAILABLE")
+		if _claims_last_30d(customer, restaurant) >= PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D:
+			return _err("LIMIT_REACHED")
 
 		submission = frappe.get_doc({
 			"doctype": "UGC Story Submission",
@@ -341,9 +358,10 @@ def start_ugc_offer(restaurant_id, order_id):
 		return _ok({
 			"submission_id": submission.name,
 			"status": "offer_shown",
-			"max_cashback": _max_cashback(config, order.total),
+			"max_cashback": _max_cashback(order.total),
 			"templates": _resolve_templates(config),
-			"instructions": config.instructions,
+			"headline": PLATFORM_HEADLINE,
+			"instructions": PLATFORM_INSTRUCTIONS,
 		})
 	except frappe.DoesNotExistError:
 		return _err("RESTAURANT_NOT_FOUND")
@@ -570,9 +588,7 @@ def _load_owned_submission(submission_id, restaurant, customer):
 
 
 def _proof_window_open(submission):
-	config = _get_active_config(submission.restaurant)
-	hours = cint(config.proof_window_hours) if config else 48
-	deadline = add_to_date(get_datetime(submission.submission_date), hours=hours)
+	deadline = add_to_date(get_datetime(submission.submission_date), hours=PLATFORM_PROOF_WINDOW_HOURS)
 	return now_datetime() <= deadline
 
 
@@ -611,7 +627,17 @@ def _enrich_submission_row(row):
 	if row.get("template_used"):
 		row["template_url"] = frappe.db.get_value("Media Asset", row["template_used"], "primary_url")
 	if row.get("proof_video"):
-		row["proof_video_url"] = frappe.db.get_value("Media Asset", row["proof_video"], "primary_url")
+		# Privacy: the restaurant can only view the diner's story proof for a limited
+		# window; after that the URL is withheld (and the file is later purged).
+		proof_dt = row.get("proof_submitted_at")
+		within_window = True
+		if proof_dt:
+			age_days = (now_datetime() - get_datetime(proof_dt)).total_seconds() / 86400
+			within_window = age_days < PLATFORM_STAFF_PROOF_DAYS
+		if within_window:
+			row["proof_video_url"] = frappe.db.get_value("Media Asset", row["proof_video"], "primary_url")
+		else:
+			row["proof_hidden"] = True
 	return row
 
 
@@ -813,11 +839,10 @@ def get_ugc_analytics(restaurant_id, days=None):
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONFIG MANAGEMENT  (staff — the dashboard config page)
 # ══════════════════════════════════════════════════════════════════════════════
+# Only the linked coupons are restaurant-editable now — caps, budget, AI and copy
+# are all platform-fixed constants. (The offer itself is mandatory/always-on.)
 _CONFIG_SCALAR_FIELDS = (
-	"is_active", "min_order_amount", "max_per_customer_per_month", "proof_window_hours",
-	"monthly_budget_coins", "cashback_percent_cap", "absolute_cap_coins",
-	"ai_provider", "ai_confidence_threshold", "coupon_for_viewers", "next_visit_coupon",
-	"instructions", "terms",
+	"coupon_for_viewers", "next_visit_coupon",
 )
 
 
@@ -828,7 +853,7 @@ def _get_or_create_config(restaurant):
 	doc = frappe.get_doc({
 		"doctype": "UGC Cashback Config",
 		"restaurant": restaurant,
-		"is_active": 0,
+		"is_active": 1,  # mandatory, always-on feature
 		"budget_period": _current_period(),
 	})
 	doc.insert(ignore_permissions=True)
@@ -839,10 +864,14 @@ def _get_or_create_config(restaurant):
 def _config_to_dict(config):
 	templates = []
 	for row in (config.template_assets or []):
-		url = frappe.db.get_value("Media Asset", row.media_asset, "primary_url") if row.media_asset else None
+		info = frappe.db.get_value(
+			"Media Asset", row.media_asset, ["primary_url", "media_kind"], as_dict=True
+		) if row.media_asset else None
 		templates.append({
 			"media_asset": row.media_asset, "label": row.label,
-			"is_default": cint(row.is_default), "url": url,
+			"is_default": cint(row.is_default),
+			"url": (info or {}).get("primary_url"),
+			"kind": (info or {}).get("media_kind"),
 		})
 	data = {f: config.get(f) for f in _CONFIG_SCALAR_FIELDS}
 	data.update({
@@ -880,20 +909,22 @@ def save_ugc_config(restaurant_id, payload):
 		data = frappe.parse_json(payload) if isinstance(payload, str) else (payload or {})
 
 		config = _get_or_create_config(restaurant)
+		config.is_active = 1  # mandatory feature — always on
 		for f in _CONFIG_SCALAR_FIELDS:
 			if f in data:
 				config.set(f, data.get(f))
 
 		if "templates" in data and isinstance(data["templates"], list):
 			config.set("template_assets", [])
-			for t in data["templates"]:
+			# Exactly one template is allowed per restaurant.
+			for t in data["templates"][:1]:
 				media = t.get("media_asset")
 				if not media or not frappe.db.exists("Media Asset", media):
 					continue
 				config.append("template_assets", {
 					"media_asset": media,
 					"label": t.get("label"),
-					"is_default": cint(t.get("is_default")),
+					"is_default": 1,
 				})
 
 		config.save(ignore_permissions=True)
@@ -905,6 +936,63 @@ def save_ugc_config(restaurant_id, payload):
 		return _err("VALIDATION_ERROR", str(e))
 	except Exception as e:
 		frappe.log_error(f"save_ugc_config: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+def _purge_template_media(media_asset, restaurant):
+	"""Delete a template's Media Asset AND its Cloudflare R2 objects.
+
+	Routes through the standard media pipeline (soft-delete + cleanup_deleted_media)
+	so the raw object, all image variants, and any video poster are removed from R2
+	— exactly like deleting media anywhere else in the app. Safe-guarded to only
+	ever touch a UGC template owned by this restaurant.
+	"""
+	info = frappe.db.get_value(
+		"Media Asset", media_asset,
+		["name", "media_id", "raw_object_key", "restaurant", "owner_doctype", "is_deleted"],
+		as_dict=True,
+	)
+	if not info:
+		return
+	if info.restaurant != restaurant or info.owner_doctype != TEMPLATE_OWNER_DOCTYPE:
+		return  # never delete an unrelated asset
+	if info.is_deleted:
+		return
+	try:
+		if info.media_id:
+			from flamezo_backend.flamezo.media.api import delete_media_asset
+			delete_media_asset(info.media_id)  # soft-delete + async R2 cleanup (raw + variants + poster)
+		else:
+			# Fallback for assets without a media_id: delete the raw object + doc directly.
+			from flamezo_backend.flamezo.media.storage import delete_object
+			if info.raw_object_key:
+				delete_object(info.raw_object_key)
+			frappe.delete_doc("Media Asset", info.name, ignore_permissions=True, force=True)
+	except Exception as e:
+		frappe.log_error(f"UGC template media purge failed for {media_asset}: {e}", "UGC Cleanup")
+
+
+@frappe.whitelist()
+def delete_ugc_template(restaurant_id, media_asset):
+	"""Remove the story template from the config AND delete its file from Cloudflare R2."""
+	try:
+		restaurant = _resolve_restaurant(restaurant_id)
+		_assert_staff_or_admin(restaurant)
+		config = _get_or_create_config(restaurant)
+
+		remaining = [r for r in (config.template_assets or []) if r.media_asset != media_asset]
+		config.set("template_assets", [])
+		for r in remaining:
+			config.append("template_assets", {"media_asset": r.media_asset, "label": r.label, "is_default": 1})
+		config.save(ignore_permissions=True)
+
+		_purge_template_media(media_asset, restaurant)
+		frappe.db.commit()
+		return _ok(_config_to_dict(config))
+	except frappe.PermissionError as e:
+		return _err("PERMISSION_DENIED", str(e))
+	except Exception as e:
+		frappe.log_error(f"delete_ugc_template: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
@@ -929,31 +1017,22 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 	if existing or submission.status == "credited":
 		return existing or submission.reward_entry
 
-	config = _get_active_config(submission.restaurant)
-	if not config:
-		return None
-	_ensure_budget_period(config)
-
-	# cashback = min(views, order amount, % cap, absolute cap, remaining budget)
+	# cashback = min(views, final paid amount) under platform caps (% + absolute).
 	order_amount = flt(submission.order_amount)
 	coins = min(cint(view_count), int(order_amount))
-	pct = cint(config.cashback_percent_cap) or 100
-	coins = min(coins, int(order_amount * pct / 100.0))
-	if cint(config.absolute_cap_coins) > 0:
-		coins = min(coins, cint(config.absolute_cap_coins))
-	remaining = _budget_remaining(config)
-	if remaining is not None:
-		coins = min(coins, remaining)
+	coins = min(coins, int(order_amount * PLATFORM_CASHBACK_PERCENT_CAP / 100.0))
+	if PLATFORM_ABSOLUTE_CAP > 0:
+		coins = min(coins, PLATFORM_ABSOLUTE_CAP)
 
 	if coins <= 0:
 		submission.status = "rejected"
-		submission.rejection_reason = "Computed cashback was zero (no views / budget exhausted)."
+		submission.rejection_reason = "Computed cashback was zero (no readable views)."
 		submission.reviewed_by = reviewed_by
 		submission.save(ignore_permissions=True)
 		frappe.db.commit()
 		return None
 
-	expiry = add_months(today(), 6)
+	expiry = add_days(today(), get_expiry_days())  # platform-standard Cash expiry (30 days)
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
 		"customer": submission.customer,
@@ -976,13 +1055,6 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 	if reviewed_by:
 		submission.reviewed_by = reviewed_by
 	submission.save(ignore_permissions=True)
-
-	# Bump the monthly budget counter.
-	config.db_set(
-		"coins_issued_this_month",
-		cint(config.coins_issued_this_month) + int(coins),
-		update_modified=False,
-	)
 	frappe.db.commit()
 
 	# Wallet push + WhatsApp confirmation (background, never blocks).

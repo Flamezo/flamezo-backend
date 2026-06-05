@@ -86,7 +86,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     # chips. Synthetic filters `success_share_tier` and
                     # `throttled` are handled below.
                     allowed_eq_fields = (
-                        'is_active', 'plan_type', 'enable_floor_recovery',
+                        'is_active', 'enable_floor_recovery',
                         'mandate_status', 'razorpay_kyc_status', 'route_mode',
                     )
                     if fieldname in allowed_eq_fields:
@@ -168,8 +168,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
 
         if config_table_exists:
             query = f"""
-                SELECT {_select_cols},
-                    COALESCE(rc.subscription_plan, r.plan_type, 'SILVER') as plan_type
+                SELECT {_select_cols}
                 FROM `tabRestaurant` r
                 LEFT JOIN `tabRestaurantConfig` rc ON r.name = rc.parent
                 {where_clause}
@@ -179,8 +178,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
             count_query = f"SELECT COUNT(*) FROM `tabRestaurant` r {where_clause}"
         else:
             query = f"""
-                SELECT {_select_cols},
-                    COALESCE(r.plan_type, 'SILVER') as plan_type
+                SELECT {_select_cols}
                 FROM `tabRestaurant` r
                 {where_clause}
                 ORDER BY r.creation DESC
@@ -194,9 +192,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
         # Convert is_active to integer for consistency
         for restaurant in restaurants:
             restaurant['is_active'] = int(restaurant['is_active'] or 0)
-            # Ensure plan_type is valid
-            if restaurant['plan_type'] not in ['SILVER', 'GOLD']:
-                restaurant['plan_type'] = 'SILVER'
+            restaurant['plan_type'] = 'GOLD'  # defaulted
 
         return {
             'success': True,
@@ -298,129 +294,12 @@ def get_restaurant_details(restaurant_id):
         }
 
 
-@frappe.whitelist()
+# Deprecated: update_restaurant_plan removed as plan_type is no longer used
 def update_restaurant_plan(restaurant_id, plan_type):
-    """
-    Update restaurant's subscription plan
-    Only accessible by admin users
-    """
-    try:
-        # Check admin access first
-        access_check = check_admin_access()
-        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
-            return {
-                'success': False,
-                'error': 'Admin access required'
-            }
-
-        # Validate plan_type
-        if plan_type not in ['SILVER', 'GOLD']:
-            return {
-                'success': False,
-                'error': 'Invalid plan type. Must be SILVER or GOLD'
-            }
-
-        # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
-        if not restaurant:
-            return {
-                'success': False,
-                'error': 'Restaurant not found'
-            }
-
-        # Check if RestaurantConfig table exists
-        if not frappe.db.table_exists('RestaurantConfig'):
-            # Update the Restaurant table directly since RestaurantConfig doesn't exist
-            try:
-                restaurant.plan_type = plan_type
-                restaurant.plan_changed_by = frappe.session.user
-                restaurant.plan_change_reason = f"Plan changed to {plan_type} by admin"
-                if plan_type != restaurant.plan_activated_on:
-                    restaurant.plan_activated_on = frappe.utils.now()
-                restaurant.save(ignore_permissions=True)
-                frappe.db.commit()
-
-                return {
-                    'success': True,
-                    'data': {
-                        'restaurant_id': restaurant_id,
-                        'plan_type': plan_type,
-                        'updated_by': frappe.session.user,
-                        'note': f'Plan updated to {plan_type} in Restaurant table'
-                    }
-                }
-            except Exception as e:
-                frappe.log_error("Plan Update Error", f"Error updating restaurant plan: {e!s}")
-                return {
-                    'success': False,
-                    'error': f'Failed to update plan: {e!s}'
-                }
-
-        # Get or create restaurant config
-        config = frappe.get_doc('RestaurantConfig', restaurant.name)
-        if not config:
-            # Create config if it doesn't exist
-            config = frappe.new_doc('RestaurantConfig')
-            config.parent = restaurant.name
-            config.parenttype = 'Restaurant'
-            config.parentfield = 'config'
-            config.insert()
-
-        # Update subscription plan
-        config.subscription_plan = plan_type
-
-        # Update subscription features based on plan
-        if plan_type == 'GOLD':
-            config.subscription_features = {
-                'ordering': True,
-                'videoUpload': True,
-                'analytics': True,
-                'aiRecommendations': True,
-                'loyalty': True,
-                'coupons': True,
-                'games': True,
-                'pos_integration': True,
-                'table_booking': True,
-                'experience_lounge': True
-            }
-        else:  # SILVER
-            config.subscription_features = {
-                'ordering': False,
-                'videoUpload': False,
-                'analytics': False,
-                'aiRecommendations': False,
-                'loyalty': False,
-                'coupons': False,
-                'games': False,
-                'pos_integration': False,
-                'table_booking': False,
-                'experience_lounge': False
-            }
-
-        config.save(ignore_permissions=True)
-        frappe.db.commit()
-
-        # Log the change
-        frappe.logger().info(
-            f"Restaurant {restaurant_id} plan updated to {plan_type} by {frappe.session.user}"
-        )
-
-        return {
-            'success': True,
-            'data': {
-                'restaurant_id': restaurant_id,
-                'plan_type': plan_type,
-                'updated_by': frappe.session.user
-            }
-        }
-
-    except Exception as e:
-        frappe.log_error("Admin API Error", f"Error updating restaurant plan: {e!s}")
-        frappe.db.rollback()
-        return {
-            'success': False,
-            'error': str(e)
-        }
+    return {
+        'success': False,
+        'error': 'Plan updates are deprecated. All restaurants use the default GOLD plan.'
+    }
 
 @frappe.whitelist()
 def toggle_restaurant_status(restaurant_id, is_active):
@@ -713,9 +592,9 @@ def admin_update_restaurant_settings(restaurant_id, updates):
         # Allow most fields for admin updates
         allowed_fields = [
             'platform_fee_percent', 'monthly_minimum', 'is_active', 'restaurant_name', 'owner_email',
-            'owner_phone', 'owner_name', 'plan_type', 'billing_status', 'mandate_status', 'enable_floor_recovery',
+            'owner_phone', 'owner_name', 'billing_status', 'mandate_status', 'enable_floor_recovery',
             'pos_provider', 'pos_enabled', 'pos_app_key', 'pos_app_secret', 'pos_access_token', 'pos_merchant_id',
-            'enable_loyalty', 'enable_takeaway', 'enable_delivery', 'enable_dine_in', 'no_ordering',
+            'enable_loyalty', 'enable_takeaway', 'enable_delivery', 'enable_dine_in',
             'tax_rate', 'gst_number', 'default_delivery_fee', 'default_packaging_fee', 'minimum_order_value',
             'estimated_prep_time', 'timezone', 'currency', 'tables', 'description', 'google_map_url'
         ]
@@ -730,7 +609,7 @@ def admin_update_restaurant_settings(restaurant_id, updates):
                     except (TypeError, ValueError):
                         continue
                 elif field in ['is_active', 'enable_loyalty', 'enable_takeaway', 'enable_delivery',
-                              'enable_dine_in', 'no_ordering', 'pos_enabled', 'enable_floor_recovery']:
+                              'enable_dine_in', 'pos_enabled', 'enable_floor_recovery']:
                     value = 1 if value in [True, 1, '1', 'true'] else 0
                 elif field in ['tables', 'estimated_prep_time']:
                     try:
@@ -941,8 +820,7 @@ def send_onboarding_email(recipient, name, link):
 def admin_create_wallet_payment_link(restaurant_id, tier):
     """
     Legacy endpoint — previously created a Razorpay Payment Link for the
-    ₹1,299 GOLD unlock fee. Under the May 2026 single-tier model GOLD
-    onboarding is free, so this endpoint is intentionally short-circuited.
+    unlock fee. Under the single-tier model onboarding is free, so this endpoint is intentionally short-circuited.
     It remains importable so existing client code that calls it doesn't 404.
 
     To charge a restaurant a one-off amount today, generate a Razorpay
@@ -960,9 +838,9 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
         return {
             'success': False,
             'error': (
-                f'No upgrade payment required for {tier} tier. '
-                f'Under the new business model GOLD onboarding is free — '
-                f'restaurants pay only the Success Share plus the monthly floor.'
+                f'No upgrade payment required. '
+                f'Under the new business model, onboarding is free — '
+                f'restaurants pay only the Success Share.'
             ),
         }
     except Exception as e:

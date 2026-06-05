@@ -136,26 +136,9 @@ def get_whatsapp_orders(
             page_length=page_length
         )
 
-        # 4. Check unlock status for each order
-        # A lead is unlocked if:
-        # - It was created in the last 24 hours (FREE)
-        # - OR it has an entry in WhatsApp Lead Unlock for this restaurant
-        unlocked_phone_list = frappe.get_all(
-            "WhatsApp Lead Unlock",
-            filters={"restaurant": restaurant_id},
-            pluck="customer_phone"
-        )
-        
-        plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
-        is_gold = plan_type == "GOLD"
-        
-        # SILVER leads expire after 3 hours; GOLD leads are always unlocked
-        silver_cutoff = add_to_date(now_datetime(), hours=-3)
-        
+        # 4. Under single-tier model, all leads are unlocked by default
         for order in orders:
-            is_recent = order.creation > silver_cutoff
-            is_purchased = order.customer_phone in unlocked_phone_list
-            order["is_unlocked"] = True if (is_gold or is_recent or is_purchased) else False
+            order["is_unlocked"] = True
         
         return {
             "success": True,
@@ -173,50 +156,11 @@ def get_whatsapp_orders(
 def unlock_whatsapp_lead(restaurant_id: str, customer_phone: str, order_id=None):
     """
     POST /api/method/flamezo_backend.flamezo.api.whatsapp_ordering.unlock_whatsapp_lead
-    Unlocks a WhatsApp lead for 1 coin.
+    Unlocks a WhatsApp lead. Returns success directly under the single-tier platform.
     """
     try:
         validate_restaurant_for_api(restaurant_id)
-        
-        # 1. Check if already unlocked
-        if frappe.db.exists("WhatsApp Lead Unlock", {"restaurant": restaurant_id, "customer_phone": customer_phone}):
-            return {"success": True, "message": "Lead already unlocked."}
-            
-        # 2. Check Plan - Gold users get it for free
-        plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
-        if plan_type == "GOLD":
-            return {"success": True, "message": "Lead unlocked (GOLD Plan)."}
-
-        # 3. Deduct 1 coin per lead unlock for non-GOLD (SILVER)
-        amount_to_deduct = 1
-
-        # 3. Deduct Coins if applicable
-        if amount_to_deduct > 0:
-            deduct_coins(
-                restaurant=restaurant_id,
-                amount=amount_to_deduct,
-                type="Lead Unlock",
-                description=f"Unlocked WhatsApp lead: {customer_phone}",
-                ref_doctype="Order" if order_id else None,
-                ref_name=order_id
-            )
-        
-        # 4. Record the unlock
-        unlock = frappe.get_doc({
-            "doctype": "WhatsApp Lead Unlock",
-            "restaurant": restaurant_id,
-            "customer_phone": customer_phone,
-            "order_reference": order_id,
-            "was_free": 0
-        })
-        unlock.insert(ignore_permissions=True)
-        frappe.db.commit()
-        
-        return {"success": True, "message": "Lead successfully unlocked for 1 Coin."}
-        
-    except frappe.ValidationError as e:
-        # These are usually coin insufficiency errors
-        return {"success": False, "error": str(e)}
+        return {"success": True, "message": "Lead unlocked."}
     except Exception as e:
         frappe.log_error(f"[WhatsApp Lead Unlock] Error: {e}", "WhatsApp Ordering")
         return {"success": False, "error": "Internal error occurred during lead unlock."}
@@ -266,18 +210,8 @@ def log_whatsapp_order(
         or {"success": False, "error": {...}} — frontend ignores both responses.
     """
     try:
-        # ── 1. Validate restaurant & plan ────────────────────────────────────
+        # ── 1. Validate restaurant ───────────────────────────────────────────
         restaurant = validate_restaurant_for_api(restaurant_id)
-        plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
-
-        if plan_type not in ["SILVER", "GOLD"]:
-            return {
-                "success": False,
-                "error": {
-                    "code": "PLAN_NOT_ELIGIBLE",
-                    "message": "WhatsApp ordering is available for SILVER and GOLD plans.",
-                },
-            }
 
         # ── 2. Validate and normalise inputs ─────────────────────────────────
         customer_name   = (customer_name or "").strip()[:140]   # Frappe Data limit

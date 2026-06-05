@@ -317,7 +317,7 @@ def get_dashboard_summary(restaurant_id):
 		# Validate restaurant & check subscription tier
 		restaurant = frappe.get_doc("Restaurant", restaurant_id)
 		from flamezo_backend.flamezo.utils.feature_gate import get_restaurant_plan
-		plan = get_restaurant_plan(restaurant_id)  # 'SILVER' or 'GOLD'
+		plan = get_restaurant_plan(restaurant_id)
 
 		end_date = add_days(today(), 1)
 		start_date_7d = add_days(today(), -7)

@@ -40,7 +40,6 @@
   "enable_takeaway",
   "enable_delivery",
   "enable_dine_in",
-  "no_ordering",
   "order_channel",
   "packaging_fee_type",
   "default_packaging_fee",
@@ -84,7 +83,7 @@
   "plan_changed_by",
   "plan_change_reason",
   "section_break_subscription_limits",
-  "max_images_silver",
+  "max_images_limit",
   "current_image_count",
   "column_break_subscription_metrics",
   "total_orders",
@@ -343,18 +342,12 @@
    "default": "1"
   },
   {
-   "fieldname": "no_ordering",
-   "fieldtype": "Check",
-   "label": "No Ordering",
-   "default": "0"
-  },
-  {
    "fieldname": "order_channel",
    "fieldtype": "Select",
    "label": "Order Channel",
    "options": "Realtime\nWhatsApp",
    "default": "Realtime",
-   "description": "Realtime = in-app orders (GOLD only). WhatsApp = orders via WhatsApp link (available on all plans)."
+   "description": "Realtime = in-app orders. WhatsApp = orders via WhatsApp link."
   },
   {
    "default": "Fixed",
@@ -596,11 +589,11 @@
    "fieldname": "plan_type",
    "fieldtype": "Select",
    "label": "Plan Tier",
-   "options": "\nSILVER\nGOLD",
+   "options": "GOLD",
    "default": "GOLD",
    "in_list_view": 1,
    "reqd": 1,
-   "description": "Subscription plan tier. GOLD is the only active tier (free onboarding, no monthly floor, success share on orders). SILVER retained for legacy records only."
+   "description": "Subscription plan tier."
   },
   {
    "fieldname": "plan_activated_on",
@@ -633,11 +626,11 @@
    "label": "Subscription Limits & Metrics"
   },
   {
-   "fieldname": "max_images_silver",
+   "fieldname": "max_images_limit",
    "fieldtype": "Int",
-   "label": "Max Images (Silver)",
+   "label": "Max Images",
    "default": "200",
-   "description": "Maximum number of images allowed for SILVER plan"
+   "description": "Maximum number of images allowed"
   },
   {
    "fieldname": "current_image_count",
@@ -657,7 +650,7 @@
    "label": "Total Orders",
    "default": "0",
    "read_only": 1,
-   "description": "Total number of orders processed (GOLD tier)"
+   "description": "Total number of orders processed"
   },
   {
    "fieldname": "total_revenue",
@@ -665,7 +658,7 @@
    "label": "Total Revenue",
    "default": "0",
    "read_only": 1,
-   "description": "Total revenue from orders (GOLD tier)"
+   "description": "Total revenue from orders"
   },
   {
    "fieldname": "commission_earned",
@@ -679,7 +672,7 @@
    "fieldname": "deferred_plan_type",
    "fieldtype": "Select",
    "label": "Deferred Plan Type",
-   "options": "\nSILVER\nGOLD",
+   "options": "GOLD",
    "description": "The plan that will be activated at midnight"
   },
   {

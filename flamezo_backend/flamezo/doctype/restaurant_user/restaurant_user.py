@@ -5,18 +5,13 @@ import frappe
 from frappe.model.document import Document
 
 
-# Staff seat limits by plan (excludes the one Restaurant Admin)
-STAFF_SEAT_LIMITS = {
-	"SILVER": 0,
-	"GOLD": 6,
-}
+# Staff seat limits (excludes the one Restaurant Admin)
+STAFF_SEAT_LIMIT = 6
 
 
 def get_staff_seat_limit(restaurant):
-	"""Return (limit, plan_type) for the restaurant's current plan."""
-	plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
-	plan_type = plan_type.upper()
-	return STAFF_SEAT_LIMITS.get(plan_type, 0), plan_type
+	"""Return the maximum non-admin staff count allowed (default 6)."""
+	return STAFF_SEAT_LIMIT
 
 
 class RestaurantUser(Document):
@@ -37,14 +32,8 @@ class RestaurantUser(Document):
 			self._enforce_seat_limit()
 
 	def _enforce_seat_limit(self):
-		"""Enforce plan-based staff seat limits."""
-		limit, plan_type = get_staff_seat_limit(self.restaurant)
-
-		if limit == 0:
-			frappe.throw(
-				f"Your current {plan_type} plan does not support additional staff members. "
-				f"Upgrade to GOLD (up to 6 staff) to invite your team."
-			)
+		"""Enforce staff seat limits."""
+		limit = get_staff_seat_limit(self.restaurant)
 
 		# Count existing active non-admin staff
 		current_count = frappe.db.count(
@@ -58,7 +47,7 @@ class RestaurantUser(Document):
 
 		if current_count >= limit:
 			frappe.throw(
-				f"Your {plan_type} plan supports up to {limit} staff member(s). "
+				f"Staff seat limit of {limit} reached. "
 				f"You currently have {current_count} active staff."
 			)
 

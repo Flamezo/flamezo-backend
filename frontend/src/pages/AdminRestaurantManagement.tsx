@@ -50,7 +50,6 @@ interface Restaurant {
   owner_email?: string
   owner_phone?: string
   is_active: number
-  plan_type: 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
@@ -117,8 +116,7 @@ export default function AdminRestaurantManagement() {
     charge_gst: false,
     gst_percent: 18,
     gold_monthly_fee: 0,
-    gold_commission_percent: 3.0,
-    gold_upgrade_barrier: 1299
+    gold_commission_percent: 3.0
   })
 
   useEffect(() => {
@@ -167,9 +165,6 @@ export default function AdminRestaurantManagement() {
   })
 
   // APIs
-  const { call: updateRestaurantPlan } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.update_restaurant_plan'
-  )
   const { call: toggleRestaurantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
     'flamezo_backend.flamezo.api.admin.toggle_restaurant_status'
   )
@@ -223,24 +218,6 @@ export default function AdminRestaurantManagement() {
       setPlatformSettings(rawPlatformSettings.message.data)
     }
   }, [rawPlatformSettings])
-
-  const handlePlanChange = async (restaurantName: string, newPlan: 'GOLD') => {
-    try {
-      setUpdating(restaurantName)
-      const result = await updateRestaurantPlan({ restaurant_id: restaurantName, plan_type: newPlan }) as any
-      if (result?.message?.success) {
-        toast.success(`Plan upgraded to ${newPlan}`)
-        if (selectedRestaurant) {
-          setSelectedRestaurant({ ...selectedRestaurant, plan_type: newPlan })
-        }
-        loadRestaurants()
-      }
-    } catch (error) {
-      toast.error('Strategic update failed')
-    } finally {
-      setUpdating(null)
-    }
-  }
 
   const handleStatusToggle = async (restaurantName: string, currentStatus: number) => {
     try {
@@ -1057,72 +1034,6 @@ export default function AdminRestaurantManagement() {
               </div>
             </div>
 
-            {/* Tier Evolution Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-background rounded-md border shadow-sm">
-                  <Shield className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Platform Access Tier</span>
-              </div>
-
-              <Select
-                value={selectedRestaurant?.plan_type}
-                onValueChange={(value) => handlePlanChange(selectedRestaurant!.restaurant_id, value as any)}
-                disabled={updating === selectedRestaurant?.name}
-              >
-                <SelectTrigger className="h-14 rounded-2xl border-2 border-primary/20 bg-background hover:border-primary/40 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "p-2 rounded-lg",
-                      selectedRestaurant?.plan_type === 'GOLD' ? "bg-blue-500/10 text-blue-600" :
-                        "bg-slate-500/10 text-slate-600"
-                    )}>
-                      {selectedRestaurant?.plan_type === 'GOLD' ? <Gem className="h-4 w-4" /> :
-                        <Shield className="h-4 w-4" />}
-                    </div>
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm font-black uppercase tracking-widest">{selectedRestaurant?.plan_type}</span>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Current Active Plan</span>
-                    </div>
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
-                  {[
-                    {
-                      id: 'GOLD',
-                      label: 'Flamezo Plan',
-                      icon: Trophy,
-                      color: 'text-amber-500',
-                      desc: `Free onboarding · ${platformSettings.gold_commission_percent}% Success Share on online orders`,
-                    },
-                  ].map((tier) => (
-                    <SelectItem
-                      key={tier.id}
-                      value={tier.id}
-                      className="rounded-xl py-3 focus:bg-primary/5 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn("p-1.5 rounded-md bg-muted/50", tier.color)}>
-                          <tier.icon className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold uppercase tracking-wider">{tier.label}</span>
-                          <span className="text-[9px] text-muted-foreground font-medium">{tier.desc}</span>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {updating === selectedRestaurant?.name && (
-                <div className="flex items-center gap-2 px-1 text-[10px] font-bold text-primary animate-pulse">
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                  PROCESSING TIER TRANSITION...
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter className="p-4 bg-muted/30 border-t flex flex-row gap-2 sm:justify-end">
             <Button variant="ghost" onClick={() => setIsSettingsModalOpen(false)} className="rounded-xl flex-1 sm:flex-none">Cancel</Button>
@@ -1450,31 +1361,12 @@ export default function AdminRestaurantManagement() {
               <div className="h-px bg-stone-100" />
 
               <div className="space-y-2">
-                <Label className="text-sm font-bold ml-1 text-amber-600">Gold Success Share (%)</Label>
+                <Label className="text-sm font-bold ml-1 text-muted-foreground">Platform Success Share (%)</Label>
                 <NumberInput
                   value={platformSettings.gold_commission_percent}
                   onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_commission_percent: parseFloat(e.target.value || '0') }))}
                   className="h-12 rounded-xl"
                 />
-              </div>
-
-              <div className="space-y-3 p-5 rounded-2xl bg-muted/30 border border-muted/40">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 bg-muted/50 rounded-lg">
-                    <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <Label className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Upgrade Barrier (Legacy)</Label>
-                </div>
-                <NumberInput
-                  value={platformSettings.gold_upgrade_barrier}
-                  onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_upgrade_barrier: parseFloat(e.target.value || '0') }))}
-                  className="h-14 rounded-xl font-black text-2xl text-muted-foreground bg-muted/30 border-muted/40 focus-visible:ring-muted/40"
-                  disabled
-                />
-                <p className="text-[10px] text-muted-foreground font-medium px-1 flex items-center gap-1.5">
-                  <Zap className="h-3 w-3" />
-                  Retired under the single-tier model. GOLD onboarding is now free — this field is no longer enforced.
-                </p>
               </div>
             </div>
           </div>
