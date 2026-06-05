@@ -298,8 +298,8 @@ scheduler_events = {
 		"0 10 * * *": [
 			"flamezo_backend.flamezo.tasks.loyalty_tasks.send_coin_expiry_notifications"
 		],
-		# Loyalty: reset referral share cycles on 1st of each month at 00:00 UTC
-		"0 0 1 * *": [
+		# Loyalty: reset referral share cycles on 1st of each month at 00:00 IST (18:30 UTC on last day)
+		"30 18 28-31 * *": [
 			"flamezo_backend.flamezo.tasks.loyalty_tasks.reset_referral_cycles_monthly"
 		],
 		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)

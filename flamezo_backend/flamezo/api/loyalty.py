@@ -17,7 +17,10 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 from flamezo_backend.flamezo.utils.platform_config import (
 	PLATFORM_LOYALTY,
 	get_welcome_reward_coins,
-	get_referral_share_coins,
+	get_referral_flat_first_order,
+	get_referral_cashback_percent,
+	get_referral_cashback_orders,
+	get_referral_max_cashback,
 	get_max_opens_rewarded_per_share,
 	get_tier_threshold,
 )
@@ -145,8 +148,11 @@ def get_loyalty_config(restaurant_id):
 			"min_order_to_earn":            PLATFORM_LOYALTY["min_order_to_earn"],
 			"min_redemption_threshold":     PLATFORM_LOYALTY["min_redemption_threshold"],
 			"min_billing_for_redemption":   PLATFORM_LOYALTY["min_billing_for_redemption"],
-			"new_user_welcome_reward_coins":PLATFORM_LOYALTY.get("welcome_reward_coins", 50),
-			"coins_per_unique_open":        PLATFORM_LOYALTY.get("referral_share_coins", 30),
+			"new_user_welcome_reward_coins":PLATFORM_LOYALTY.get("welcome_reward_coins", 150),
+			"referral_flat_first_order":    get_referral_flat_first_order(),
+			"referral_cashback_percent":    get_referral_cashback_percent(),
+			"referral_cashback_orders":     get_referral_cashback_orders(),
+			"referral_max_cashback":        get_referral_max_cashback(),
 			"max_opens_rewarded_per_share": PLATFORM_LOYALTY.get("max_opens_rewarded_per_share", 10),
 			"tier_silver_threshold":        get_tier_threshold("silver"),
 			"tier_gold_threshold":          get_tier_threshold("gold"),
@@ -407,10 +413,16 @@ def track_referral_visit(identifier, ip_address=None, user_agent=None):
 def claim_referral_reward(restaurant_id, referral_id, phone):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.loyalty.claim_referral_reward
-	Called after phone verification to atomically award:
-	  1. Welcome Bonus to the referee (new user)
-	  2. Referral Share to the referrer (if within cycle limit)
-	This is the fraud-safe approach — no coins until identity is verified.
+	Called after phone OTP verification.
+
+	Awards:
+	  1. ₹150 Welcome Bonus to referee immediately (one-time, global)
+	  2. Creates a Customer Referral relationship so referrer earns automatically
+	     on the referee's next 16 orders:
+	       • ₹50 flat on referee's first order
+	       • 1% of each of the next 15 orders (capped at ₹500 total)
+
+	The referrer earns nothing at claim time — rewards come from real orders.
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
@@ -423,33 +435,29 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Authentication required"}}
 
-		# 1. Validate the referral link belongs to this restaurant
+		# 1. Validate the referral link
 		link_info = frappe.db.get_value(
 			"Referral Link",
 			{"identifier": referral_id},
-			["name", "referrer", "restaurant", "rewarded_opens_in_cycle"],
+			["name", "referrer", "restaurant"],
 			as_dict=True
 		)
 		if not link_info:
 			return {"success": False, "error": {"code": "LINK_NOT_FOUND", "message": "Invalid referral link"}}
 
-		if link_info.restaurant != restaurant:
-			return {"success": False, "error": {"code": "RESTAURANT_MISMATCH", "message": "Referral link does not belong to this restaurant"}}
-
 		# 2. Get or create the referee customer
 		referee = get_or_create_customer(normalized_phone)
 
-		# 3. Bot detection: reject accounts created in the last 60 seconds (script abuse)
+		# 3. Bot detection: reject accounts created in the last 60 seconds
 		from frappe.utils import now_datetime, get_datetime
 		age_seconds = (now_datetime() - get_datetime(referee.creation)).total_seconds()
 		if age_seconds < 60:
 			return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
 
-		# 4. Global idempotency: one Welcome Bonus per phone number ever, across all restaurants
+		# 4. Global idempotency: one Welcome Bonus per phone ever, across all restaurants
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": referee.name,
 			"reason": "Welcome Bonus"
-			# No "restaurant" filter — global check
 		})
 		if already_rewarded:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "Welcome bonus already claimed"}}
@@ -458,13 +466,8 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 		if link_info.referrer == referee.name:
 			return {"success": False, "error": {"code": "SELF_REFERRAL", "message": "Cannot use your own referral link"}}
 
-		# 6. Use platform-fixed reward values (no per-restaurant config needed)
-		welcome_coins        = get_welcome_reward_coins()           # ₹75 platform standard
-		referral_share_coins = get_referral_share_coins()           # ₹40 per verified open
-		max_limit            = get_max_opens_rewarded_per_share()   # 10 per cycle
-		current_cycle = int(frappe.db.get_value("Referral Link", link_info.name, "rewarded_opens_in_cycle") or 0)
-
-		# 7. Award Welcome Bonus to referee
+		# 6. Award ₹150 Welcome Bonus to referee immediately
+		welcome_coins = get_welcome_reward_coins()  # 150
 		credit_loyalty_points(
 			customer=referee.name,
 			restaurant=restaurant,
@@ -474,21 +477,23 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			ref_name=link_info.name
 		)
 
-		# 8. Award Referral Share to referrer (if within cycle limit)
-		referrer_coins_awarded = 0
-		if current_cycle < max_limit:
-			credit_loyalty_points(
-				customer=link_info.referrer,
-				restaurant=restaurant,
-				coins=referral_share_coins,
-				reason="Referral Share",
-				ref_doctype="Referral Link",
-				ref_name=link_info.name
-			)
-			referrer_coins_awarded = referral_share_coins
-			frappe.db.set_value("Referral Link", link_info.name, "rewarded_opens_in_cycle", current_cycle + 1)
+		# 7. Create Customer Referral relationship — referrer earns on future orders
+		existing_rel = frappe.db.exists("Customer Referral", {"referee": referee.name})
+		if not existing_rel:
+			from frappe.utils import today as _today
+			frappe.get_doc({
+				"doctype": "Customer Referral",
+				"referrer": link_info.referrer,
+				"referee": referee.name,
+				"referral_link": link_info.name,
+				"orders_credited": 0,
+				"cashback_total": 0,
+				"first_order_credited": 0,
+				"status": "active",
+				"activated_on": _today(),
+			}).insert(ignore_permissions=True)
 
-		# 9. Mark referral visit as converted (best-effort, not blocking)
+		# 8. Mark referral visit as converted (best-effort)
 		try:
 			frappe.db.sql("""
 				UPDATE `tabReferral Visit`
@@ -504,7 +509,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			"success": True,
 			"data": {
 				"welcome_coins": welcome_coins,
-				"referrer_coins": referrer_coins_awarded
+				"referrer_cashback": "₹50 on first order + 1% on next 15 orders (up to ₹500)"
 			}
 		}
 	except Exception as e:
@@ -761,23 +766,17 @@ def get_customer_insights(restaurant_id, search_query=None):
 		""", tuple([restaurant] + all_customer_ids), as_dict=True)
 		lifetime_map = {r.customer: int(r.lifetime_coins or 0) for r in lifetime_rows}
 
-		# ── Single SQL: referral stats for all customers ──────────────────────────
-		referral_rows = frappe.db.sql(f"""
+		# ── Single SQL: earned + redeemed AT this restaurant per customer ────────
+		earn_redeem_rows = frappe.db.sql(f"""
 			SELECT
-				l.referrer,
-				COALESCE(SUM(l.rewarded_opens_in_cycle), 0) AS cycle_opens,
-				COALESCE(SUM(v_counts.unique_opens), 0) AS total_opens
-			FROM `tabReferral Link` l
-			LEFT JOIN (
-				SELECT referral_link, COUNT(*) AS unique_opens
-				FROM `tabReferral Visit`
-				WHERE is_unique = 1
-				GROUP BY referral_link
-			) v_counts ON v_counts.referral_link = l.name
-			WHERE l.restaurant = %s AND l.referrer IN ({placeholders})
-			GROUP BY l.referrer
+				customer,
+				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   AND is_settled = 1 THEN coins ELSE 0 END), 0) AS earned_here,
+				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END), 0) AS redeemed_here
+			FROM `tabRestaurant Loyalty Entry`
+			WHERE restaurant = %s AND customer IN ({placeholders})
+			GROUP BY customer
 		""", tuple([restaurant] + all_customer_ids), as_dict=True)
-		referral_map = {r.referrer: r for r in referral_rows}
+		earn_redeem_map = {r.customer: r for r in earn_redeem_rows}
 
 		# ── Bulk fetch customer fields ─────────────────────────────────────────────
 		customer_docs = frappe.get_all(
@@ -812,25 +811,19 @@ def get_customer_insights(restaurant_id, search_query=None):
 			cid = c.name
 			balance = balance_map.get(cid, 0)
 			lifetime = lifetime_map.get(cid, 0)
-			ref = referral_map.get(cid, frappe._dict(total_opens=0, cycle_opens=0))
-			
-			is_unlocked = True
-			
-			phone = c.phone
-			display_name = c.customer_name or cid
+			er = earn_redeem_map.get(cid, frappe._dict(earned_here=0, redeemed_here=0))
 
 			results.append({
 				"id": cid,
-				"name": display_name,
-				"phone": phone,
+				"name": c.customer_name or cid,
+				"phone": c.phone,
 				"birthday": str(c.date_of_birth) if c.date_of_birth else "********",
 				"balance": balance,
 				"tier": _tier_from_lifetime(lifetime),
 				"lifetime_coins": lifetime,
-				"referral_opens": int(ref.total_opens or 0),
-				"cycle_opens": int(ref.cycle_opens or 0),
+				"earned_here": int(er.earned_here or 0),
+				"redeemed_here": int(er.redeemed_here or 0),
 				"last_active": c.modified,
-				"is_unlocked": is_unlocked
 			})
 
 		# Sort by balance descending
@@ -992,51 +985,28 @@ def get_loyalty_analytics(restaurant_id):
 			LIMIT 5
 		""", (restaurant,), as_dict=True)
 
-		top_earner_ids = [r.customer for r in top_rows]
-		customer_names_map = {}
-		if top_earner_ids:
-			name_rows = frappe.get_all(
-				"Customer",
-				filters={"name": ["in", top_earner_ids]},
-				fields=["name", "customer_name", "phone"]
-			)
-			customer_names_map = {c.name: c for c in name_rows}
-
-		top_earners = []
-		for r in top_rows:
-			c = customer_names_map.get(r.customer, frappe._dict())
-			display_name = c.get("customer_name") or r.customer
-			display_phone = c.get("phone") or ""
-			top_earners.append({
-				"customer": r.customer,
-				"name": display_name,
-				"phone": display_phone,
+		# Top earners — aggregate only, no personal data exposed to restaurant
+		top_earners = [
+			{
+				"customer": f"Customer #{i+1}",
+				"name": f"Customer #{i+1}",
+				"phone": "",
 				"lifetime_coins": int(r.lifetime_coins or 0),
-			})
+			}
+			for i, r in enumerate(top_rows)
+		]
 
-		# ── 4. Expiring soon customer list (for operator action) ───────────────────
-		expiring_customer_ids = [r.customer for r in expiring_rows]
-		exp_name_map = {}
-		if expiring_customer_ids:
-			exp_name_rows = frappe.get_all(
-				"Customer",
-				filters={"name": ["in", expiring_customer_ids]},
-				fields=["name", "customer_name", "phone"]
-			)
-			exp_name_map = {c.name: c for c in exp_name_rows}
-
-		expiring_list = []
-		for r in expiring_rows[:20]:   # cap UI list at 20
-			c = exp_name_map.get(r.customer, frappe._dict())
-			display_name  = c.get("customer_name") or r.customer
-			display_phone = c.get("phone") or ""
-			expiring_list.append({
+		# Expiring soon — aggregate counts only, no individual names/phones
+		expiring_list = [
+			{
 				"customer": r.customer,
-				"name": display_name,
-				"phone": display_phone,
+				"name": "Customer",
+				"phone": "",
 				"net_balance": int(r.net_balance or 0),
 				"earliest_expiry": str(r.earliest_expiry) if r.earliest_expiry else None,
-			})
+			}
+			for r in expiring_rows[:20]
+		]
 
 		# ── 5. Daily trend — last 30 days ─────────────────────────────────────────
 		trend_rows = frappe.db.sql("""

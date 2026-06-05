@@ -158,7 +158,6 @@ const navigation: NavItem[] = [
     feature: 'loyalty',
     children: [
       { name: 'Loyalty Settings', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
-      { name: 'Customer Insights', href: '/loyalty-insights', icon: Users, feature: 'loyalty_insights' },
       { name: 'Analytics', href: '/loyalty-analytics', icon: BarChart3, feature: 'loyalty' },
     ],
   },
@@ -229,8 +228,9 @@ const navigation: NavItem[] = [
   },
   { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
   { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
-  // Admin-only link - will be filtered by admin check in render
+  // Admin-only links - filtered by admin check in render
   { type: 'link', name: 'Restaurant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
+  { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
 ]
 
 export default function Layout({ children }: LayoutProps) {

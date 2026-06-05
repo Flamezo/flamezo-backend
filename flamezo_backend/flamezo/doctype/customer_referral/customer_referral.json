@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-06-06 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "referrer",
+  "referee",
+  "referral_link",
+  "col1",
+  "orders_credited",
+  "cashback_total",
+  "col2",
+  "first_order_credited",
+  "status",
+  "activated_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "referrer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Referrer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "referee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Referee",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "referral_link",
+   "fieldtype": "Link",
+   "label": "Referral Link",
+   "options": "Referral Link"
+  },
+  {
+   "fieldname": "col1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "orders_credited",
+   "fieldtype": "Int",
+   "default": "0",
+   "label": "Orders Credited",
+   "description": "Total orders processed (first order + up to 15 cashback orders)"
+  },
+  {
+   "fieldname": "cashback_total",
+   "fieldtype": "Currency",
+   "default": "0",
+   "label": "Total Cashback Earned",
+   "description": "Total coins credited to referrer from this referee (cap: ₹500)"
+  },
+  {
+   "fieldname": "col2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "first_order_credited",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "First Order ₹50 Credited"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "default": "active",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "active\ncompleted"
+  },
+  {
+   "fieldname": "activated_on",
+   "fieldtype": "Date",
+   "label": "Activated On"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Customer Referral",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

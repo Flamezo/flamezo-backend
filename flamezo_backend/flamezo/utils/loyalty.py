@@ -94,8 +94,12 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 		today_total = sum(r.coins for r in today_redemptions)
 		remaining_cap = max_daily_cap - today_total
 		if remaining_cap <= 0:
-			frappe.throw(_("Daily redemption cap exhausted"))
+			frappe.throw(_("You've reached your daily Cash redemption limit (₹{0}/day). Try again tomorrow.").format(max_daily_cap))
 		if coins > remaining_cap:
+			frappe.log_error(
+				f"Loyalty daily cap clamp: requested {coins}, remaining cap {remaining_cap}, customer {customer}",
+				"Loyalty Cap Clip"
+			)
 			coins = remaining_cap
 
 	if coins <= 0:
@@ -436,3 +440,110 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 def send_birthday_push(customer, restaurant, coins):
 	"""Convenience wrapper used by the birthday scheduler."""
 	send_coin_credit_push(customer, restaurant, coins, "Birthday Bonus")
+
+
+def process_referral_cashback_on_order(order_doc):
+	"""
+	Called on every completed order. If the order's customer was referred by
+	someone, credits the referrer with:
+	  • ₹50 flat on the referee's first completed order
+	  • 1% of subsequent orders (up to 15 more orders)
+	Total capped at ₹500 per referred customer.
+
+	Safe to call multiple times — idempotent via Customer Referral counters.
+	"""
+	from flamezo_backend.flamezo.utils.platform_config import (
+		get_referral_flat_first_order,
+		get_referral_cashback_percent,
+		get_referral_cashback_orders,
+		get_referral_max_cashback,
+	)
+
+	try:
+		referee = getattr(order_doc, "loyalty_customer", None) or getattr(order_doc, "customer_name", None)
+		if not referee:
+			return
+
+		# Find active Customer Referral for this referee
+		ref_doc_name = frappe.db.get_value(
+			"Customer Referral",
+			{"referee": referee, "status": "active"},
+			"name"
+		)
+		if not ref_doc_name:
+			return
+
+		ref_doc = frappe.get_doc("Customer Referral", ref_doc_name)
+		referrer = ref_doc.referrer
+
+		flat_coins      = get_referral_flat_first_order()     # 50
+		cashback_pct    = get_referral_cashback_percent()     # 1.0
+		max_orders      = get_referral_cashback_orders()      # 15
+		cap             = get_referral_max_cashback()         # 500
+		already_earned  = float(ref_doc.cashback_total or 0)
+		remaining_cap   = cap - already_earned
+
+		if remaining_cap <= 0:
+			frappe.db.set_value("Customer Referral", ref_doc_name, "status", "completed")
+			return
+
+		coins_to_credit = 0
+		reason = ""
+
+		# --- First order: flat ₹50 ---
+		if not ref_doc.first_order_credited:
+			coins_to_credit = min(flat_coins, remaining_cap)
+			reason = "Referral Flat Bonus"
+			frappe.db.set_value("Customer Referral", ref_doc_name, "first_order_credited", 1)
+
+		# --- Subsequent orders: 1% cashback (up to 15 orders) ---
+		elif ref_doc.orders_credited <= max_orders:
+			order_total = float(getattr(order_doc, "total", 0) or 0)
+			raw = round(order_total * cashback_pct / 100, 2)
+			coins_to_credit = min(int(raw), int(remaining_cap))
+			reason = "Referral Cashback"
+
+		if coins_to_credit <= 0:
+			return
+
+		# Determine which restaurant to use for the loyalty entry
+		# Use the restaurant from the order so the cross-network context is accurate
+		restaurant = getattr(order_doc, "restaurant", None) or getattr(order_doc, "restaurant_id", None)
+		if not restaurant:
+			return
+
+		add_loyalty_coins(
+			customer=referrer,
+			restaurant=restaurant,
+			coins=coins_to_credit,
+			reason=reason,
+			ref_doctype="Customer Referral",
+			ref_name=ref_doc_name,
+		)
+
+		# Update counters
+		new_orders  = int(ref_doc.orders_credited or 0) + 1
+		new_total   = already_earned + coins_to_credit
+		new_status  = "completed" if (new_orders > max_orders or new_total >= cap) else "active"
+
+		frappe.db.set_value("Customer Referral", ref_doc_name, {
+			"orders_credited": new_orders,
+			"cashback_total":  new_total,
+			"status":          new_status,
+		}, update_modified=False)
+
+		# Notify referrer
+		frappe.enqueue(
+			"flamezo_backend.flamezo.utils.loyalty.send_coin_credit_push",
+			customer=referrer,
+			restaurant=restaurant,
+			coins=coins_to_credit,
+			reason=reason,
+			queue="short",
+		)
+
+	except Exception as e:
+		frappe.log_error(
+			f"process_referral_cashback_on_order failed for order {getattr(order_doc, 'name', '?')}: {e}",
+			"Referral Cashback Error"
+		)

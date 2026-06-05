@@ -38,6 +38,8 @@ const Bookings = lazy(() => import('./pages/Bookings'))
 const Coupons = lazy(() => import('./pages/Coupons'))
 const AdminRestaurantManagement = lazy(() => import('./pages/AdminRestaurantManagement'))
 const AdminRestaurantDetailsPage = lazy(() => import('./pages/AdminRestaurantDetails'))
+const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
+const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AIEnhancementPage = lazy(() => import('./pages/AIEnhancementPage'))
 const AIGalleryPage = lazy(() => import('./pages/AIGalleryPage'))
 const AIMenuThemeBackgroundPage = lazy(() => import('./pages/AIMenuThemeBackgroundPage'))
@@ -45,7 +47,6 @@ const AIMenuThemeHistoryPage = lazy(() => import('./pages/AIMenuThemeHistoryPage
 const AutopaySetupPage = lazy(() => import('./pages/AutopaySetupPage'))
 const RouteKycPage = lazy(() => import('./pages/RouteKycPage'))
 const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
-const CustomerInsights = lazy(() => import('./pages/CustomerInsights'))
 const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
 const POSIntegration = lazy(() => import('./pages/POSIntegration'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
@@ -105,6 +106,8 @@ function AppContent() {
 
 								<Route path="/admin/restaurants" element={<AdminRestaurantManagement />} />
 								<Route path="/admin/restaurants/:id" element={<AdminRestaurantDetailsPage />} />
+								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
+								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
 								<Route element={<FeatureProtectedRoute feature="ordering" />}>
 									<Route path="/orders" element={<Orders />} />
@@ -129,9 +132,7 @@ function AppContent() {
 									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
 									<Route path="/loyalty-analytics" element={<LoyaltyAnalytics />} />
 								</Route>
-								<Route element={<FeatureProtectedRoute feature="loyalty_insights" />}>
-									<Route path="/loyalty-insights" element={<CustomerInsights />} />
-								</Route>
+								<Route path="/loyalty-insights" element={<Navigate to="/loyalty-analytics" replace />} />
 
 								{/* UGC Cashback — story-for-cashback growth loop */}
 								<Route path="/ugc-cashback/config" element={<UGCConfig />} />

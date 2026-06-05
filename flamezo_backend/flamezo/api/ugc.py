@@ -57,10 +57,10 @@ PLATFORM_INSTRUCTIONS = (
 )
 PLATFORM_TERMS = (
 	"Cashback = your story's view count in rupees, capped at the final amount you paid (max "
-	"100%). Up to 2 claims per restaurant every 30 days. Paid as Flamezo wallet cash, "
-	"redeemable on your next visit at any Flamezo restaurant. Stories must stay live for at "
-	"least 24 hours. Flamezo may reject views that appear edited, inflated, or fraudulent, and "
-	"repeat offenders lose eligibility."
+	"100%). Up to 2 claims per restaurant every 30 days. Paid as Flamezo wallet cash, valid "
+	"for 45 days, redeemable on your next visit at any Flamezo restaurant. Stories must stay "
+	"live for at least 24 hours. Flamezo may reject views that appear edited, inflated, or "
+	"fraudulent, and repeat offenders lose eligibility."
 )
 
 # ── Platform-fixed rules (same for every Flamezo restaurant; not editable in the

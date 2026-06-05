@@ -241,17 +241,31 @@ def send_coin_expiry_notifications():
 		frappe.log_error(f"Expiry notification commit error: {str(e)}", "Expiry Notifications")
 
 
+def _do_reset_referral_cycles():
+	"""Execute the actual DB reset. Separated so tests can call it directly."""
+	frappe.db.sql("UPDATE `tabReferral Link` SET rewarded_opens_in_cycle = 0")
+	frappe.db.commit()
+
+
 def reset_referral_cycles_monthly():
 	"""
-	Monthly scheduler job (runs on 1st of each month at 00:00 UTC).
-	Resets rewarded_opens_in_cycle = 0 for ALL referral links globally.
+	Monthly job: resets rewarded_opens_in_cycle = 0 for all Referral Links.
 
-	Replaces the old per-order reset_referral_cycle() approach which allowed
-	frequent orderers to bypass the 10-referral cap by placing orders often.
-	Time-based reset is the industry standard (Swiggy, MagicPin model).
+	Cron fires at 18:30 UTC on days 28–31 (= 00:00 IST on those dates).
+	Guard: only execute on the last calendar day of the month in IST so the
+	reset happens exactly at midnight IST on the 1st — closing the 5.5-hour
+	exploit window that UTC midnight left open for India-timezone users.
 	"""
+	import calendar
+	from datetime import datetime, timezone, timedelta
+
+	IST = timezone(timedelta(hours=5, minutes=30))
+	now_ist = datetime.now(IST)
+	last_day = calendar.monthrange(now_ist.year, now_ist.month)[1]
+	if now_ist.day != last_day:
+		return  # Not the last day of the month in IST — skip
+
 	try:
-		frappe.db.sql("UPDATE `tabReferral Link` SET rewarded_opens_in_cycle = 0")
-		frappe.db.commit()
+		_do_reset_referral_cycles()
 	except Exception as e:
 		frappe.log_error(f"Monthly referral cycle reset failed: {str(e)}", "Referral Cycle Reset")

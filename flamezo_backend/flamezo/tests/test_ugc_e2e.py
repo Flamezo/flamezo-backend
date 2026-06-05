@@ -314,16 +314,16 @@ def _run():
 	ugc.save_ugc_config(restaurant, {"min_order_amount": 99999, "monthly_budget_coins": 1, "cashback_percent_cap": 5})
 	_check("caps are platform constants (250 / 100%)", ugc.PLATFORM_MIN_ORDER == 250 and ugc.PLATFORM_CASHBACK_PERCENT_CAP == 100)
 
-	# 4) Cash expiry = platform 30 days — UGC entries included.
+	# 4) Cash expiry = platform 45 days — UGC entries included.
 	from frappe.utils import add_days as _add_days, getdate
 	from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
-	_check("platform Cash expiry = 30 days", get_expiry_days() == 30)
+	_check("platform Cash expiry = 45 days", get_expiry_days() == 45)
 	ent = frappe.get_all("Restaurant Loyalty Entry",
 		filters={"customer": customer, "reason": "UGC Cashback", "transaction_type": "Earn"},
 		fields=["posting_date", "expiry_date"], limit=1)
 	if ent and ent[0].expiry_date:
-		_check("UGC entry expiry is 30 days from posting",
-			   getdate(ent[0].expiry_date) == getdate(_add_days(str(ent[0].posting_date), 30)))
+		_check("UGC entry expiry is 45 days from posting",
+			   getdate(ent[0].expiry_date) == getdate(_add_days(str(ent[0].posting_date), get_expiry_days())))
 
 	# 5) Deleting a template removes the child row AND the Cloudflare object.
 	if tpl_name:

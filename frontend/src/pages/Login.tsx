@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
 export default function Login() {
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -37,10 +38,21 @@ export default function Login() {
         // Return the merchant to where they were before re-auth, if preserved.
         let target = '/flamezo_backend'
         try {
-          const returnTo = sessionStorage.getItem('flamezo:return-to')
+          let returnTo = sessionStorage.getItem('flamezo:return-to')
           sessionStorage.removeItem('flamezo:return-to')
-          if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') && !returnTo.startsWith('/login')) {
-            target = '/flamezo_backend' + returnTo
+          
+          if (!returnTo && location.state?.from) {
+            returnTo = location.state.from
+          }
+
+          if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+            // Strip /flamezo_backend prefix to normalize
+            if (returnTo.startsWith('/flamezo_backend')) {
+              returnTo = returnTo.slice('/flamezo_backend'.length)
+            }
+            if (returnTo && !returnTo.startsWith('/login')) {
+              target = '/flamezo_backend' + returnTo
+            }
           }
         } catch {
           /* ignore */

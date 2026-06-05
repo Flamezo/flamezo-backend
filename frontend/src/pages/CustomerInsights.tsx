@@ -150,9 +150,8 @@ export default function CustomerInsights() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Birthday</TableHead>
-                  <TableHead>Cash Balance</TableHead>
-                  <TableHead>Referral Opens</TableHead>
-                  <TableHead className="w-[120px]">Cycle Rewards</TableHead>
+                  <TableHead>Earned Here</TableHead>
+                  <TableHead>Redeemed Here</TableHead>
                   <TableHead>Last Active</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -160,11 +159,11 @@ export default function CustomerInsights() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading customers...</TableCell>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading customers...</TableCell>
                   </TableRow>
                 ) : customers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No customers found with loyalty history.</TableCell>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No customers found with loyalty history.</TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer) => (
@@ -175,26 +174,14 @@ export default function CustomerInsights() {
                         {customer.birthday && customer.birthday !== '********' ? new Date(customer.birthday).toLocaleDateString() : '—'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={customer.balance > 0 ? "default" : "secondary"} className="gap-1">
-                          {customer.balance} Cash
+                        <Badge variant="secondary" className="gap-1 text-green-700 bg-green-50 border-green-200">
+                          +{customer.earned_here ?? 0} Cash
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-semibold">{customer.referral_opens}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Unique</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-[60px]">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                              style={{ width: `${(customer.cycle_opens / 7) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-medium text-gray-500">{customer.cycle_opens}/7</span>
-                        </div>
+                        <Badge variant="secondary" className="gap-1 text-rose-700 bg-rose-50 border-rose-200">
+                          −{customer.redeemed_here ?? 0} Cash
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
                         {new Date(customer.last_active).toLocaleDateString()}
