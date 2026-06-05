@@ -15,32 +15,35 @@
 
 PLATFORM_LOYALTY = {
     # ── Earning ───────────────────────────────────────────────────────────────
-    # All restaurants on the Flamezo network earn at the same rate.
-    # Earn mode is always "Percentage of Bill" — flat modes are not supported
-    # in the centralized model to keep the experience predictable.
     "earn_type":                    "Percentage of Bill",
-    "earn_percentage":              7.0,   # 7% earn rate (₹1000 order → ₹70 cash)
+    "earn_percentage":              9.0,   # 9% earn rate (₹1000 order → ₹90 cash)
     "min_order_to_earn":            100,   # Orders below ₹100 earn nothing
-    "max_coins_per_order":          700,   # Max cap: 7% of ₹10,000
+    "max_coins_per_order":          900,   # Max cap: 9% of ₹10,000
 
     # ── Redemption ────────────────────────────────────────────────────────────
     "min_redemption_threshold":     100,   # Need ₹100 in wallet to redeem
     "min_billing_for_redemption":   200,   # Order must be ≥ ₹200 to allow redemption
-    "max_redemption_percent":       30,   # Up to 30% of order value per redemption
-    "max_daily_redemption_inr":     500,   # Max ₹500/day across all restaurants (fraud guard)
+    "max_redemption_percent":       30,    # Up to 30% of order value per redemption
+    "max_daily_redemption_inr":     1000,  # Max ₹1,000/day across all restaurants
     "max_manual_adjustment_coins":  500,   # Max adjustment cap
 
     # ── Coin Value (non-negotiable) ───────────────────────────────────────────
     "coin_value_in_inr":  1,         # 1 Flamezo Cash = ₹1. Always.
 
     # ── Expiry ───────────────────────────────────────────────────────────────
-    "loyalty_expiry_days":          30,     # ALL Cash (loyalty, UGC, bonuses) expires 30 days after it is earned
+    "loyalty_expiry_days":          45,    # ALL Cash expires 45 days after earned
 
     # ── Growth & Bonuses ──────────────────────────────────────────────────────
-    "birthday_bonus_coins":         100,    # ₹100 birthday bonus
-    "welcome_reward_coins":         50,   # New user welcome bonus (referee gets ₹50)
-    "referral_share_coins":         30,   # Referrer earns ₹30 per verified new open
-    "max_opens_rewarded_per_share": 10,   # Max rewards per share cycle (resets on next order)
+    "birthday_bonus_coins":         100,   # ₹100 birthday bonus
+    "welcome_reward_coins":         150,   # Referee gets ₹150 welcome cash on first claim
+
+    # ── Referral Cashback (platform-level, order-triggered) ───────────────────
+    # Referrer earns: ₹50 flat when referee places first order, then 1% of
+    # each of the next 15 orders, capped at ₹500 total per referred customer.
+    "referral_flat_first_order":    50,    # ₹50 flat on referee's first order
+    "referral_cashback_percent":    1.0,   # 1% of each subsequent order
+    "referral_cashback_orders":     15,    # Number of orders after first that earn cashback
+    "referral_max_cashback":        500,   # Hard cap: max ₹500 earned per referred customer
 
     # ── Platform Tiers (Global, based on lifetime earned cash) ────────────────
     "tier": {
@@ -89,8 +92,18 @@ def get_min_billing_for_redemption() -> int:
 def get_welcome_reward_coins() -> int:
     return PLATFORM_LOYALTY["welcome_reward_coins"]  # type: ignore
 
-def get_referral_share_coins() -> int:
-    return PLATFORM_LOYALTY["referral_share_coins"]  # type: ignore
+def get_referral_flat_first_order() -> int:
+    return int(PLATFORM_LOYALTY["referral_flat_first_order"])  # type: ignore
+
+def get_referral_cashback_percent() -> float:
+    return float(PLATFORM_LOYALTY["referral_cashback_percent"])  # type: ignore
+
+def get_referral_cashback_orders() -> int:
+    return int(PLATFORM_LOYALTY["referral_cashback_orders"])  # type: ignore
+
+def get_referral_max_cashback() -> int:
+    return int(PLATFORM_LOYALTY["referral_max_cashback"])  # type: ignore
 
 def get_max_opens_rewarded_per_share() -> int:
-    return PLATFORM_LOYALTY["max_opens_rewarded_per_share"]  # type: ignore
+    # Kept for backward-compat; monthly cycle cap is now derived from referral_max_cashback
+    return 10

@@ -9,22 +9,20 @@ from frappe.utils import cint, flt
 
 class UGCCashbackConfig(Document):
 	def validate(self):
-		# Clamp sane ranges so a mis-configured form can never break the credit math.
-		if cint(self.cashback_percent_cap) <= 0:
-			self.cashback_percent_cap = 100
-		self.cashback_percent_cap = min(cint(self.cashback_percent_cap), 100)
+		if cint(self.cashback_percent_cap) <= 0 or cint(self.cashback_percent_cap) > 100:
+			frappe.throw(_("Cashback Percent Cap must be between 1 and 100."))
 
 		if flt(self.ai_confidence_threshold) < 0 or flt(self.ai_confidence_threshold) > 1:
-			self.ai_confidence_threshold = 0.85
+			frappe.throw(_("AI Confidence Threshold must be between 0.0 and 1.0."))
 
 		if cint(self.proof_window_hours) <= 0:
-			self.proof_window_hours = 48
+			frappe.throw(_("Proof Window Hours must be greater than 0."))
 
 		if cint(self.max_per_customer_per_month) < 0:
-			self.max_per_customer_per_month = 0
+			frappe.throw(_("Max Claims Per Customer must be 0 or greater."))
 
 		if cint(self.absolute_cap_coins) < 0:
-			self.absolute_cap_coins = 0
+			frappe.throw(_("Absolute Cashback Cap must be 0 (disabled) or a positive amount."))
 
 		# Linked coupons must belong to this restaurant.
 		for field in ("coupon_for_viewers", "next_visit_coupon"):

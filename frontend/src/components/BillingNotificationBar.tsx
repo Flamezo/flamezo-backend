@@ -211,16 +211,12 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
   }
 
   // 6. Mandate / Autopay Setup
-  //
-  // Every restaurant under the single-tier model needs an active Razorpay
-  // mandate for monthly floor recovery + Success Share sweeps. We surface
-  // it as a generic billing requirement, not as a "tier requirement".
   if (!billingInfo.mandate_active) {
     notifications.push({
       id: 'no-mandate',
       type: 'warning',
       icon: <AlertCircle className="h-4 w-4" />,
-      message: 'Set up Autopay to keep monthly billing and floor recovery running automatically.',
+      message: 'Set up Autopay to keep your Success Share billing running automatically.',
       action: { label: 'Set Up', onClick: () => navigate('/autopay-setup') },
     })
   } else if (!billingInfo.auto_recharge_enabled) {

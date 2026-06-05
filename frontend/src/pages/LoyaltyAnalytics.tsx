@@ -309,85 +309,9 @@ export default function LoyaltyAnalytics() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Star className="w-4 h-4 text-yellow-500" />
-                  Top 5 Earners
-                </CardTitle>
-                <CardDescription>By lifetime coins earned at your restaurant</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {ok.top_earners.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No data yet.</p>
-                )}
-                {ok.top_earners.map((c, i) => (
-                  <div key={c.customer} className="flex items-center gap-3">
-                    <span className={cn(
-                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                      i === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30' :
-                      i === 1 ? 'bg-slate-100 text-slate-600 dark:bg-slate-800' :
-                      i === 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30' :
-                                'bg-muted text-muted-foreground'
-                    )}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.phone}</p>
-                    </div>
-                    <span className="text-sm font-bold tabular-nums text-primary">
-                      {fmt(c.lifetime_coins)}
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
           </div>
 
-          {/* ── Expiring Soon ────────────────────────────────────────────── */}
-          {ok.expiring_soon.length > 0 && (
-            <Card className="border-amber-300/60 dark:border-amber-700/40">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Coins Expiring in 7 Days
-                  <Badge className="ml-1 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300 dark:border-amber-700">
-                    {ok.expiring_soon.length} customers
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  These customers have unspent cash about to expire — consider sending them a nudge via WhatsApp or push
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {ok.expiring_soon.map((c) => {
-                    const d = daysUntil(c.earliest_expiry)
-                    return (
-                      <div key={c.customer} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{c.name}</p>
-                          <p className="text-xs text-muted-foreground">{c.phone}</p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold tabular-nums">₹{c.net_balance}</span>
-                          <Badge variant="outline" className={cn(
-                            'text-xs',
-                            d === 0 ? 'border-red-400 text-red-600 bg-red-50 dark:bg-red-900/20' :
-                            d <= 2  ? 'border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-900/20' :
-                                      'border-yellow-400 text-yellow-700 bg-yellow-50 dark:bg-yellow-900/20'
-                          )}>
-                            {d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d} days`}
-                          </Badge>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+
         </>
       )}
     </div>

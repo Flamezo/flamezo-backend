@@ -19,17 +19,17 @@ import { Badge } from '@/components/ui/badge'
 // Note: The `tier:` block is for customer loyalty tiers (Bronze / Silver / Gold / Platinum)
 // based on lifetime spend.
 const PLATFORM = {
-  earn_percentage:            7,
-  max_coins_per_order:        700,
+  earn_percentage:            9,
+  max_coins_per_order:        900,
   max_redemption_percent:     30,
-  loyalty_expiry_days:        30,
+  loyalty_expiry_days:        45,
   birthday_bonus_coins:       100,
   coin_value_in_inr:          1,
   min_order_to_earn:          100,
   min_redemption_threshold:   100,
   min_billing_for_redemption: 200,
-  max_daily_redemption_inr:   500,
-  welcome_reward_coins:       75,
+  max_daily_redemption_inr:   1000,
+  welcome_reward_coins:       150,
   referral_share_coins:       40,
   max_opens_per_cycle:        10,
   // Customer loyalty tiers (NOT restaurant plan).

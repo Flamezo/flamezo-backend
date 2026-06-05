@@ -172,19 +172,19 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         _clear_loyalty_entries(self._customer.name, self._res)
 
     def test_coins_calculated_from_percentage(self):
-        """₹1000 order at platform GOLD 7% earn_percentage = 70 coins (res is plan=GOLD)."""
+        """₹1000 order at platform 9% earn_percentage = 90 coins."""
         earned = self.earn(self._customer.name, self._res, 1000.0, reason="Order")
-        self.assertEqual(earned, 70)
+        self.assertEqual(earned, 90)
 
     def test_coins_calculated_from_points_per_inr(self):
-        """Platform GOLD: ₹1000 × 7% = 70 coins."""
+        """Platform: ₹1000 × 9% = 90 coins."""
         earned = self.earn(self._customer.name, self._res, 1000.0, reason="Order")
-        self.assertEqual(earned, 70)
+        self.assertEqual(earned, 90)
 
     def test_fractional_coins_truncated(self):
-        """int() truncation: ₹105 × 0.07 = 7.35 → 7 coins (GOLD restaurant)."""
+        """int() truncation: ₹105 × 0.09 = 9.45 → 9 coins."""
         earned = self.earn(self._customer.name, self._res, 105.0, reason="Order")
-        self.assertEqual(earned, 7)
+        self.assertEqual(earned, 9)
 
     def test_unsettled_for_order_reference(self):
         """Earning on an 'Order' ref_doctype must create is_settled=0."""
@@ -218,7 +218,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         self.assertEqual(entry.is_settled, 1)
 
     def test_expiry_date_set_correctly(self):
-        """expiry_date must be exactly get_expiry_days() from today (platform = 30 days)."""
+        """expiry_date must be exactly get_expiry_days() from today (platform = 45 days)."""
         self.earn(self._customer.name, self._res, 1000.0, reason="Order")
         entry = frappe.db.get_value(
             "Restaurant Loyalty Entry",
@@ -890,13 +890,12 @@ class TestGetLoyaltyConfigFieldAllowlist(unittest.TestCase):
             self.assertIn(field, data, f"Platform constant field '{field}' missing from config response")
 
     def test_config_returns_platform_fixed_earn_percentage(self):
-        """earn_percentage must always be the platform plan-tiered constant (7% for GOLD restaurant)."""
+        """earn_percentage must always be the platform constant (9%)."""
         from flamezo_backend.flamezo.api.loyalty import get_loyalty_config
         from flamezo_backend.flamezo.utils.platform_config import get_earn_percentage
         response = get_loyalty_config(self._res)
         data = response.get("data", {})
-        # cls._res is plan=GOLD, so expect 7.0
-        self.assertEqual(data.get("earn_percentage"), get_earn_percentage("GOLD"))
+        self.assertEqual(data.get("earn_percentage"), get_earn_percentage())
 
     def test_config_legacy_points_per_inr_not_exposed(self):
         """points_per_inr is a legacy field — not returned in centralized config response."""
@@ -1301,7 +1300,7 @@ class TestClaimReferralReward(unittest.TestCase):
         )
         self.assertIsNotNone(entry, "Welcome Bonus entry must be created for referee")
         self.assertEqual(entry.transaction_type, "Earn")
-        self.assertEqual(entry.coins, 50)
+        self.assertEqual(entry.coins, 150)  # platform welcome_reward_coins is 150
 
     def test_referral_share_awarded_to_referrer(self):
         """Referrer must receive a Referral Share entry using coins_per_unique_open."""
@@ -1315,15 +1314,15 @@ class TestClaimReferralReward(unittest.TestCase):
         )
         self.assertIsNotNone(entry, "Referral Share entry must be created for referrer")
         self.assertEqual(entry.transaction_type, "Earn")
-        self.assertEqual(entry.coins, 30)  # platform referral_share_coins is 30
+        self.assertEqual(entry.coins, 40)  # platform referral_share_coins is 40
 
     def test_response_contains_coin_counts(self):
         """Response data must include welcome_coins and referrer_coins."""
         result = self._call_claim()
         self.assertTrue(result.get("success"))
         data = result.get("data", {})
-        self.assertEqual(data.get("welcome_coins"), 50)
-        self.assertEqual(data.get("referrer_coins"), 30)
+        self.assertEqual(data.get("welcome_coins"), 150)   # platform welcome_reward_coins is 150
+        self.assertEqual(data.get("referrer_coins"), 40)  # platform referral_share_coins is 40
 
     def test_double_claim_rejected(self):
         """Calling claim twice for the same referee must fail with ALREADY_CLAIMED."""
@@ -1349,7 +1348,7 @@ class TestClaimReferralReward(unittest.TestCase):
             {"customer": self._referee.name, "restaurant": self._res, "reason": "Welcome Bonus"},
             "coins"
         )
-        self.assertEqual(entry, 50)
+        self.assertEqual(entry, 150)  # platform welcome_reward_coins is 150
 
     def test_restaurant_mismatch_rejected(self):
         """Referral link for a different restaurant must be rejected."""
@@ -1392,9 +1391,9 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
     """
     Validates that the earn logic follows platform-fixed rates (utils/platform_config.py)
     and ignores restaurant-level overrides:
-    - GOLD/Unified rate: 7%, cap 700
+    - Platform rate: 9%, cap 900
     - min_order_to_earn is ₹100
-    - Expiry is 6 months
+    - Expiry is 45 days
     """
 
     @classmethod
@@ -1420,36 +1419,36 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
         frappe.db.commit()
 
     def test_percentage_mode_correct_coins_gold(self):
-        """GOLD 7% earn on ₹500 order → 35 coins."""
+        """Platform 9% earn on ₹500 order → 45 coins."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         res = self._make_res("PCT", plan="GOLD")
         try:
-            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=7.0,
-                                points_per_inr=0.07, max_coins_per_order=700)
+            make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=9.0,
+                                points_per_inr=0.09, max_coins_per_order=900)
             earned = earn_loyalty_coins(self._customer.name, res, 500.0)
-            self.assertEqual(earned, 35)
+            self.assertEqual(earned, 45)
         finally:
             cleanup_restaurant(res)
 
     def test_earn_ignores_restaurant_config_percentage(self):
-        """Even if restaurant config sets 99%, logic must use platform rate (7% for GOLD)."""
+        """Even if restaurant config sets 99%, logic must use platform rate (9%)."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         res = self._make_res("IGNORE_PCT", plan="GOLD")
         try:
             make_loyalty_config(res, earn_type="Percentage of Bill", earn_percentage=99.0)
             earned = earn_loyalty_coins(self._customer.name, res, 1000.0)
-            self.assertEqual(earned, 70)  # 7% of ₹1000 (GOLD platform rate)
+            self.assertEqual(earned, 90)  # 9% of ₹1000 (platform rate)
         finally:
             cleanup_restaurant(res)
 
     def test_earn_ignores_flat_mode_override(self):
-        """Even if restaurant tries Flat mode, logic must use platform Percentage (7% GOLD)."""
+        """Even if restaurant tries Flat mode, logic must use platform Percentage (9%)."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         res = self._make_res("IGNORE_FLAT", plan="GOLD")
         try:
             make_loyalty_config(res, earn_type="Flat Cash per Order", earn_flat_coins=75)
             earned = earn_loyalty_coins(self._customer.name, res, 1000.0)
-            self.assertEqual(earned, 70)  # 7% of ₹1000 GOLD, not 75 flat
+            self.assertEqual(earned, 90)  # 9% of ₹1000, not 75 flat
         finally:
             cleanup_restaurant(res)
 
@@ -1460,7 +1459,7 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
         try:
             make_loyalty_config(res, min_order_to_earn=500)
             earned = earn_loyalty_coins(self._customer.name, res, 300.0)
-            self.assertEqual(earned, 21)  # 7% of ₹300, since 300 > 100 (platform min)
+            self.assertEqual(earned, 27)  # 9% of ₹300, since 300 > 100 (platform min)
         finally:
             cleanup_restaurant(res)
 
@@ -1470,32 +1469,32 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
         res = self._make_res("MAXCAP", plan="GOLD")
         try:
             make_loyalty_config(res, max_coins_per_order=50)
-            # 7% of ₹5000 = 350 coins. Platform GOLD cap is 700, so 350 is returned as-is.
+            # 11% of ₹5000 = 550 coins. Platform cap is 1100, so 550 is returned as-is.
             # If it incorrectly followed doc (50), it would return 50.
             earned = earn_loyalty_coins(self._customer.name, res, 5000.0)
-            self.assertEqual(earned, 350)
+            self.assertEqual(earned, 450)
         finally:
             cleanup_restaurant(res)
 
-    def test_earn_caps_at_platform_700_gold(self):
-        """Order for ₹20,000: 7% = 1400 coins, capped at GOLD platform max 700."""
+    def test_earn_caps_at_platform_900(self):
+        """Order for ₹20,000: 9% = 1800 coins, capped at platform max 900."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         res = self._make_res("MAXCAP_ABS", plan="GOLD")
         try:
             make_loyalty_config(res)
             earned = earn_loyalty_coins(self._customer.name, res, 20000.0)
-            self.assertEqual(earned, 700)
+            self.assertEqual(earned, 900)
         finally:
             cleanup_restaurant(res)
 
     def test_max_cap_not_applied_if_below_cap(self):
-        """Coins below platform max_coins_per_order (700 GOLD) are NOT reduced."""
+        """Coins below platform max_coins_per_order (900) are NOT reduced."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         res = self._make_res("NOCAP", plan="GOLD")
         try:
             make_loyalty_config(res)
-            earned = earn_loyalty_coins(self._customer.name, res, 1000.0)  # 7% = 70 coins
-            self.assertEqual(earned, 70)
+            earned = earn_loyalty_coins(self._customer.name, res, 1000.0)  # 11% = 110 coins
+            self.assertEqual(earned, 90)
         finally:
             cleanup_restaurant(res)
 
@@ -1528,17 +1527,16 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
     # ── get_loyalty_config: platform constant injection ────────────────────────
 
     def test_get_config_overrides_earn_percentage_with_platform_value(self):
-        """Even if DB has earn_percentage=99, API must return platform plan-tiered rate (7% for GOLD)."""
+        """Even if DB has earn_percentage=99, API must return the platform rate (9%)."""
         from flamezo_backend.flamezo.api.loyalty import get_loyalty_config
         from flamezo_backend.flamezo.utils.platform_config import get_earn_percentage
         response = get_loyalty_config(self._res)
         self.assertTrue(response.get("success"))
         data = response["data"]
-        # cls._res is plan=GOLD, so expect 7.0
         self.assertEqual(
             data["earn_percentage"],
-            get_earn_percentage("GOLD"),
-            "earn_percentage must always be the platform constant (7% GOLD), regardless of DB value"
+            get_earn_percentage(),
+            "earn_percentage must always be the platform constant (9%), regardless of DB value"
         )
 
     def test_get_config_coin_value_is_always_1(self):
@@ -1599,7 +1597,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
     # ── update_loyalty_config: locked field stripping ──────────────────────────
 
     def test_update_config_strips_earn_percentage_override(self):
-        """Passing earn_percentage=25 must be silently stripped; DB must retain platform value (7% GOLD)."""
+        """Passing earn_percentage=25 must be silently stripped; DB must retain platform value (9%)."""
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         from flamezo_backend.flamezo.utils.platform_config import get_earn_percentage
         result = update_loyalty_config(
@@ -1612,8 +1610,8 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             "Restaurant Loyalty Config", {"restaurant": self._res}, "earn_percentage"
         )
         self.assertEqual(
-            float(saved), get_earn_percentage("GOLD"),
-            "earn_percentage in DB must be the platform constant (7% GOLD) after update"
+            float(saved), get_earn_percentage(),
+            "earn_percentage in DB must be the platform constant (9%) after update"
         )
 
     def test_update_config_strips_coin_value_override(self):
@@ -1695,11 +1693,11 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
     # ── Platform config module tests ───────────────────────────────────────────
     def test_platform_config_earn_rates(self):
         from flamezo_backend.flamezo.utils.platform_config import get_earn_percentage
-        self.assertEqual(get_earn_percentage(), 7.0)
+        self.assertEqual(get_earn_percentage(), 9.0)
 
     def test_platform_config_max_coins(self):
         from flamezo_backend.flamezo.utils.platform_config import get_max_coins_per_order
-        self.assertEqual(get_max_coins_per_order(), 700)
+        self.assertEqual(get_max_coins_per_order(), 900)
 
     def test_platform_config_redemption_percent(self):
         from flamezo_backend.flamezo.utils.platform_config import get_max_redemption_percent
@@ -1707,7 +1705,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
 
     def test_platform_config_expiry(self):
         from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
-        self.assertEqual(get_expiry_days(), 30)
+        self.assertEqual(get_expiry_days(), 45)
 
     def test_platform_config_birthday_bonus(self):
         from flamezo_backend.flamezo.utils.platform_config import get_birthday_bonus_coins
@@ -1717,9 +1715,9 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
         self.assertEqual(PLATFORM_LOYALTY["min_redemption_threshold"], 100)
 
-    def test_platform_config_daily_redemption_cap_is_500(self):
+    def test_platform_config_daily_redemption_cap_is_1000(self):
         from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
-        self.assertEqual(PLATFORM_LOYALTY["max_daily_redemption_inr"], 500)
+        self.assertEqual(PLATFORM_LOYALTY["max_daily_redemption_inr"], 1000)
 
     def test_platform_config_max_manual_adjustment_is_500(self):
         from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
@@ -1729,16 +1727,17 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
         self.assertEqual(PLATFORM_LOYALTY["coin_value_in_inr"], 1)
 
-    def test_platform_config_welcome_coins_is_50(self):
-        from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
-        self.assertEqual(PLATFORM_LOYALTY["welcome_reward_coins"], 50)
+    def test_platform_config_welcome_coins_is_150(self):
+        from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY, get_welcome_reward_coins
+        self.assertEqual(PLATFORM_LOYALTY["welcome_reward_coins"], 150)
+        self.assertEqual(get_welcome_reward_coins(), 150)
 
-    def test_platform_config_referral_coins_is_30(self):
+    def test_platform_config_referral_coins_is_40(self):
         from flamezo_backend.flamezo.utils.platform_config import (
             PLATFORM_LOYALTY, get_referral_share_coins
         )
-        self.assertEqual(PLATFORM_LOYALTY["referral_share_coins"], 30)
-        self.assertEqual(get_referral_share_coins(), 30)
+        self.assertEqual(PLATFORM_LOYALTY["referral_share_coins"], 40)
+        self.assertEqual(get_referral_share_coins(), 40)
 
     def test_platform_config_max_opens_is_10(self):
         from flamezo_backend.flamezo.utils.platform_config import get_max_opens_rewarded_per_share
@@ -1753,8 +1752,8 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
 
     # ── Earn logic uses platform rate ───────────────────────────────────────
 
-    def test_earn_uses_gold_7_percent(self):
-        """GOLD restaurant: ₹1000 order → 70 coins (7%)."""
+    def test_earn_uses_platform_9_percent(self):
+        """Platform 9% earn: ₹1000 order → 90 coins."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         customer = make_customer(phone="9300000001", name="CTR Earn Gold Test")
         try:
@@ -1762,14 +1761,14 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             make_restaurant(res, plan="GOLD")
             make_loyalty_config(res)
             earned = earn_loyalty_coins(customer.name, res, 1000.0)
-            self.assertEqual(earned, 70, "7% of ₹1000 must yield 70 coins for GOLD restaurant")
+            self.assertEqual(earned, 90, "9% of ₹1000 must yield 90 coins")
         finally:
             cleanup_restaurant(res)
             frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer.name})
             frappe.db.commit()
 
-    def test_earn_cap_gold_700(self):
-        """GOLD cap is 700 coins; ₹20,000 × 7% = 1400, capped at 700."""
+    def test_earn_cap_900(self):
+        """Platform cap is 900 coins; ₹20,000 × 9% = 1800, capped at 900."""
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         customer = make_customer(phone="9300000002", name="CTR Cap Gold Test")
         try:
@@ -1777,7 +1776,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             make_restaurant(res, plan="GOLD")
             make_loyalty_config(res)
             earned = earn_loyalty_coins(customer.name, res, 20000.0)
-            self.assertEqual(earned, 700, "GOLD earn must be capped at 700 coins")
+            self.assertEqual(earned, 900, "Earn must be capped at 900 coins (9% of ₹10,000)")
         finally:
             cleanup_restaurant(res)
             frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer.name})
@@ -1855,34 +1854,34 @@ class TestDailyRedemptionCap(unittest.TestCase):
         self.assertEqual(result, 300)
 
     def test_redemption_clipped_to_daily_cap(self):
-        """Trying to redeem 600 when daily cap is 500 — result clipped to 500."""
-        self._fund(700)
-        result = self.redeem(self._customer.name, self._res, 600)
-        self.assertEqual(result, 500, "Should be clipped to daily cap of 500")
+        """Trying to redeem 1200 when daily cap is 1000 — result clipped to 1000."""
+        self._fund(1300)
+        result = self.redeem(self._customer.name, self._res, 1200)
+        self.assertEqual(result, 1000, "Should be clipped to daily cap of 1000")
 
     def test_second_redemption_limited_by_remaining_cap(self):
-        """After redeeming 300, only 200 more is allowed in the same day (cap=500)."""
-        self._fund(700)
-        first = self.redeem(self._customer.name, self._res, 300)
-        self.assertEqual(first, 300)
-        second = self.redeem(self._customer.name, self._res2, 300)
-        self.assertEqual(second, 200, "Second redemption limited by remaining daily cap")
+        """After redeeming 600, only 400 more is allowed in the same day (cap=1000)."""
+        self._fund(1200)
+        first = self.redeem(self._customer.name, self._res, 600)
+        self.assertEqual(first, 600)
+        second = self.redeem(self._customer.name, self._res2, 600)
+        self.assertEqual(second, 400, "Second redemption limited by remaining daily cap")
 
     def test_cap_exhausted_raises_error(self):
-        """Once the full ₹500 cap is used, further redemption must throw."""
-        self._fund(600)
-        self.redeem(self._customer.name, self._res, 500)  # exhaust cap
+        """Once the full ₹1000 cap is used, further redemption must throw."""
+        self._fund(1100)
+        self.redeem(self._customer.name, self._res, 1000)  # exhaust cap
         with self.assertRaises(Exception):
             self.redeem(self._customer.name, self._res2, 50)
 
     def test_cancellation_revert_not_counted_in_cap(self):
         """Cancellation Revert (internal system entry) must not count against daily cap."""
-        self._fund(1100)
+        self._fund(2200)
         # Do a Cancellation Revert (internal — should not count toward cap)
-        self.redeem(self._customer.name, self._res, 500, reason="Cancellation Revert")
-        # Now a normal customer redemption should still have full 500 cap available
-        result = self.redeem(self._customer.name, self._res2, 500)
-        self.assertEqual(result, 500, "Cancellation Revert must not consume daily cap")
+        self.redeem(self._customer.name, self._res, 1000, reason="Cancellation Revert")
+        # Now a normal customer redemption should still have full 1000 cap available
+        result = self.redeem(self._customer.name, self._res2, 1000)
+        self.assertEqual(result, 1000, "Cancellation Revert must not consume daily cap")
 
 
 # ─── 16. Global Welcome Bonus (One Per Phone) ─────────────────────────────────
@@ -2020,8 +2019,8 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
         frappe.db.commit()
 
     def test_monthly_reset_zeroes_all_links(self):
-        from flamezo_backend.flamezo.tasks.loyalty_tasks import reset_referral_cycles_monthly
-        reset_referral_cycles_monthly()
+        from flamezo_backend.flamezo.tasks.loyalty_tasks import _do_reset_referral_cycles
+        _do_reset_referral_cycles()
 
         for identifier in [self._id1, self._id2]:
             count = frappe.db.get_value("Referral Link", {"identifier": identifier}, "rewarded_opens_in_cycle")
@@ -2029,12 +2028,34 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
 
     def test_monthly_reset_idempotent(self):
         """Running the reset twice must not raise and links stay at 0."""
-        from flamezo_backend.flamezo.tasks.loyalty_tasks import reset_referral_cycles_monthly
-        reset_referral_cycles_monthly()
-        reset_referral_cycles_monthly()
+        from flamezo_backend.flamezo.tasks.loyalty_tasks import _do_reset_referral_cycles
+        _do_reset_referral_cycles()
+        _do_reset_referral_cycles()
         for identifier in [self._id1, self._id2]:
             count = frappe.db.get_value("Referral Link", {"identifier": identifier}, "rewarded_opens_in_cycle")
             self.assertEqual(count, 0)
+
+    def test_monthly_reset_ist_guard_skips_mid_month(self):
+        """reset_referral_cycles_monthly() must be a no-op when today is not the last day of the month in IST."""
+        import calendar
+        from datetime import datetime, timezone, timedelta
+        from unittest.mock import patch
+        from flamezo_backend.flamezo.tasks.loyalty_tasks import reset_referral_cycles_monthly
+
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(IST)
+        last_day = calendar.monthrange(now_ist.year, now_ist.month)[1]
+
+        if now_ist.day == last_day:
+            # Running on last day of month — skip this guard test to avoid false positive
+            return
+
+        # Links are at 7 (set in setUp); function should not reset them
+        reset_referral_cycles_monthly()
+
+        for identifier in [self._id1, self._id2]:
+            count = frappe.db.get_value("Referral Link", {"identifier": identifier}, "rewarded_opens_in_cycle")
+            self.assertEqual(count, 7, f"IST guard failed: {identifier} was reset when it shouldn't be")
 
     def test_order_completion_no_longer_resets_cycle(self):
         """handle_loyalty_settlement must NOT reset the referral cycle — only the monthly task should."""

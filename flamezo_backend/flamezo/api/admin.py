@@ -980,3 +980,344 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
     except Exception as e:
         frappe.log_error(f"Manual recharge link failed: {e!s}", "admin.manual_recharge_link")
         return {'success': False, 'error': str(e)}
+
+
+# ── Customer Management (Admin / Supervisor only) ─────────────────────────────
+
+@frappe.whitelist()
+def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified', sort_order='desc'):
+    """Platform-wide customer list for admin/supervisor."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    page      = max(1, int(page))
+    page_size = max(1, min(500, int(page_size)))
+    offset    = (page - 1) * page_size
+
+    search_sql = ""
+    params: list = []
+    if search:
+        search_sql = "AND (c.customer_name LIKE %s OR c.phone LIKE %s)"
+        params += [f"%{search}%", f"%{search}%"]
+
+    _sort_map = {
+        "name":            "c.customer_name",
+        "created":         "c.creation",
+        "last_seen":       "c.modified",
+        "total_orders":    "COALESCE(order_stats.total_orders, 0)",
+        "total_spend":     "COALESCE(order_stats.total_spend, 0)",
+        "loyalty_balance": "COALESCE(loyalty_stats.balance, 0)",
+        "lifetime_earned": "COALESCE(loyalty_stats.lifetime_earned, 0)",
+    }
+    sort_col  = _sort_map.get(sort_by, "c.modified")
+    order_dir = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+
+    rows = frappe.db.sql(f"""
+        SELECT
+            c.name,
+            c.customer_name,
+            c.phone,
+            c.date_of_birth,
+            c.creation,
+            c.modified,
+            COALESCE(order_stats.total_orders, 0)     AS total_orders,
+            COALESCE(order_stats.total_spend, 0)      AS total_spend,
+            COALESCE(loyalty_stats.balance, 0)        AS loyalty_balance,
+            COALESCE(loyalty_stats.lifetime_earned, 0) AS lifetime_earned,
+            COALESCE(loyalty_stats.total_redeemed, 0)  AS total_redeemed
+        FROM `tabCustomer` c
+        LEFT JOIN (
+            SELECT platform_customer,
+                   COUNT(*)     AS total_orders,
+                   SUM(total)   AS total_spend
+            FROM `tabOrder`
+            WHERE platform_customer IS NOT NULL
+            GROUP BY platform_customer
+        ) order_stats ON order_stats.platform_customer = c.name
+        LEFT JOIN (
+            SELECT customer,
+                GREATEST(0, SUM(CASE
+                    WHEN transaction_type = 'Earn' AND is_settled = 1
+                     AND (expiry_date IS NULL OR expiry_date >= CURDATE())
+                    THEN coins
+                    WHEN transaction_type = 'Redeem' AND is_settled = 1
+                    THEN -coins
+                    ELSE 0 END)) AS balance,
+                SUM(CASE WHEN transaction_type = 'Earn' AND is_settled = 1 THEN coins ELSE 0 END) AS lifetime_earned,
+                SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END) AS total_redeemed
+            FROM `tabRestaurant Loyalty Entry`
+            GROUP BY customer
+        ) loyalty_stats ON loyalty_stats.customer = c.name
+        WHERE 1=1 {search_sql}
+        ORDER BY {sort_col} {order_dir}
+        LIMIT %s OFFSET %s
+    """, params + [page_size, offset], as_dict=True)
+
+    total = frappe.db.sql(f"""
+        SELECT COUNT(*) AS cnt FROM `tabCustomer` c
+        WHERE 1=1 {search_sql}
+    """, params, as_dict=True)[0].cnt
+
+    return {
+        "success": True,
+        "data": {
+            "customers": [
+                {
+                    "id":              r.name,
+                    "name":            r.customer_name or r.name,
+                    "phone":           r.phone or "",
+                    "birthday":        str(r.date_of_birth) if r.date_of_birth else None,
+                    "created":         str(r.creation),
+                    "last_seen":       str(r.modified),
+                    "total_orders":    int(r.total_orders or 0),
+                    "total_spend":     float(r.total_spend or 0),
+                    "loyalty_balance": int(r.loyalty_balance or 0),
+                    "lifetime_earned": int(r.lifetime_earned or 0),
+                    "total_redeemed":  int(r.total_redeemed or 0),
+                }
+                for r in rows
+            ],
+            "total": int(total),
+            "page": page,
+            "page_size": page_size,
+        }
+    }
+
+
+@frappe.whitelist()
+def admin_get_customer_full_profile(customer_id):
+    """
+    Full platform-level customer profile for admin/supervisor.
+    Returns profile, all orders (across all restaurants), bookings,
+    full loyalty ledger, referral relationship, UGC submissions.
+    """
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    if not frappe.db.exists("Customer", customer_id):
+        return {"success": False, "error": "Customer not found"}
+
+    customer = frappe.get_doc("Customer", customer_id)
+
+    # ── Orders ────────────────────────────────────────────────────────────────
+    order_fields = ["name", "restaurant", "order_number", "total", "status",
+                    "payment_status", "payment_method", "creation", "loyalty_coins_redeemed"]
+    if frappe.db.has_column("Order", "customer_rating"):
+        order_fields += ["customer_rating", "customer_feedback"]
+    orders = frappe.get_all(
+        "Order",
+        filters={"platform_customer": customer_id},
+        fields=order_fields,
+        order_by="creation desc",
+        limit_page_length=200
+    )
+
+    # ── Table & Banquet Bookings ───────────────────────────────────────────────
+    table_bookings = frappe.get_all(
+        "Table Booking",
+        filters={"platform_customer": customer_id},
+        fields=["name", "restaurant", "booking_number", "date", "time_slot", "status", "creation"],
+        order_by="creation desc",
+        limit_page_length=100
+    )
+    banquet_bookings = frappe.get_all(
+        "Banquet Booking",
+        filters={"platform_customer": customer_id},
+        fields=["name", "restaurant", "booking_number", "date", "event_type", "status", "creation"],
+        order_by="creation desc",
+        limit_page_length=50
+    )
+
+    # ── Loyalty Ledger (full, all restaurants) ────────────────────────────────
+    loyalty_entries = frappe.get_all(
+        "Restaurant Loyalty Entry",
+        filters={"customer": customer_id},
+        fields=["name", "restaurant", "transaction_type", "coins", "reason",
+                "posting_date", "expiry_date", "is_settled", "reference_doctype", "reference_name"],
+        order_by="creation desc",
+        limit_page_length=500
+    )
+
+    # Balance
+    from frappe.utils import today as _today
+    balance = max(0, sum(
+        e.coins if e.transaction_type == "Earn" and e.is_settled and (not e.expiry_date or str(e.expiry_date) >= _today())
+        else (-e.coins if e.transaction_type == "Redeem" and e.is_settled else 0)
+        for e in loyalty_entries
+    ))
+    lifetime_earned = sum(e.coins for e in loyalty_entries if e.transaction_type == "Earn" and e.is_settled)
+
+    # ── Referral — who referred this customer ─────────────────────────────────
+    referral_rel = frappe.db.get_value(
+        "Customer Referral",
+        {"referee": customer_id},
+        ["referrer", "orders_credited", "cashback_total", "status", "activated_on"],
+        as_dict=True
+    )
+    referrer_name = None
+    referrer_phone = None
+    if referral_rel and referral_rel.referrer:
+        referrer_doc = frappe.db.get_value(
+            "Customer", referral_rel.referrer,
+            ["customer_name", "phone"], as_dict=True
+        )
+        if referrer_doc:
+            referrer_name  = referrer_doc.customer_name
+            referrer_phone = referrer_doc.phone
+
+    # ── Referrals made by this customer ──────────────────────────────────────
+    referrals_made = frappe.get_all(
+        "Customer Referral",
+        filters={"referrer": customer_id},
+        fields=["referee", "orders_credited", "cashback_total", "status", "activated_on"],
+        limit_page_length=50
+    )
+    for r in referrals_made:
+        rd = frappe.db.get_value("Customer", r.referee, ["customer_name", "phone"], as_dict=True) or {}
+        r["referee_name"]  = rd.get("customer_name", r.referee)
+        r["referee_phone"] = rd.get("phone", "")
+
+    # ── UGC Submissions ───────────────────────────────────────────────────────
+    ugc_submissions = frappe.get_all(
+        "UGC Story Submission",
+        filters={"customer": customer_id},
+        fields=["name", "restaurant", "order", "status", "order_amount",
+                "cashback_coins", "submission_date", "story_verified_at", "proof_submitted_at",
+                "proof_video", "ai_view_count", "ai_confidence", "ai_tamper_signals",
+                "review_notes", "rejection_reason", "story_shared_at", "ai_provider"],
+        order_by="creation desc",
+        limit_page_length=50
+    )
+    # Resolve proof video file URL
+    for u in ugc_submissions:
+        u["proof_video_url"] = None
+        if u.get("proof_video"):
+            try:
+                u["proof_video_url"] = frappe.db.get_value("File", u["proof_video"], "file_url")
+            except Exception:
+                pass
+
+    # ── Restaurant names map ──────────────────────────────────────────────────
+    all_rest_ids = set(
+        [o.restaurant for o in orders] +
+        [b.restaurant for b in table_bookings] +
+        [b.restaurant for b in banquet_bookings] +
+        [e.restaurant for e in loyalty_entries] +
+        [u.restaurant for u in ugc_submissions]
+    )
+    rest_name_map = {}
+    if all_rest_ids:
+        rest_rows = frappe.get_all(
+            "Restaurant", filters={"name": ["in", list(all_rest_ids)]},
+            fields=["name", "restaurant_name"]
+        )
+        rest_name_map = {r.name: r.restaurant_name for r in rest_rows}
+
+    def rn(rid):
+        return rest_name_map.get(rid, rid)
+
+    return {
+        "success": True,
+        "data": {
+            "customer": {
+                "id":           customer.name,
+                "name":         customer.customer_name,
+                "phone":        customer.phone,
+                "email":        customer.email,
+                "birthday":     str(customer.date_of_birth) if customer.date_of_birth else None,
+                "created":      str(customer.creation),
+                "verified_at":  str(customer.verified_at) if customer.verified_at else None,
+            },
+            "stats": {
+                "total_orders":    len(orders),
+                "total_spend":     float(sum(o.total or 0 for o in orders)),
+                "loyalty_balance": balance,
+                "lifetime_earned": lifetime_earned,
+                "total_redeemed":  sum(e.coins for e in loyalty_entries if e.transaction_type == "Redeem" and e.is_settled),
+                "restaurants_visited": len(set(o.restaurant for o in orders)),
+            },
+            "orders": [
+                {**dict(o), "restaurant_name": rn(o.restaurant)}
+                for o in orders
+            ],
+            "table_bookings": [
+                {**dict(b), "restaurant_name": rn(b.restaurant)}
+                for b in table_bookings
+            ],
+            "banquet_bookings": [
+                {**dict(b), "restaurant_name": rn(b.restaurant)}
+                for b in banquet_bookings
+            ],
+            "loyalty": {
+                "balance":        balance,
+                "lifetime_earned": lifetime_earned,
+                "entries": [
+                    {**dict(e), "restaurant_name": rn(e.restaurant)}
+                    for e in loyalty_entries
+                ],
+            },
+            "referral": {
+                "referred_by": {
+                    "referrer_id":    referral_rel.referrer if referral_rel else None,
+                    "referrer_name":  referrer_name,
+                    "referrer_phone": referrer_phone,
+                    "orders_credited": int(referral_rel.orders_credited or 0) if referral_rel else 0,
+                    "cashback_total":  float(referral_rel.cashback_total or 0) if referral_rel else 0,
+                    "status":          referral_rel.status if referral_rel else None,
+                } if referral_rel else None,
+                "referrals_made": [dict(r) for r in referrals_made],
+            },
+            "ugc": [
+                {**dict(u), "restaurant_name": rn(u.restaurant)}
+                for u in ugc_submissions
+            ],
+        }
+    }
+
+
+@frappe.whitelist()
+def admin_adjust_customer_loyalty(customer_id, restaurant_id, coins, reason, transaction_type="Earn"):
+    """Manual loyalty adjustment — admin/supervisor only."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    coins = int(coins)
+    if coins <= 0 or coins > 500:
+        frappe.throw("Adjustment must be 1–500 coins")
+
+    from flamezo_backend.flamezo.utils.loyalty import add_loyalty_coins
+    add_loyalty_coins(
+        customer=customer_id,
+        restaurant=restaurant_id,
+        coins=coins,
+        reason=reason or "Manual Adjustment",
+        transaction_type=transaction_type,
+    )
+    frappe.db.commit()
+    return {"success": True}
+
+
+@frappe.whitelist()
+def admin_delete_customer(customer_id):
+    """Hard-delete a customer and all their data. Irreversible. Admin only."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    if not frappe.db.exists("Customer", customer_id):
+        frappe.throw("Customer not found")
+
+    for doctype in ["Restaurant Loyalty Entry", "Referral Link", "Referral Visit",
+                    "Customer Referral", "UGC Story Submission"]:
+        try:
+            frappe.db.delete(doctype, {"customer": customer_id})
+        except Exception:
+            try:
+                frappe.db.delete(doctype, {"referee": customer_id})
+                frappe.db.delete(doctype, {"referrer": customer_id})
+            except Exception:
+                pass
+
+    frappe.delete_doc("Customer", customer_id, force=True, ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True}
+
