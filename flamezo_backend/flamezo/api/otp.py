@@ -295,6 +295,24 @@ def verify_flamezo_otp(phone, otp, token, name=None, email=None):
 
 
 @frappe.whitelist(allow_guest=True)
+def logout_customer(session_token):
+	"""
+	Invalidate a customer session token.
+	Deletes the token from Redis cache so the session is immediately invalid.
+	Returns: { success: true }
+	"""
+	try:
+		if not session_token:
+			return {"success": False, "error": "MISSING_TOKEN", "message": "session_token is required"}
+
+		frappe.cache().delete_value(f"customer_session:{session_token}")
+		return {"success": True}
+	except Exception as e:
+		frappe.log_error(f"logout_customer error: {e}", "OTP_Logout_Error")
+		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
 def check_session(session_token):
 	"""
 	Validate a session token. Returns customer_id and phone if valid.

@@ -3,7 +3,7 @@
 
 """
 API endpoints for Events
-All endpoints require restaurant_id for SaaS multi-tenancy
+restaurant_id is optional — omit for consumer-level discovery (returns all active restaurants' events).
 """
 
 import frappe
@@ -13,144 +13,111 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 from flamezo_backend.flamezo.media.utils import format_media_field
 
 
+def _format_event(event, include_restaurant=False, restaurant_meta=None):
+	"""Shared formatter for a single event row."""
+	date_str = formatdate(event["date"], "yyyy-mm-dd") if event.get("date") else ""
+	time_str = format_time(event["time"], "HH:mm:ss") if event.get("time") else ""
+
+	event_data = {
+		"id": str(event["id"]),
+		"title": event["title"],
+		"description": event.get("description", ""),
+		"date": date_str,
+		"time": time_str,
+		"location": event.get("location", ""),
+		"category": event.get("category", ""),
+		"featured": bool(event.get("featured", False)),
+		"status": event.get("status", "upcoming"),
+		"image_src": event.get("image_src", ""),
+		"google_maps_link": event.get("google_maps_link", ""),
+		"registration_link": event.get("registration_link", ""),
+	}
+
+	if include_restaurant and restaurant_meta:
+		event_data["restaurantId"] = restaurant_meta.get("restaurant_id", "")
+		event_data["restaurantName"] = restaurant_meta.get("restaurant_name", "")
+		event_data["restaurantCity"] = restaurant_meta.get("city", "")
+
+	if event.get("repeat_this_event"):
+		event_data["recurring"] = {
+			"repeatThisEvent": True,
+			"repeatOn": event.get("repeat_on", ""),
+			"repeatTill": formatdate(event["repeat_till"], "yyyy-mm-dd") if event.get("repeat_till") else None,
+		}
+		if event.get("repeat_on") == "Weekly":
+			weekdays = [d for d in ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] if event.get(d)]
+			weekdays_display = [d.capitalize() for d in weekdays]
+			if weekdays_display:
+				event_data["recurring"]["weekdays"] = weekdays_display
+	else:
+		event_data["recurring"] = {"repeatThisEvent": False}
+
+	format_media_field(event_data, "image_src", "Event", event.get("id"), "event_image", "imageSrc")
+	if event.get("image_alt"):
+		event_data["imageAlt"] = event["image_alt"]
+
+	return event_data
+
+
+_EVENT_FIELDS = [
+	"name as id", "title", "image_src", "image_alt", "description",
+	"date", "time", "location", "category", "featured", "status", "is_active",
+	"repeat_this_event", "repeat_on", "repeat_till", "google_maps_link",
+	"registration_link", "monday", "tuesday", "wednesday", "thursday",
+	"friday", "saturday", "sunday", "restaurant",
+]
+
+
 @frappe.whitelist(allow_guest=True)
-def get_events(restaurant_id, featured=None, category=None, upcoming_only=True):
+def get_events(restaurant_id=None, featured=None, category=None, upcoming_only=True):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.events.get_events
-	Get all events for a restaurant
+
+	restaurant_id optional:
+	  - provided  → events for that restaurant only (existing behaviour)
+	  - omitted   → all active-restaurant events (consumer discovery page)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
-		
-		# Build filters
-		filters = {"restaurant": restaurant, "is_active": 1}
-		
+		consumer_mode = not restaurant_id
+
+		if consumer_mode:
+			# Fetch all active restaurants once for name/city lookup
+			active_restaurants = frappe.get_all(
+				"Restaurant",
+				filters={"is_active": 1},
+				fields=["name", "restaurant_id", "restaurant_name", "city"],
+			)
+			restaurant_map = {r["name"]: r for r in active_restaurants}
+			active_names = list(restaurant_map.keys())
+
+			filters = {"restaurant": ["in", active_names], "is_active": 1}
+		else:
+			restaurant = validate_restaurant_for_api(restaurant_id)
+			filters = {"restaurant": restaurant, "is_active": 1}
+
 		if featured is not None:
 			filters["featured"] = 1 if featured else 0
-		
 		if category:
 			filters["category"] = category
-		
 		if upcoming_only:
 			filters["status"] = ["in", ["upcoming", "recurring"]]
-		
-		# Get events
-		events = frappe.get_all(
-			"Event",
-			fields=[
-				"name as id",
-				"title",
-				"image_src",
-				"image_alt",
-				"description",
-				"date",
-				"time",
-				"location",
-				"category",
-				"featured",
-				"status",
-				"is_active",
-				"repeat_this_event",
-				"repeat_on",
-				"repeat_till",
-				"google_maps_link",
-				"registration_link",
-				"monday",
-				"tuesday",
-				"wednesday",
-				"thursday",
-				"friday",
-				"saturday",
-				"sunday"
-			],
-			filters=filters,
-			order_by="display_order asc, title asc"
-		)
-		
-		# Format events
+
+		events = frappe.get_all("Event", fields=_EVENT_FIELDS, filters=filters,
+								order_by="display_order asc, title asc")
+
 		formatted_events = []
 		for event in events:
-			# Format date and time as strings (maintain API structure)
-			date_str = ""
-			if event.get("date"):
-				date_str = formatdate(event["date"], "yyyy-mm-dd")
-			
-			time_str = ""
-			if event.get("time"):
-				time_str = format_time(event["time"], "HH:mm:ss")
-			
-			event_data = {
-				"id": str(event["id"]),
-				"title": event["title"],
-				"description": event.get("description", ""),
-				"date": date_str,
-				"time": time_str,
-				"location": event.get("location", ""),
-				"category": event.get("category", ""),
-				"featured": bool(event.get("featured", False)),
-				"status": event.get("status", "upcoming"),
-				"image_src": event.get("image_src", ""),
-				"google_maps_link": event.get("google_maps_link", ""),
-				"registration_link": event.get("registration_link", "")
-			}
-			
-			# Add recurring event information if applicable
-			if event.get("repeat_this_event"):
-				event_data["recurring"] = {
-					"repeatThisEvent": True,
-					"repeatOn": event.get("repeat_on", ""),
-					"repeatTill": formatdate(event["repeat_till"], "yyyy-mm-dd") if event.get("repeat_till") else None
-				}
-				
-				# Add day-of-week information for weekly recurrence
-				if event.get("repeat_on") == "Weekly":
-					weekdays = []
-					if event.get("monday"):
-						weekdays.append("Monday")
-					if event.get("tuesday"):
-						weekdays.append("Tuesday")
-					if event.get("wednesday"):
-						weekdays.append("Wednesday")
-					if event.get("thursday"):
-						weekdays.append("Thursday")
-					if event.get("friday"):
-						weekdays.append("Friday")
-					if event.get("saturday"):
-						weekdays.append("Saturday")
-					if event.get("sunday"):
-						weekdays.append("Sunday")
-					
-					if weekdays:
-						event_data["recurring"]["weekdays"] = weekdays
+			if consumer_mode:
+				meta = restaurant_map.get(event.get("restaurant"), {})
+				formatted_events.append(_format_event(event, include_restaurant=True, restaurant_meta=meta))
 			else:
-				event_data["recurring"] = {
-					"repeatThisEvent": False
-			}
-			
-			# Use centralized media fetcher for CDN URLs and blur placeholders
-			format_media_field(event_data, "image_src", "Event", event.get("id"), "event_image", "imageSrc")
-			
-			if event.get("image_alt"):
-				event_data["imageAlt"] = event["image_alt"]
-			
-			formatted_events.append(event_data)
-		
-		return {
-			"success": True,
-			"data": {
-				"events": formatted_events
-			}
-		}
+				formatted_events.append(_format_event(event))
+
+		return {"success": True, "data": {"events": formatted_events}}
+
 	except Exception as e:
 		frappe.log_error(f"Error in get_events: {str(e)}")
-		return {
-			"success": False,
-			"error": {
-				"code": "EVENT_FETCH_ERROR",
-				"message": str(e)
-			}
-		}
+		return {"success": False, "error": {"code": "EVENT_FETCH_ERROR", "message": str(e)}}
 
 
 

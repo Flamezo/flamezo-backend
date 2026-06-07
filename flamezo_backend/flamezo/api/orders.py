@@ -902,6 +902,132 @@ def get_customer_orders(restaurant_id, phone, page=1, limit=20, include_items=Fa
 		}
 
 
+@frappe.whitelist(allow_guest=True)
+def get_all_customer_orders(phone, page=1, limit=20, include_items=False):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.orders.get_all_customer_orders
+	Cross-restaurant order history for a verified customer (consumer profile page).
+	No restaurant_id — returns orders from all restaurants for the given phone.
+	Each order includes restaurant_name and city for display.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.phone import normalize_phone, get_phone_variants_for_lookup
+		from flamezo_backend.flamezo.utils.session import validate_customer_session, get_customer_token, is_phone_verified
+
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+
+		session_token = get_customer_token()
+		has_valid_session = validate_customer_session(phone, session_token)
+		has_verified_phone = is_phone_verified(phone)
+
+		if not has_valid_session and not has_verified_phone:
+			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to view your orders."}}
+
+		phone_variants = get_phone_variants_for_lookup(normalized)
+		customer_id = _find_customer_by_normalized_phone(normalized)
+
+		page = cint(page) or 1
+		limit = cint(limit) or 20
+		start = (page - 1) * limit
+
+		ph = ", ".join(["%s"] * len(phone_variants))
+		if customer_id:
+			where_sql = "(platform_customer = %s OR customer_phone IN (" + ph + "))"
+			params = [customer_id] + phone_variants
+		else:
+			where_sql = "customer_phone IN (" + ph + ")"
+			params = phone_variants
+
+		base_cols = "name, order_id, order_number, status, total, subtotal, discount, tax, cgst, sgst, tax_percent, packaging_fee, delivery_fee, payment_method, payment_status, creation, order_type, restaurant"
+		feedback_cols = ""
+		if frappe.db.has_column("Order", "food_rating"):
+			feedback_cols = ", food_rating, service_rating"
+
+		order_list = frappe.db.sql(
+			"SELECT " + base_cols + feedback_cols +
+			" FROM `tabOrder` WHERE " + where_sql +
+			" ORDER BY creation DESC LIMIT %s OFFSET %s",
+			params + [limit, start],
+			as_dict=True
+		)
+
+		total = frappe.db.sql(
+			"SELECT COUNT(*) FROM `tabOrder` WHERE " + where_sql, params, as_list=True
+		)[0][0]
+		total_pages = (total + limit - 1) // limit if limit > 0 else 1
+
+		# Bulk-fetch restaurant names + cities for all orders in one query
+		restaurant_ids = list({o.get("restaurant") for o in order_list if o.get("restaurant")})
+		restaurant_meta = {}
+		if restaurant_ids:
+			rows = frappe.get_all(
+				"Restaurant",
+				filters={"name": ["in", restaurant_ids]},
+				fields=["name", "restaurant_name", "city"],
+			)
+			restaurant_meta = {r["name"]: r for r in rows}
+
+		orders = []
+		for o in order_list:
+			r_meta = restaurant_meta.get(o.get("restaurant"), {})
+			order_data = {
+				"id": o.get("order_id") or o.get("name"),
+				"order_number": o.get("order_number"),
+				"status": o.get("status"),
+				"total": flt(o.get("total")),
+				"subtotal": flt(o.get("subtotal")),
+				"discount": flt(o.get("discount") or 0),
+				"tax": flt(o.get("tax") or 0),
+				"cgst": flt(o.get("cgst") or 0),
+				"sgst": flt(o.get("sgst") or 0),
+				"taxPercent": flt(o.get("tax_percent") or 0),
+				"packagingFee": flt(o.get("packaging_fee") or 0),
+				"deliveryFee": flt(o.get("delivery_fee") or 0),
+				"paymentMethod": o.get("payment_method"),
+				"paymentStatus": o.get("payment_status"),
+				"createdAt": get_datetime_str(o.get("creation")),
+				"orderType": o.get("order_type"),
+				"restaurant": r_meta.get("restaurant_name") or o.get("restaurant"),
+				"restaurantName": r_meta.get("restaurant_name") or o.get("restaurant"),
+				"location": r_meta.get("city", ""),
+				"foodRating": cint(o.get("food_rating")) if o.get("food_rating") is not None else None,
+				"serviceRating": cint(o.get("service_rating")) if o.get("service_rating") is not None else None,
+			}
+			orders.append(order_data)
+
+		if include_items and order_list:
+			order_names = [o.get("name") for o in order_list]
+			all_items = frappe.get_all(
+				"Order Item",
+				filters={"parent": ["in", order_names]},
+				fields=["parent", "product", "quantity", "unit_price", "total_price", "customizations"],
+			)
+			from collections import defaultdict
+			items_by_order = defaultdict(list)
+			for item in all_items:
+				items_by_order[item.parent].append({
+					"dishId": item.product,
+					"quantity": item.quantity,
+					"customizations": json.loads(item.customizations) if item.customizations else {},
+					"totalPrice": flt(item.total_price),
+				})
+			for order_data, o in zip(orders, order_list):
+				order_data["items"] = items_by_order.get(o.get("name"), [])
+
+		return {
+			"success": True,
+			"data": {
+				"orders": orders,
+				"pagination": {"page": page, "limit": limit, "total": total, "totalPages": total_pages},
+			},
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_all_customer_orders: {str(e)}")
+		return {"success": False, "error": {"code": "ORDER_FETCH_ERROR", "message": str(e)}}
+
+
 def _format_order_items_light(order_doc):
 	"""Format order items with lightweight dish: id, name, media, price."""
 	from flamezo_backend.flamezo.api.products import format_product

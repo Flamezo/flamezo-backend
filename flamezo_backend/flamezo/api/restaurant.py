@@ -213,44 +213,124 @@ def get_restaurant_tables(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def list_restaurants(active_only=True):
+def list_restaurants(active_only=True, city=None, limit=50):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.restaurant.list_restaurants
-	Get list of all restaurants
-	
+	Returns full restaurant cards for the consumer Discover page.
+
 	Parameters:
-	- active_only (optional, default: true): Only return active restaurants
-	
-	Returns:
-	{
-		"success": true,
-		"data": {
-			"restaurants": [
-				{
-					"restaurant_id": "the-gallery-cafe",
-					"restaurant_name": "The Gallery Cafe",
-					"is_active": true
-				}
-			]
-		}
-	}
+	- active_only (optional, default: true)
+	- city (optional): filter by city name (case-insensitive)
+	- limit (optional, default: 50)
 	"""
 	try:
+		from frappe.utils import getdate, now_datetime
+		import datetime
+
 		filters = {}
 		if active_only:
 			filters["is_active"] = 1
-		
+		if city:
+			filters["city"] = ["like", f"%{city}%"]
+
 		restaurants = frappe.get_all(
 			"Restaurant",
 			filters=filters,
-			fields=["restaurant_id", "restaurant_name", "is_active"],
-			order_by="restaurant_name"
+			fields=[
+				"name", "restaurant_id", "restaurant_name", "is_active",
+				"logo", "city", "address", "latitude", "longitude",
+				"plan_type", "onboarding_date",
+			],
+			order_by="restaurant_name",
+			limit=int(limit),
 		)
-		
+
+		if not restaurants:
+			return {"success": True, "data": {"restaurants": []}}
+
+		restaurant_names = [r["name"] for r in restaurants]
+
+		# --- Bulk fetch Restaurant Config (primaryColor, tagline, description) ---
+		configs = frappe.get_all(
+			"Restaurant Config",
+			filters={"restaurant": ["in", restaurant_names]},
+			fields=["restaurant", "primary_color", "tagline", "subtitle", "description"],
+		)
+		config_map = {c["restaurant"]: c for c in configs}
+
+		# --- Bulk fetch Gallery photos (up to 6 per restaurant) ---
+		gallery_items = frappe.get_all(
+			"Restaurant Gallery Item",
+			filters={"restaurant": ["in", restaurant_names], "is_selected": 1},
+			fields=["restaurant", "url"],
+			order_by="sort_order asc",
+		)
+		photos_map = {}
+		for item in gallery_items:
+			photos_map.setdefault(item["restaurant"], [])
+			if len(photos_map[item["restaurant"]]) < 6:
+				photos_map[item["restaurant"]].append(item["url"])
+
+		# --- Bulk count active coupons per restaurant ---
+		coupon_counts_raw = frappe.db.sql(
+			"""
+			SELECT restaurant, COUNT(*) AS cnt
+			FROM `tabCoupon`
+			WHERE restaurant IN ({placeholders}) AND is_active = 1
+			GROUP BY restaurant
+			""".format(placeholders=", ".join(["%s"] * len(restaurant_names))),
+			tuple(restaurant_names),
+			as_dict=True,
+		)
+		coupon_map = {row["restaurant"]: row["cnt"] for row in coupon_counts_raw}
+
+		# --- Derive isNew: onboarded within last 90 days ---
+		ninety_days_ago = (now_datetime() - datetime.timedelta(days=90)).date()
+
+		result = []
+		for r in restaurants:
+			doc_name = r["name"]
+			cfg = config_map.get(doc_name, {})
+
+			primary_color = cfg.get("primary_color") or "#B7410E"
+			tagline = cfg.get("tagline") or cfg.get("subtitle") or cfg.get("description") or ""
+			cuisine_type = cfg.get("subtitle") or cfg.get("description") or "Restaurant"
+
+			onboarding_date = r.get("onboarding_date")
+			is_new = False
+			if onboarding_date:
+				try:
+					is_new = getdate(onboarding_date) >= ninety_days_ago
+				except Exception:
+					is_new = False
+
+			result.append({
+				"restaurant_id": r["restaurant_id"],
+				"restaurant_name": r["restaurant_name"],
+				"is_active": bool(r["is_active"]),
+				"logo": r.get("logo") or "",
+				"photos": photos_map.get(doc_name, []),
+				"city": r.get("city") or "",
+				"address": r.get("address") or "",
+				"latitude": r.get("latitude") or 0,
+				"longitude": r.get("longitude") or 0,
+				"plan_type": r.get("plan_type") or "GOLD",
+				"primaryColor": primary_color,
+				"tagline": tagline,
+				"cuisine_type": cuisine_type,
+				"active_offers_count": coupon_map.get(doc_name, 0),
+				"isNew": is_new,
+				# rating/review_count/openTime are not stored in Frappe —
+				# frontend falls back to Google Places or surat_outlets.json
+				"rating": None,
+				"review_count": None,
+				"openTime": None,
+			})
+
 		return {
 			"success": True,
 			"data": {
-				"restaurants": restaurants
+				"restaurants": result
 			}
 		}
 	except Exception as e:
