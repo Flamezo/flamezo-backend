@@ -12,6 +12,7 @@ import { PageSkeleton } from './components/PageSkeleton'
 
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const GrowthDashboard = lazy(() => import('./pages/GrowthDashboard'))
 const Login = lazy(() => import('./pages/Login'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
@@ -97,6 +98,7 @@ function AppContent() {
 							{/* Routes using the shared Layout */}
 							<Route element={<Layout />}>
 								<Route path="/dashboard" element={<Dashboard />} />
+								<Route path="/growth-dashboard" element={<GrowthDashboard />} />
 								<Route path="/account" element={<MyAccount />} />
 								<Route path="/setup" element={<TieredSetupWizard />} />
 								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />

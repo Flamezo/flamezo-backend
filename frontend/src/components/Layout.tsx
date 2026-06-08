@@ -121,6 +121,7 @@ type NavItem = NavLink | NavGroup
 
 const navigation: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
+  { type: 'link', name: 'Growth Dashboard', href: '/growth-dashboard', icon: TrendingUp },
   {
     type: 'group',
     id: 'manage-orders',
