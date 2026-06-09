@@ -573,6 +573,12 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 		eligible_offers = []
 		ineligible_offers = []
 		
+		if isinstance(cart_items, str):
+			try:
+				cart_items = json.loads(cart_items)
+			except Exception:
+				cart_items = []
+
 		# Extract cart dish IDs once
 		cart_dish_ids = []
 		if isinstance(cart_items, list):

@@ -332,6 +332,28 @@ def handle_refund_processed(payload):
 			frappe.db.commit()
 			reverse_monthly_ledger(order.restaurant, refund_amount, platform_fee_refund)
 
+			# Cashback clawback on PARTIAL refunds — proportional to the refunded
+			# fraction. (Full refunds set status='cancelled' above, which fires
+			# handle_order_cancellation to reverse the FULL cashback; we skip full
+			# here to avoid a double reversal.) Idempotent per refund id.
+			if not full_refund and order.platform_customer and int(order.coins_earned or 0) > 0:
+				from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback
+				refund_id = refund_data.get("id")
+				to_reverse = int(round(int(order.coins_earned or 0) * refund_ratio))
+				if to_reverse > 0:
+					reverse_earned_cashback(
+						customer=order.platform_customer,
+						restaurant=order.restaurant,
+						coins_to_reverse=to_reverse,
+						reason="Refund Reversal",
+						description=(f"Order {order.name} partially refunded ₹{int(refund_amount / 100)} "
+						             f"(refund {refund_id}) — ₹{to_reverse} cashback reversed"),
+						ref_doctype="Order",
+						ref_name=order.name,
+						refund_id=refund_id,
+					)
+					frappe.db.commit()
+
 			# If this order had a cash ledger entry (extremely rare — implies
 			# a cash order that was later upgraded to online refund), void it
 			# on full refund only.
