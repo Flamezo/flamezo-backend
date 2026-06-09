@@ -212,28 +212,33 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 
 
 def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refund Reversal",
-                            description=None, ref_doctype="Order", ref_name=None, refund_id=None):
+                            description=None, ref_doctype="Order", ref_name=None, refund_id=None,
+                            max_total_reverse=None):
 	"""
-	Claw back previously-earned cashback (e.g. on a refund), using the
-	"deduct available + log owed" policy:
+	Claw back previously-earned cashback (refund / cancellation), using the
+	"deduct available + log owed" policy and a cumulative cap so the same order's
+	cashback can never be over-reversed — no matter the order of events
+	(partial refund(s), full refund, and/or a separate cancellation).
 
-	  - Deduct min(available_balance, coins_to_reverse) as a Redeem entry so the
-	    visible balance never goes negative (it floors at 0).
-	  - If the user already spent some of the instant cashback, the shortfall is
-	    recorded in `owed_coins` (+ noted in the description) for finance/audit.
+	  - `coins_to_reverse`: how much THIS event wants to reverse.
+	  - `max_total_reverse`: the absolute ceiling of cumulative reversal for this
+	    order (= the original cashback earned). Already-reversed amounts (intended,
+	    i.e. deducted + owed) are subtracted so we only ever reverse the remainder.
+	  - Deduct min(available, target) as a Redeem so the visible balance floors at
+	    0; the shortfall (already-spent instant cashback) goes to `owed_coins`.
+	  - `refund_id` makes a webhook RETRY of the same refund a no-op.
 
-	Idempotent per (order, refund_id): a second webhook delivery for the same
-	refund is a no-op. Returns {"deducted", "owed"} or None if nothing to do.
+	Returns {"deducted", "owed", "reversed"} or None if nothing to do.
 	"""
 	coins_to_reverse = int(coins_to_reverse or 0)
 	if not customer or not restaurant or coins_to_reverse <= 0:
 		return None
 
-	# Stable idempotency marker stamped into the entry's description by THIS
-	# function (not the caller), so a webhook retry for the same refund is a
-	# no-op regardless of how the caller wrote the description.
+	# Marker stamped into the description by THIS function so a webhook retry for
+	# the same refund id is a no-op regardless of the caller's description text.
 	marker = f"[refund:{refund_id}]" if refund_id else None
 
+	already_intended = 0
 	if ref_name:
 		existing = frappe.get_all(
 			"Restaurant Loyalty Entry",
@@ -244,17 +249,23 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 				"transaction_type": "Redeem",
 				"reason": ["in", ["Refund Reversal", "Cancellation Revert"]],
 			},
-			fields=["name", "description"],
+			fields=["coins", "owed_coins", "description"],
 		)
 		for e in existing:
-			# refund-scoped: same refund id already reversed.
-			# cancellation-scoped (no refund_id): any prior reversal blocks a repeat.
-			if marker is None or (e.description and marker in e.description):
-				return None
+			already_intended += int(e.coins or 0) + int(e.owed_coins or 0)
+			if marker and e.description and marker in e.description:
+				return None   # this exact refund was already processed (retry)
+
+	# Cap cumulative reversal at the original earned amount (the remainder).
+	target = coins_to_reverse
+	if max_total_reverse is not None:
+		target = min(target, max(0, int(max_total_reverse) - already_intended))
+	if target <= 0:
+		return None
 
 	available = get_loyalty_balance(customer)
-	deducted = min(available, coins_to_reverse)
-	owed = coins_to_reverse - deducted
+	deducted = min(available, target)
+	owed = target - deducted
 
 	stored_desc = description or ""
 	if marker and marker not in stored_desc:
@@ -275,7 +286,7 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 		"description": stored_desc or None,
 	})
 	entry.insert(ignore_permissions=True)
-	return {"deducted": int(deducted), "owed": int(owed)}
+	return {"deducted": int(deducted), "owed": int(owed), "reversed": int(target)}
 
 
 def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None):
@@ -388,14 +399,16 @@ def handle_order_cancellation(doc, method=None):
 		refunded = (getattr(doc, "payment_status", "") or "").lower() == "refunded"
 		reason = "Refund Reversal" if refunded else "Cancellation Revert"
 		verb = "refunded" if refunded else "cancelled"
+		earned = int(doc.coins_earned or 0)
 		reverse_earned_cashback(
 			customer=doc.platform_customer,
 			restaurant=doc.restaurant,
-			coins_to_reverse=int(doc.coins_earned or 0),
+			coins_to_reverse=earned,
 			reason=reason,
-			description=f"Order {doc.name} {verb} — ₹{int(doc.coins_earned or 0)} cashback reversed",
+			description=f"Order {doc.name} {verb} — ₹{earned} cashback reversed",
 			ref_doctype="Order",
 			ref_name=doc.name,
+			max_total_reverse=earned,   # cumulative cap → never doubles with a Razorpay-refund reversal
 		)
 
 	# Final cleanup — zero both coin fields so cancelled orders don't show stale values

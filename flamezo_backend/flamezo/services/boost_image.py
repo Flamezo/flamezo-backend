@@ -27,9 +27,44 @@ import os
 import json
 import base64
 import uuid
+import time
+import random
 
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
+
+
+def _gemini_post_with_retry(url, payload, max_retries=4, base_delay=2.0, timeout=120):
+    """POST to Gemini, retrying transient 429/503 with exponential backoff + jitter
+    (honours Retry-After / RetryInfo.retryDelay). Non-transient errors raise at once."""
+    resp = None
+    for attempt in range(max_retries + 1):
+        resp = requests.post(url, json=payload, timeout=timeout)
+        if resp.status_code not in (429, 503):
+            resp.raise_for_status()
+            return resp
+        if attempt >= max_retries:
+            break
+        delay = None
+        ra = resp.headers.get("Retry-After")
+        if ra:
+            try:
+                delay = float(ra)
+            except ValueError:
+                delay = None
+        if delay is None:
+            try:
+                for d in (resp.json().get("error", {}) or {}).get("details", []) or []:
+                    if d.get("retryDelay"):
+                        delay = float(str(d["retryDelay"]).rstrip("s"))
+                        break
+            except Exception:
+                pass
+        if delay is None:
+            delay = base_delay * (2 ** attempt)
+        time.sleep(min(delay, 30) + random.uniform(0, 0.5))
+    resp.raise_for_status()
+    return resp
 
 
 # ─── Constants & palette ────────────────────────────────────────────
@@ -599,8 +634,7 @@ def analyze_ad_image(image_path, restaurant_name=None, gemini_key=None):
             ]}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
         }
-        resp = requests.post(url, json=payload, timeout=45)
-        resp.raise_for_status()
+        resp = _gemini_post_with_retry(url, payload, timeout=45)
         parts = resp.json()["candidates"][0]["content"]["parts"]
         text = "".join(p.get("text", "") for p in parts).strip()
         if text.startswith("```"):
@@ -725,8 +759,7 @@ def generate_creative_gemini(image_path, *, offer_headline, offer_detail=None, c
         ]}],
         "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": aspect}},
     }
-    resp = requests.post(url, json=payload, timeout=120)
-    resp.raise_for_status()
+    resp = _gemini_post_with_retry(url, payload, timeout=120)
     res_json = resp.json()
 
     candidates = res_json.get("candidates") or []

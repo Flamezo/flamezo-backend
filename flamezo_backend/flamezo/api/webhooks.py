@@ -330,29 +330,41 @@ def handle_refund_processed(payload):
 				frappe.db.set_value("Order", order.name, "payment_status", "partially_refunded")
 
 			frappe.db.commit()
-			reverse_monthly_ledger(order.restaurant, refund_amount, platform_fee_refund)
 
-			# Cashback clawback on PARTIAL refunds — proportional to the refunded
-			# fraction. (Full refunds set status='cancelled' above, which fires
-			# handle_order_cancellation to reverse the FULL cashback; we skip full
-			# here to avoid a double reversal.) Idempotent per refund id.
-			if not full_refund and order.platform_customer and int(order.coins_earned or 0) > 0:
-				from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback
-				refund_id = refund_data.get("id")
-				to_reverse = int(round(int(order.coins_earned or 0) * refund_ratio))
-				if to_reverse > 0:
-					reverse_earned_cashback(
-						customer=order.platform_customer,
-						restaurant=order.restaurant,
-						coins_to_reverse=to_reverse,
-						reason="Refund Reversal",
-						description=(f"Order {order.name} partially refunded ₹{int(refund_amount / 100)} "
-						             f"(refund {refund_id}) — ₹{to_reverse} cashback reversed"),
-						ref_doctype="Order",
-						ref_name=order.name,
-						refund_id=refund_id,
-					)
-					frappe.db.commit()
+			# Cashback clawback — proportional to the refunded fraction, for BOTH
+			# full and partial refunds. Done directly here (not via the cancellation
+			# hook) because the webhook updates status with frappe.db.set_value,
+			# which does NOT fire Order.on_update — so handle_order_cancellation
+			# never runs on a Razorpay refund. reverse_earned_cashback caps
+			# cumulative reversal at the original earned amount, so it can never
+			# double with a later cancellation. Isolated in its own try so a ledger
+			# failure below can't drop the customer-facing reversal (and vice versa).
+			try:
+				earned = int(order.coins_earned or 0)
+				if order.platform_customer and earned > 0:
+					from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback
+					refund_id = refund_data.get("id")
+					to_reverse = earned if full_refund else int(round(earned * refund_ratio))
+					kind = "fully" if full_refund else "partially"
+					if to_reverse > 0:
+						reverse_earned_cashback(
+							customer=order.platform_customer,
+							restaurant=order.restaurant,
+							coins_to_reverse=to_reverse,
+							reason="Refund Reversal",
+							description=(f"Order {order.name} {kind} refunded ₹{int(refund_amount / 100)} "
+							             f"(refund {refund_id}) — ₹{to_reverse} cashback reversed"),
+							ref_doctype="Order",
+							ref_name=order.name,
+							refund_id=refund_id,
+							max_total_reverse=earned,
+						)
+						frappe.db.commit()
+			except Exception as e:
+				frappe.log_error(f"Cashback clawback failed on refund for {order.name}: {e}",
+				                 "loyalty.refund_clawback")
+
+			reverse_monthly_ledger(order.restaurant, refund_amount, platform_fee_refund)
 
 			# If this order had a cash ledger entry (extremely rare — implies
 			# a cash order that was later upgraded to online refund), void it

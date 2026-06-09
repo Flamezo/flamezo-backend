@@ -2575,7 +2575,7 @@ class TestReverseEarnedCashback(unittest.TestCase):
         self._seed_balance(90)
         res = reverse_earned_cashback(self._customer.name, self._res, 90,
                                       reason="Refund Reversal", ref_name="ORD-FULL", refund_id="rfnd_1")
-        self.assertEqual(res, {"deducted": 90, "owed": 0})
+        self.assertEqual(res, {"deducted": 90, "owed": 0, "reversed": 90})
         self.assertEqual(get_loyalty_balance(self._customer.name), 0)
 
     def test_partial_reverse(self):
@@ -2612,3 +2612,33 @@ class TestReverseEarnedCashback(unittest.TestCase):
                                          reason="Refund Reversal", ref_name="ORD-IDEM", refund_id="rfnd_X")
         self.assertIsNone(second)
         self.assertEqual(get_loyalty_balance(self._customer.name), 54)  # deducted once only
+
+    def test_cumulative_cap_prevents_overreversal(self):
+        """Partial then 'full' reversal must never exceed the original earned.
+        Earned 90; partial 36 → later full reverses only the 54 remainder; a 3rd
+        event (cancellation) is fully capped → no-op."""
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(90)
+        r1 = reverse_earned_cashback(self._customer.name, self._res, 36, reason="Refund Reversal",
+                                     ref_name="ORD-CAP", refund_id="rfnd_p", max_total_reverse=90)
+        self.assertEqual(r1["reversed"], 36)
+        r2 = reverse_earned_cashback(self._customer.name, self._res, 90, reason="Refund Reversal",
+                                     ref_name="ORD-CAP", refund_id="rfnd_f", max_total_reverse=90)
+        self.assertEqual(r2["reversed"], 54)
+        self.assertEqual(get_loyalty_balance(self._customer.name), 0)
+        r3 = reverse_earned_cashback(self._customer.name, self._res, 90, reason="Cancellation Revert",
+                                     ref_name="ORD-CAP", max_total_reverse=90)
+        self.assertIsNone(r3)
+
+    def test_owed_counts_toward_cap(self):
+        """Owed (already-spent) shortfall counts toward the cap so a later event
+        can't re-reverse the owed portion."""
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(30)   # only ₹30 spendable of a ₹90 earn
+        r1 = reverse_earned_cashback(self._customer.name, self._res, 90, reason="Refund Reversal",
+                                     ref_name="ORD-OWEDCAP", refund_id="rfnd_o", max_total_reverse=90)
+        self.assertEqual(r1, {"deducted": 30, "owed": 60, "reversed": 90})
+        self.assertEqual(get_loyalty_balance(self._customer.name), 0)
+        r2 = reverse_earned_cashback(self._customer.name, self._res, 90, reason="Cancellation Revert",
+                                     ref_name="ORD-OWEDCAP", max_total_reverse=90)
+        self.assertIsNone(r2)
