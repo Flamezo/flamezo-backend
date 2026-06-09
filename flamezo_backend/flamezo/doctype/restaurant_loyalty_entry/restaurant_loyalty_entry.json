@@ -17,7 +17,9 @@
   "reason",
   "section_break_ref",
   "reference_doctype",
-  "reference_name"
+  "reference_name",
+  "description",
+  "owed_coins"
  ],
  "fields": [
   {
@@ -75,7 +77,7 @@
    "fieldname": "reason",
    "fieldtype": "Select",
    "label": "Reason",
-   "options": "Order\nReferral Share\nReferral Order\nWelcome Bonus\nBirthday Bonus\nUGC Cashback\nRedemption\nManual Adjustment\nCancellation Refund\nCancellation Revert",
+   "options": "Order\nReferral Share\nReferral Order\nWelcome Bonus\nBirthday Bonus\nUGC Cashback\nRedemption\nManual Adjustment\nCancellation Refund\nCancellation Revert\nRefund Reversal",
    "reqd": 1
   },
   {
@@ -92,6 +94,19 @@
    "fieldname": "reference_name",
    "fieldtype": "Data",
    "label": "Reference Name"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description",
+   "description": "Human-readable context shown in the customer's wallet history (e.g. refund reversal details)."
+  },
+  {
+   "default": "0",
+   "fieldname": "owed_coins",
+   "fieldtype": "Int",
+   "label": "Owed Cash",
+   "description": "Shortfall recorded when a clawback exceeded the available balance (floored at 0). For finance recovery/audit."
   }
  ],
  "index_web_pages_for_search": 1,

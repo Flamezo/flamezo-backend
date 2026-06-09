@@ -158,6 +158,9 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
             loyalty_expiry_months=6
         )
         cls._customer = make_customer(phone="9100000002", name="Test Earn Customer")
+        # Order-sourced cashback now requires an OTP-verified customer.
+        frappe.db.set_value("Customer", cls._customer.name, "verified_at", frappe.utils.now_datetime())
+        frappe.db.commit()
 
         from flamezo_backend.flamezo.utils.loyalty import earn_loyalty_coins
         cls.earn = staticmethod(earn_loyalty_coins)
@@ -201,6 +204,40 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         )
         self.assertIsNotNone(entry)
         self.assertEqual(entry.is_settled, 0)
+
+    def test_instant_settle_when_flagged(self):
+        """settle_immediately=True (post-capture online pay) → is_settled=1 and spendable now."""
+        from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance
+        self.earn(
+            self._customer.name, self._res, 1000.0,
+            reason="Order", ref_doctype="Order", ref_name="TEST-ORDER-INSTANT",
+            payment_method="pay_online", settle_immediately=True
+        )
+        entry = frappe.db.get_value(
+            "Restaurant Loyalty Entry",
+            {"customer": self._customer.name, "restaurant": self._res, "reference_name": "TEST-ORDER-INSTANT"},
+            ["is_settled"], as_dict=True
+        )
+        self.assertEqual(entry.is_settled, 1)
+        # Counts toward spendable balance immediately (settled-only sum).
+        self.assertEqual(get_loyalty_balance(self._customer.name), 90)
+
+    def test_unverified_customer_earns_zero(self):
+        """An OTP-UNVERIFIED customer earns 0 on an online order (backend gate)."""
+        unverified = make_customer(phone="9100000099", name="Unverified Earn Customer")
+        frappe.db.set_value("Customer", unverified.name, "verified_at", None)
+        frappe.db.commit()
+        earned = self.earn(
+            unverified.name, self._res, 1000.0,
+            reason="Order", ref_doctype="Order", ref_name="TEST-ORDER-UNVERIFIED",
+            payment_method="pay_online", settle_immediately=True
+        )
+        self.assertEqual(earned, 0)
+        self.assertFalse(frappe.db.exists("Restaurant Loyalty Entry", {
+            "customer": unverified.name, "reference_name": "TEST-ORDER-UNVERIFIED"
+        }))
+        frappe.db.delete("Restaurant Loyalty Entry", {"customer": unverified.name})
+        frappe.db.commit()
 
     def test_settled_for_non_order_reference(self):
         """Earning on a non-Order ref_doctype must create is_settled=1."""
@@ -2501,3 +2538,77 @@ class TestLoyaltyAnalytics(unittest.TestCase):
         summary = self._call()["data"]["summary"]
         self.assertGreaterEqual(summary["active_customers"], 2,
             "Both c1 and c2 have earned coins — active_customers must be ≥ 2")
+
+
+# ─── Refund cashback clawback (reverse_earned_cashback) ───────────────────────
+
+class TestReverseEarnedCashback(unittest.TestCase):
+    """Instant-cashback refund clawback: proportional, deduct-available + log owed,
+    idempotent per refund id."""
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+        cleanup_restaurants_by_prefix(_PREFIX + "-REV-")
+        cls._res = f"{_PREFIX}-REV-{frappe.generate_hash(length=6)}"
+        make_restaurant(cls._res, plan="GOLD")
+        make_loyalty_config(cls._res, earn_type="Percentage of Bill",
+                            earn_percentage=9.0, points_per_inr=0.09, loyalty_expiry_months=6)
+        cls._customer = make_customer(phone="9100000201", name="Test Reverse Customer")
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_restaurant(cls._res)
+        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.commit()
+
+    def setUp(self):
+        _clear_loyalty_entries(self._customer.name, self._res)
+
+    def _seed_balance(self, coins):
+        """Give the customer a settled, spendable balance."""
+        make_loyalty_entry(self._customer.name, self._res, coins, txn_type="Earn",
+                           reason="Order", is_settled=1)
+
+    def test_full_reverse(self):
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(90)
+        res = reverse_earned_cashback(self._customer.name, self._res, 90,
+                                      reason="Refund Reversal", ref_name="ORD-FULL", refund_id="rfnd_1")
+        self.assertEqual(res, {"deducted": 90, "owed": 0})
+        self.assertEqual(get_loyalty_balance(self._customer.name), 0)
+
+    def test_partial_reverse(self):
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(90)
+        # 40% of an order whose cashback was 90 → reverse 36.
+        res = reverse_earned_cashback(self._customer.name, self._res, 36,
+                                      reason="Refund Reversal", ref_name="ORD-PART", refund_id="rfnd_2")
+        self.assertEqual(res["deducted"], 36)
+        self.assertEqual(res["owed"], 0)
+        self.assertEqual(get_loyalty_balance(self._customer.name), 54)
+
+    def test_owed_logged_when_already_spent(self):
+        """Instant cashback already spent → deduct what's available, floor at 0, log owed."""
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(30)   # only ₹30 left (user spent the rest)
+        res = reverse_earned_cashback(self._customer.name, self._res, 70,
+                                      reason="Refund Reversal", ref_name="ORD-OWED", refund_id="rfnd_3")
+        self.assertEqual(res["deducted"], 30)
+        self.assertEqual(res["owed"], 40)
+        self.assertEqual(get_loyalty_balance(self._customer.name), 0)   # never negative
+        owed = frappe.db.get_value("Restaurant Loyalty Entry",
+                                   {"customer": self._customer.name, "reference_name": "ORD-OWED"},
+                                   "owed_coins")
+        self.assertEqual(owed, 40)
+
+    def test_idempotent_per_refund_id(self):
+        from flamezo_backend.flamezo.utils.loyalty import reverse_earned_cashback, get_loyalty_balance
+        self._seed_balance(90)
+        reverse_earned_cashback(self._customer.name, self._res, 36,
+                                reason="Refund Reversal", ref_name="ORD-IDEM", refund_id="rfnd_X")
+        # Same refund delivered again (webhook retry) → no-op.
+        second = reverse_earned_cashback(self._customer.name, self._res, 36,
+                                         reason="Refund Reversal", ref_name="ORD-IDEM", refund_id="rfnd_X")
+        self.assertIsNone(second)
+        self.assertEqual(get_loyalty_balance(self._customer.name), 54)  # deducted once only

@@ -544,6 +544,8 @@ def process_loyalty_and_coupons(order):
 			# This callback runs only on confirmed Razorpay capture → payment is
 			# online by construction. Pass it explicitly so the loyalty gate
 			# (online-only) lets the earn through.
+			# Razorpay payment is CAPTURED at this point → award cashback instantly
+			# (settled, spendable now). A later refund reverses it via the webhook.
 			earn_loyalty_coins(
 				customer=platform_customer,
 				restaurant=restaurant_id,
@@ -551,7 +553,9 @@ def process_loyalty_and_coupons(order):
 				reason="Order",
 				ref_doctype="Order",
 				ref_name=order.name,
-				payment_method="pay_online"
+				payment_method="pay_online",
+				settle_immediately=True,
+				description=f"Cashback on online order {order.name}"
 			)
 			frappe.db.commit()
 	except Exception as e:

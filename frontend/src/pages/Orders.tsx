@@ -44,7 +44,13 @@ export default function Orders() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isCancelledDialogOpen, setIsCancelledDialogOpen] = useState(false)
-  const [view, setView] = useState<'table' | 'kanban' | 'modern'>('modern')
+  const [view, setView] = useState<'table' | 'kanban' | 'modern'>(() => {
+    return (localStorage.getItem('flamezo_orders_view') as 'table' | 'kanban' | 'modern') || 'modern'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('flamezo_orders_view', view)
+  }, [view])
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')

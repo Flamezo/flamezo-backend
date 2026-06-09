@@ -59,7 +59,7 @@ def get_loyalty_summary(restaurant_id, phone):
 		entries = frappe.get_all(
 			"Restaurant Loyalty Entry",
 			filters={"customer": customer.name},
-			fields=["transaction_type", "coins", "reason", "posting_date", "reference_doctype", "reference_name", "creation", "is_settled", "restaurant"],
+			fields=["transaction_type", "coins", "reason", "description", "posting_date", "reference_doctype", "reference_name", "creation", "is_settled", "restaurant"],
 			order_by="creation desc"
 		)
 		

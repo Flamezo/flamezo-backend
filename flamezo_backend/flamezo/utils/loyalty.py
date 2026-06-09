@@ -120,22 +120,27 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	# We don't commit here to allow the caller to manage the transaction
 	return int(coins)
 
-def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None, ref_name=None, payment_method=None):
+def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None,
+                       ref_name=None, payment_method=None, settle_immediately=False, description=None):
 	"""
 	Calculate and credit loyalty coins using Flamezo platform-fixed rates.
 	All earn logic is centralized — restaurants cannot override these values.
 
 	Platform rules (from utils/platform_config.py):
-	  - Earn rate:        10% of bill
+	  - Earn rate:        platform constant (see get_earn_percentage)
 	  - Min order:        ₹100
-	  - Max per order:    ₹1000
-	  - Expiry:           6 months
+	  - Max per order:    platform cap
+	  - Expiry:           platform constant
 
-	payment_method: when 'Order'-sourced, only credits coins when the order was
-	paid online. Cash-on-counter orders earn 0 (matches the cart UX rule that
-	cashback is locked behind verified + pay_online).
+	Order-sourced cashback is gated behind BOTH:
+	  1. payment_method == 'pay_online'  (cash-on-counter earns 0), and
+	  2. an OTP-verified customer        (unverified earns 0).
 
-	Sets is_settled=0 initially if reference is an Order (settled on completion).
+	settle_immediately: when True the entry is created is_settled=1 (spendable
+	right away). The online-payment flow passes this once Razorpay has CAPTURED
+	the payment (verify_payment → process_loyalty_and_coupons), so verified
+	online payers get their cashback instantly. Other paths (order created but
+	payment not yet captured) leave it pending and settle on order completion.
 	"""
 	if not customer or not restaurant or not amount_paid or amount_paid <= 0:
 		return 0
@@ -143,11 +148,15 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	if not is_loyalty_enabled(restaurant):
 		return 0
 
-	# Order-sourced earning is online-only. Non-order earns (welcome bonus,
-	# referral, manual adjustment) bypass this — they don't have a payment.
+	# Order-sourced earning is online-only AND verified-only. Non-order earns
+	# (welcome bonus, referral, manual adjustment) bypass this — no payment.
 	if ref_doctype == "Order":
 		normalized_pm = (payment_method or "").strip().lower()
 		if normalized_pm != "pay_online":
+			return 0
+		# Backend-enforced verification gate (not just the frontend UI gate):
+		# instant cashback is only awarded to OTP-verified customers.
+		if not frappe.db.get_value("Customer", customer, "verified_at"):
 			return 0
 
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
@@ -180,7 +189,10 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		"reference_name": ref_name,
 		"posting_date": today(),
 		"expiry_date": expiry_date,
-		"is_settled": 0 if ref_doctype == "Order" else 1
+		# Non-order earns are always settled. Order earns settle instantly only
+		# when the caller confirms payment is captured (settle_immediately).
+		"is_settled": 1 if (settle_immediately or ref_doctype != "Order") else 0,
+		"description": description,
 	})
 	entry.insert(ignore_permissions=True)
 
@@ -197,6 +209,73 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		)
 
 	return coins_earned
+
+
+def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refund Reversal",
+                            description=None, ref_doctype="Order", ref_name=None, refund_id=None):
+	"""
+	Claw back previously-earned cashback (e.g. on a refund), using the
+	"deduct available + log owed" policy:
+
+	  - Deduct min(available_balance, coins_to_reverse) as a Redeem entry so the
+	    visible balance never goes negative (it floors at 0).
+	  - If the user already spent some of the instant cashback, the shortfall is
+	    recorded in `owed_coins` (+ noted in the description) for finance/audit.
+
+	Idempotent per (order, refund_id): a second webhook delivery for the same
+	refund is a no-op. Returns {"deducted", "owed"} or None if nothing to do.
+	"""
+	coins_to_reverse = int(coins_to_reverse or 0)
+	if not customer or not restaurant or coins_to_reverse <= 0:
+		return None
+
+	# Stable idempotency marker stamped into the entry's description by THIS
+	# function (not the caller), so a webhook retry for the same refund is a
+	# no-op regardless of how the caller wrote the description.
+	marker = f"[refund:{refund_id}]" if refund_id else None
+
+	if ref_name:
+		existing = frappe.get_all(
+			"Restaurant Loyalty Entry",
+			filters={
+				"customer": customer,
+				"reference_doctype": ref_doctype,
+				"reference_name": ref_name,
+				"transaction_type": "Redeem",
+				"reason": ["in", ["Refund Reversal", "Cancellation Revert"]],
+			},
+			fields=["name", "description"],
+		)
+		for e in existing:
+			# refund-scoped: same refund id already reversed.
+			# cancellation-scoped (no refund_id): any prior reversal blocks a repeat.
+			if marker is None or (e.description and marker in e.description):
+				return None
+
+	available = get_loyalty_balance(customer)
+	deducted = min(available, coins_to_reverse)
+	owed = coins_to_reverse - deducted
+
+	stored_desc = description or ""
+	if marker and marker not in stored_desc:
+		stored_desc = f"{stored_desc} {marker}".strip()
+
+	entry = frappe.get_doc({
+		"doctype": "Restaurant Loyalty Entry",
+		"customer": customer,
+		"restaurant": restaurant,
+		"coins": int(deducted),
+		"transaction_type": "Redeem",
+		"reason": reason,
+		"reference_doctype": ref_doctype,
+		"reference_name": ref_name,
+		"posting_date": today(),
+		"is_settled": 1,
+		"owed_coins": int(owed),
+		"description": stored_desc or None,
+	})
+	entry.insert(ignore_permissions=True)
+	return {"deducted": int(deducted), "owed": int(owed)}
 
 
 def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None):
@@ -302,26 +381,22 @@ def handle_order_cancellation(doc, method=None):
 			entry.insert(ignore_permissions=True)
 			# frappe.log_error(f"Loyalty REFUNDED {doc.loyalty_coins_redeemed} for cancelled order {doc.name}", "Loyalty")
 
-	# 2. Revert Earned Coins
+	# 2. Revert Earned Coins (full reversal — cancellation/full-refund).
+	# Uses the deduct-available + log-owed policy so an already-spent instant
+	# cashback doesn't push the balance negative; the shortfall is recorded.
 	if doc.coins_earned > 0:
-		# Idempotency: check if revert already exists
-		already_reverted = frappe.db.exists("Restaurant Loyalty Entry", {
-			"customer": doc.platform_customer,
-			"restaurant": doc.restaurant,
-			"reference_doctype": "Order",
-			"reference_name": doc.name,
-			"reason": "Cancellation Revert"
-		})
-		if not already_reverted:
-			redeem_loyalty_coins(
-				customer=doc.platform_customer,
-				restaurant=doc.restaurant,
-				coins=doc.coins_earned,
-				reason="Cancellation Revert",
-				ref_doctype="Order",
-				ref_name=doc.name
-			)
-			# frappe.log_error(f"Loyalty REVERTED {doc.coins_earned} for cancelled order {doc.name}", "Loyalty")
+		refunded = (getattr(doc, "payment_status", "") or "").lower() == "refunded"
+		reason = "Refund Reversal" if refunded else "Cancellation Revert"
+		verb = "refunded" if refunded else "cancelled"
+		reverse_earned_cashback(
+			customer=doc.platform_customer,
+			restaurant=doc.restaurant,
+			coins_to_reverse=int(doc.coins_earned or 0),
+			reason=reason,
+			description=f"Order {doc.name} {verb} — ₹{int(doc.coins_earned or 0)} cashback reversed",
+			ref_doctype="Order",
+			ref_name=doc.name,
+		)
 
 	# Final cleanup — zero both coin fields so cancelled orders don't show stale values
 	frappe.db.set_value("Order", doc.name, {
