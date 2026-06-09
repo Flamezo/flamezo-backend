@@ -5,11 +5,52 @@ import base64
 import os
 import uuid
 import random
+import time
 from PIL import Image, ImageFilter, ImageOps
 from flamezo_backend.flamezo.media.storage import upload_object, get_cdn_url, generate_object_key
 
 MENU_THEME_COINS = 30
 MENU_THEME_OUTPUT_SIZE = (1080, 1920)
+
+
+def _gemini_post_with_retry(url, payload, max_retries=4, base_delay=2.0, timeout=120):
+    """
+    POST to the Gemini API, retrying transient rate-limit/availability errors
+    (HTTP 429 / 503) with exponential backoff + jitter. Honours a `Retry-After`
+    header or the API's `RetryInfo.retryDelay` when present. Non-transient
+    errors raise immediately. Runs inside a background worker, so sleeping is
+    fine (total backoff is bounded well under the job timeout).
+    """
+    resp = None
+    for attempt in range(max_retries + 1):
+        resp = requests.post(url, json=payload, timeout=timeout)
+        if resp.status_code not in (429, 503):
+            resp.raise_for_status()
+            return resp
+        if attempt >= max_retries:
+            break
+        delay = None
+        ra = resp.headers.get("Retry-After")
+        if ra:
+            try:
+                delay = float(ra)
+            except ValueError:
+                delay = None
+        if delay is None:
+            try:
+                for d in (resp.json().get("error", {}) or {}).get("details", []) or []:
+                    rd = d.get("retryDelay")
+                    if rd:
+                        delay = float(str(rd).rstrip("s"))
+                        break
+            except Exception:
+                pass
+        if delay is None:
+            delay = base_delay * (2 ** attempt)
+        time.sleep(min(delay, 30) + random.uniform(0, 0.5))
+    # Exhausted retries — surface the last (rate-limit) error.
+    resp.raise_for_status()
+    return resp
 
 
 def _get_restaurant_config_name(restaurant):
@@ -143,8 +184,7 @@ def generate_menu_theme_background_gemini(image_paths, restaurant_name, items=No
         }
     }
 
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
+    response = _gemini_post_with_retry(url, payload)
     res_json = response.json()
 
     if 'candidates' in res_json and res_json['candidates']:
@@ -427,8 +467,7 @@ def generate_image_gemini(image_path, dish_name, dish_description, dish_category
         }]
     }
     
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
+    response = _gemini_post_with_retry(url, payload)
     res_json = response.json()
     
     # Extract image from response
@@ -489,8 +528,7 @@ def generate_image_gemini_from_product(dish_name, dish_description, dish_categor
         }]
     }
 
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
+    response = _gemini_post_with_retry(url, payload)
     res_json = response.json()
 
     if 'candidates' in res_json and res_json['candidates']:
