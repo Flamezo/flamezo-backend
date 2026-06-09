@@ -8,11 +8,6 @@
  "engine": "InnoDB",
  "field_order": [
   "restaurant",
-  "section_break_hero",
-  "hero_media_type",
-  "hero_media_src",
-  "hero_fallback_image",
-  "hero_title",
   "section_break_content",
   "opening_text",
   "paragraph_1",
@@ -44,34 +39,6 @@
    "options": "Restaurant",
    "reqd": 1,
    "unique": 1
-  },
-  {
-   "fieldname": "section_break_hero",
-   "fieldtype": "Section Break",
-   "label": "Hero Section"
-  },
-  {
-   "fieldname": "hero_media_type",
-   "fieldtype": "Select",
-   "label": "Hero Media Type",
-   "options": "video\nimage"
-  },
-  {
-   "description": "Upload image or video file for hero section",
-   "fieldname": "hero_media_src",
-   "fieldtype": "Attach",
-   "label": "Hero Media (Image/Video)"
-  },
-  {
-   "description": "Fallback image if video fails to load",
-   "fieldname": "hero_fallback_image",
-   "fieldtype": "Attach Image",
-   "label": "Hero Fallback Image"
-  },
-  {
-   "fieldname": "hero_title",
-   "fieldtype": "Data",
-   "label": "Hero Title"
   },
   {
    "fieldname": "section_break_content",

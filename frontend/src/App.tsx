@@ -27,7 +27,6 @@ const AcceptOrders = lazy(() => import('./pages/AcceptOrders'))
 const PastOrders = lazy(() => import('./pages/PastOrders'))
 const OrderDetail = lazy(() => import('./pages/OrderDetail'))
 const QRCodes = lazy(() => import('./pages/QRCodes'))
-const HomeFeaturesManager = lazy(() => import('./pages/HomeFeaturesManager'))
 const LegacyContent = lazy(() => import('./pages/LegacyContent'))
 const LegacySignatureDish = lazy(() => import('./pages/LegacySignatureDish'))
 const Payment = lazy(() => import('./pages/Payment'))
@@ -102,9 +101,6 @@ function AppContent() {
 								<Route path="/account" element={<MyAccount />} />
 								<Route path="/setup" element={<TieredSetupWizard />} />
 								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />
-
-								<Route path="/Home Feature" element={<Navigate to="/home-features" replace />} />
-								<Route path="/Home%20Feature" element={<Navigate to="/home-features" replace />} />
 
 								<Route path="/admin/restaurants" element={<AdminRestaurantManagement />} />
 								<Route path="/admin/restaurants/:id" element={<AdminRestaurantDetailsPage />} />
@@ -194,8 +190,6 @@ function AppContent() {
 								<Route path="/addon-groups" element={<AddonGroupManagement />} />
 								<Route path="/petpooja-testing" element={<PetpoojaLiveTesting />} />
 								<Route path="/qr-codes" element={<QRCodes />} />
-
-								<Route path="/home-features" element={<HomeFeaturesManager />} />
 								<Route path="/gallery-management" element={<GalleryManagement />} />
 
 								<Route path="/ai-enhancements" element={<AIEnhancementPage />} />

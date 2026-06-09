@@ -20,14 +20,7 @@ class CtaButton(BaseModel):
         max_length=50
     )
 
-class HeroSection(BaseModel):
-    title: str = Field(
-        description=(
-            "Hero headline — the single most evocative sentence about this restaurant. "
-            "Should feel like a luxury magazine cover line, not a tagline. Max 90 chars."
-        ),
-        max_length=90
-    )
+
 
 class ContentSection(BaseModel):
     openingText: str = Field(
@@ -99,7 +92,6 @@ class Member(BaseModel):
     )
 
 class LegacyGenerationResult(BaseModel):
-    hero: HeroSection
     content: ContentSection
     footer: FooterSection
     testimonials: List[Testimonial] = Field(
@@ -172,20 +164,18 @@ VOICE & TONE:
 SEO RULES (apply to ALL text fields):
 - Naturally weave in high-intent local search phrases people actually type:
   "best café in {city}", "{city} coffee shop", "cafés in {city} for work", "best places to eat in {city}"
-- Use the restaurant name early in hero title and paragraph 1 — Google weights first occurrences.
+- Use the restaurant name early in paragraph 1 — Google weights first occurrences.
 - Paragraph 2 should include at least 2 specific dish names — long-tail food searches ("best hazelnut frappe {city}") drive real traffic.
 - Footer description should include city name + a call-to-action phrase like "visit us in {city}" or "find us in {city}" — these appear in rich snippets.
 - Testimonials: location field should always include city + state (e.g. "Surat, Gujarat") — helps local pack signals.
 - Keep sentences short and scannable — Google rewards low bounce rate; people skim.
 
 VIRALITY RULES:
-- The hero title must be instantly shareable — the kind of line someone screenshots for their story.
 - Opening text must create FOMO. Someone reading it on their phone should think "I need to go here."
 - Testimonials must feel real enough that the subject could have actually written them — not like AI wrote them.
 - Paragraph 2's closing line should be emotionally resonant — the kind of line people quote in a review.
 
 STRUCTURE RULES:
-- Hero title: one iconic, shareable line with the restaurant name and city.
 - Opening text: first sentence hook. Short. Punchy. Creates desire and FOMO.
 - Paragraph 1: The place — atmosphere, founder intent, who it's for. SEO-optimised for local search.
 - Paragraph 2: The food & drink — craft, 2-3 specific dishes by name, why people return. SEO-optimised for food search.
@@ -197,7 +187,6 @@ STRUCTURE RULES:
 - Footer: A personal, warm closing with city name and restaurant name for local SEO. Not a sales pitch. An invitation.
 
 CONSTRAINTS (HARD LIMITS — NEVER EXCEED):
-- Hero title: 90 chars
 - Opening text: 120 chars
 - Paragraph 1: 700 chars
 - Paragraph 2: 700 chars

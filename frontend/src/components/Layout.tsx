@@ -221,7 +221,6 @@ const navigation: NavItem[] = [
       { name: 'POS Integration', href: '/pos-integration', icon: Settings, feature: 'pos_integration' },
       { name: 'Petpooja Testing', href: '/petpooja-testing', icon: Activity, feature: 'pos_integration' },
 { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
-      { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
       { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
       { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
       { name: 'Gallery Management', href: '/gallery-management', icon: Star },
