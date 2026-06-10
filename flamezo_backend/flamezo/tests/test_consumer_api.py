@@ -134,7 +134,6 @@ class TestListRestaurants(unittest.TestCase):
         )
         make_restaurant_config(
             cls.res_a,
-            primary_color="#FF5733",
             tagline="Best food in town",
             subtitle="North Indian Cuisine",
         )
@@ -231,15 +230,15 @@ class TestListRestaurants(unittest.TestCase):
         self.assertIn(self.res_b, ids)
         self.assertNotIn(self.res_a, ids)
 
-    # --- primaryColor ---
+    # --- primaryColor (always the fixed Flamezo brand copper) ---
 
-    def test_primary_color_from_config(self):
+    def test_primary_color_is_brand_copper(self):
         restaurants = self._call()
         r = self._find(restaurants, self.res_a)
         self.assertIsNotNone(r)
-        self.assertEqual(r["primaryColor"], "#FF5733")
+        self.assertEqual(r["primaryColor"], "#B7410E")
 
-    def test_primary_color_defaults_when_no_config(self):
+    def test_primary_color_brand_copper_when_no_config(self):
         restaurants = self._call()
         r = self._find(restaurants, self.res_b)
         self.assertIsNotNone(r)

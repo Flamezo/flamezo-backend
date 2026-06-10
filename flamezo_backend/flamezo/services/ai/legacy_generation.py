@@ -20,14 +20,7 @@ class CtaButton(BaseModel):
         max_length=50
     )
 
-class HeroSection(BaseModel):
-    title: str = Field(
-        description=(
-            "Hero headline — the single most evocative sentence about this restaurant. "
-            "Should feel like a luxury magazine cover line, not a tagline. Max 90 chars."
-        ),
-        max_length=90
-    )
+
 
 class ContentSection(BaseModel):
     openingText: str = Field(
@@ -39,17 +32,11 @@ class ContentSection(BaseModel):
     )
     paragraph1: str = Field(
         description=(
-            "Brand story paragraph 1 (max 700 chars). Describe the atmosphere, the philosophy, "
-            "the founder's vision. Use sensory language. Name the city, the vibe, the feeling. "
-            "Do NOT start with 'Welcome to'. Make it feel written by a journalist, not a marketer."
-        ),
-        max_length=700
-    )
-    paragraph2: str = Field(
-        description=(
-            "Brand story paragraph 2 (max 700 chars). Shift focus to the food & drink craft. "
-            "Mention 2-3 specific signature items by name. Close with an emotional hook about "
-            "why guests keep coming back."
+            "Brand story paragraph (max 700 chars). Describe the atmosphere, the philosophy, "
+            "the founder's vision, AND the food & drink craft — mention 2-3 specific signature "
+            "items by name (long-tail food searches drive real traffic). Use sensory language. "
+            "Name the city, the vibe, the feeling. Do NOT start with 'Welcome to'. Close with an "
+            "emotional hook about why guests keep coming back. Written by a journalist, not a marketer."
         ),
         max_length=700
     )
@@ -99,7 +86,6 @@ class Member(BaseModel):
     )
 
 class LegacyGenerationResult(BaseModel):
-    hero: HeroSection
     content: ContentSection
     footer: FooterSection
     testimonials: List[Testimonial] = Field(
@@ -172,23 +158,20 @@ VOICE & TONE:
 SEO RULES (apply to ALL text fields):
 - Naturally weave in high-intent local search phrases people actually type:
   "best café in {city}", "{city} coffee shop", "cafés in {city} for work", "best places to eat in {city}"
-- Use the restaurant name early in hero title and paragraph 1 — Google weights first occurrences.
-- Paragraph 2 should include at least 2 specific dish names — long-tail food searches ("best hazelnut frappe {city}") drive real traffic.
+- Use the restaurant name early in the paragraph — Google weights first occurrences.
+- The paragraph should include at least 2 specific dish names — long-tail food searches ("best hazelnut frappe {city}") drive real traffic.
 - Footer description should include city name + a call-to-action phrase like "visit us in {city}" or "find us in {city}" — these appear in rich snippets.
 - Testimonials: location field should always include city + state (e.g. "Surat, Gujarat") — helps local pack signals.
 - Keep sentences short and scannable — Google rewards low bounce rate; people skim.
 
 VIRALITY RULES:
-- The hero title must be instantly shareable — the kind of line someone screenshots for their story.
 - Opening text must create FOMO. Someone reading it on their phone should think "I need to go here."
 - Testimonials must feel real enough that the subject could have actually written them — not like AI wrote them.
-- Paragraph 2's closing line should be emotionally resonant — the kind of line people quote in a review.
+- The paragraph's closing line should be emotionally resonant — the kind of line people quote in a review.
 
 STRUCTURE RULES:
-- Hero title: one iconic, shareable line with the restaurant name and city.
 - Opening text: first sentence hook. Short. Punchy. Creates desire and FOMO.
-- Paragraph 1: The place — atmosphere, founder intent, who it's for. SEO-optimised for local search.
-- Paragraph 2: The food & drink — craft, 2-3 specific dishes by name, why people return. SEO-optimised for food search.
+- Paragraph 1: The place AND the food — atmosphere, founder intent, who it's for, plus the craft and 2-3 specific dishes by name and why people return. SEO-optimised for local + food search.
 - Testimonials: 4 distinct voices, each tied to a different reason to visit.
   Guest 1 → the atmosphere/vibe
   Guest 2 → a specific food item
@@ -197,10 +180,8 @@ STRUCTURE RULES:
 - Footer: A personal, warm closing with city name and restaurant name for local SEO. Not a sales pitch. An invitation.
 
 CONSTRAINTS (HARD LIMITS — NEVER EXCEED):
-- Hero title: 90 chars
 - Opening text: 120 chars
 - Paragraph 1: 700 chars
-- Paragraph 2: 700 chars
 - Each testimonial: 280 chars
 - Footer title: 80 chars
 - Footer description: 400 chars

@@ -809,7 +809,6 @@ def create_restaurant_config(self):
 			"tagline": "",
 			"subtitle": "",
 			"description": self.description or "",
-			"primary_color": "#DB782F",
 			"default_theme": "light",
 			"logo": self.logo or "",
 			"hero_video": "",

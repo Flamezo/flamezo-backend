@@ -41,33 +41,12 @@ def get_legacy_content(restaurant_id):
 		
 		legacy_doc = frappe.get_doc("Legacy Content", legacy_name)
 		
-		# Format hero section
-		hero_media_src = legacy_doc.hero_media_src
-		if hero_media_src and hero_media_src.startswith("/files/"):
-			hero_media_src = get_url(hero_media_src)
-		
-		hero_fallback = legacy_doc.hero_fallback_image
-		if hero_fallback and hero_fallback.startswith("/files/"):
-			hero_fallback = get_url(hero_fallback)
-		
-		hero_title = legacy_doc.hero_title or f"Discover the Culinary Heritage of {restaurant_name}"
-		
-		hero = {
-			"mediaType": legacy_doc.hero_media_type or "video",
-			"mediaSrc": hero_media_src or "",
-			"fallbackImage": hero_fallback or "",
-			"title": hero_title,
-			"ctaButtons": [
-				{"text": "Explore Our Menu", "route": "/main-menu"},
-				{"text": "Book a Table", "route": "/book-table"}
-			]
-		}
+		hero = {}
 		
 		# Format content
 		content = {
 			"openingText": legacy_doc.opening_text or "",
-			"paragraph1": legacy_doc.paragraph_1 or "",
-			"paragraph2": legacy_doc.paragraph_2 or ""
+			"paragraph1": legacy_doc.paragraph_1 or ""
 		}
 		
 		# Format signature dishes - return array of dish IDs for frontend compatibility
@@ -256,16 +235,7 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 				"restaurant": restaurant
 			})
 		
-		# Update hero
-		if hero:
-			if "mediaType" in hero:
-				legacy_doc.hero_media_type = hero["mediaType"]
-			if "mediaSrc" in hero:
-				legacy_doc.hero_media_src = hero["mediaSrc"]
-			if "fallbackImage" in hero:
-				legacy_doc.hero_fallback_image = hero["fallbackImage"]
-			if "title" in hero:
-				legacy_doc.hero_title = hero["title"]
+		# Hero is no longer used
 		
 		# Update content
 		if content:
@@ -273,8 +243,6 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 				legacy_doc.opening_text = content["openingText"]
 			if "paragraph1" in content:
 				legacy_doc.paragraph_1 = content["paragraph1"]
-			if "paragraph2" in content:
-				legacy_doc.paragraph_2 = content["paragraph2"]
 		
 		# Update signature dishes
 		if signature_dishes:
@@ -377,20 +345,10 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 def get_default_legacy_content(restaurant_name):
 	"""Get default legacy content structure"""
 	return {
-		"hero": {
-			"mediaType": "video",
-			"mediaSrc": "",
-			"fallbackImage": "",
-			"title": f"Discover the Culinary Heritage of {restaurant_name}",
-			"ctaButtons": [
-				{"text": "Explore Our Menu", "route": "/main-menu"},
-				{"text": "Book a Table", "route": "/book-table"}
-			]
-		},
+		"hero": {},
 		"content": {
 			"openingText": "",
-			"paragraph1": "",
-			"paragraph2": ""
+			"paragraph1": ""
 		},
 		"signatureDishes": [],
 		"testimonials": [],
@@ -457,29 +415,17 @@ def generate_legacy_content(restaurant_id):
 		
 		# Get existing legacy content to preserve media files
 		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
-		existing_hero_media = ""
-		existing_hero_fallback = ""
-		existing_hero_media_type = "image"
 		existing_footer_media = ""
 		
 		if legacy_name:
 			legacy_doc = frappe.get_doc("Legacy Content", legacy_name)
-			existing_hero_media = legacy_doc.hero_media_src or ""
-			existing_hero_fallback = legacy_doc.hero_fallback_image or ""
-			existing_hero_media_type = legacy_doc.hero_media_type or "image"
 			existing_footer_media = legacy_doc.footer_media_src or ""
-			
-		hero_payload = {
-			"mediaType": existing_hero_media_type,
-			"mediaSrc": existing_hero_media,
-			"fallbackImage": existing_hero_fallback,
-			"title": ai_result["hero"]["title"]
-		}
+
+		hero_payload = {}
 		
 		content_payload = {
 			"openingText": ai_result["content"]["openingText"],
-			"paragraph1": ai_result["content"]["paragraph1"],
-			"paragraph2": ai_result["content"]["paragraph2"]
+			"paragraph1": ai_result["content"]["paragraph1"]
 		}
 		
 		footer_payload = {

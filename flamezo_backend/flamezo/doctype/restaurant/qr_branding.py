@@ -39,20 +39,20 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	from flamezo_backend.flamezo.media.utils import get_media_asset_data
 
 	config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_doc.name}, "name")
-	primary_color = None
+	primary_color = "#B7410E"
 	logo_url = ""
 	background_image_url = override_background_url or ""
 
 	if config_name:
-		# Use a safer fetch for primary_color and logo
+		# Fetch the logo (brand color is the fixed Flamezo copper, set above)
 		config_values = frappe.db.get_value(
 			"Restaurant Config",
 			config_name,
-			["primary_color", "logo"],
+			["logo"],
 			as_dict=True,
 		) or {}
 		
-		primary_color = config_values.get("primary_color")
+		primary_color = "#B7410E"
 		
 		# Attempt to get qr_background safely
 		try:

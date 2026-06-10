@@ -22,13 +22,8 @@ export default function LegacyContentPage() {
 
   const [uploading, setUploading] = useState(false)
   const [heroData, setHeroData] = useState({
-    hero_media_type: 'image',
-    hero_media_src: '',
-    hero_fallback_image: '',
-    hero_title: '',
     opening_text: '',
-    paragraph_1: '',
-    paragraph_2: ''
+    paragraph_1: ''
   })
   const [footerData, setFooterData] = useState({
     footer_media_src: '',
@@ -48,13 +43,8 @@ export default function LegacyContentPage() {
   React.useEffect(() => {
     if (legacyContent && legacyContent.name === selectedRestaurant) {
       setHeroData({
-        hero_media_type: legacyContent.hero_media_type || 'image',
-        hero_media_src: legacyContent.hero_media_src || '',
-        hero_fallback_image: legacyContent.hero_fallback_image || '',
-        hero_title: legacyContent.hero_title || '',
         opening_text: legacyContent.opening_text || '',
-        paragraph_1: legacyContent.paragraph_1 || '',
-        paragraph_2: legacyContent.paragraph_2 || ''
+        paragraph_1: legacyContent.paragraph_1 || ''
       })
       
       setFooterData({
@@ -145,17 +135,10 @@ export default function LegacyContentPage() {
     try {
       await updateLegacyContent({
         restaurant_id: selectedRestaurant,
-        hero: {
-          mediaType: heroData.hero_media_type,
-          mediaSrc: heroData.hero_media_src,
-          fallbackImage: heroData.hero_fallback_image,
-          title: heroData.hero_title
-        },
         content: {
           openingText: heroData.opening_text,
-          paragraph1: heroData.paragraph_1,
-          paragraph2: heroData.paragraph_2
-        }
+          paragraph1: heroData.paragraph_1
+        },
       })
       toast.success('Hero content updated successfully')
       mutateContent()
@@ -486,86 +469,6 @@ export default function LegacyContentPage() {
             key={legacyContent?.name || 'loading'}
             onSubmit={handleHeroContentSave} className="space-y-4">
             <div>
-              <Label htmlFor="hero_media_type">Hero Media Type</Label>
-              <Select 
-                name="hero_media_type" 
-                value={heroData.hero_media_type}
-                onValueChange={(val) => setHeroData(prev => ({ ...prev, hero_media_type: val }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select media type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">Image</SelectItem>
-                  <SelectItem value="video">Video</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="hero_media_upload">Upload Hero Media</Label>
-                <div className="flex gap-2 items-start mt-1">
-                  <Input 
-                    id="hero_media_upload"
-                    type="file" 
-                    accept={heroData.hero_media_type === 'video' ? 'video/*' : 'image/*'} 
-                    onChange={async (e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        try {
-                          const url = await handleFileUpload(e.target.files[0], 'legacy_hero_media')
-                          setHeroData(prev => ({ ...prev, hero_media_src: url }))
-                          toast.success('Hero media uploaded')
-                        } catch (err) {
-                          toast.error('Failed to upload hero media')
-                        }
-                      }
-                    }}
-                  />
-                </div>
-                {heroData.hero_media_src && (
-                  <p className="text-xs text-muted-foreground mt-2 truncate">Current: {heroData.hero_media_src}</p>
-                )}
-              </div>
-              
-              {heroData.hero_media_type === 'video' && (
-                <div>
-                  <Label htmlFor="hero_fallback_upload">Upload Fallback Image (Optional)</Label>
-                  <div className="flex gap-2 items-start mt-1">
-                    <Input 
-                      id="hero_fallback_upload"
-                      type="file" 
-                      accept="image/*"
-                      onChange={async (e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          try {
-                            const url = await handleFileUpload(e.target.files[0], 'legacy_hero_fallback')
-                            setHeroData(prev => ({ ...prev, hero_fallback_image: url }))
-                            toast.success('Fallback image uploaded')
-                          } catch (err) {
-                            toast.error('Failed to upload fallback image')
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                  {heroData.hero_fallback_image && (
-                    <p className="text-xs text-muted-foreground mt-2 truncate">Current: {heroData.hero_fallback_image}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="hero_title">Hero Title</Label>
-              <Input 
-                name="hero_title" 
-                value={heroData.hero_title} 
-                onChange={(e) => setHeroData(prev => ({ ...prev, hero_title: e.target.value }))}
-                placeholder="Enter your restaurant's story title" 
-              />
-            </div>
-            <div>
               <Label htmlFor="opening_text">Opening Text</Label>
               <Textarea 
                 name="opening_text" 
@@ -581,15 +484,6 @@ export default function LegacyContentPage() {
                 value={heroData.paragraph_1} 
                 onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_1: e.target.value }))}
                 placeholder="Tell your restaurant's story" 
-              />
-            </div>
-            <div>
-              <Label htmlFor="paragraph_2">Second Paragraph (Optional)</Label>
-              <Textarea 
-                name="paragraph_2" 
-                value={heroData.paragraph_2} 
-                onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_2: e.target.value }))}
-                placeholder="Continue your story" 
               />
             </div>
             <Button type="submit" disabled={isUpdatingLegacy || uploading}>
