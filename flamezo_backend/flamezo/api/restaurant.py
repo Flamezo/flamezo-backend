@@ -250,11 +250,11 @@ def list_restaurants(active_only=True, city=None, limit=50):
 
 		restaurant_names = [r["name"] for r in restaurants]
 
-		# --- Bulk fetch Restaurant Config (primaryColor, tagline, description) ---
+		# --- Bulk fetch Restaurant Config (tagline, description) ---
 		configs = frappe.get_all(
 			"Restaurant Config",
 			filters={"restaurant": ["in", restaurant_names]},
-			fields=["restaurant", "primary_color", "tagline", "subtitle", "description"],
+			fields=["restaurant", "tagline", "subtitle", "description"],
 		)
 		config_map = {c["restaurant"]: c for c in configs}
 
@@ -292,7 +292,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 			doc_name = r["name"]
 			cfg = config_map.get(doc_name, {})
 
-			primary_color = cfg.get("primary_color") or "#B7410E"
+			primary_color = "#B7410E"
 			tagline = cfg.get("tagline") or cfg.get("subtitle") or cfg.get("description") or ""
 			cuisine_type = cfg.get("subtitle") or cfg.get("description") or "Restaurant"
 

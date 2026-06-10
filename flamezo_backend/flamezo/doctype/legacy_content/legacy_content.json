@@ -11,7 +11,6 @@
   "section_break_content",
   "opening_text",
   "paragraph_1",
-  "paragraph_2",
   "section_break_signature_dishes",
   "signature_dishes",
   "section_break_testimonials",
@@ -54,11 +53,6 @@
    "fieldname": "paragraph_1",
    "fieldtype": "Text",
    "label": "Paragraph 1"
-  },
-  {
-   "fieldname": "paragraph_2",
-   "fieldtype": "Text",
-   "label": "Paragraph 2"
   },
   {
    "fieldname": "section_break_signature_dishes",

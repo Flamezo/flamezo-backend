@@ -71,7 +71,7 @@ def get_restaurant_config(restaurant_id):
 		config = frappe.db.get_value(
 			"Restaurant Config",
 			{"restaurant": restaurant},
-			["restaurant_name", "tagline", "subtitle", "description", "primary_color", "default_theme",
+			["restaurant_name", "tagline", "subtitle", "description", "default_theme",
 			 "logo", "logo_size", "hero_video", "apple_touch_icon", "color_palette_violet", "color_palette_indigo",
 			 "color_palette_blue", "color_palette_green", "color_palette_yellow", "color_palette_orange",
 			 "color_palette_red", "menu_theme_background_active", "menu_theme_background_preview", "menu_theme_background_history", 
@@ -96,7 +96,6 @@ def get_restaurant_config(restaurant_id):
 				"tagline": "",
 				"subtitle": "",
 				"description": restaurant_doc.description,
-				"primary_color": "#DB782F",
 				"default_theme": "dark",
 				"logo": restaurant_doc.logo,
 				"logo_size": "Medium",
@@ -138,12 +137,8 @@ def get_restaurant_config(restaurant_id):
 		if config.get("color_palette_red"):
 			color_palette["red"] = config["color_palette_red"]
 
-		# For Flamezo UI, treat primary color and color palette as the same concept:
-		# if an explicit primary_color is not set, derive it from the first available
-		# palette color so the API always exposes a usable branding.primaryColor.
-		primary_color = config.get("primary_color")
-		if not primary_color:
-			primary_color = next(iter(color_palette.values()), "#DB782F")
+		# Brand color is now fixed to the Flamezo copper — no per-restaurant colors.
+		primary_color = "#B7410E"
 		
 		# Batch fetch branding Media Assets in one go
 		media_roles = ["restaurant_config_logo", "restaurant_config_hero_video", "apple_touch_icon"]
@@ -358,7 +353,6 @@ def get_restaurant_config(restaurant_id):
 		now = frappe.utils.now_datetime()
 		current_day = now.strftime("%A")
 		current_time = now.time()
-		coupon_milestones = []
 		combo_deals = []
 
 		for c in coupons:
@@ -465,46 +459,6 @@ def get_restaurant_config(restaurant_id):
 					"allDishIds": [i["dishId"] for i in required_items_detail + item_pool_detail],
 				})
 
-			# ── Cart milestones (for progress bar) — only if has min_order ─
-			if not flt(c.get("min_order_amount")):
-				continue
-
-			d_val = flt(c.get("discount_value"))
-			if c.discount_type == "percent":
-				label = f"{int(d_val)}% Off"
-			elif c.discount_type == "flat":
-				label = f"₹{int(d_val)} Off"
-			elif c.discount_type == "delivery":
-				label = "Free Delivery"
-			elif c.offer_type == "combo" and c.get("free_item"):
-				label = f"Free {(c.free_item or '').split(' - ')[-1]}"
-			elif c.offer_type == "combo":
-				cp = flt(c.get("combo_price") or 0)
-				label = f"Combo ₹{int(cp)}" if cp else "Combo Deal"
-			else:
-				label = f"Offer: {c.code}"
-
-			icon = "🎁"
-			if c.discount_type == "delivery":
-				icon = "🚚"
-			elif d_val > 50:
-				icon = "🔥"
-			elif c.offer_type == "combo":
-				icon = "🍱"
-
-			coupon_milestones.append({
-				"threshold": flt(c.get("min_order_amount")),
-				"rewardType": "message",
-				"rewardText": c.description or f"Use code {c.code} at checkout to save!",
-				"rewardLabel": label,
-				"icon": icon,
-				"couponCode": c.code,
-				"isCoupon": True,
-			})
-
-		coupon_milestones.sort(key=lambda x: x.get("threshold", 0))
-		response_data["settings"]["cartMilestones"] = coupon_milestones
-		response_data["settings"]["enableCartMilestones"] = len(coupon_milestones) > 0
 		response_data["settings"]["comboDeals"] = combo_deals
 
 		# Try to include Home Feature images (menu, book-table, legacy, offers-events, dine-play)
@@ -857,7 +811,7 @@ def get_filters(restaurant_id):
 		config = frappe.db.get_value(
 			"Restaurant Config",
 			{"restaurant": restaurant},
-			["color_palette_green", "color_palette_red", "primary_color", "color_palette_yellow"],
+			["color_palette_green", "color_palette_red", "color_palette_yellow"],
 			as_dict=True
 		)
 		
@@ -867,8 +821,7 @@ def get_filters(restaurant_id):
 				filters[0]["color"] = config["color_palette_green"]
 			if config.get("color_palette_red"):
 				filters[1]["color"] = config["color_palette_red"]
-			if config.get("primary_color"):
-				filters[2]["color"] = config["primary_color"]
+			filters[2]["color"] = "#B7410E"
 			if config.get("color_palette_yellow"):
 				filters[3]["color"] = config["color_palette_yellow"]
 		

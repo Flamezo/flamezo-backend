@@ -171,8 +171,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'enable_offers',
       'enable_coupons',
       'enable_experience_lounge',
-      'enable_cart_milestones',
-      'cart_milestones',
 
       // Social / contact
       'google_review_link',

@@ -63,7 +63,6 @@ def _get_restaurant_config_name(restaurant):
         "doctype": "Restaurant Config",
         "restaurant": restaurant,
         "restaurant_name": restaurant_name,
-        "primary_color": "#DB782F",
         "default_theme": "light",
         "currency": frappe.db.get_value("Restaurant", restaurant, "currency") or "INR",
         "menu_layout": "2 Columns",

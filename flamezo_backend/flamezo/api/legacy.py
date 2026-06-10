@@ -46,8 +46,7 @@ def get_legacy_content(restaurant_id):
 		# Format content
 		content = {
 			"openingText": legacy_doc.opening_text or "",
-			"paragraph1": legacy_doc.paragraph_1 or "",
-			"paragraph2": legacy_doc.paragraph_2 or ""
+			"paragraph1": legacy_doc.paragraph_1 or ""
 		}
 		
 		# Format signature dishes - return array of dish IDs for frontend compatibility
@@ -244,8 +243,6 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 				legacy_doc.opening_text = content["openingText"]
 			if "paragraph1" in content:
 				legacy_doc.paragraph_1 = content["paragraph1"]
-			if "paragraph2" in content:
-				legacy_doc.paragraph_2 = content["paragraph2"]
 		
 		# Update signature dishes
 		if signature_dishes:
@@ -351,8 +348,7 @@ def get_default_legacy_content(restaurant_name):
 		"hero": {},
 		"content": {
 			"openingText": "",
-			"paragraph1": "",
-			"paragraph2": ""
+			"paragraph1": ""
 		},
 		"signatureDishes": [],
 		"testimonials": [],
@@ -429,8 +425,7 @@ def generate_legacy_content(restaurant_id):
 		
 		content_payload = {
 			"openingText": ai_result["content"]["openingText"],
-			"paragraph1": ai_result["content"]["paragraph1"],
-			"paragraph2": ai_result["content"]["paragraph2"]
+			"paragraph1": ai_result["content"]["paragraph1"]
 		}
 		
 		footer_payload = {

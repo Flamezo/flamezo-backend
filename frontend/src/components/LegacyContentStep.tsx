@@ -35,8 +35,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   const [selectedDish, setSelectedDish] = useState<string>('')
   const [heroData, setHeroData] = useState({
     opening_text: '',
-    paragraph_1: '',
-    paragraph_2: ''
+    paragraph_1: ''
   })
   const [footerData, setFooterData] = useState({
     footer_media_src: '',
@@ -118,8 +117,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
 
     setHeroData({
       opening_text: content.openingText || '',
-      paragraph_1: content.paragraph1 || '',
-      paragraph_2: content.paragraph2 || ''
+      paragraph_1: content.paragraph1 || ''
     })
 
     setFooterData({
@@ -174,8 +172,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
         restaurant_id: selectedRestaurant,
         content: {
           openingText: heroData.opening_text,
-          paragraph1: heroData.paragraph_1,
-          paragraph2: heroData.paragraph_2
+          paragraph1: heroData.paragraph_1
         }
       })
       toast.success('Hero content updated successfully')
@@ -824,15 +821,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
                 value={heroData.paragraph_1} 
                 onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_1: e.target.value }))}
                 placeholder="Tell your restaurant's story" 
-              />
-            </div>
-            <div>
-              <Label htmlFor="paragraph_2">Second Paragraph (Optional)</Label>
-              <Textarea 
-                name="paragraph_2" 
-                value={heroData.paragraph_2} 
-                onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_2: e.target.value }))}
-                placeholder="Continue your story" 
               />
             </div>
             <Button type="submit" disabled={isUpdating || uploading}>

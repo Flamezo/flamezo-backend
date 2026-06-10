@@ -29,7 +29,6 @@ export const FEATURES = {
   EXPERIENCE_LOUNGE: 'experience_lounge',
   EVENTS: 'events',
   OFFERS: 'offers',
-  CART_MILESTONES: 'cart_milestones',
 } as const;
 
 export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];

@@ -32,12 +32,8 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 
 
 def _get_restaurant_primary_color(restaurant_name):
-	"""Fast fetch of primary_color from Restaurant Config."""
-	return frappe.db.get_value(
-		"Restaurant Config",
-		{"restaurant": restaurant_name},
-		"primary_color"
-	) or "#DB782F"
+	"""Brand color is fixed to the Flamezo copper (no per-restaurant colors)."""
+	return "#B7410E"
 
 
 def _get_active_offers_count(restaurant_name):
@@ -644,7 +640,7 @@ def get_restaurant_summary(restaurant_id):
 		config = frappe.db.get_value(
 			"Restaurant Config",
 			{"restaurant": restaurant.name},
-			["restaurant_name", "tagline", "primary_color", "default_theme"],
+			["restaurant_name", "tagline", "default_theme"],
 			as_dict=True,
 		) or {}
 
@@ -659,7 +655,7 @@ def get_restaurant_summary(restaurant_id):
 				"logo": restaurant.logo or "",
 				"city": restaurant.city or "",
 				"plan_type": restaurant.plan_type or "GOLD",
-				"primary_color": config.get("primary_color") or "#DB782F",
+				"primary_color": "#B7410E",
 				"default_theme": config.get("default_theme") or "dark",
 				"latitude": restaurant.latitude,
 				"longitude": restaurant.longitude,
