@@ -830,6 +830,7 @@ def update_order_settings(restaurant_id, settings):
 			"enable_delivery",
 			"enable_dine_in",
 			"order_channel",
+			"order_whatsapp_number",
 			"packaging_fee_type",
 			"default_packaging_fee", 
 			"minimum_order_value", 

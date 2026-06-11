@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, MessageSquare, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers } from 'lucide-react'
+import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers } from 'lucide-react'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
@@ -134,7 +134,6 @@ const navigation: NavItem[] = [
       { name: 'Past and Billed Orders', href: '/past-orders', icon: Clock, feature: 'ordering' },
     ],
   },
-  { type: 'link', name: 'WhatsApp Orders', href: '/whatsapp-orders', icon: MessageSquare, badgeHref: '/whatsapp-orders', feature: 'whatsapp_orders' },
   { type: 'link', name: 'Table Bookings', href: '/bookings', icon: Calendar, feature: 'table_booking' },
   {
     type: 'group',
@@ -987,11 +986,11 @@ export default function Layout({ children }: LayoutProps) {
                 }, 0)
                 const showBadge = groupBadgeCount > 0
 
-                // Group locking logic
+                // Group locking logic. WhatsApp channel no longer hides "Manage Orders" —
+                // orders are unified across channels, so this is always false now.
                 const groupStatus = getFeatureStatus(group.feature)
-                // Lock 'Manage Orders' group when Gold restaurant has chosen WhatsApp channel
-                const isWhatsAppChannelLocked = group.id === 'manage-orders' && isGold && orderChannel === 'WhatsApp'
-                const isGroupLocked = groupStatus.isLocked || isWhatsAppChannelLocked
+                const isWhatsAppChannelLocked = false
+                const isGroupLocked = groupStatus.isLocked
 
                 // Check if all children are also locked (to mark parent as fully locked)
                 const allChildrenLocked = filteredChildren.length > 0 && filteredChildren.every(child => getFeatureStatus(child.feature).isLocked)
@@ -1037,7 +1036,7 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
-                            const isChildActive = location.pathname === child.href || (child.href !== '/' && child.href !== '/google-growth' && location.pathname.startsWith(child.href + '/'))
+                            const isChildActive = location.pathname === child.href || (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
 
                             // Unified child locking logic
                             const childStatus = getFeatureStatus(child.feature)
@@ -1155,7 +1154,7 @@ export default function Layout({ children }: LayoutProps) {
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
                             const isChildActive = location.pathname === child.href ||
-                              (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && location.pathname.startsWith(child.href + '/'))
+                              (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
                             const childBadgeCount = child.badgeHref === '/orders'
                               ? pendingOrders
                               : child.badgeHref === '/accept-orders'

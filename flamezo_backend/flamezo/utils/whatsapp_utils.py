@@ -84,11 +84,14 @@ def send_whatsapp_cloud_message(to_phone, template_name, body_params, settings=N
     if not settings:
         settings = frappe.get_single("Flamezo Settings")
 
-    token = settings.get_password("whatsapp_cloud_api_token")
-    phone_id = getattr(settings, "whatsapp_cloud_api_phone_id", None)
+    # Prefer the platform Meta Cloud creds in site_config — these are the same ones
+    # OTP uses and are proven working on prod. Fall back to Flamezo Settings.
+    site_config = frappe.get_site_config() or {}
+    token = site_config.get("whatsapp_access_token") or settings.get_password("whatsapp_cloud_api_token")
+    phone_id = site_config.get("whatsapp_phone_number_id") or getattr(settings, "whatsapp_cloud_api_phone_id", None)
 
     if not token or not phone_id:
-        return False, "WhatsApp Cloud API not configured in Flamezo Settings"
+        return False, "WhatsApp Cloud API not configured (site_config or Flamezo Settings)"
     if not template_name:
         return False, "No WhatsApp order template configured"
 

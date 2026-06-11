@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Truck, ShoppingBag, Clock, DollarSign, Settings, Percent, FileText, MessageSquare, Zap, Crown } from 'lucide-react'
+import { Truck, ShoppingBag, Clock, DollarSign, Settings, Percent, FileText, MessageSquare, Crown } from 'lucide-react'
 
 export default function OrderSettings() {
-  const { selectedRestaurant, billingInfo, isGold } = useRestaurant()
+  const { selectedRestaurant, billingInfo, isGold, restaurantConfig } = useRestaurant()
+  // WhatsApp number registered in the Setup Wizard — used as the default for order delivery.
+  const setupWhatsapp: string = restaurantConfig?.socialMedia?.whatsappPhoneNumber || ''
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState({
     enable_takeaway: 1,
@@ -26,6 +28,7 @@ export default function OrderSettings() {
     delivery_charge_per_km: 0,
     max_delivery_distance: 10.0,
     order_channel: 'Realtime' as 'Realtime' | 'WhatsApp',
+    order_whatsapp_number: '',
     tax_rate: 5.0,
     gst_number: ''
   })
@@ -50,11 +53,19 @@ export default function OrderSettings() {
         delivery_charge_per_km: restaurantDoc.delivery_charge_per_km ?? 0,
         max_delivery_distance: restaurantDoc.max_delivery_distance ?? 10.0,
         order_channel: (restaurantDoc.order_channel as 'Realtime' | 'WhatsApp') || 'Realtime',
+        order_whatsapp_number: restaurantDoc.order_whatsapp_number ?? '',
         tax_rate: restaurantDoc.tax_rate ?? 5.0,
         gst_number: restaurantDoc.gst_number ?? ''
       })
     }
   }, [restaurantDoc])
+
+  // Default the order WhatsApp number to the Setup Wizard number when none is set yet.
+  useEffect(() => {
+    if (setupWhatsapp) {
+      setSettings(prev => prev.order_whatsapp_number ? prev : { ...prev, order_whatsapp_number: setupWhatsapp })
+    }
+  }, [setupWhatsapp])
 
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, data: any }>('flamezo_backend.flamezo.api.config.update_order_settings')
 
@@ -77,6 +88,7 @@ export default function OrderSettings() {
           delivery_charge_per_km: settings.delivery_charge_per_km,
           max_delivery_distance: settings.max_delivery_distance,
           order_channel: settings.order_channel,
+          order_whatsapp_number: settings.order_whatsapp_number,
           tax_rate: settings.tax_rate,
           gst_number: settings.gst_number
         }
@@ -165,34 +177,42 @@ export default function OrderSettings() {
                 />
               </button>
 
-              {/* Labels */}
+              {/* State */}
               <div className="flex items-center gap-2">
-                <span className={`flex items-center gap-1 text-sm font-medium transition-colors ${settings.order_channel === 'Realtime' ? 'text-primary' : 'text-muted-foreground'}`}>
-                  <Zap className="w-3.5 h-3.5" /> Real-time
-                </span>
-                <span className="text-muted-foreground/40 text-xs">/</span>
-                <span className={`flex items-center gap-1 text-sm font-medium transition-colors ${settings.order_channel === 'WhatsApp' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-                </span>
+                <MessageSquare className={`w-4 h-4 ${settings.order_channel === 'WhatsApp' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`} />
+                <div>
+                  <p className="text-sm font-medium">Send orders to WhatsApp</p>
+                  <p className={`text-xs font-medium ${settings.order_channel === 'WhatsApp' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                    {settings.order_channel === 'WhatsApp' ? 'On — new orders go to your WhatsApp' : 'Off'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {!isGold && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
-                  <Crown className="w-3 h-3" /> GOLD
-                </span>
-              )}
-              <div>
-                <p className="text-sm font-medium text-right">Order Channel</p>
-                <p className="text-xs text-muted-foreground text-right">
-                  {settings.order_channel === 'WhatsApp'
-                    ? 'Customers order via WhatsApp — sidebar orders hidden'
-                    : 'In-app checkout with live order tracking'}
-                </p>
-              </div>
-            </div>
+            {!isGold && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                <Crown className="w-3 h-3" /> GOLD
+              </span>
+            )}
           </div>
+
+          {settings.order_channel === 'WhatsApp' && (
+            <div className="mt-5 space-y-2 border-t pt-5">
+              <Label className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" /> WhatsApp number for orders
+              </Label>
+              <Input
+                value={settings.order_whatsapp_number || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, order_whatsapp_number: e.target.value }))}
+                placeholder={setupWhatsapp || 'e.g. 9876543210'}
+                className="h-10 max-w-xs"
+                disabled={!isGold}
+              />
+              <p className="text-xs text-muted-foreground">
+                New orders are sent to this WhatsApp number. Pre-filled from your Setup Wizard number{setupWhatsapp ? '' : ' (set one in the Setup Wizard)'} — edit it here anytime.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

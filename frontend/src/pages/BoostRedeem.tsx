@@ -3,7 +3,7 @@ import { useFrappePostCall } from '@/lib/frappe'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
-  ChevronLeft, CheckCircle2, XCircle, ScanLine, Zap, Ticket, Calendar, Hash
+  ChevronLeft, ChevronRight, CheckCircle2, XCircle, ScanLine, Zap, Ticket, Calendar, Hash
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

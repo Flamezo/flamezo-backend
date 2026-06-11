@@ -5,7 +5,7 @@ import frappe
 import re
 import phonenumbers
 
-SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+SESSION_TTL_SECONDS = 365 * 24 * 60 * 60
 _SESSION_DOCTYPE = "Customer Session"
 
 
