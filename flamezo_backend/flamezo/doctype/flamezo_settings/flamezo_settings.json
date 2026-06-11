@@ -25,6 +25,7 @@
   "whatsapp_cloud_api_token",
   "whatsapp_cloud_api_phone_id",
   "whatsapp_cloud_api_business_id",
+  "order_whatsapp_template_name",
   "section_marketing_costs",
   "marketing_sms_cost_per_msg",
   "marketing_sms_coins_per_msg",
@@ -162,6 +163,12 @@
    "fieldtype": "Data",
    "label": "Meta Business Account ID",
    "description": "Found in WhatsApp > API Setup"
+  },
+  {
+   "fieldname": "order_whatsapp_template_name",
+   "fieldtype": "Data",
+   "label": "Order Notification Template Name",
+   "description": "Approved Meta UTILITY template used to send placed orders to restaurants (4 body params: order no, customer, fulfilment, items+total). Restaurants with Order Channel = WhatsApp receive orders via this."
   },
   {
    "fieldname": "section_marketing_costs",

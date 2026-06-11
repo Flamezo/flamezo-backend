@@ -342,6 +342,7 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			"doctype": "Order",
 			"order_id": order_id,
 			"order_number": order_number,
+			"order_view_token": frappe.generate_hash(length=24),
 			"restaurant": restaurant,
 			"customer": user,
 			"customer_name": customer_info.get("name") if customer_info else None,
@@ -473,11 +474,23 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 		
 		# Format response
 		formatted_order = format_order(order_doc)
-		
+
+		# If the restaurant receives orders on WhatsApp, send the full order to their
+		# WhatsApp (official Meta Cloud API) — enqueued after commit, never blocks/fails
+		# the order. Petpooja/UrbanPiper POS push is independent of this.
+		if getattr(restaurant_doc, "order_channel", None) == "WhatsApp":
+			frappe.enqueue(
+				"flamezo_backend.flamezo.utils.order_whatsapp.dispatch_order_whatsapp",
+				order_name=order_doc.name,
+				enqueue_after_commit=True,
+				queue="short",
+				job_id=f"wa_order_{order_doc.name}",
+			)
+
 		# Clear cart after order placement (for this restaurant)
 		from flamezo_backend.flamezo.api.cart import clear_cart
 		clear_cart(restaurant_id, session_id)
-		
+
 		return {
 			"success": True,
 			"data": {
@@ -493,6 +506,45 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 				"message": str(e)
 			}
 		}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_order_receipt(token):
+	"""
+	Public, token-secured order receipt — backs the WhatsApp 'View Full Order' link
+	(flamezo.in/o/<token>). Returns the full formatted order + minimal restaurant info.
+	The token is a random 24-char hash, so orders are not enumerable.
+	"""
+	if not token:
+		frappe.local.response["http_status_code"] = 400
+		return {"success": False, "error": "Missing token"}
+
+	name = frappe.db.get_value("Order", {"order_view_token": token}, "name")
+	if not name:
+		frappe.local.response["http_status_code"] = 404
+		return {"success": False, "error": "Order not found"}
+
+	order = frappe.get_doc("Order", name)
+	restaurant = frappe.db.get_value(
+		"Restaurant", order.restaurant, ["restaurant_name", "logo"], as_dict=True
+	) or {}
+
+	return {
+		"success": True,
+		"data": {
+			"order": format_order(order),
+			"paymentMethod": getattr(order, "payment_method", None),
+			"paymentStatus": getattr(order, "payment_status", None),
+			"coupon": getattr(order, "coupon", None),
+			"loyaltyCoinsRedeemed": flt(getattr(order, "loyalty_coins_redeemed", 0)),
+			"loyaltyDiscount": flt(getattr(order, "loyalty_discount", 0)),
+			"coinsEarned": flt(getattr(order, "coins_earned", 0)),
+			"restaurant": {
+				"name": restaurant.get("restaurant_name"),
+				"logo": restaurant.get("logo"),
+			},
+		},
+	}
 
 
 @frappe.whitelist(allow_guest=True)

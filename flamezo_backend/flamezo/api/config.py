@@ -72,16 +72,12 @@ def get_restaurant_config(restaurant_id):
 			"Restaurant Config",
 			{"restaurant": restaurant},
 			["restaurant_name", "tagline", "subtitle", "description", "default_theme",
-			 "logo", "logo_size", "hero_video", "apple_touch_icon", "color_palette_violet", "color_palette_indigo",
-			 "color_palette_blue", "color_palette_green", "color_palette_yellow", "color_palette_orange",
-			 "color_palette_red", "menu_theme_background_active", "menu_theme_background_preview", "menu_theme_background_history", 
+			 "logo", "logo_size", "hero_video", "apple_touch_icon", 
+			 "menu_theme_background_active", "menu_theme_background_preview", "menu_theme_background_history", 
 			 "menu_theme_wallpapers", "menu_theme_main_index",
 			 "currency", "menu_layout", "enable_table_booking", "enable_banquet_booking",
 			 "menu_theme_background_enabled", "menu_theme_paid_until",
-			 "enable_events", "enable_offers", "enable_coupons", "enable_experience_lounge",
-			 "enable_loyalty",
-			 "google_review_link", "instagram_profile_link", "facebook_profile_link", "whatsapp_phone_number",
-			 "swiggy_link", "zomato_link"],
+			 "google_review_link", "instagram_profile_link", "facebook_profile_link", "whatsapp_phone_number"],
 			as_dict=True
 		)
 		
@@ -108,35 +104,12 @@ def get_restaurant_config(restaurant_id):
 				"currency": restaurant_doc.currency or "INR",
 				"enable_table_booking": 1,
 				"enable_banquet_booking": 1,
-				"enable_events": 1,
-				"enable_offers": 1,
-				"enable_coupons": 1,
-				"enable_experience_lounge": 1,
 				"google_review_link": "",
 				"instagram_profile_link": "",
 				"facebook_profile_link": "",
-				"whatsapp_phone_number": "",
-				"swiggy_link": "",
-				"zomato_link": ""
+				"whatsapp_phone_number": ""
 			}
 		
-		# Build color palette
-		color_palette = {}
-		if config.get("color_palette_violet"):
-			color_palette["violet"] = config["color_palette_violet"]
-		if config.get("color_palette_indigo"):
-			color_palette["indigo"] = config["color_palette_indigo"]
-		if config.get("color_palette_blue"):
-			color_palette["blue"] = config["color_palette_blue"]
-		if config.get("color_palette_green"):
-			color_palette["green"] = config["color_palette_green"]
-		if config.get("color_palette_yellow"):
-			color_palette["yellow"] = config["color_palette_yellow"]
-		if config.get("color_palette_orange"):
-			color_palette["orange"] = config["color_palette_orange"]
-		if config.get("color_palette_red"):
-			color_palette["red"] = config["color_palette_red"]
-
 		# Brand color is now fixed to the Flamezo copper — no per-restaurant colors.
 		primary_color = "#B7410E"
 		
@@ -210,16 +183,7 @@ def get_restaurant_config(restaurant_id):
 				"menuThemeBackgroundPreview": config.get("menu_theme_background_preview", "") if menu_theme_background_enabled else "",
 				"menuThemeBackgroundHistory": config.get("menu_theme_background_history", []) if menu_theme_background_enabled else [],
 				"menuThemeWallpapers": json.loads(config.get("menu_theme_wallpapers") or "[]") if menu_theme_background_enabled else [],
-				"menuThemeMainIndex": config.get("menu_theme_main_index", 0) if menu_theme_background_enabled else 0,
-				"colorPalette": color_palette if color_palette else {
-					"violet": "#A992B2",
-					"indigo": "#8892B0",
-					"blue": "#87ABCA",
-					"green": "#9AAF7A",
-					"yellow": "#E0C682",
-					"orange": "#DB782F",
-					"red": "#D68989"
-				}
+				"menuThemeMainIndex": config.get("menu_theme_main_index", 0) if menu_theme_background_enabled else 0
 			},
 			"pricing": {
 				"currency": currency_info.get("currency", "INR"),
@@ -230,10 +194,10 @@ def get_restaurant_config(restaurant_id):
 				"menuLayout": config.get("menu_layout") or "2 Columns",
 				"enableTableBooking": bool(config.get("enable_table_booking")),
 				"enableBanquetBooking": bool(config.get("enable_banquet_booking")),
-				"enableEvents": bool(config.get("enable_events")),
-				"enableOffers": bool(config.get("enable_offers")),
-				"enableCoupons": bool(config.get("enable_coupons")),
-				"enableExperienceLounge": bool(config.get("enable_experience_lounge")),
+				"enableEvents": True,
+				"enableOffers": True,
+				"enableCoupons": True,
+				"enableExperienceLounge": True,
 				# Verification is now backend-controlled (no per-restaurant toggle).
 				# Always reported as True so the frontend uniformly treats the Savings
 				# Corner (offers + coupons + Flamezo Cash) as gated. The Restaurant
@@ -242,7 +206,7 @@ def get_restaurant_config(restaurant_id):
 				"verifyMyUser": True,
 				"savingsCornerGated": True,
 				"loyaltyRequiresOnlinePayment": True,
-				"enableLoyalty": bool(restaurant_doc.get("enable_loyalty")),
+				"enableLoyalty": True,
 				"defaultDeliveryFee": flt(restaurant_doc.get("default_delivery_fee", 0)),
 				"googleMapsApiKey": frappe.conf.get("google_maps_api_key") or frappe.db.get_single_value("Flamezo Settings", "google_maps_api_key"),
 				"order_settings": {
@@ -263,9 +227,7 @@ def get_restaurant_config(restaurant_id):
 				"googleReviewLink": config.get("google_review_link", ""),
 				"instagramProfileLink": config.get("instagram_profile_link", ""),
 				"facebookProfileLink": config.get("facebook_profile_link", ""),
-				"whatsappPhoneNumber": config.get("whatsapp_phone_number", ""),
-				"swiggyLink": config.get("swiggy_link", ""),
-				"zomatoLink": config.get("zomato_link", "")
+				"whatsappPhoneNumber": config.get("whatsapp_phone_number", "")
 			},
 			"subscription": {
 				"planType": "GOLD",
@@ -577,16 +539,16 @@ def get_home_features(restaurant_id):
 		global_config = frappe.db.get_value(
 			"Restaurant Config",
 			{"restaurant": restaurant},
-			["enable_table_booking", "enable_banquet_booking", "enable_events", "enable_offers", "enable_experience_lounge"],
+			["enable_table_booking", "enable_banquet_booking"],
 			as_dict=True
 		) or {}
 		
 		# Fallback to 1 (enabled) if config not yet created, matching get_restaurant_config fallback behavior
 		enable_table_booking = bool(global_config.get("enable_table_booking", 1))
 		enable_banquet_booking = bool(global_config.get("enable_banquet_booking", 1))
-		enable_events = bool(global_config.get("enable_events", 1))
-		enable_offers = bool(global_config.get("enable_offers", 1))
-		enable_experience_lounge = bool(global_config.get("enable_experience_lounge", 1))
+		enable_events = True
+		enable_offers = True
+		enable_experience_lounge = True
 
 		formatted_features = []
 		for feature in features:
