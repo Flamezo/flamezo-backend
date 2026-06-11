@@ -15,7 +15,6 @@
   "subdomain",
   "slug",
   "is_active",
-  "enable_loyalty",
   "section_break_owner",
   "owner_email",
   "owner_phone",
@@ -190,12 +189,6 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Is Active"
-  },
-  {
-   "default": "0",
-   "fieldname": "enable_loyalty",
-   "fieldtype": "Check",
-   "label": "Enable Loyalty"
   },
   {
    "fieldname": "section_break_owner",
@@ -459,7 +452,7 @@
    "label": "Success Share %",
    "default": "3",
    "precision": 2,
-   "description": "Flamezo's Success Share percentage (default: 3% for new restaurants; legacy restaurants are grandfathered at 1.5%) — applied to every order GMV"
+   "description": "Flamezo's Success Share percentage (default: 3% for new restaurants; legacy restaurants are grandfathered at 1.5%) \u2014 applied to every order GMV"
   },
   {
    "fieldname": "monthly_minimum",
@@ -543,7 +536,7 @@
    "fieldname": "bank_holder_name",
    "fieldtype": "Data",
    "label": "Bank Account Holder Name",
-   "description": "As per bank records — must match PAN for KYC clearance"
+   "description": "As per bank records \u2014 must match PAN for KYC clearance"
   },
   {
    "fieldname": "section_break_commission_state",
@@ -716,7 +709,7 @@
    "fieldtype": "Check",
    "hidden": 1,
    "label": "Enable Daily Floor Recovery",
-   "description": "Retired — the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
+   "description": "Retired \u2014 the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
   },
   {
    "fieldname": "floor_recovery_activated_on",

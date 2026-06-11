@@ -35,33 +35,19 @@
   "menu_theme_background_history",
   "menu_theme_last_error",
   "section_break_color_palette",
-  "color_palette_violet",
-  "color_palette_indigo",
-  "color_palette_blue",
-  "color_palette_green",
-  "color_palette_yellow",
-  "color_palette_orange",
-  "color_palette_red",
   "section_break_settings",
   "currency",
   "menu_layout",
   "enable_table_booking",
   "enable_banquet_booking",
   "column_break_settings",
-  "enable_events",
-  "enable_offers",
-  "enable_coupons",
-  "enable_experience_lounge",
-  "enable_loyalty",
   "verify_my_user",
   "section_break_social_media",
   "google_review_link",
   "instagram_profile_link",
   "column_break_social_media",
   "facebook_profile_link",
-  "whatsapp_phone_number",
-  "swiggy_link",
-  "zomato_link"
+  "whatsapp_phone_number"
  ],
  "fields": [
   {
@@ -223,41 +209,6 @@
    "label": "Color Palette"
   },
   {
-   "fieldname": "color_palette_violet",
-   "fieldtype": "Data",
-   "label": "Violet"
-  },
-  {
-   "fieldname": "color_palette_indigo",
-   "fieldtype": "Data",
-   "label": "Indigo"
-  },
-  {
-   "fieldname": "color_palette_blue",
-   "fieldtype": "Data",
-   "label": "Blue"
-  },
-  {
-   "fieldname": "color_palette_green",
-   "fieldtype": "Data",
-   "label": "Green"
-  },
-  {
-   "fieldname": "color_palette_yellow",
-   "fieldtype": "Data",
-   "label": "Yellow"
-  },
-  {
-   "fieldname": "color_palette_orange",
-   "fieldtype": "Data",
-   "label": "Orange"
-  },
-  {
-   "fieldname": "color_palette_red",
-   "fieldtype": "Data",
-   "label": "Red"
-  },
-  {
    "fieldname": "section_break_settings",
    "fieldtype": "Section Break",
    "label": "Settings"
@@ -292,37 +243,6 @@
   {
    "fieldname": "column_break_settings",
    "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "enable_events",
-   "fieldtype": "Check",
-   "label": "Enable Events"
-  },
-  {
-   "default": "1",
-   "fieldname": "enable_offers",
-   "fieldtype": "Check",
-   "label": "Enable Offers"
-  },
-  {
-   "default": "1",
-   "fieldname": "enable_coupons",
-   "fieldtype": "Check",
-   "label": "Enable Coupons"
-  },
-  {
-   "default": "1",
-   "fieldname": "enable_experience_lounge",
-   "fieldtype": "Check",
-   "label": "Enable Experience Lounge"
-  },
-  {
-   "default": "0",
-   "fieldname": "enable_loyalty",
-   "fieldtype": "Check",
-   "label": "Enable Loyalty & Referrals",
-   "description": "Enable restaurant-specific loyalty points and referral rewards"
   },
   {
    "default": "0",
@@ -370,22 +290,6 @@
    "label": "WhatsApp Phone Number",
    "options": "Phone",
    "description": "Phone number for WhatsApp contact"
-  },
-  {
-   "fieldname": "swiggy_link",
-   "fieldtype": "Data",
-   "label": "Swiggy Link",
-   "options": "URL",
-   "description": "Link to Swiggy restaurant page",
-   "length": 1000
-  },
-  {
-   "fieldname": "zomato_link",
-   "fieldtype": "Data",
-   "label": "Zomato Link",
-   "options": "URL",
-   "description": "Link to Zomato restaurant page",
-   "length": 1000
   },
   {
    "fieldname": "merchant_push_tokens",

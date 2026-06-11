@@ -14,6 +14,7 @@ import { PageSkeleton } from './components/PageSkeleton'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const GrowthDashboard = lazy(() => import('./pages/GrowthDashboard'))
 const Login = lazy(() => import('./pages/Login'))
+const OrderReceipt = lazy(() => import('./pages/OrderReceipt'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
@@ -86,6 +87,8 @@ function AppContent() {
 						<Route path="/login" element={<Login />} />
 						<Route path="/forgot-password" element={<ForgotPassword />} />
 						<Route path="/reset-password" element={<ResetPassword />} />
+						{/* Public order receipt — opened from the WhatsApp "View Full Order" button (token-secured, no login) */}
+						<Route path="/o/:token" element={<OrderReceipt />} />
 
 
 

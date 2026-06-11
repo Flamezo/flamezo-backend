@@ -44,6 +44,9 @@
   "status",
   "is_pushed_to_pos",
   "pos_order_id",
+  "is_sent_to_whatsapp",
+  "whatsapp_send_status",
+  "order_view_token",
   "column_break_status",
   "payment_method",
   "payment_status",
@@ -327,6 +330,26 @@
    "fieldtype": "Data",
    "label": "POS Order ID",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_sent_to_whatsapp",
+   "fieldtype": "Check",
+   "label": "Is Sent to WhatsApp",
+   "read_only": 1
+  },
+  {
+   "fieldname": "whatsapp_send_status",
+   "fieldtype": "Data",
+   "label": "WhatsApp Send Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "order_view_token",
+   "fieldtype": "Data",
+   "label": "Order View Token",
+   "read_only": 1,
+   "description": "Random token for the public receipt link (flamezo.in/o/<token>)"
   },
   {
    "fieldname": "column_break_status",

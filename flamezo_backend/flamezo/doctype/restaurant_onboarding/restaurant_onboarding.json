@@ -26,8 +26,6 @@
   "column_break_legal",
   "opening_time",
   "closing_time",
-  "swiggy_link",
-  "zomato_link",
   "section_break_config",
   "subtitle",
   "default_theme",
@@ -35,9 +33,6 @@
   "column_break_config",
   "enable_table_booking",
   "enable_banquet_booking",
-  "enable_events",
-  "enable_offers",
-  "enable_experience_lounge",
   "section_break_address",
   "address",
   "city",
@@ -174,18 +169,6 @@
    "label": "Closing Time"
   },
   {
-   "fieldname": "swiggy_link",
-   "fieldtype": "Data",
-   "label": "Swiggy Link",
-   "options": "URL"
-  },
-  {
-   "fieldname": "zomato_link",
-   "fieldtype": "Data",
-   "label": "Zomato Link",
-   "options": "URL"
-  },
-  {
    "fieldname": "section_break_config",
    "fieldtype": "Section Break",
    "label": "Setup & Configuration"
@@ -223,24 +206,6 @@
    "fieldname": "enable_banquet_booking",
    "fieldtype": "Check",
    "label": "Enable Banquet Booking",
-   "default": 1
-  },
-  {
-   "fieldname": "enable_events",
-   "fieldtype": "Check",
-   "label": "Enable Events",
-   "default": 1
-  },
-  {
-   "fieldname": "enable_offers",
-   "fieldtype": "Check",
-   "label": "Enable Offers",
-   "default": 1
-  },
-  {
-   "fieldname": "enable_experience_lounge",
-   "fieldtype": "Check",
-   "label": "Enable Experience Lounge",
    "default": 1
   },
   {
