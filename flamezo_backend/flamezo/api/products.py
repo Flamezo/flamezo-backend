@@ -115,6 +115,87 @@ def get_top_picks(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_chef_special(restaurant_id):
+	"""
+	GET — Chef's Special list. ALWAYS returns a usable list (min 5 when the menu has
+	enough active items): the merchant's explicitly tagged 'chef-special' items first,
+	then premium fallback picks of our own so the section is never empty / too short.
+
+	All of this logic lives here (backend) — the frontend just renders the list.
+	Fallback priority for the "our own" items:
+	  1. tagged chef-special
+	  2. NOT top-picks (so Chef's Special doesn't duplicate Top Picks)
+	  3. premium feel — higher price first, then display_order, then newest
+	Media-prioritized + cached + stable (no randomness).
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		cache_key = f"chef_special:{restaurant_id}"
+		cached_response = frappe.cache().get_value(cache_key)
+		if cached_response:
+			return json.loads(cached_response)
+
+		# Only fall back to no-media products if the restaurant has none with media.
+		has_any_media = frappe.db.exists("Menu Product", {"restaurant": restaurant, "is_active": 1, "has_no_media": 0})
+		media_filter = " AND has_no_media = 0" if has_any_media else ""
+
+		products = frappe.db.sql(f"""
+			SELECT
+				name as docname, product_id as id, product_name as name, price, original_price,
+				category_name as category, product_type as type, description, is_vegetarian,
+				calories, estimated_time as estimatedTime, serving_size as servingSize,
+				has_no_media, main_category as mainCategory, display_order, is_active,
+				recommendations
+			FROM `tabMenu Product`
+			WHERE
+				restaurant = %s AND is_active = 1 {media_filter}
+			ORDER BY
+				(CASE WHEN product_type = 'chef-special' THEN 0 ELSE 1 END) ASC,
+				(CASE WHEN product_type = 'top-picks' THEN 1 ELSE 0 END) ASC,
+				price DESC,
+				display_order ASC,
+				creation DESC
+			LIMIT 8
+		""", (restaurant,), as_dict=True)
+
+		formatted_products = format_products_for_listing_minimal(products)
+		currency_info = get_restaurant_currency_info(restaurant)
+
+		result = {
+			"success": True,
+			"data": {
+				"products": formatted_products,
+				"currency": currency_info.get("currency", "INR"),
+				"currencySymbol": currency_info.get("symbol", "₹"),
+				"currencySymbolOnRight": currency_info.get("symbolOnRight", False)
+			}
+		}
+
+		# Cache for 1 hour (same as top picks)
+		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=3600)
+
+		return result
+	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
+		return {
+			"success": False,
+			"error": {
+				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"message": str(e)
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_chef_special: {str(e)}")
+		return {
+			"success": False,
+			"error": {
+				"code": "CHEF_SPECIAL_FETCH_ERROR",
+				"message": str(e)
+			}
+		}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_products(restaurant_id, category=None, type=None, vegetarian=None, search=None, page=1, limit=50, include_inactive=0):
 	"""
 	GET /api/v1/products
