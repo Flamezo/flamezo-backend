@@ -5,10 +5,12 @@ import { getFeatureAccessStatus } from '@/utils/featureAccess'
 
 interface FeatureProtectedRouteProps {
   feature?: string
+  /** Grant access if ANY of these features is available (OR-gating). */
+  anyOf?: string[]
   requireGold?: boolean
 }
 
-export default function FeatureProtectedRoute({ feature, requireGold = false }: FeatureProtectedRouteProps) {
+export default function FeatureProtectedRoute({ feature, anyOf, requireGold = false }: FeatureProtectedRouteProps) {
   const { isGold, features, isLoading, planType } = useRestaurant()
   const location = useLocation()
   const [hasTimedOut, setHasTimedOut] = useState(false)
@@ -29,14 +31,16 @@ export default function FeatureProtectedRoute({ feature, requireGold = false }: 
     )
   }
 
-  // Robust access determination using centralized utility
-  const accessStatus = getFeatureAccessStatus(planType, feature)
-  
+  // A single feature is "granted" if the restaurant has the flag OR it's unlocked for the plan.
+  const featureGranted = (f: string) =>
+    Boolean((features as any)?.[f]) || !getFeatureAccessStatus(planType, f).isLocked
+
+  const checkList = anyOf?.length ? anyOf : (feature ? [feature] : [])
+
   const hasAccess = Boolean(
     (requireGold && isGold) ||
-    (!requireGold && !feature) ||
-    (feature && (features as any)?.[feature]) ||
-    (feature && !accessStatus.isLocked) ||
+    (!requireGold && checkList.length === 0) ||
+    (checkList.length > 0 && checkList.some(featureGranted)) ||
     hasTimedOut
   )
 

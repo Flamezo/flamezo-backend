@@ -136,11 +136,10 @@ def get_chef_special(restaurant_id):
 		if cached_response:
 			return json.loads(cached_response)
 
-		# Only fall back to no-media products if the restaurant has none with media.
-		has_any_media = frappe.db.exists("Menu Product", {"restaurant": restaurant, "is_active": 1, "has_no_media": 0})
-		media_filter = " AND has_no_media = 0" if has_any_media else ""
-
-		products = frappe.db.sql(f"""
+		# Rank by ACTUAL media (the `has_no_media` flag is unreliable / stale) so the
+		# list isn't collapsed to a handful of items. No hard media filter — we still
+		# reach the min count even if some items lack media (rendered with a fallback).
+		products = frappe.db.sql("""
 			SELECT
 				name as docname, product_id as id, product_name as name, price, original_price,
 				category_name as category, product_type as type, description, is_vegetarian,
@@ -149,9 +148,12 @@ def get_chef_special(restaurant_id):
 				recommendations
 			FROM `tabMenu Product`
 			WHERE
-				restaurant = %s AND is_active = 1 {media_filter}
+				restaurant = %s AND is_active = 1
 			ORDER BY
 				(CASE WHEN product_type = 'chef-special' THEN 0 ELSE 1 END) ASC,
+				(CASE WHEN EXISTS (
+					SELECT 1 FROM `tabProduct Media` pm WHERE pm.parent = `tabMenu Product`.name
+				) THEN 0 ELSE 1 END) ASC,
 				(CASE WHEN product_type = 'top-picks' THEN 1 ELSE 0 END) ASC,
 				price DESC,
 				display_order ASC,

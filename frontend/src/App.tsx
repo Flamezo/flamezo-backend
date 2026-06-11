@@ -51,7 +51,6 @@ const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
 const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
 const POSIntegration = lazy(() => import('./pages/POSIntegration'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
-const WhatsAppOrders = lazy(() => import('./pages/WhatsAppOrders'))
 const MarketingOverview = lazy(() => import('./pages/MarketingOverview'))
 const MarketingCampaigns = lazy(() => import('./pages/MarketingCampaigns'))
 const MarketingAutomation = lazy(() => import('./pages/MarketingAutomation'))
@@ -110,7 +109,7 @@ function AppContent() {
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
-								<Route element={<FeatureProtectedRoute feature="ordering" />}>
+								<Route element={<FeatureProtectedRoute anyOf={['ordering', 'whatsapp_orders']} />}>
 									<Route path="/orders" element={<Orders />} />
 									<Route path="/accept-orders" element={<AcceptOrders />} />
 									<Route path="/orders/:orderId" element={<OrderDetail />} />
@@ -156,9 +155,6 @@ function AppContent() {
 									<Route path="/recommendations-engine" element={<RecommendationsEngine />} />
 								</Route>
 
-								<Route element={<FeatureProtectedRoute feature="whatsapp_orders" />}>
-									<Route path="/whatsapp-orders" element={<WhatsAppOrders />} />
-								</Route>
 
 								{/* Marketing Studio (GOLD only) */}
 								<Route element={<FeatureProtectedRoute feature="marketing_studio" />}>

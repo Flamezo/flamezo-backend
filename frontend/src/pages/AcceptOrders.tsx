@@ -286,6 +286,14 @@ export default function AcceptOrders() {
   const [startInEditMode, setStartInEditMode] = useState(false)
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
+  const twentyFourHoursAgo = useMemo(() => {
+    const d = new Date()
+    d.setHours(d.getHours() - 24)
+    // Frappe expects YYYY-MM-DD HH:mm:ss format
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }, [])
+
   const { data: orders, isLoading, mutate } = useFrappeGetDocList(
     'Order',
     {
@@ -308,6 +316,7 @@ export default function AcceptOrders() {
         ['restaurant', '=', selectedRestaurant || ''],
         ['status', '=', PENDING_STATUS],
         ['payment_method', '=', 'pay_at_counter'],
+        ['creation', '>=', twentyFourHoursAgo],
       ] as any,
       limit: 200,
       orderBy: { field: 'creation', order: 'asc' },
