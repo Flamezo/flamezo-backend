@@ -1058,14 +1058,34 @@ def get_all_customer_orders(phone, page=1, limit=20, include_items=False):
 				filters={"parent": ["in", order_names]},
 				fields=["parent", "product", "quantity", "unit_price", "total_price", "customizations"],
 			)
+			# Resolve dish names in one query — the ecosystem view spans restaurants, so
+			# the order must be self-contained (the client can't resolve cross-restaurant
+			# dishes from its local per-restaurant store).
+			product_ids = list({it.get("product") for it in all_items if it.get("product")})
+			product_names = {}
+			if product_ids:
+				try:
+					prows = frappe.get_all(
+						"Menu Product", filters={"name": ["in", product_ids]},
+						fields=["name", "product_name"],
+					)
+					product_names = {p["name"]: p.get("product_name") for p in prows}
+				except Exception:
+					product_names = {}
 			from collections import defaultdict
 			items_by_order = defaultdict(list)
 			for item in all_items:
+				dish_name = product_names.get(item.get("product")) or "Item"
 				items_by_order[item.parent].append({
 					"dishId": item.product,
 					"quantity": item.quantity,
 					"customizations": json.loads(item.customizations) if item.customizations else {},
 					"totalPrice": flt(item.total_price),
+					"dish": {
+						"id": item.product,
+						"name": dish_name,
+						"price": flt(item.unit_price),
+					},
 				})
 			for order_data, o in zip(orders, order_list):
 				order_data["items"] = items_by_order.get(o.get("name"), [])
