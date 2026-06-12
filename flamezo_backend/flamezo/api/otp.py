@@ -324,6 +324,13 @@ def check_session(session_token):
 		
 		session = frappe.cache().get_value(f"customer_session:{session_token}")
 		if not session:
+			# Redis may have been flushed (deploy `clear-cache`, eviction, or restart).
+			# Fall back to the durable DB session (Customer Session) so a valid user
+			# isn't logged out just because the cache was cleared. This also repopulates
+			# Redis for subsequent reads.
+			from flamezo_backend.flamezo.utils.customer_helpers import _restore_session_from_db
+			session = _restore_session_from_db(session_token)
+		if not session:
 			# Return successful response but verified=False so frontend handles it cleanly
 			return {"success": True, "verified": False}
 		
