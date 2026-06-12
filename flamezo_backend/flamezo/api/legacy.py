@@ -99,26 +99,8 @@ def get_legacy_content(restaurant_id):
 				"avatar": avatar_url or (testimonial.customer_name or testimonial.name or "")[:2].upper()
 			})
 		
-		# Format members with Media Asset data
+		# Format members removed
 		members = []
-		for member in legacy_doc.members:
-			# Get member image from Media Asset or fallback
-			member_media = get_media_asset_data(
-				"Legacy Member",
-				member.name,
-				"legacy_member_image",
-				member.image
-			)
-			
-			members.append({
-				"id": int(member.idx) if hasattr(member, 'idx') else len(members) + 1,
-				"name": member.member_name or member.name,
-				"member_name": member.member_name or member.name,
-				"image": member_media["url"],
-				"imageBlurPlaceholder": member_media.get("blur_placeholder"),
-				"role": member.role or "",
-				"displayOrder": member.display_order
-			})
 		
 		# Format gallery - merge items from Restaurant Gallery and Legacy Content
 		gallery_images = []
@@ -275,25 +257,7 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 							"display_order": len(testimonial_row.dish_images) + 1
 						})
 		
-		# Update members
-		if members:
-			legacy_doc.members = []
-			for member_data in members:
-				member_image = member_data.get("image", "")
-				# Extract file path if full URL provided
-				if member_image and "://" in member_image:
-					# Extract path from URL (e.g., "http://domain/files/image.jpg" -> "/files/image.jpg")
-					import re
-					match = re.search(r'/files/[^/]+', member_image)
-					if match:
-						member_image = match.group(0)
-				
-				legacy_doc.append("members", {
-					"member_name": member_data.get("name"),
-					"image": member_image or "",
-					"role": member_data.get("role", ""),
-					"display_order": member_data.get("displayOrder", 0)
-				})
+		# Update members removed
 		
 		
 		# Update Instagram reels
@@ -446,25 +410,8 @@ def generate_legacy_content(restaurant_id):
 				"displayOrder": i + 1
 			})
 
-		# Build members from real restaurant owner data (not AI-invented names)
+		# Build members removed
 		members_payload = []
-		if restaurant_doc.owner_name:
-			# Use actual owner + AI-suggested role for that person
-			ai_members = ai_result.get("members", [])
-			owner_role = "Founder"
-			if ai_members:
-				# AI knows the owner name — use the role it assigned to them
-				for m in ai_members:
-					if restaurant_doc.owner_name.lower() in m.get("name", "").lower():
-						owner_role = m.get("role", "Founder")
-						break
-				else:
-					owner_role = ai_members[0].get("role", "Founder")
-			members_payload.append({
-				"name": restaurant_doc.owner_name,
-				"role": owner_role,
-				"displayOrder": 1
-			})
 
 		# Match signature dishes by name to find their IDs
 		signature_dishes_payload = []

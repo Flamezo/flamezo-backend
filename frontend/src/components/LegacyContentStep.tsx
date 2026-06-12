@@ -302,68 +302,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
     </Card>
   )
 
-  const renderMembersSection = () => (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Team Members
-            <Badge variant="secondary">{members?.length || 0}/3</Badge>
-          </CardTitle>
-          <Button 
-            size="sm" 
-            onClick={() => {
-              setEditingItem({ type: 'Member', doctype: 'Legacy Member' })
-              setCurrentSection('Member')
-              setIsDialogOpen(true)
-            }}
-            disabled={(members?.length || 0) >= 3}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Team Member
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {members && members.length > 0 ? (
-          <div className="space-y-4">
-            {members.map((item: any) => (
-              <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {item.image && (
-                    <div className="h-12 w-12 rounded-full overflow-hidden border">
-                      <img src={item.image} alt={item.member_name} className="h-full w-full object-cover" />
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-semibold">{item.member_name}</h4>
-                    <p className="text-sm text-muted-foreground">{item.role}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => {
-                    setEditingItem({ ...item, type: 'Member', doctype: 'Legacy Member' })
-                    setCurrentSection('Member')
-                    setIsDialogOpen(true)
-                  }}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Member', item.name, 'Member')}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            No team members yet. Add up to 3 team members with photos.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
+  // Members section removed
 
 
   const renderTestimonialsSection = () => (
@@ -497,20 +436,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
             data.dish = selectedDish
             data.display_order = parseInt(formData.get('display_order') as string) || 0
             break
-          case 'Member':
-            data.member_name = formData.get('member_name')
-            data.role = formData.get('role')
-            data.display_order = parseInt(formData.get('display_order') as string) || 0
-            
-            // Handle member photo upload
-            const memberPhotoFile = (formData.get('member_photo') as File)
-            if (memberPhotoFile && memberPhotoFile.size > 0) {
-              data.image = await handleFileUpload(memberPhotoFile, 'legacy_member_image')
-            } else if (!editingItem?.image) {
-              toast.error('Member photo is required')
-              return
-            }
-            break
           case 'Testimonial':
             data.customer_name = formData.get('customer_name')
             data.location = formData.get('location')
@@ -610,51 +535,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
         </form>
       )
     }
-
-    if (currentSection === 'Member') {
-      return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="member_name">Member Name</Label>
-            <Input name="member_name" defaultValue={editingItem?.member_name} required />
-          </div>
-          <div>
-            <Label htmlFor="role">Role</Label>
-            <Input name="role" defaultValue={editingItem?.role} placeholder="e.g. Head Chef, Manager, etc." />
-          </div>
-          <div>
-            <Label htmlFor="member_photo">Member Photo (Required)</Label>
-            <Input
-              type="file"
-              name="member_photo"
-              accept="image/*"
-              required={!editingItem?.image}
-              className="cursor-pointer"
-            />
-            {editingItem?.image && (
-              <div className="mt-2">
-                <p className="text-sm text-muted-foreground mb-2">Current photo:</p>
-                <img src={editingItem.image} alt="Current member photo" className="h-20 w-20 rounded-full object-cover border" />
-              </div>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="display_order">Display Order</Label>
-            <NumberInput  name="display_order" defaultValue={editingItem?.display_order || 0} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isCreating || isUpdating || uploading}>
-              {uploading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-              {uploading ? 'Uploading...' : (editingItem?.name ? 'Update' : 'Create')}
-            </Button>
-          </div>
-        </form>
-      )
-    }
-
 
     if (currentSection === 'Testimonial') {
       return (
@@ -834,7 +714,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
       <div className="grid gap-6">
         {renderSignatureDishesSection()}
         {renderTestimonialsSection()}
-        {renderMembersSection()}
         {renderInstagramReelsSection()}
       </div>
 
