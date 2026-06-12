@@ -963,8 +963,10 @@ def get_all_customer_orders(phone, page=1, limit=20, include_items=False):
 	Each order includes restaurant_name and city for display.
 	"""
 	try:
-		from flamezo_backend.flamezo.utils.phone import normalize_phone, get_phone_variants_for_lookup
-		from flamezo_backend.flamezo.utils.session import validate_customer_session, get_customer_token, is_phone_verified
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			normalize_phone, get_phone_variants_for_lookup,
+			validate_customer_session, get_customer_token, is_phone_verified,
+		)
 
 		normalized = normalize_phone(phone)
 		if not normalized or len(normalized) != 10:
