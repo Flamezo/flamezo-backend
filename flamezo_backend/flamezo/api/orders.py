@@ -1045,6 +1045,7 @@ def get_all_customer_orders(phone, page=1, limit=20, include_items=False):
 				"orderType": o.get("order_type"),
 				"restaurant": r_meta.get("restaurant_name") or o.get("restaurant"),
 				"restaurantName": r_meta.get("restaurant_name") or o.get("restaurant"),
+				"restaurantId": o.get("restaurant"),  # slug — for claim-page deep links
 				"location": r_meta.get("city", ""),
 				"foodRating": cint(o.get("food_rating")) if o.get("food_rating") is not None else None,
 				"serviceRating": cint(o.get("service_rating")) if o.get("service_rating") is not None else None,
@@ -1058,34 +1059,41 @@ def get_all_customer_orders(phone, page=1, limit=20, include_items=False):
 				filters={"parent": ["in", order_names]},
 				fields=["parent", "product", "quantity", "unit_price", "total_price", "customizations"],
 			)
-			# Resolve dish names in one query — the ecosystem view spans restaurants, so
-			# the order must be self-contained (the client can't resolve cross-restaurant
-			# dishes from its local per-restaurant store).
+			# Self-contained items incl. MEDIA (ecosystem view spans restaurants, so the
+			# client can't resolve cross-restaurant dishes locally). Mirrors get_customer_orders.
 			product_ids = list({it.get("product") for it in all_items if it.get("product")})
-			product_names = {}
+			product_map = {}
 			if product_ids:
 				try:
-					prows = frappe.get_all(
-						"Menu Product", filters={"name": ["in", product_ids]},
-						fields=["name", "product_name"],
-					)
-					product_names = {p["name"]: p.get("product_name") for p in prows}
+					products = frappe.get_all("Menu Product", filters={"name": ["in", product_ids]}, fields=[
+						"name as docname", "product_id as id", "product_name as name",
+						"price", "original_price", "category_name as category",
+						"product_type as type", "description", "is_vegetarian", "calories",
+						"estimated_time as estimatedTime", "serving_size as servingSize",
+						"has_no_media", "main_category as mainCategory", "display_order",
+						"is_active", "recommendations", "seo_slug",
+					])
+					from flamezo_backend.flamezo.api.products import format_products_for_listing
+					product_map = {p.get("docname"): p for p in format_products_for_listing(products)}
 				except Exception:
-					product_names = {}
+					product_map = {}
 			from collections import defaultdict
 			items_by_order = defaultdict(list)
 			for item in all_items:
-				dish_name = product_names.get(item.get("product")) or "Item"
+				full = product_map.get(item.product) or {}
+				dish = {
+					"id": full.get("id") or item.product,
+					"name": full.get("name") or "Item",
+					"price": flt(item.unit_price),
+				}
+				if full.get("media"):
+					dish["media"] = full["media"]
 				items_by_order[item.parent].append({
 					"dishId": item.product,
 					"quantity": item.quantity,
 					"customizations": json.loads(item.customizations) if item.customizations else {},
 					"totalPrice": flt(item.total_price),
-					"dish": {
-						"id": item.product,
-						"name": dish_name,
-						"price": flt(item.unit_price),
-					},
+					"dish": dish,
 				})
 			for order_data, o in zip(orders, order_list):
 				order_data["items"] = items_by_order.get(o.get("name"), [])
