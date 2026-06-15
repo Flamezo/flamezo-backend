@@ -122,18 +122,6 @@ type NavItem = NavLink | NavGroup
 const navigation: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
   { type: 'link', name: 'Growth Dashboard', href: '/growth-dashboard', icon: TrendingUp },
-  {
-    type: 'group',
-    id: 'manage-orders',
-    name: 'Manage Orders',
-    icon: ShoppingCart,
-    feature: 'ordering',
-    children: [
-      { name: 'Real Time Orders', href: '/orders', icon: ShoppingCart, badgeHref: '/orders', feature: 'ordering' },
-      { name: 'Accept Orders', href: '/accept-orders', icon: CheckCircle2, badgeHref: '/accept-orders', feature: 'ordering' },
-      { name: 'Past and Billed Orders', href: '/past-orders', icon: Clock, feature: 'ordering' },
-    ],
-  },
   { type: 'link', name: 'Table Bookings', href: '/bookings', icon: Calendar, feature: 'table_booking' },
   {
     type: 'group',

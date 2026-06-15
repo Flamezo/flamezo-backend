@@ -23,10 +23,6 @@ const MyAccount = lazy(() => import('./pages/MyAccount'))
 const FeatureLocked = lazy(() => import('./pages/FeatureLocked'))
 const TieredSetupWizard = lazy(() => import('./pages/TieredSetupWizard'))
 const ModuleDetail = lazy(() => import('./pages/ModuleDetail'))
-const Orders = lazy(() => import('./pages/Orders'))
-const AcceptOrders = lazy(() => import('./pages/AcceptOrders'))
-const PastOrders = lazy(() => import('./pages/PastOrders'))
-const OrderDetail = lazy(() => import('./pages/OrderDetail'))
 const QRCodes = lazy(() => import('./pages/QRCodes'))
 const LegacyContent = lazy(() => import('./pages/LegacyContent'))
 const LegacySignatureDish = lazy(() => import('./pages/LegacySignatureDish'))
@@ -110,12 +106,6 @@ function AppContent() {
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
-								<Route element={<FeatureProtectedRoute anyOf={['ordering', 'whatsapp_orders']} />}>
-									<Route path="/orders" element={<Orders />} />
-									<Route path="/accept-orders" element={<AcceptOrders />} />
-									<Route path="/orders/:orderId" element={<OrderDetail />} />
-									<Route path="/past-orders" element={<PastOrders />} />
-								</Route>
 
 								<Route element={<FeatureProtectedRoute feature="coupons" />}>
 									<Route path="/coupons" element={<Coupons />} />
