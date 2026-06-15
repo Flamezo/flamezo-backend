@@ -25,7 +25,7 @@ import hashlib
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, today, add_days, add_to_date, flt, cint, get_datetime
+from frappe.utils import now_datetime, today, add_days, add_to_date, flt, cint, get_datetime, date_diff
 
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
@@ -43,6 +43,9 @@ ALLOWED_PROOF_MIME = {
 	"video/mp4", "video/quicktime", "video/webm", "video/x-matroska", "video/3gpp",
 }
 MAX_PROOF_BYTES = 80 * 1024 * 1024  # 80 MB — generous for a short screen recording
+# UGC cashback is outlet-locked and redeemable ONLY at the outlet it was earned for,
+# within this window (distinct from the platform-wide wallet expiry).
+UGC_CASHBACK_VALIDITY_DAYS = 45
 PROOF_OWNER_DOCTYPE = "UGC Story Submission"
 PROOF_MEDIA_ROLE = "ugc_proof_video"
 TEMPLATE_OWNER_DOCTYPE = "UGC Cashback Config"
@@ -528,12 +531,14 @@ def submit_ugc_proof(restaurant_id, submission_id, upload_id):
 		submission.save(ignore_permissions=True)
 		frappe.db.commit()
 
-		# Hand off to the AI verifier (string path → no import cycle).
+		# Hand off to media processing first (which will trigger AI verification after compression)
 		frappe.enqueue(
-			"flamezo_backend.flamezo.services.ai.ugc_verifier.verify_submission",
-			submission_name=submission.name,
+			"flamezo_backend.flamezo.media.jobs.process_media_asset",
+			media_asset_name=asset_name,
 			queue="default",
-			timeout=300,
+			timeout=600,
+			is_async=True,
+			now=False,
 			enqueue_after_commit=True,
 		)
 
@@ -999,6 +1004,72 @@ def delete_ugc_template(restaurant_id, media_asset):
 # ══════════════════════════════════════════════════════════════════════════════
 #  CREDIT HELPER  (shared by AI verifier + staff review — idempotent)
 # ══════════════════════════════════════════════════════════════════════════════
+@frappe.whitelist(allow_guest=True)
+def get_my_outlet_cashback():
+	"""
+	List the diner's OUTLET-LOCKED UGC cashback (Restaurant Loyalty Entry,
+	reason='UGC Cashback'), grouped per outlet with available coins + nearest expiry.
+	Each balance is redeemable ONLY at that outlet, before it expires.
+	"""
+	try:
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
+
+		rows = frappe.get_all(
+			"Restaurant Loyalty Entry",
+			filters={
+				"customer": customer,
+				"reason": "UGC Cashback",
+				"transaction_type": "Earn",
+				"is_settled": 1,
+				"expiry_date": [">=", today()],
+			},
+			fields=["restaurant", "coins", "expiry_date"],
+			order_by="expiry_date asc",
+		)
+
+		by_outlet = {}
+		for r in rows:
+			rid = r.get("restaurant")
+			if not rid:
+				continue
+			g = by_outlet.setdefault(rid, {"coins": 0, "expiry_date": r.get("expiry_date")})
+			g["coins"] += cint(r.get("coins"))
+			if r.get("expiry_date") and (not g["expiry_date"] or r["expiry_date"] < g["expiry_date"]):
+				g["expiry_date"] = r["expiry_date"]
+
+		meta = {}
+		if by_outlet:
+			for m in frappe.get_all(
+				"Restaurant", filters={"name": ["in", list(by_outlet.keys())]},
+				fields=["name", "restaurant_name", "city", "logo"],
+			):
+				meta[m["name"]] = m
+
+		items = []
+		for rid, g in by_outlet.items():
+			if cint(g["coins"]) <= 0:
+				continue
+			m = meta.get(rid, {})
+			exp = g["expiry_date"]
+			items.append({
+				"restaurantId": rid,
+				"restaurantName": m.get("restaurant_name") or rid,
+				"city": m.get("city") or "",
+				"logo": get_cdn_url(m.get("logo")) if m.get("logo") else None,
+				"coins": cint(g["coins"]),
+				"expiresOn": str(exp) if exp else None,
+				"daysLeft": date_diff(exp, today()) if exp else None,
+			})
+		items.sort(key=lambda x: (x["daysLeft"] is None, x["daysLeft"] if x["daysLeft"] is not None else 0))
+		return _ok({"items": items, "total_coins": sum(i["coins"] for i in items)})
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "get_my_outlet_cashback")
+		return _err("INTERNAL_ERROR")
+
+
+
 def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 	"""
 	Credit cashback = min(view_count, order_amount, caps, budget) as universal
@@ -1032,7 +1103,7 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 		frappe.db.commit()
 		return None
 
-	expiry = add_days(today(), get_expiry_days())  # platform-standard Cash expiry (30 days)
+	expiry = add_days(today(), UGC_CASHBACK_VALIDITY_DAYS)  # outlet-locked, 45-day validity
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
 		"customer": submission.customer,

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # ── Constants ──────────────────────────────────────────────────────────────────
 
 FREE_MONTHLY_QUOTA = 10
-OFFER_TYPES = ("coupon", "auto", "combo", "delivery")
+OFFER_TYPES = ("coupon", "auto", "combo")
 
 TONE_DESCRIPTIONS = {
     "calm": (
@@ -71,14 +71,14 @@ Each object MUST have ALL these fields:
 
 {{
   "code": "UPPERCASE_CODE_4_TO_12_CHARS",
-  "offer_type": "coupon|auto|combo|delivery",
-  "discount_type": "flat|percent|delivery",
+  "offer_type": "coupon|auto|combo",
+  "discount_type": "flat|percent",
   "discount_value": <number>,
   "min_order_amount": <number — for combo this MUST be 0>,
   "max_discount_cap": <number or null>,
   "description": "<ONE clear line for the customer — what they get>",
   "detailed_description": "<EXACTLY 3 sentences: (1) the saving, (2) the condition/when valid, (3) the benefit to customer>",
-  "category": "best|delivery|new|loyalty",
+  "category": "best|new|loyalty",
   "valid_days_of_week": <null or ["saturday","sunday"] etc>,
   "valid_time_start": <null or "HH:MM:SS">,
   "valid_time_end": <null or "HH:MM:SS">,
@@ -86,7 +86,7 @@ Each object MUST have ALL these fields:
   "max_uses_per_user": <0 for unlimited, 1 for one-time>,
   "can_stack": false,
   "priority": <integer 1-10, higher = applied first>,
-  "goal": "acquisition|aov|frequency|retention|delivery|upsell|offpeak",
+  "goal": "acquisition|aov|frequency|retention|upsell|offpeak",
   "rationale": "<2 sentences: why this specific offer will grow sales or AOV for THIS restaurant>",
   "expected_impact": "<1 sentence: specific measurable outcome e.g. 'Increases orders above ₹X by ~15%'>",
   "combo_items_hint": "<null or comma-separated names of 2-3 items to bundle, ONLY for combo type>",
@@ -99,18 +99,18 @@ Each object MUST have ALL these fields:
 
 HARD RULES — violating any makes the output invalid:
 1. combo offer_type: discount_type = "flat", discount_value = 0, min_order_amount = 0, combo_price = the bundle price
-2. delivery offer_type: discount_type = "delivery"
-3. aggressive tone flat discount: min_order_amount >= discount_value * 2.5
-4. aggressive tone percent discount: max_discount_cap MUST be set (not null)
-5. No duplicate codes within this response
-6. Do NOT reuse or closely resemble these existing offers: {existing_info}
-7. auto offer_type = no code needed, auto-applied; always use time or day restrictions
-8. Use the restaurant's actual menu item names in descriptions and combo_items_hint
+2. aggressive tone flat discount: min_order_amount >= discount_value * 2.5
+3. aggressive tone percent discount: max_discount_cap MUST be set (not null)
+4. No duplicate codes within this response
+5. Do NOT reuse or closely resemble these existing offers: {existing_info}
+6. auto offer_type = no code needed, auto-applied; always use time or day restrictions
+7. Use the restaurant's actual menu item names in descriptions and combo_items_hint
 
 COMBO TYPE RULES:
 - fixed_bundle: all items in combo_items_hint must be in cart. combo_price = bundle price. items_to_select = null.
 - bogo: customer picks items_to_select items from pool (combo_items_hint), cheapest is FREE. combo_price = null. items_to_select = 2 (or as appropriate). Always generate with engaging combo_name.
 - build_your_own: customer picks items_to_select items from pool (combo_items_hint), pays combo_price for all. items_to_select = 2 or 3.
+- MUST FEEL LIKE A DEAL: for fixed_bundle and build_your_own, combo_price MUST be 15–30% BELOW the normal total of the cheapest items the customer could pick (so they perceive a real saving). A combo priced at or above the item sum is rejected — never do it.
 - For all combos: display_on_menu = true, combo_name is REQUIRED (punchy, customer-facing label).
 """
 
@@ -188,8 +188,8 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
         restaurant_id,
         [
             "restaurant_name", "city", "state", "currency",
-            "enable_delivery", "enable_takeaway", "enable_dine_in",
-            "default_delivery_fee", "minimum_order_value",
+            "enable_takeaway", "enable_dine_in",
+            "minimum_order_value",
             "tax_rate", "total_orders", "total_revenue",
             "ai_coupon_generations_this_month", "ai_coupon_quota_reset_month",
         ],
@@ -203,7 +203,7 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
         "Menu Product",
         filters={"restaurant": restaurant_id, "is_active": 1},
         fields=[
-            "product_name", "price", "original_price",
+            "product_name", "price", "original_price", "food_cost",
             "category_name", "main_category", "is_vegetarian",
             "product_type", "description",
         ],
@@ -238,19 +238,45 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
     )
     combo_candidates = [i.product_name for i in mid_items[:6]]
 
+    # ── Margin intelligence (food cost) — powers profit-safe offer generation ──
+    costed = [i for i in menu_items if flt(i.get("food_cost")) > 0 and flt(i.get("price")) > 0]
+    fc_pcts = [flt(i.food_cost) / flt(i.price) * 100 for i in costed]
+    margin_pcts = [(flt(i.price) - flt(i.food_cost)) / flt(i.price) * 100 for i in costed]
+    avg_food_cost_pct = round(sum(fc_pcts) / len(fc_pcts), 1) if fc_pcts else 0
+    avg_margin_pct = round(sum(margin_pcts) / len(margin_pcts), 1) if margin_pcts else 0
+    # Best "give it free" candidates = costed items with the LOWEST food-cost % (cheapest to gift)
+    giveaway = sorted(costed, key=lambda x: flt(x.food_cost) / flt(x.price))[:6]
+    giveaway_candidates = [
+        f"{i.product_name} (₹{flt(i.price):.0f}, only {round(flt(i.food_cost) / flt(i.price) * 100)}% cost)"
+        for i in giveaway
+    ]
+    # name → food_cost, for combo loss-protection at validation time
+    cost_map = {
+        (i.product_name or "").strip().lower(): flt(i.food_cost)
+        for i in menu_items if flt(i.get("food_cost")) > 0
+    }
+    # name → {price, cost}, for per-offer economics (perceived discount vs real margin)
+    econ_map = {
+        (i.product_name or "").strip().lower(): {"price": flt(i.price), "cost": flt(i.food_cost)}
+        for i in menu_items if flt(i.get("food_cost")) > 0 and flt(i.price) > 0
+    }
+
     # Estimated AOV = 2 items at avg price
     estimated_aov = round(avg_price * 2.2, -1)
-
-    # Free delivery threshold = 3-4x the delivery fee (makes financial sense)
-    delivery_fee = flt(restaurant.default_delivery_fee or 0)
-    free_delivery_threshold = max(round(delivery_fee * 3.5, -1), flt(restaurant.minimum_order_value or 0))
 
     return {
         "restaurant": restaurant,
         "menu_items": menu_items,
         "existing_coupons": existing_coupons,
+        "cost_map": cost_map,
+        "econ_map": econ_map,
         "stats": {
             "avg_item_price": round(avg_price, 2),
+            "has_cost_data": len(costed) > 0,
+            "costed_count": len(costed),
+            "avg_food_cost_pct": avg_food_cost_pct,
+            "avg_margin_pct": avg_margin_pct,
+            "giveaway_candidates": giveaway_candidates,
             "min_item_price": min_price,
             "max_item_price": max_price,
             "estimated_aov": max(estimated_aov, flt(restaurant.minimum_order_value or 0)),
@@ -258,9 +284,6 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
             "categories": categories[:12],
             "cuisine": _infer_cuisine(restaurant.restaurant_name, categories),
             "price_tier": _get_price_tier(avg_price),
-            "delivery_fee": delivery_fee,
-            "free_delivery_threshold": free_delivery_threshold,
-            "enable_delivery": bool(restaurant.enable_delivery),
             "enable_takeaway": bool(restaurant.enable_takeaway),
             "enable_dine_in": bool(restaurant.enable_dine_in),
             "combo_candidates": combo_candidates,
@@ -349,7 +372,11 @@ def _build_prompt(context: dict, tone: str, offer_type_filter: str | None, count
         veg = "VEG" if item.is_vegetarian else "NON-VEG"
         cat = item.category_name or item.main_category or "General"
         orig = f" (was ₹{item.original_price})" if item.original_price and flt(item.original_price) > flt(item.price) else ""
-        menu_lines.append(f"  • {item.product_name} — ₹{item.price}{orig} | {cat} | {veg}")
+        margin_note = ""
+        if flt(item.get("food_cost")) > 0 and flt(item.price) > 0:
+            fcp = round(flt(item.food_cost) / flt(item.price) * 100)
+            margin_note = f" | makes for ₹{flt(item.food_cost):.0f} ({fcp}% cost, {100 - fcp}% margin)"
+        menu_lines.append(f"  • {item.product_name} — ₹{item.price}{orig} | {cat} | {veg}{margin_note}")
     menu_text = "\n".join(menu_lines) if menu_lines else "  (No menu items found)"
 
     # Good combo candidates
@@ -367,7 +394,6 @@ def _build_prompt(context: dict, tone: str, offer_type_filter: str | None, count
 
     # Service modes
     modes = []
-    if stats["enable_delivery"]: modes.append("delivery")
     if stats["enable_takeaway"]: modes.append("takeaway")
     if stats["enable_dine_in"]:  modes.append("dine-in")
     modes_text = ", ".join(modes) if modes else "unknown"
@@ -389,6 +415,28 @@ def _build_prompt(context: dict, tone: str, offer_type_filter: str | None, count
 
     city_culture_block = _get_city_culture_block(restaurant.city, restaurant.state, count)
 
+    # ── Margin / profit guardrails (only when the owner has entered food costs) ──
+    if stats.get("has_cost_data"):
+        giveaway_text = "; ".join(stats["giveaway_candidates"]) if stats["giveaway_candidates"] else "the lowest-cost items"
+        margin_block = f"""
+## Margin & Profit Intelligence (CRITICAL — use the food-cost data above)
+This restaurant has entered real food costs. Each menu line shows its cost % and margin %.
+- Menu-wide average food cost: {stats["avg_food_cost_pct"]}% of price (avg margin {stats["avg_margin_pct"]}%). {stats["costed_count"]} items costed.
+- Cheapest items to give away (lowest food cost — best for "free"/BOGO): {giveaway_text}
+
+Profit rules — every offer must feel BIG to the customer but cost the restaurant LITTLE:
+1. BOGO ("buy 1 get 1"): the FREE item only costs the owner its food cost, while the customer feels ~50% off. So make the FREE/cheapest item a LOW-food-cost item (e.g. beverages ~15–20%). Never make a high-cost item the free one.
+2. Combo / build-your-own: the combo_price MUST stay comfortably above the total food cost of its items — aim to keep at least ~50% gross margin on the bundle. NEVER set a combo_price below what the items cost to make.
+3. Flat / percent discounts: never let the discount exceed the item's margin — a 40%-cost item cannot survive a 40% discount. Prefer discounts well under the avg margin of {stats["avg_margin_pct"]}%.
+4. Prefer structured offers (BOGO/combo) over deep flat discounts: they feel huge to the customer (perceived 40–50% off) while only costing food cost. A flat % is real money straight off profit.
+5. In each suggestion's "rationale", briefly note the profit logic (e.g. "free chai costs only ₹16 but feels like ₹89 off").
+"""
+    else:
+        margin_block = """
+## Margin & Profit Intelligence
+No food costs entered yet for this menu. Stay conservative: prefer combos and BOGO on lower-priced items, keep flat discounts modest (≤15%), and use min-order thresholds so no offer can run at a loss.
+"""
+
     prompt = f"""You are a world-class restaurant growth consultant and promotions strategist specializing in Indian restaurants.
 Your job: generate {count} highly specific, immediately actionable coupon/offer suggestions for THIS restaurant.
 
@@ -398,8 +446,6 @@ Your job: generate {count} highly specific, immediately actionable coupon/offer 
 - Cuisine: {stats["cuisine"]}
 - Price Tier: {stats["price_tier"]}
 - Service Modes: {modes_text}
-- Delivery Fee: ₹{stats["delivery_fee"]}
-- Recommended free-delivery threshold: ₹{stats["free_delivery_threshold"]} (3.5× delivery fee — economically sound)
 - Estimated Average Order Value (AOV): ₹{stats["estimated_aov"]}
 - Minimum order setting: ₹{restaurant.minimum_order_value or 0}
 - Today: {current_day} {"(WEEKEND — great for urgency offers)" if is_weekend else "(weekday)"}
@@ -414,7 +460,7 @@ Top items (by price):
 {menu_text}
 
 Good combo pairings to consider: {combo_text}
-
+{margin_block}
 ## Already Active Coupons (DO NOT duplicate or closely resemble):
 {existing_info}
 
@@ -433,8 +479,13 @@ Vary the type across suggestions. Always set combo_name (punchy, customer-facing
 Among the {count} suggestions, include a MIX unless offer_type_filter is set:
 - At least 1 auto offer (time or day restricted — no code needed)
 - At least 1 combo offer (vary combo_type — use real item names from the menu above)
-- At least 1 delivery offer (if delivery is enabled)
 - Remaining: coupon codes (require customer to enter a code)
+
+## Make every offer HOT (Flamezo is "India's hottest app")
+- Lead with the BIG perceived number: "Buy 1 Get 1", "50% OFF", "Flat ₹X" — never bury the value.
+- Add urgency + scarcity: prefer time/day windows and set a believable max_uses (e.g. 50–200) so it feels limited, not infinite. Tonight/this-weekend framing wins.
+- Use the structured offers that feel huge but cost little (BOGO on the low-cost beverages above, combos that bundle a high-margin drink with a main).
+- Punchy, share-worthy copy in `description`; the customer should *want* to screenshot it.
 
 ## Output Format
 {schema}
@@ -449,7 +500,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
     return prompt
 
 
-def _validate_and_clean_suggestion(s: dict, tone: str) -> dict | None:
+def _validate_and_clean_suggestion(s: dict, tone: str, cost_map: dict | None = None) -> dict | None:
     """
     Validate a single suggestion dict. Auto-fix minor issues.
     Enforce safety guardrails. Return None if unfixable.
@@ -465,12 +516,13 @@ def _validate_and_clean_suggestion(s: dict, tone: str) -> dict | None:
         if offer_type not in OFFER_TYPES:
             offer_type = "coupon"
 
-        discount_type = s.get("discount_type") or "flat"
-        if discount_type not in ("flat", "percent", "delivery"):
-            discount_type = "flat"
+        # Delivery is no longer offered (dine-in / takeaway only) — drop any such suggestion.
+        if s.get("offer_type") == "delivery" or s.get("discount_type") == "delivery":
+            return None
 
-        if offer_type == "delivery":
-            discount_type = "delivery"
+        discount_type = s.get("discount_type") or "flat"
+        if discount_type not in ("flat", "percent"):
+            discount_type = "flat"
 
         if offer_type == "combo":
             discount_type = "flat"
@@ -562,6 +614,28 @@ def _validate_and_clean_suggestion(s: dict, tone: str) -> dict | None:
         if offer_type != "combo":
             combo_items_hint = None
 
+        # ── Loss protection: never let a priced combo sell below what it costs to make ──
+        # Best-effort: resolve hinted item names against the food-cost map. If we can match
+        # 2+ items and their combined food cost meets/exceeds the combo_price, it's a money-
+        # losing offer — drop it so it never reaches the owner.
+        if (
+            cost_map
+            and offer_type == "combo"
+            and combo_type in ("fixed_bundle", "build_your_own")
+            and combo_price
+            and combo_items_hint
+        ):
+            hint_lc = combo_items_hint.lower()
+            matched_costs = [c for name, c in cost_map.items() if name and name in hint_lc]
+            if len(matched_costs) >= 2:
+                total_cogs = sum(matched_costs)
+                if combo_price <= total_cogs:
+                    logger.warning(
+                        f"[coupon_generator] Dropping loss-making combo "
+                        f"(price ₹{combo_price} <= food cost ₹{total_cogs:.0f}): {combo_name}"
+                    )
+                    return None
+
         return {
             "code": code,
             "offer_type": offer_type,
@@ -643,13 +717,122 @@ def _extract_json_array(raw_text: str) -> list | None:
             if depth == 0:
                 end = i + 1
                 break
-    if end == -1:
-        return None
-    try:
-        result = json.loads(text[start:end])
-        return result if isinstance(result, list) else None
-    except json.JSONDecodeError:
-        return None
+    if end != -1:
+        try:
+            result = json.loads(text[start:end])
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass  # fall through to salvage
+
+    # 4. Salvage a TRUNCATED array (token-limit cut-off): parse each complete
+    #    top-level {...} object individually and keep the ones that parse.
+    objs = []
+    depth = 0
+    obj_start = -1
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and obj_start != -1:
+                try:
+                    o = json.loads(text[obj_start:i + 1])
+                    if isinstance(o, dict):
+                        objs.append(o)
+                except json.JSONDecodeError:
+                    pass
+                obj_start = -1
+    return objs or None
+
+
+def _compute_offer_economics(s: dict, econ_map: dict | None, avg_margin_pct: float = 0.0) -> dict:
+    """
+    Estimate how an offer FEELS to the customer vs what it really costs the owner.
+    Powers the owner-facing "feels like X% off / profit-safe" badge AND acts as the
+    final safety net (the caller drops anything that lands below a healthy margin).
+    Best-effort: resolves combo_items_hint against real per-item economics.
+    """
+    offer_type = s.get("offer_type")
+    discount_type = s.get("discount_type")
+    discount_value = flt(s.get("discount_value"))
+    combo_type = s.get("combo_type")
+    combo_price = s.get("combo_price")
+    items_to_select = int(s.get("items_to_select") or 2)
+    hint = (s.get("combo_items_hint") or "").lower()
+
+    def verdict(m):
+        return "safe" if m >= 35 else ("ok" if m >= 20 else "thin")
+
+    matched = []
+    if econ_map and hint:
+        matched = [e for name, e in econ_map.items() if name and name in hint]
+        matched.sort(key=lambda e: e["price"])
+
+    # BOGO — cheapest item free; revenue = paid item, cost = both items' COGS
+    if offer_type == "combo" and combo_type == "bogo" and matched:
+        free = matched[0]
+        paid = matched[1] if len(matched) >= 2 else matched[0]
+        revenue = paid["price"]
+        margin = ((revenue - paid["cost"] - free["cost"]) / revenue * 100) if revenue > 0 else 0
+        denom = paid["price"] + free["price"]
+        perceived = (free["price"] / denom * 100) if denom > 0 else 50
+        return {"perceived_discount_pct": round(perceived), "est_margin_pct": round(margin),
+                "real_cost": round(free["cost"]), "verdict": verdict(margin),
+                "headline": f"Feels like {round(perceived)}% off · the free item costs you only ₹{free['cost']:.0f}",
+                "resolved": True}
+
+    # priced combo — bundle margin
+    if offer_type == "combo" and combo_price and matched:
+        if combo_type == "build_your_own":
+            chosen = matched[:max(items_to_select, 2)]   # customer picks cheapest = worst case for owner
+        else:
+            chosen = matched
+        normal = sum(e["price"] for e in chosen)
+        cost = sum(e["cost"] for e in chosen)
+        cp = flt(combo_price)
+        margin = ((cp - cost) / cp * 100) if cp > 0 else 0
+        perceived = ((normal - cp) / normal * 100) if normal > 0 else 0
+        return {"perceived_discount_pct": round(max(perceived, 0)), "est_margin_pct": round(margin),
+                "real_cost": round(max(normal - cp, 0)), "verdict": verdict(margin),
+                "headline": f"Feels like {round(max(perceived, 0))}% off · keeps {round(margin)}% margin",
+                "resolved": True}
+
+    # percent coupon — discount comes straight off margin
+    if discount_type == "percent" and discount_value > 0:
+        margin_after = avg_margin_pct - discount_value
+        return {"perceived_discount_pct": round(discount_value), "est_margin_pct": round(margin_after),
+                "real_cost": None, "verdict": verdict(margin_after),
+                "headline": f"{round(discount_value)}% off · ~{round(margin_after)}% margin left",
+                "resolved": bool(avg_margin_pct)}
+
+    # flat coupon — perceived against the min order
+    if discount_type == "flat" and discount_value > 0:
+        min_o = flt(s.get("min_order_amount")) or discount_value * 2.5
+        perceived = (discount_value / min_o * 100) if min_o > 0 else 0
+        margin_after = avg_margin_pct - perceived
+        return {"perceived_discount_pct": round(perceived), "est_margin_pct": round(margin_after),
+                "real_cost": round(discount_value), "verdict": verdict(margin_after),
+                "headline": f"₹{discount_value:.0f} off · ~{round(margin_after)}% margin on the min order",
+                "resolved": bool(avg_margin_pct)}
+
+    return {"perceived_discount_pct": None, "est_margin_pct": None, "real_cost": None,
+            "verdict": "ok", "headline": "", "resolved": False}
 
 
 def generate_suggestions(
@@ -696,7 +879,11 @@ def generate_suggestions(
             generation_config={
                 "temperature": 0.75,
                 "top_p": 0.95,
-                "max_output_tokens": 8192,
+                # 2.5-flash is a thinking model; thinking shares the output budget, so a
+                # higher ceiling prevents the JSON array from being truncated mid-object.
+                "max_output_tokens": 16384,
+                # Force clean JSON (no markdown fences / preamble) → reliable parsing.
+                "response_mime_type": "application/json",
             },
         )
         raw_text = response.text.strip()
@@ -727,11 +914,42 @@ def generate_suggestions(
     for raw in suggestions_raw:
         if not isinstance(raw, dict):
             continue
-        cleaned = _validate_and_clean_suggestion(raw, tone)
+        cleaned = _validate_and_clean_suggestion(raw, tone, cost_map=context.get("cost_map"))
         if not cleaned:
             continue
         if cleaned["code"] in seen_codes:
             continue
+
+        # Per-offer economics + final profit net: drop any resolvable money-loser
+        # (margin < 15%) — this also closes the BOGO "expensive free item" gap.
+        econ = _compute_offer_economics(
+            cleaned,
+            context.get("econ_map"),
+            avg_margin_pct=context["stats"].get("avg_margin_pct", 0),
+        )
+        if econ.get("resolved") and econ.get("est_margin_pct") is not None and econ["est_margin_pct"] < 15:
+            logger.warning(
+                f"[coupon_generator] Dropping thin/loss offer "
+                f"(margin {econ['est_margin_pct']}%): {cleaned['code']}"
+            )
+            continue
+
+        # Attractiveness gate: a combo priced at/above the item sum gives the customer no
+        # real saving ("feels like 0% off") — boring, so drop it. (BOGO always feels ~50%.)
+        if (
+            cleaned.get("offer_type") == "combo"
+            and cleaned.get("combo_type") in ("fixed_bundle", "build_your_own")
+            and econ.get("resolved")
+            and econ.get("perceived_discount_pct") is not None
+            and econ["perceived_discount_pct"] < 10
+        ):
+            logger.warning(
+                f"[coupon_generator] Dropping unattractive combo "
+                f"(only {econ['perceived_discount_pct']}% perceived off): {cleaned['code']}"
+            )
+            continue
+        cleaned["economics"] = econ
+
         seen_codes.add(cleaned["code"])
         suggestions.append(cleaned)
 

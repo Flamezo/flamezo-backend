@@ -24,12 +24,15 @@ class UGCStorySubmission(Document):
 
 
 def _delete_media_asset(asset_name):
-	asset = frappe.db.get_value("Media Asset", asset_name, ["name", "raw_object_key"], as_dict=True)
-	if asset and asset.get("raw_object_key"):
-		try:
-			delete_object(asset.get("raw_object_key"))
-		except Exception as e:
-			frappe.log_error(f"Failed to delete R2 object {asset.get('raw_object_key')}: {e}", "UGC Cleanup")
+	asset = frappe.db.get_value("Media Asset", asset_name, ["name", "raw_object_key", "primary_object_key"], as_dict=True)
+	if asset:
+		for key in ("raw_object_key", "primary_object_key"):
+			obj_key = asset.get(key)
+			if obj_key:
+				try:
+					delete_object(obj_key)
+				except Exception as e:
+					frappe.log_error(f"Failed to delete R2 object {obj_key}: {e}", "UGC Cleanup")
 
 		try:
 			frappe.delete_doc("Media Asset", asset.get("name"), ignore_permissions=True)

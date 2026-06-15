@@ -128,7 +128,9 @@ def _read_view_count(submission, provider):
 
 	object_key = None
 	if submission.proof_video:
-		object_key = frappe.db.get_value("Media Asset", submission.proof_video, "raw_object_key")
+		asset_dict = frappe.db.get_value("Media Asset", submission.proof_video, ["primary_object_key", "raw_object_key"], as_dict=True)
+		if asset_dict:
+			object_key = asset_dict.get("primary_object_key") or asset_dict.get("raw_object_key")
 	if not object_key:
 		return _not_ready("Proof video object not found — manual review.")
 

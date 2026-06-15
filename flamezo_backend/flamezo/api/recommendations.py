@@ -352,25 +352,7 @@ def _get_ctr_stats_bulk(restaurant_name: str) -> Dict[str, Dict]:
     return result
 
 
-@frappe.whitelist(allow_guest=True)
-def log_recommendation_interaction(
-    restaurant_id: str,
-    source_product_id: str,
-    recommended_product_id: str,
-    action: str,
-    session_id: str = "",
-):
-    """
-    Log a recommendation interaction (click or add_to_cart) from the customer app.
-    allow_guest=True since ono-menu customers are unauthenticated.
-    TODO: at high volume, consider frappe.enqueue() to dequeue from request thread.
-    """
-    if not restaurant_id or not source_product_id or not recommended_product_id:
-        return {"success": False, "error": "Missing required fields"}
-
-    if action not in ("click", "add_to_cart"):
-        return {"success": False, "error": "Invalid action"}
-
+def _process_interaction(restaurant_id: str, source_product_id: str, recommended_product_id: str, action: str, session_id: str = ""):
     try:
         restaurant_name = frappe.db.get_value(
             "Restaurant",
@@ -378,7 +360,7 @@ def log_recommendation_interaction(
             "name",
         )
         if not restaurant_name:
-            return {"success": False, "error": "Restaurant not found"}
+            return
 
         frappe.get_doc({
             "doctype": "Recommendation Interaction",
@@ -390,9 +372,39 @@ def log_recommendation_interaction(
             "timestamp": now(),
         }).insert(ignore_permissions=True)
         frappe.db.commit()
-        return {"success": True}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        frappe.log_error(title="Failed to log recommendation interaction", message=str(e))
+
+@frappe.whitelist(allow_guest=True)
+def log_recommendation_interaction(
+    restaurant_id: str,
+    source_product_id: str,
+    recommended_product_id: str,
+    action: str,
+    session_id: str = "",
+):
+    """
+    Log a recommendation interaction (click or add_to_cart) from the customer app.
+    allow_guest=True since ono-menu customers are unauthenticated.
+    Now enqueues to the background worker to avoid blocking the main thread at high volume.
+    """
+    if not restaurant_id or not source_product_id or not recommended_product_id:
+        return {"success": False, "error": "Missing required fields"}
+
+    if action not in ("click", "add_to_cart"):
+        return {"success": False, "error": "Invalid action"}
+
+    frappe.enqueue(
+        "flamezo_backend.flamezo.api.recommendations._process_interaction",
+        restaurant_id=restaurant_id,
+        source_product_id=source_product_id,
+        recommended_product_id=recommended_product_id,
+        action=action,
+        session_id=session_id,
+        queue="default",
+        enqueue_after_commit=True
+    )
+    return {"success": True}
 
 
 @frappe.whitelist()
