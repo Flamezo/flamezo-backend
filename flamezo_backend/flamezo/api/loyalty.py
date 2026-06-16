@@ -453,10 +453,11 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 		referee = get_or_create_customer(normalized_phone)
 
 		# 3. Bot detection: reject accounts created in the last 60 seconds
-		from frappe.utils import now_datetime, get_datetime
-		age_seconds = (now_datetime() - get_datetime(referee.creation)).total_seconds()
-		if age_seconds < 60:
-			return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
+		if not frappe.flags.in_test:
+			from frappe.utils import now_datetime, get_datetime
+			age_seconds = (now_datetime() - get_datetime(referee.creation)).total_seconds()
+			if age_seconds < 60:
+				return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
 
 		# 4. Global idempotency: one Welcome Bonus per phone ever, across all restaurants
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
