@@ -163,20 +163,6 @@ const navigation: NavItem[] = [
   },
   {
     type: 'group',
-    id: 'marketing-studio',
-    name: 'Marketing Studio',
-    icon: Megaphone,
-    feature: 'marketing_studio',
-    children: [
-      { name: 'Overview', href: '/marketing', icon: BarChart3, feature: 'marketing_studio' },
-      { name: 'Campaigns', href: '/marketing/campaigns', icon: Send, feature: 'marketing_studio' },
-      { name: 'Automation', href: '/marketing/automation', icon: Zap, feature: 'marketing_studio' },
-      { name: 'Segments', href: '/marketing/segments', icon: Users, feature: 'marketing_studio' },
-      { name: 'Analytics', href: '/marketing/analytics', icon: TrendingUp, feature: 'marketing_studio' },
-    ],
-  },
-  {
-    type: 'group',
     id: 'google-growth',
     name: 'Google Growth',
     icon: Globe,
@@ -206,10 +192,8 @@ const navigation: NavItem[] = [
     children: [
       { name: 'Setup Wizard', href: '/setup', icon: Sparkles },
       { name: 'Team Management', href: '/team', icon: Users, adminOnly: true },
-      { name: 'POS Integration', href: '/pos-integration', icon: Settings, feature: 'pos_integration' },
-      { name: 'Petpooja Testing', href: '/petpooja-testing', icon: Activity, feature: 'pos_integration' },
-{ name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
-      { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
+      { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
+
       { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
       { name: 'Gallery Management', href: '/gallery-management', icon: Star },
     ],
@@ -219,6 +203,21 @@ const navigation: NavItem[] = [
   // Admin-only links - filtered by admin check in render
   { type: 'link', name: 'Restaurant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
   { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
+  {
+    type: 'group',
+    id: 'marketing-studio',
+    name: 'Marketing Studio',
+    icon: Megaphone,
+    feature: 'marketing_studio',
+    adminOnly: true,
+    children: [
+      { name: 'Performance', href: '/marketing', icon: BarChart3, feature: 'marketing_studio' },
+      { name: 'Campaigns', href: '/marketing/campaigns', icon: Send, feature: 'marketing_studio', adminOnly: true },
+      { name: 'Automation', href: '/marketing/automation', icon: Zap, feature: 'marketing_studio', adminOnly: true },
+      { name: 'Segments', href: '/marketing/segments', icon: Users, feature: 'marketing_studio', adminOnly: true },
+      { name: 'Analytics', href: '/marketing/analytics', icon: TrendingUp, feature: 'marketing_studio' },
+    ],
+  },
 ]
 
 export default function Layout({ children }: LayoutProps) {
@@ -499,146 +498,23 @@ export default function Layout({ children }: LayoutProps) {
   // Preview URL path: slug preferred, fallback to restaurant_id for all pages
   const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentRestaurant?.restaurant_id || selectedRestaurant || ''
 
-  // Fetch orders for analytics - filter by selected restaurant and TODAY ONLY for performance
-  const todayStart = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    // Format for Frappe: YYYY-MM-DD HH:mm:ss
-    return d.toISOString().split('T')[0] + ' 00:00:00'
-  }, [])
+  // Removed order fetching as ordering system is deleted
+  const analytics = {
+    todayRevenue: 0,
+    todayOrders: 0,
+    pendingOrders: 0,
+    totalRevenue: 0,
+    totalOrders: 0,
+    avgOrderValue: 0,
+    yesterdayRevenue: 0,
+    yesterdayOrders: 0,
+    revenueChange: 0,
+    ordersChange: 0,
+  }
 
-  const { data: orders } = useFrappeGetDocList('Order', {
-    fields: ['name', 'status', 'total', 'creation', 'restaurant', 'is_tokenization', 'is_whatsapp_order', 'payment_method'],
-    filters: selectedRestaurant ? {
-      restaurant: selectedRestaurant,
-      "is_tokenization": ["!=", 1],
-      "creation": [">=", todayStart]
-    } as any : undefined,
-    limit: 500, // Increased limit for today's orders but restricted by time
-    orderBy: { field: 'creation', order: 'desc' }
-  }, selectedRestaurant ? `orders-badges-${selectedRestaurant}` : null)
-
-  // Calculate analytics metrics
-  const analytics = useMemo(() => {
-    if (!orders || orders.length === 0) {
-      return {
-        todayRevenue: 0,
-        todayOrders: 0,
-        pendingOrders: 0,
-        totalRevenue: 0,
-        totalOrders: 0,
-        avgOrderValue: 0,
-        yesterdayRevenue: 0,
-        yesterdayOrders: 0,
-        revenueChange: 0,
-        ordersChange: 0,
-      }
-    }
-
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    // Today's metrics
-    const todayOrders = orders.filter((order: any) => {
-      const orderDate = new Date(order.creation)
-      return orderDate >= today
-    })
-    const todayRevenue = todayOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0)
-    const todayOrdersCount = todayOrders.length
-
-    // Yesterday's metrics
-    const yesterdayOrders = orders.filter((order: any) => {
-      const orderDate = new Date(order.creation)
-      return orderDate >= yesterday && orderDate < today
-    })
-    const yesterdayRevenue = yesterdayOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0)
-    const yesterdayOrdersCount = yesterdayOrders.length
-
-    // Overall metrics
-    const totalRevenue = orders.reduce((sum: number, order: any) => sum + (order.total || 0), 0)
-    const totalOrders = orders.length
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
-    const pendingOrders = orders.filter((order: any) => {
-      // Match Real Time Orders behaviour: count only today's orders
-      if (!order?.creation) return false
-      const createdAt = new Date(order.creation)
-      if (Number.isNaN(createdAt.getTime())) return false
-      if (createdAt < today) return false
-
-      const raw = String(order.status || '')
-      const s = raw.trim().toLowerCase()
-      return (
-        s === 'auto accepted' ||
-        s === 'accepted' ||
-        s === 'confirmed' ||
-        s === 'preparing' ||
-        s === 'ready' ||
-        s === 'in billing'
-      )
-    }).length
-
-    // Calculate changes
-    const revenueChange = yesterdayRevenue > 0
-      ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
-      : (todayRevenue > 0 ? 100 : 0)
-    const ordersChange = yesterdayOrdersCount > 0
-      ? ((todayOrdersCount - yesterdayOrdersCount) / yesterdayOrdersCount) * 100
-      : (todayOrdersCount > 0 ? 100 : 0)
-
-    return {
-      todayRevenue,
-      todayOrders: todayOrdersCount,
-      pendingOrders,
-      totalRevenue,
-      totalOrders,
-      avgOrderValue,
-      yesterdayRevenue,
-      yesterdayOrders: yesterdayOrdersCount,
-      revenueChange,
-      ordersChange,
-    }
-  }, [orders])
-
-  // Get pending orders count for badge
-  const pendingOrders = analytics.pendingOrders
-  const acceptPendingOrders = useMemo(() => {
-    if (!orders || orders.length === 0) return 0
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    return orders.filter((order: any) => {
-      if (!order?.creation) return false
-      const createdAt = new Date(order.creation)
-      if (Number.isNaN(createdAt.getTime()) || createdAt < today) return false
-
-      const status = String(order.status || '').trim().toLowerCase()
-      const paymentMethod = String(order.payment_method || '').trim().toLowerCase()
-
-      return status === 'pending_verification' && paymentMethod === 'pay_at_counter'
-    }).length
-  }, [orders])
-
-  const whatsappPendingOrders = useMemo(() => {
-    if (!orders || orders.length === 0) return 0
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    return orders.filter((order: any) => {
-      if (!order?.creation) return false
-      const createdAt = new Date(order.creation)
-      if (Number.isNaN(createdAt.getTime()) || createdAt < today) return false
-
-      const status = String(order.status || '').trim().toLowerCase()
-      const isWhatsApp = Boolean(order.is_whatsapp_order)
-
-      // Only count 'pending_verification' (Awaiting Msg) as actionable badge alerts
-      return status === 'pending_verification' && isWhatsApp
-    }).length
-  }, [orders])
+  const pendingOrders = 0
+  const acceptPendingOrders = 0
+  const whatsappPendingOrders = 0
 
   // Determine if sidebar should show expanded content (either expanded state or hovered, but not if hover is disabled)
   // Also keep expanded if restaurant select is open — prevents unmounting the Select mid-open
@@ -938,6 +814,11 @@ export default function Layout({ children }: LayoutProps) {
                       {showExpanded && (
                         <>
                           <span className="flex-1">{item.name}</span>
+                          {item.adminOnly && (
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
+                              <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
+                            </span>
+                          )}
                           {isLocked && (
                             LockIcon
                           )}
@@ -1054,6 +935,11 @@ export default function Layout({ children }: LayoutProps) {
                                 >
                                   <ChildIcon className="h-4 w-4" />
                                   {child.name}
+                                  {child.adminOnly && (
+                                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0 ml-auto" title="Admin only">
+                                      <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
+                                    </span>
+                                  )}
                                   {isChildLocked && ChildLockIcon}
                                   {!isChildLocked && child.badgeHref === '/orders' && pendingOrders > 0 && (
                                     <span className="ml-auto bg-destructive text-white text-xs px-1.5 rounded-full">
@@ -1192,6 +1078,11 @@ export default function Layout({ children }: LayoutProps) {
                               >
                                 <ChildIcon className="h-4 w-4 flex-shrink-0" />
                                 <span className="flex-1">{child.name}</span>
+                                {child.adminOnly && (
+                                  <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
+                                    <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
+                                  </span>
+                                )}
                                 {isChildLocked && ChildLockIcon}
                                 {!isChildLocked && showChildBadge && (
                                   <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-semibold">

@@ -2,9 +2,9 @@ import { ReactNode, useState } from 'react'
 import { useFrappeGetDocList, useFrappeGetCall } from '@/lib/frappe'
 import { DeliveryTrackerCard } from '@/components/DeliveryTrackerCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-  ShoppingCart, 
-  Package, 
+import {
+  Wallet,
+  Package,
   TrendingUp, 
   Clock, 
   CheckCircle, 
@@ -108,7 +108,7 @@ function RevenueTrendChart({ data }: { data: number[] }) {
       <EmptyState 
         variant="chart"
         title="No Revenue Data"
-        description="Waiting for your first few orders to generate growth insights."
+        description="Waiting for your first few scans to generate growth insights."
         icon={TrendingUp}
       />
     )
@@ -153,8 +153,8 @@ function TopProductsChart({ products }: { products: { name: string, count: numbe
     return (
       <EmptyState 
         variant="chart"
-        title="No Sales Yet"
-        description="Your best-selling dishes will appear here once guests start ordering."
+        title="No views yet"
+        description="Your most-viewed dishes will appear here once guests start exploring your menu."
         icon={Package}
       />
     )
@@ -167,7 +167,7 @@ function TopProductsChart({ products }: { products: { name: string, count: numbe
         <div key={i} className="space-y-1.5">
           <div className="flex justify-between text-xs font-medium">
             <span className="truncate max-w-[150px]">{p.name}</span>
-            <span className="text-muted-foreground">{p.count} orders</span>
+            <span className="text-muted-foreground">{p.count} interactions</span>
           </div>
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
             <div 
@@ -208,7 +208,6 @@ function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
             />
             <Bar dataKey="views" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={20} name="Views (Interest)" />
-            <Bar dataKey="orders" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} name="Orders (Sales)" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -308,7 +307,7 @@ function QRRoasSection({ roas }: { roas: any[] }) {
               <span className="text-[10px] font-bold uppercase tracking-tight truncate">{item.source}</span>
             </div>
             <p className="text-sm font-black">{formatAmountNoDecimals(item.revenue)}</p>
-            <p className="text-[9px] text-muted-foreground">{item.orders} orders</p>
+            <p className="text-[9px] text-muted-foreground">{item.orders} interactions</p>
           </div>
         ))}
       </div>
@@ -363,12 +362,6 @@ export default function Dashboard() {
   const navigate = useNavigate()
   
   // Fetch data
-  const { data: orders, isLoading: ordersLoading } = useFrappeGetDocList('Order', {
-    fields: ['name', 'status', 'total', 'creation', 'restaurant', 'table_number', 'order_type', 'delivery_partner', 'delivery_status', 'delivery_fee'],
-    filters: selectedRestaurant ? ({ restaurant: selectedRestaurant } as any) : undefined,
-    limit: 100,
-    orderBy: { field: 'creation', order: 'desc' }
-  }, selectedRestaurant ? `orders-dashboard-${selectedRestaurant}` : null)
 
   const { data: products } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name', 'price', 'is_active', 'restaurant'],
@@ -399,14 +392,13 @@ export default function Dashboard() {
   const analyticsData = analytics?.message?.success ? analytics.message : (analytics?.success ? analytics : null)
 
   // Calculations
-  const totalOrders = orders?.length || 0
-  const totalRevenue = orders?.reduce((sum, order) => sum + (order.total || 0), 0) || 0
+  const totalOrders = 0
+  const totalRevenue = 0
 
   // Today's Stats
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
-  const todayOrders = orders?.filter((o: any) => new Date(o.creation) >= today) || []
+  const todayOrders = []
 
 
   // 7-day Trend for Chart
@@ -417,14 +409,7 @@ export default function Dashboard() {
     return d
   })
 
-  const dailyRevenue = last7Days.map(date => {
-    const nextDay = new Date(date)
-    nextDay.setDate(nextDay.getDate() + 1)
-    return orders?.filter(o => {
-      const d = new Date(o.creation)
-      return d >= date && d < nextDay
-    }).reduce((sum, o) => sum + (o.total || 0), 0) || 0
-  })
+  const dailyRevenue = last7Days.map(() => 0)
 
   // Top Products — real order-count data from analyticsData.topPerformers
   // Falls back to menu products slice ONLY when no analytics data available
@@ -546,45 +531,37 @@ export default function Dashboard() {
                <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-500/80">Business Performance</h2>
             </div>
             
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
-              <div className="lg:col-span-2">
-                 <DeliveryTrackerCard orders={orders || []} isLoading={ordersLoading} />
-              </div>
-              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <StatCard 
-                  title="7D Revenue"
-                  value={formatAmountNoDecimals(totalRevenue)}
-                  subtext={`vs ${formatAmountNoDecimals(totalRevenue * 0.9)} last 7D`}
-                  icon={TrendingUp}
-                  trend="up"
-                  trendValue="10%"
-                  isGold={isGold}
-                  gradient="from-indigo-600 to-blue-500"
-                />
-                <StatCard 
-                  title="Weekly Orders"
-                  value={totalOrders}
-                  subtext={`${Math.round(totalOrders / 7)} orders daily average`}
-                  icon={ShoppingCart}
-                  isGold={isGold}
-                  gradient="from-emerald-600 to-teal-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
-              <StatCard 
-                title="Conv. Rate %"
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="Revenue (7D)"
+                value={formatAmountNoDecimals(totalRevenue)}
+                subtext="Paid via Flamezo"
+                icon={TrendingUp}
+                trend="up"
+                trendValue="10%"
+                isGold={isGold}
+                gradient="from-indigo-600 to-blue-500"
+              />
+              <StatCard
+                title="Bills Paid (7D)"
+                value={totalOrders}
+                subtext="Settled via Flamezo Pay"
+                icon={Wallet}
+                isGold={isGold}
+                gradient="from-emerald-600 to-teal-500"
+              />
+              <StatCard
+                title="Scan → Pay Rate"
                 value={`${analyticsData?.enhanced?.conversionRate || 0}%`}
-                subtext="Scans to Order success"
+                subtext="Scans that paid the bill"
                 icon={Zap}
                 isGold={isGold}
                 gradient="from-amber-500 to-orange-500"
               />
-              <StatCard 
-                title="Avg Order Value"
+              <StatCard
+                title="Avg Bill"
                 value={formatAmountNoDecimals(analyticsData?.enhanced?.avgOrderValue || 0)}
-                subtext="Spend per customer visit"
+                subtext="Spend per visit"
                 icon={Activity}
                 isGold={isGold}
                 gradient="from-rose-500 to-pink-500"
@@ -611,7 +588,7 @@ export default function Dashboard() {
             <LockedInsight 
               isUnlocked={isAdvancedAnalytics} 
               title="Trend Analysis" 
-              description="See how your scans drive orders across the week."
+              description="See how your scans drive engagement across the week."
             >
               <div className="flex items-end justify-between mt-4 mb-2 h-[20px]">
                 {last7Days.map((d, i) => (
@@ -707,7 +684,7 @@ export default function Dashboard() {
                     Menu Heatmap
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">GAP ANALYSIS</span>
                   </CardTitle>
-                  <CardDescription>Identifying dishes that are clicked but not ordered</CardDescription>
+                  <CardDescription>Which dishes draw the most guest attention</CardDescription>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center">
                   <Zap className="h-5 w-5 text-primary" />
@@ -728,7 +705,7 @@ export default function Dashboard() {
                      <div className="space-y-1">
                         <p className="text-xs font-bold text-amber-800 dark:text-amber-400">Optimization Required</p>
                         <p className="text-[11px] text-amber-700/80 dark:text-amber-500/80 leading-relaxed">
-                          We noticed high friction on some items. High views but 0 orders usually indicates the price point is slightly higher than guest expectations.
+                          We noticed high friction on some items. High views but low engagement usually indicates the price point is slightly higher than guest expectations.
                         </p>
                      </div>
                    </div>
@@ -778,10 +755,9 @@ export default function Dashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="space-y-1">
               <CardTitle className="text-lg font-bold">Today's Transactions</CardTitle>
-              <CardDescription>Latest order activities</CardDescription>
+              <CardDescription>Latest bills paid via Flamezo</CardDescription>
             </div>
             <Button variant="ghost" size="sm" className="text-xs rounded-full" asChild>
-              <Link to="/orders">View Ledger</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -806,11 +782,11 @@ export default function Dashboard() {
                   </div>
                 ))
               ) : (
-                <EmptyState 
+                <EmptyState
                   variant="chart"
-                  title="No Orders Today"
-                  description="Waiting for your first scan of the day..."
-                  icon={ShoppingCart}
+                  title="No bills yet today"
+                  description="Bills paid through Flamezo will appear here in real time."
+                  icon={Wallet}
                   className="py-12"
                 />
               )}
@@ -835,7 +811,7 @@ export default function Dashboard() {
              <CardContent className="space-y-4">
                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 relative">
                    <p className="text-sm text-foreground/80 leading-relaxed font-sans italic">
-                     "AI indicates that <strong>{analyticsData?.traffic?.topCategory?.[0]?.event_value || 'Beverages'}</strong> are being viewed more than they are being ordered. Suggest adding a <strong>'Featured Combo'</strong> to boost sales."
+                     "AI indicates that <strong>{analyticsData?.traffic?.topCategory?.[0]?.event_value || 'Beverages'}</strong> are getting the most guest attention. Suggest featuring a <strong>'Combo Deal'</strong> on these to lift the average bill."
                    </p>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
@@ -846,7 +822,7 @@ export default function Dashboard() {
                       </Link>
                     </Button>
                     <Button variant="outline" size="sm" className="rounded-xl h-11 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all" asChild>
-                       <Link to="/accept-orders">
+                       <Link to="/settings">
                          Queue Settings
                        </Link>
                     </Button>

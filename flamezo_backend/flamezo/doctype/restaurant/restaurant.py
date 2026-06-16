@@ -822,7 +822,6 @@ def create_restaurant_config(self):
 			"enable_events": 1,
 			"enable_offers": 1,
 			"enable_coupons": 1,
-			"enable_experience_lounge": 1,
 			"menu_theme_background_enabled": 0,
 			"verify_my_user": 0,
 			"google_review_link": "",

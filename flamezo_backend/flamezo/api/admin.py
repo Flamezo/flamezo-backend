@@ -430,7 +430,7 @@ def delete_restaurant(restaurant_id):
             "Restaurant Config", "Restaurant Media", "Restaurant Social Link",
             "Menu Category", "Menu Product", "Menu Product Addon", "Customization Option", "Customization Question",
             "Order", "Order Item", "Table Booking", "Banquet Booking", "Restaurant Table",
-            "Cart Entry", "Restaurant User", "Coupon", "Coupon Usage", "Offer", "Auto Offer", "Combo Offer", "Promo",
+            "Restaurant User", "Coupon", "Coupon Usage", "Offer", "Auto Offer", "Combo Offer", "Promo",
             "Game", "Event", "Home Feature", "Media Asset", "Media Upload Session", "Media Variant", "Product Media",
             "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger", "Razorpay Webhook Log",
             "Plan Change Log", "Referral Link", "Referral Visit", "OTP Verification Log",
@@ -1004,8 +1004,6 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
         "name":            "c.customer_name",
         "created":         "c.creation",
         "last_seen":       "c.modified",
-        "total_orders":    "COALESCE(order_stats.total_orders, 0)",
-        "total_spend":     "COALESCE(order_stats.total_spend, 0)",
         "loyalty_balance": "COALESCE(loyalty_stats.balance, 0)",
         "lifetime_earned": "COALESCE(loyalty_stats.lifetime_earned, 0)",
     }
@@ -1020,20 +1018,10 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
             c.date_of_birth,
             c.creation,
             c.modified,
-            COALESCE(order_stats.total_orders, 0)     AS total_orders,
-            COALESCE(order_stats.total_spend, 0)      AS total_spend,
             COALESCE(loyalty_stats.balance, 0)        AS loyalty_balance,
             COALESCE(loyalty_stats.lifetime_earned, 0) AS lifetime_earned,
             COALESCE(loyalty_stats.total_redeemed, 0)  AS total_redeemed
         FROM `tabCustomer` c
-        LEFT JOIN (
-            SELECT platform_customer,
-                   COUNT(*)     AS total_orders,
-                   SUM(total)   AS total_spend
-            FROM `tabOrder`
-            WHERE platform_customer IS NOT NULL
-            GROUP BY platform_customer
-        ) order_stats ON order_stats.platform_customer = c.name
         LEFT JOIN (
             SELECT customer,
                 GREATEST(0, SUM(CASE
@@ -1069,8 +1057,6 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
                     "birthday":        str(r.date_of_birth) if r.date_of_birth else None,
                     "created":         str(r.creation),
                     "last_seen":       str(r.modified),
-                    "total_orders":    int(r.total_orders or 0),
-                    "total_spend":     float(r.total_spend or 0),
                     "loyalty_balance": int(r.loyalty_balance or 0),
                     "lifetime_earned": int(r.lifetime_earned or 0),
                     "total_redeemed":  int(r.total_redeemed or 0),
@@ -1098,19 +1084,7 @@ def admin_get_customer_full_profile(customer_id):
         return {"success": False, "error": "Customer not found"}
 
     customer = frappe.get_doc("Customer", customer_id)
-
-    # ── Orders ────────────────────────────────────────────────────────────────
-    order_fields = ["name", "restaurant", "order_number", "total", "status",
-                    "payment_status", "payment_method", "creation", "loyalty_coins_redeemed"]
-    if frappe.db.has_column("Order", "customer_rating"):
-        order_fields += ["customer_rating", "customer_feedback"]
-    orders = frappe.get_all(
-        "Order",
-        filters={"platform_customer": customer_id},
-        fields=order_fields,
-        order_by="creation desc",
-        limit_page_length=200
-    )
+    orders = []
 
     # ── Table & Banquet Bookings ───────────────────────────────────────────────
     table_bookings = frappe.get_all(
@@ -1199,7 +1173,6 @@ def admin_get_customer_full_profile(customer_id):
 
     # ── Restaurant names map ──────────────────────────────────────────────────
     all_rest_ids = set(
-        [o.restaurant for o in orders] +
         [b.restaurant for b in table_bookings] +
         [b.restaurant for b in banquet_bookings] +
         [e.restaurant for e in loyalty_entries] +
@@ -1229,17 +1202,10 @@ def admin_get_customer_full_profile(customer_id):
                 "verified_at":  str(customer.verified_at) if customer.verified_at else None,
             },
             "stats": {
-                "total_orders":    len(orders),
-                "total_spend":     float(sum(o.total or 0 for o in orders)),
                 "loyalty_balance": balance,
                 "lifetime_earned": lifetime_earned,
                 "total_redeemed":  sum(e.coins for e in loyalty_entries if e.transaction_type == "Redeem" and e.is_settled),
-                "restaurants_visited": len(set(o.restaurant for o in orders)),
             },
-            "orders": [
-                {**dict(o), "restaurant_name": rn(o.restaurant)}
-                for o in orders
-            ],
             "table_bookings": [
                 {**dict(b), "restaurant_name": rn(b.restaurant)}
                 for b in table_bookings

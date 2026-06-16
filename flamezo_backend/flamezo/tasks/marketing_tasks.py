@@ -268,11 +268,9 @@ def dispatch_campaign_task(campaign_id):
 
 def fire_order_complete_triggers(order_doc, method=None):
     """
-    Called from doc_events -> Order -> after_insert.
-    Finds active 'On Order Complete' triggers for the restaurant and enqueues delayed sends.
+    Disabled since Ordering system is removed.
     """
-    restaurant = order_doc.restaurant
-    customer_id = order_doc.platform_customer
+    return
     if not restaurant or not customer_id:
         return
 
@@ -395,7 +393,7 @@ def _get_trigger_customers(trigger):
         return frappe.db.sql("""
             SELECT DISTINCT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s
               AND c.date_of_birth IS NOT NULL
               AND MONTH(c.date_of_birth) = MONTH(CURDATE())
@@ -409,7 +407,7 @@ def _get_trigger_customers(trigger):
         return frappe.db.sql("""
             SELECT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -531,7 +529,7 @@ def _get_opted_out_phones(restaurant):
     rows = frappe.db.sql("""
         SELECT DISTINCT c.phone
         FROM `tabCustomer` c
-        JOIN `tabOrder` o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1 AND c.phone IS NOT NULL
     """, (restaurant,))
     return {r[0] for r in rows}

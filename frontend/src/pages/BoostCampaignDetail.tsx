@@ -3,7 +3,7 @@ import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ChevronLeft, Eye, MousePointerClick, Ticket, Users, DollarSign,
+  ChevronLeft, ChevronRight, Eye, MousePointerClick, Ticket, Users, DollarSign,
   Pause, Play, TrendingUp, XCircle, Copy, ExternalLink, Share2,
   Zap, Clock, Calendar, AlertTriangle
 } from 'lucide-react'

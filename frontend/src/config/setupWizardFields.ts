@@ -151,34 +151,14 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'logo_size',
       'hero_video',
 
-      // Color palette
-      'color_palette_violet',
-      'color_palette_indigo',
-      'color_palette_blue',
-      'color_palette_green',
-      'color_palette_yellow',
-      'color_palette_orange',
-      'color_palette_red',
-
       // Layout
       'menu_layout',
-
-      // Feature toggles
-      'enable_loyalty',
-      'enable_table_booking',
-      'enable_banquet_booking',
-      'enable_events',
-      'enable_offers',
-      'enable_coupons',
-      'enable_experience_lounge',
 
       // Social / contact
       'google_review_link',
       'instagram_profile_link',
       'facebook_profile_link',
       'whatsapp_phone_number',
-      'swiggy_link',
-      'zomato_link',
     ],
 
     alwaysHidden: [
@@ -207,11 +187,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'menu_theme_last_error',
 
       // Advanced branding (managed via dedicated page)
-      'qr_code',
-      'brand_logo',
-      'hero_image',
       'menu_theme',
-      'custom_css',
 
       // Internal push tokens
       'merchant_push_tokens',

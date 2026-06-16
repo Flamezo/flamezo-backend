@@ -32,7 +32,7 @@ export default function TeamManagement() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Team Management</h1>
             <p className="text-sm text-muted-foreground">
-              Invite staff to manage orders, bookings, and more.
+              Invite staff to manage bookings, and more.
             </p>
           </div>
         </div>
@@ -44,7 +44,7 @@ export default function TeamManagement() {
             <Crown className="w-3 h-3" /> 6 Staff Seats
           </Badge>
           <span className="text-xs text-muted-foreground">
-            Staff can view and manage orders &amp; bookings. Admins have full dashboard access.
+            Staff can view and manage bookings. Admins have full dashboard access.
           </span>
         </div>
       </div>
@@ -60,7 +60,7 @@ export default function TeamManagement() {
             <span className="text-sm font-semibold">Restaurant Admin</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Full access: orders, bookings, menu, billing, settings, staff management.
+            Full access: bookings, menu, billing, settings, staff management.
             <br /><span className="font-medium text-foreground/70">That's you.</span>
           </p>
         </div>
@@ -74,7 +74,7 @@ export default function TeamManagement() {
             <span className="text-sm font-semibold">Restaurant Staff</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Limited access: real-time orders, accept orders, past orders, table bookings.
+            Limited access: table bookings.
             <br /><span className="font-medium text-foreground/70">Billing and settings are hidden.</span>
           </p>
         </div>

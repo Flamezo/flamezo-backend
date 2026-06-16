@@ -108,7 +108,7 @@ class MarketingSegment(Document):
     def _query_all_customers(self, restaurant):
         result = frappe.db.sql("""
             SELECT COUNT(DISTINCT o.platform_customer)
-            FROM `tabOrder` o
+            FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o
             JOIN `tabCustomer` c ON c.name = o.platform_customer
             WHERE o.restaurant = %s
               AND o.platform_customer IS NOT NULL AND o.platform_customer != ''
@@ -119,14 +119,14 @@ class MarketingSegment(Document):
     def _query_new_customers(self, restaurant):
         result = frappe.db.sql("""
             SELECT COUNT(DISTINCT o.platform_customer)
-            FROM `tabOrder` o
+            FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o
             JOIN `tabCustomer` c ON c.name = o.platform_customer
             WHERE o.restaurant = %s
               AND o.platform_customer IS NOT NULL
               AND o.creation >= DATE_SUB(NOW(), INTERVAL 14 DAY)
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
               AND (
-                SELECT COUNT(*) FROM `tabOrder` o2
+                SELECT COUNT(*) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o2
                 WHERE o2.restaurant = %s AND o2.platform_customer = o.platform_customer
                   AND o2.creation < DATE_SUB(NOW(), INTERVAL 14 DAY)
               ) = 0
@@ -138,7 +138,7 @@ class MarketingSegment(Document):
             SELECT COUNT(*)
             FROM (
                 SELECT o.platform_customer
-                FROM `tabOrder` o
+                FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o
                 JOIN `tabCustomer` c ON c.name = o.platform_customer
                 WHERE o.restaurant = %s AND o.platform_customer IS NOT NULL
                   AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
@@ -153,7 +153,7 @@ class MarketingSegment(Document):
             SELECT COUNT(*)
             FROM (
                 SELECT o.platform_customer, COUNT(*) as visit_count
-                FROM `tabOrder` o
+                FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o
                 JOIN `tabCustomer` c ON c.name = o.platform_customer
                 WHERE o.restaurant = %s AND o.platform_customer IS NOT NULL AND o.platform_customer != ''
                   AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
@@ -168,7 +168,7 @@ class MarketingSegment(Document):
             SELECT COUNT(*)
             FROM (
                 SELECT o.platform_customer, SUM(o.total) as lifetime_spend
-                FROM `tabOrder` o
+                FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o
                 JOIN `tabCustomer` c ON c.name = o.platform_customer
                 WHERE o.restaurant = %s AND o.platform_customer IS NOT NULL AND o.platform_customer != ''
                   AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
@@ -182,7 +182,7 @@ class MarketingSegment(Document):
         result = frappe.db.sql("""
             SELECT COUNT(DISTINCT c.name)
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s
               AND c.date_of_birth IS NOT NULL
               AND MONTH(c.date_of_birth) = MONTH(CURDATE())
@@ -202,7 +202,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT DISTINCT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL AND c.phone != ''
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
         """, (restaurant,), as_dict=True)
@@ -211,7 +211,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT DISTINCT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND o.creation >= DATE_SUB(NOW(), INTERVAL 14 DAY)
               AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
@@ -221,7 +221,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -232,7 +232,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -243,7 +243,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -254,7 +254,7 @@ class MarketingSegment(Document):
         return frappe.db.sql("""
             SELECT DISTINCT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s
               AND c.date_of_birth IS NOT NULL
               AND MONTH(c.date_of_birth) = MONTH(CURDATE())
@@ -299,7 +299,7 @@ class MarketingSegment(Document):
         query = f"""
             {select_clause}
             FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %(restaurant)s
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
         """
@@ -308,19 +308,19 @@ class MarketingSegment(Document):
         # 1. Filter by Last Visit
         if self.filter_by_last_visit:
             days = self.days_since_last_visit or 30
-            query += f" AND c.name IN (SELECT platform_customer FROM `tabOrder` WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING MAX(creation) < DATE_SUB(NOW(), INTERVAL %(days)s DAY))"
+            query += f" AND c.name IN (SELECT platform_customer FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING MAX(creation) < DATE_SUB(NOW(), INTERVAL %(days)s DAY))"
             params["days"] = days
 
         # 2. Filter by Visit Count
         if self.filter_by_visit_count:
             min_visits = self.min_visit_count or 5
-            query += f" AND c.name IN (SELECT platform_customer FROM `tabOrder` WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING COUNT(name) >= %(min_visits)s)"
+            query += f" AND c.name IN (SELECT platform_customer FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING COUNT(name) >= %(min_visits)s)"
             params["min_visits"] = min_visits
 
         # 3. Filter by Total Spent
         if self.filter_by_total_spent:
             min_spend = self.min_total_spent or 1000
-            query += f" AND c.name IN (SELECT platform_customer FROM `tabOrder` WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING SUM(total) >= %(min_spend)s)"
+            query += f" AND c.name IN (SELECT platform_customer FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) WHERE restaurant = %(restaurant)s GROUP BY platform_customer HAVING SUM(total) >= %(min_spend)s)"
             params["min_spend"] = min_spend
 
         # 4. Filter by Birthday

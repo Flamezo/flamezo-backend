@@ -30,7 +30,7 @@ def _claim_link(sub):
 	if not base:
 		return ""
 	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
-	return f"\n\n{base.rstrip('/')}/ugc-claim?r={slug}&order={sub.order}"
+	return f"\n\n{base.rstrip('/')}/ugc-claim?r={slug}&bill={getattr(sub, 'order', '')}"
 
 
 def send_ugc_whatsapp(submission_name, kind):
@@ -60,7 +60,7 @@ def send_ugc_whatsapp(submission_name, kind):
 		),
 		"cashback_credited": (
 			f"🎉 Cashback credited! {cint(sub.cashback_coins)} Cash from {rname} is now in "
-			f"your Flamezo wallet — use it within {get_expiry_days()} days on your next order."
+			f"your Flamezo wallet — use it within {get_expiry_days()} days on your next bill."
 		),
 		"proof_rejected": (
 			f"Your cashback claim at {rname} couldn't be approved. "

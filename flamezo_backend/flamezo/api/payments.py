@@ -610,7 +610,7 @@ def get_restaurant_payment_stats(restaurant_id):
 				COUNT(*) as total_orders,
 				COALESCE(SUM(total), 0) as total_revenue,
 				COALESCE(SUM(platform_fee_amount), 0) as total_platform_fee
-			FROM `tabOrder`
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0)
 			WHERE restaurant = %s 
 			AND payment_status = 'completed'
 			AND DATE_FORMAT(creation, '%%Y-%%m') = %s
@@ -931,7 +931,7 @@ def schedule_monthly_billing():
 				continue
 			# Sum completed orders for month
 			total = frappe.db.sql("""
-				SELECT COALESCE(SUM(total),0) FROM `tabOrder` 
+				SELECT COALESCE(SUM(total),0) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) 
 				WHERE restaurant=%s AND payment_status='completed' AND DATE_FORMAT(creation, '%%Y-%%m')=%s
 			""", (r.name, current_month))[0][0] or 0
 			# Convert to paise

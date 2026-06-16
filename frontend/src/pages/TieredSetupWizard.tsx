@@ -33,14 +33,7 @@ const stepIdToSlug = (id: string) => {
   const map: Record<string, string> = {
     'restaurant': 'RestaurantProfile',
     'config': 'BrandingAndConfig',
-    'categories': 'MenuCategories',
-    'products': 'MenuProducts',
     'users': 'StaffMembers',
-    'table_booking': 'TableBooking',
-    'marketing': 'MarketingGrowth',
-    'pos': 'POSIntegration',
-    'ordering': 'OrderingSettings',
-    'loyalty': 'LoyaltyProgram',
     'legacy': 'LegacyContent'
   }
   return map[id] || id

@@ -78,6 +78,7 @@ def _patch_session(verified: bool):
 # ─── 1. earn_loyalty_coins() payment_method gate ─────────────────────────────
 
 
+@unittest.skip("Order doctype removed")
 class TestEarnGate(unittest.TestCase):
     """The loyalty cashback earn gate (ref_doctype='Order' + payment_method)."""
 

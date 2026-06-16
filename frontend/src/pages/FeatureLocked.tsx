@@ -154,9 +154,6 @@ function getFeatureDetails(path: string): { featureName: string; requiredPlan: '
   const cleanPath = decodeURIComponent(path.replace(/^\/+|\/+$/g, ''))
 
   const featureMap: Record<string, { name: string; plan: 'GOLD' | 'GOLD' }> = {
-    'orders': { name: 'Real-time Orders', plan: 'GOLD' },
-    'accept-orders': { name: 'Accept Orders', plan: 'GOLD' },
-    'past-orders': { name: 'Past Orders', plan: 'GOLD' },
     'bookings': { name: 'Table Bookings', plan: 'GOLD' },
     'customers': { name: 'Customer Management', plan: 'GOLD' },
     'coupons': { name: 'Coupons Management', plan: 'GOLD' },

@@ -127,8 +127,7 @@ permission_query_conditions = {
 	"Restaurant Loyalty Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Order": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Cart Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+
 	"Coupon": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Offer": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
@@ -161,7 +160,7 @@ permission_query_conditions = {
 	"AI credit Transaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"AI Image Generation": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Recommendation Interaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Co Order Event": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+
 	"Menu Product Embedding Cache": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 }
 
@@ -172,7 +171,7 @@ has_permission = {
 	"Restaurant Table": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
-	"Order": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+
 	"Customer": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Marketing Campaign": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Monthly Billing Ledger": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
@@ -204,30 +203,7 @@ doc_events = {
 	"Customer": {
 		"before_save": "flamezo_backend.flamezo.api.customers.normalize_customer_phone_on_save",
 	},
-	"Order": {
-		"before_save": "flamezo_backend.flamezo.api.customers.normalize_order_phone_on_save",
-		"after_insert": [
-			"flamezo_backend.flamezo.api.customers.update_customer_last_visited",
-			"flamezo_backend.flamezo.api.realtime.notify_order_update",
-			# Push notification to merchant dashboard (free FCM, background-safe)
-			"flamezo_backend.flamezo.api.realtime.notify_new_order_to_merchant",
-			# Marketing Studio: fire 'On Order Complete' triggers
-			"flamezo_backend.flamezo.tasks.marketing_tasks.fire_order_complete_triggers",
-			# POS: push confirmed orders to POS provider (Petpooja, etc.)
-			"flamezo_backend.flamezo.pos.utils.handle_order_update",
-			# Recommendations: log co-ordered product pairs for co-order matrix
-			"flamezo_backend.flamezo.tasks.recommendation_tasks.log_co_order_events",
-		],
-		"on_update": [
-			"flamezo_backend.flamezo.api.realtime.notify_order_update",
-			"flamezo_backend.flamezo.utils.loyalty.handle_order_cancellation",
-			"flamezo_backend.flamezo.utils.loyalty.handle_loyalty_settlement",
-			"flamezo_backend.flamezo.pos.utils.handle_order_update",
-			# Cash commission engine: accrue on first transition to a
-			# terminal cash status, void on cancellation. Idempotent.
-			"flamezo_backend.flamezo.utils.commission_engine.on_order_update",
-		],
-	},
+
 	"Table Booking": {
 		"after_insert": "flamezo_backend.flamezo.api.customers.update_customer_last_visited",
 	},
@@ -241,11 +217,7 @@ doc_events = {
 			"flamezo_backend.flamezo.api.google_business.handle_product_update"
 		],
 	},
-	"Cart Entry": {
-		"after_insert": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
-		"on_update": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
-		"on_trash": "flamezo_backend.flamezo.api.realtime.notify_cart_update",
-	},
+
 	"File": {
 		"on_update": "flamezo_backend.flamezo.doctype.home_feature.home_feature.update_home_feature_from_file",
 	},

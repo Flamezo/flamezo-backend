@@ -136,11 +136,6 @@ def has_order_permission(doc, ptype, user, **kwargs):
 	return has_restaurant_permission(doc, ptype=ptype, user=user)
 
 
-def get_cart_entry_permissions(user, doctype="Cart Entry"):
-	"""Get permission query for Cart Entry"""
-	return get_restaurant_permission_query_conditions(user, doctype)
-
-
 def has_cart_entry_permission(doc, ptype, user, **kwargs):
 	"""Check permission for Cart Entry"""
 	return has_restaurant_permission(doc, ptype=ptype, user=user)

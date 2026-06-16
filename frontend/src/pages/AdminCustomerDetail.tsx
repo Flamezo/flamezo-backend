@@ -10,7 +10,6 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { OrderDetailsDialog } from '@/components/OrderDetailsDialog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -28,18 +27,15 @@ interface FullProfile {
     id: string; name: string; phone: string; email: string
     birthday: string | null; created: string; verified_at: string | null
   }
-  stats: {
-    total_orders: number; total_spend: number; loyalty_balance: number
+  stats: { total_spend: number; loyalty_balance: number
     lifetime_earned: number; total_redeemed: number; restaurants_visited: number
   }
-  orders: any[]
   table_bookings: any[]
   banquet_bookings: any[]
   loyalty: { balance: number; lifetime_earned: number; entries: any[] }
   referral: {
     referred_by: {
-      referrer_id: string; referrer_name: string; referrer_phone: string
-      orders_credited: number; cashback_total: number; status: string
+      referrer_id: string; referrer_name: string; referrer_phone: string; cashback_total: number; status: string
     } | null
     referrals_made: any[]
   }
@@ -48,8 +44,8 @@ interface FullProfile {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmt      = (n: number) => n.toLocaleString('en-IN')
-const fmtR     = (n: number) => `₹${n.toLocaleString('en-IN')}`
+const fmt      = (n?: number) => (n ?? 0).toLocaleString('en-IN')
+const fmtR     = (n?: number) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 const fmtDate  = (s: string) => s ? new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const fmtDateTime = (s: string) => s ? new Date(s).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
@@ -193,10 +189,10 @@ export default function AdminCustomerDetail() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [profile, setProfile] = useState<FullProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'loyalty' | 'referral' | 'ugc'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'loyalty' | 'referral' | 'ugc'>('overview')
 
   // Detail dialogs
-  const [orderDialogName, setOrderDialogName] = useState<string | null>(null)
+  
   const [ugcDialogItem, setUgcDialogItem]     = useState<any | null>(null)
 
   // Loyalty / adjust
@@ -276,12 +272,19 @@ export default function AdminCustomerDetail() {
     </div>
   )
 
-  const { customer, stats, orders, table_bookings, loyalty, referral, ugc } = profile
-  const visitedRestaurants = [...new Map(orders.map((o: any) => [o.restaurant, o.restaurant_name])).entries()]
+  const { customer, stats, table_bookings, loyalty, referral, ugc } = profile
+
+  // Restaurants the customer has loyalty with — source for the manual adjustment picker.
+  const visitedRestaurants = [...new Map(
+    (loyalty?.entries || [])
+      .filter((e: any) => e.restaurant)
+      .map((e: any) => [e.restaurant, e.restaurant_name || e.restaurant])
+  ).entries()] as [string, string][]
+
 
   const tabs: { id: typeof activeTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
     { id: 'overview',  label: 'Overview',  icon: UserCheck },
-    { id: 'orders',    label: 'Orders',    icon: ShoppingBag, count: orders.length },
+    
     { id: 'loyalty',   label: 'Loyalty',   icon: Wallet,      count: loyalty.entries.length },
     { id: 'referral',  label: 'Referral',  icon: UserX,       count: referral.referrals_made.length },
     { id: 'ugc',       label: 'UGC',       icon: Video,       count: ugc.length },
@@ -367,7 +370,7 @@ export default function AdminCustomerDetail() {
         {activeTab === 'overview' && (
           <div className="space-y-6 max-w-5xl">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <StatCard icon={ShoppingBag}   label="Total Orders"    value={fmt(stats.total_orders)}        sub={fmtR(stats.total_spend) + ' spent'} />
+              
               <StatCard icon={Store}         label="Restaurants"     value={fmt(stats.restaurants_visited)} sub="unique visited" />
               <StatCard icon={Wallet}        label="Cash Balance"    value={fmtR(stats.loyalty_balance)}    sub="spendable now" accent="border-primary/30 bg-primary/5" />
               <StatCard icon={TrendingUp}    label="Lifetime Earned" value={fmtR(stats.lifetime_earned)} />
@@ -375,37 +378,7 @@ export default function AdminCustomerDetail() {
               <StatCard icon={Gift}          label="UGC Claims"      value={fmt(ugc.length)}               sub={`${ugc.filter((u: any) => u.status === 'credited').length} credited`} />
             </div>
 
-            {orders.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <p className="text-sm font-semibold flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-primary" />Recent Orders</p>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <div className="space-y-1">
-                    {orders.slice(0, 5).map((o: any) => (
-                      <div key={o.name}
-                        onClick={() => setOrderDialogName(o.name)}
-                        className="flex items-center justify-between py-2 px-2 -mx-2 border-b last:border-0 text-sm cursor-pointer hover:bg-muted/50 rounded-md transition-colors">
-                        <div>
-                          <span className="font-medium">{o.restaurant_name}</span>
-                          <span className="text-muted-foreground ml-2 text-xs">{fmtDate(o.creation)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{fmtR(o.total)}</span>
-                          <Badge variant={o.status === 'completed' ? 'default' : 'secondary'} className="text-[10px]">{o.status}</Badge>
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {orders.length > 5 && (
-                    <button onClick={() => setActiveTab('orders')} className="mt-2 text-xs text-primary hover:underline">
-                      View all {orders.length} orders →
-                    </button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+
 
             {referral.referred_by && (
               <Card className="border-blue-200 dark:border-blue-800">
@@ -414,7 +387,7 @@ export default function AdminCustomerDetail() {
                   <div>
                     <p className="text-sm font-medium">Referred by <span className="text-primary">{referral.referred_by.referrer_name}</span></p>
                     <p className="text-xs text-muted-foreground">
-                      {referral.referred_by.referrer_phone} · ₹{referral.referred_by.cashback_total} earned · {referral.referred_by.orders_credited} orders credited · {referral.referred_by.status}
+                      {referral.referred_by.referrer_phone} · ₹{referral.referred_by.cashback_total} earned · {referral.referred_by.status}
                     </p>
                   </div>
                   {referral.referred_by.referrer_id && (
@@ -425,93 +398,6 @@ export default function AdminCustomerDetail() {
                   )}
                 </CardContent>
               </Card>
-            )}
-          </div>
-        )}
-
-        {/* ORDERS */}
-        {activeTab === 'orders' && (
-          <div className="space-y-4 max-w-6xl">
-            {orders.length === 0
-              ? <p className="text-muted-foreground text-sm py-12 text-center">No orders yet</p>
-              : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order #</TableHead>
-                        <TableHead>Restaurant</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Cash Redeemed</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        {orders[0]?.customer_rating !== undefined && <TableHead>Rating</TableHead>}
-                        <TableHead />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orders.map((o: any) => (
-                        <TableRow key={o.name}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => setOrderDialogName(o.name)}>
-                          <TableCell className="font-mono text-xs">{o.order_number || o.name}</TableCell>
-                          <TableCell className="text-sm">{o.restaurant_name}</TableCell>
-                          <TableCell className="font-semibold">{fmtR(o.total)}</TableCell>
-                          <TableCell>
-                            {o.loyalty_coins_redeemed > 0
-                              ? <Badge variant="secondary" className="text-rose-600 bg-rose-50">−₹{o.loyalty_coins_redeemed}</Badge>
-                              : <span className="text-muted-foreground text-xs">—</span>}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={o.status === 'completed' ? 'default' : 'secondary'} className="text-[10px]">{o.status}</Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{fmtDateTime(o.creation)}</TableCell>
-                          {o.customer_rating !== undefined && (
-                            <TableCell>
-                              {o.customer_rating
-                                ? <span className="flex items-center gap-0.5 text-xs"><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />{o.customer_rating}</span>
-                                : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-                          )}
-                          <TableCell className="w-8 text-muted-foreground">
-                            <ChevronRight className="w-4 h-4" />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-            }
-
-            {table_bookings.length > 0 && (
-              <>
-                <p className="text-sm font-semibold flex items-center gap-2 mt-6"><Ticket className="w-4 h-4 text-primary" />Table Bookings ({table_bookings.length})</p>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Booking #</TableHead>
-                        <TableHead>Restaurant</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {table_bookings.map((b: any) => (
-                        <TableRow key={b.name}>
-                          <TableCell className="font-mono text-xs">{b.booking_number || b.name}</TableCell>
-                          <TableCell>{b.restaurant_name}</TableCell>
-                          <TableCell className="text-sm">{fmtDate(b.date)}</TableCell>
-                          <TableCell className="text-xs">{b.time_slot || '—'}</TableCell>
-                          <TableCell><Badge variant="secondary" className="text-[10px]">{b.status}</Badge></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
             )}
           </div>
         )}
@@ -543,11 +429,8 @@ export default function AdminCustomerDetail() {
                     </TableHeader>
                     <TableBody>
                       {loyalty.entries.map((e: any) => {
-                        const isOrderRef = e.reference_doctype === 'Order' && e.reference_name
                         return (
-                          <TableRow key={e.name}
-                            className={cn(isOrderRef && 'cursor-pointer hover:bg-muted/50')}
-                            onClick={() => isOrderRef && setOrderDialogName(e.reference_name)}>
+                          <TableRow key={e.name}>
                             <TableCell>
                               <Badge variant="secondary" className={cn('text-[10px]',
                                 e.transaction_type === 'Earn'
@@ -569,9 +452,7 @@ export default function AdminCustomerDetail() {
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{e.expiry_date ? fmtDate(e.expiry_date) : '—'}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{fmtDate(e.posting_date)}</TableCell>
-                            <TableCell className="w-6">
-                              {isOrderRef && <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-                            </TableCell>
+                            <TableCell className="w-6" />
                           </TableRow>
                         )
                       })}
@@ -596,7 +477,7 @@ export default function AdminCustomerDetail() {
                     <div className="space-y-1.5 text-sm">
                       <p><span className="text-muted-foreground">Name:</span> <span className="font-medium">{referral.referred_by.referrer_name}</span></p>
                       <p><span className="text-muted-foreground">Phone:</span> {referral.referred_by.referrer_phone}</p>
-                      <p><span className="text-muted-foreground">Orders credited:</span> {referral.referred_by.orders_credited} / 16</p>
+                      
                       <p><span className="text-muted-foreground">Cashback earned:</span> <span className="font-semibold text-primary">₹{referral.referred_by.cashback_total}</span></p>
                       <p><span className="text-muted-foreground">Status:</span> <Badge variant="secondary" className="text-[10px]">{referral.referred_by.status}</Badge></p>
                     </div>
@@ -641,7 +522,7 @@ export default function AdminCustomerDetail() {
                               onClick={() => navigate(`/admin/customers/${encodeURIComponent(r.referee)}`)}>
                               <TableCell className="font-medium text-sm">{r.referee_name}</TableCell>
                               <TableCell className="text-sm">{r.referee_phone}</TableCell>
-                              <TableCell>{r.orders_credited} / 16</TableCell>
+                              
                               <TableCell className="font-semibold text-primary">₹{r.cashback_total}</TableCell>
                               <TableCell><Badge variant="secondary" className="text-[10px]">{r.status}</Badge></TableCell>
                               <TableCell className="text-xs text-muted-foreground">{fmtDate(r.activated_on)}</TableCell>
@@ -722,12 +603,7 @@ export default function AdminCustomerDetail() {
 
       </div>
 
-      {/* ── Order Detail Dialog (reuses shared OrderDetailsDialog component) ── */}
-      <OrderDetailsDialog
-        orderId={orderDialogName}
-        open={!!orderDialogName}
-        onOpenChange={v => !v && setOrderDialogName(null)}
-      />
+
 
       {/* ── UGC Detail Dialog ── */}
       <UGCDetailDialog
@@ -789,7 +665,7 @@ export default function AdminCustomerDetail() {
           <DialogHeader>
             <DialogTitle className="text-red-600 flex items-center gap-2"><Trash2 className="w-4 h-4" />Delete Customer</DialogTitle>
             <DialogDescription>
-              This is irreversible. All orders, bookings, loyalty entries, referral relationships, and UGC submissions will be permanently deleted.
+              This is irreversible. All bookings, loyalty entries, referral relationships, and UGC submissions will be permanently deleted.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

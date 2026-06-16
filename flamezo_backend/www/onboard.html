@@ -517,6 +517,47 @@
                     <p>Essential tax and registration details for billing.</p>
                 </div>
 
+                <div class="form-group">
+                    <label>Legal Business Name</label>
+                    <input type="text" id="legal_name" placeholder="Name on PAN card">
+                </div>
+                
+                <div class="form-group">
+                    <label>Business Type</label>
+                    <select id="business_type">
+                        <option value="proprietorship">Proprietorship</option>
+                        <option value="partnership">Partnership</option>
+                        <option value="private_limited">Private Limited</option>
+                        <option value="public_limited">Public Limited</option>
+                        <option value="llp">LLP</option>
+                        <option value="individual">Individual</option>
+                    </select>
+                </div>
+
+                <div class="section-header" style="margin-top: 30px; margin-bottom: 20px;">
+                    <h3>Bank Account</h3>
+                    <p>The account where customer payments will land.</p>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label>Account Number</label>
+                        <input type="text" id="bank_account_number" placeholder="e.g. 50100123456789">
+                    </div>
+                    <div class="form-group">
+                        <label>IFSC Code</label>
+                        <input type="text" id="bank_ifsc" placeholder="HDFC0001234">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Account Holder Name</label>
+                    <input type="text" id="bank_holder_name" placeholder="As printed on bank passbook">
+                </div>
+
+                <div class="section-header" style="margin-top: 30px; margin-bottom: 20px;">
+                    <h3>Tax & Licensing</h3>
+                </div>
                 <div class="row">
                     <div class="form-group">
                         <label>FSSAI Number</label>
@@ -578,33 +619,7 @@
                     </div>
                 </div>
 
-                <div class="section-header" style="margin-top: 30px;">
-                    <h3>Feature Toggles</h3>
-                    <p>Enable or disable specific features for your restaurant.</p>
-                </div>
 
-                <div class="checkbox-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px;">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_table_booking" checked>
-                        <label for="enable_table_booking">Table Booking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_banquet_booking" checked>
-                        <label for="enable_banquet_booking">Banquet Booking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_events" checked>
-                        <label for="enable_events">Events</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_offers" checked>
-                        <label for="enable_offers">Offers</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="enable_experience_lounge" checked>
-                        <label for="enable_experience_lounge">Experience Lounge</label>
-                    </div>
-                </div>
             </div>
 
             <!-- Step 4: Location -->
@@ -719,19 +734,7 @@
                     <input type="url" id="menu_link" placeholder="Link to PDF or Zomato/Swiggy menu">
                 </div>
 
-                <div class="section-header" style="margin-top: 30px;">
-                    <h3>Delivery Partners</h3>
-                </div>
-                <div class="row">
-                    <div class="form-group">
-                        <label>Swiggy Link</label>
-                        <input type="url" id="swiggy_link" placeholder="https://swiggy.com/...">
-                    </div>
-                    <div class="form-group">
-                        <label>Zomato Link</label>
-                        <input type="url" id="zomato_link" placeholder="https://zomato.com/...">
-                    </div>
-                </div>
+
             </div>
 
             <!-- Success Screen -->
@@ -787,6 +790,11 @@
                     if (data.whatsapp_number) document.getElementById('whatsapp_number').value = data.whatsapp_number;
 
                     // Step 2: Legal & Ops
+                    if (data.legal_name) document.getElementById('legal_name').value = data.legal_name;
+                    if (data.business_type) document.getElementById('business_type').value = data.business_type;
+                    if (data.bank_account_number) document.getElementById('bank_account_number').value = data.bank_account_number;
+                    if (data.bank_ifsc) document.getElementById('bank_ifsc').value = data.bank_ifsc;
+                    if (data.bank_holder_name) document.getElementById('bank_holder_name').value = data.bank_holder_name;
                     if (data.fssai_number) document.getElementById('fssai_number').value = data.fssai_number;
                     if (data.gst_number) document.getElementById('gst_number').value = data.gst_number;
                     if (data.tax_rate) document.getElementById('tax_rate').value = data.tax_rate;
@@ -798,7 +806,7 @@
                     if (data.opening_time) document.getElementById('opening_time').value = data.opening_time;
                     if (data.closing_time) document.getElementById('closing_time').value = data.closing_time;
 
-                    const toggles = ['enable_table_booking', 'enable_banquet_booking', 'enable_events', 'enable_offers', 'enable_experience_lounge'];
+                    const toggles = [];
                     toggles.forEach(t => {
                         if (data[t] !== undefined) document.getElementById(t).checked = !!data[t];
                     });
@@ -827,8 +835,6 @@
 
                     // Step 6: Menu
                     if (data.menu_link) document.getElementById('menu_link').value = data.menu_link;
-                    if (data.swiggy_link) document.getElementById('swiggy_link').value = data.swiggy_link;
-                    if (data.zomato_link) document.getElementById('zomato_link').value = data.zomato_link;
 
                     if (data.menu_photos && data.menu_photos.length) {
                         formData.menu_photos = data.menu_photos;
@@ -865,7 +871,8 @@
                 'address', 'city', 'state', 'zip_code', 'google_map_url',
                 'tagline', 'subtitle', 'description', 'instagram_link', 'facebook_link', 'website_link', 'google_review_link', 'menu_link',
                 'fssai_number', 'gst_number', 'tax_rate', 'pan_number',
-                'opening_time', 'closing_time', 'swiggy_link', 'zomato_link',
+                'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name',
+                'opening_time', 'closing_time',
                 'default_theme', 'menu_layout'
             ];
             
@@ -875,7 +882,7 @@
             });
 
             // Handle checkboxes
-            const toggles = ['enable_table_booking', 'enable_banquet_booking', 'enable_events', 'enable_offers', 'enable_experience_lounge'];
+            const toggles = [];
             toggles.forEach(t => {
                 const el = document.getElementById(t);
                 if (el) formData[t] = el.checked ? 1 : 0;

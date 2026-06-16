@@ -7,7 +7,6 @@ Recommendation background tasks:
 
 import logging
 import math
-from itertools import combinations
 from typing import Dict, Tuple
 
 import frappe
@@ -17,51 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def log_co_order_events(doc, method=None):
-    """
-    Called via Order.after_insert hook.
-    Logs every unique pair of products in the order as a Co Order Event.
-    Wrapped in try/except so it NEVER blocks order placement on failure.
-    """
-    try:
-        if not doc or not doc.restaurant:
-            return
-
-        # Only log for non-cancelled orders
-        if getattr(doc, "status", "") == "cancelled":
-            return
-
-        items = doc.order_items or []
-        product_ids = []
-        for item in items:
-            pid = None
-            # Get product_id from linked Menu Product
-            if item.get("product"):
-                pid = frappe.db.get_value("Menu Product", item.product, "product_id")
-            if pid:
-                product_ids.append(pid)
-
-        # Need at least 2 items to form a pair
-        if len(product_ids) < 2:
-            return
-
-        ts = now()
-        # Generate all unique pairs (lexically ordered to avoid duplicates)
-        for a, b in combinations(sorted(set(product_ids)), 2):
-            try:
-                frappe.get_doc({
-                    "doctype": "Co Order Event",
-                    "restaurant": doc.restaurant,
-                    "order": doc.name,
-                    "product_a_id": a,
-                    "product_b_id": b,
-                    "timestamp": ts,
-                }).insert(ignore_permissions=True)
-            except Exception:
-                pass  # Non-critical; don't let one bad pair block others
-
-        frappe.db.commit()
-    except Exception as e:
-        logger.warning(f"log_co_order_events failed (non-critical): {e}")
+    pass
 
 
 def _compute_co_order_matrix(restaurant_name: str) -> Dict[Tuple[str, str], float]:

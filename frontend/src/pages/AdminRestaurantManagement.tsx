@@ -511,7 +511,7 @@ export default function AdminRestaurantManagement() {
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
               <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
-              <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Live + receiving orders</p>
+              <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Live</p>
             </button>
             <button
               type="button"
@@ -744,7 +744,7 @@ export default function AdminRestaurantManagement() {
                           <div className="flex items-center gap-2">
                             {/* Status dot — green = Online (is_active=1),
                                 red = Offline. Pulses subtly on Online to
-                                signal "live + receiving orders". */}
+                                signal "live". */}
                             <span
                               className={cn(
                                 "h-2 w-2 rounded-full shrink-0",
@@ -752,7 +752,7 @@ export default function AdminRestaurantManagement() {
                                   ? "bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse"
                                   : "bg-rose-400 ring-2 ring-rose-400/20"
                               )}
-                              title={restaurant.is_active ? "Online — live + receiving orders" : "Offline"}
+                              title={restaurant.is_active ? "Online — live" : "Offline"}
                               aria-label={restaurant.is_active ? "Online" : "Offline"}
                             />
                             <div className="flex flex-col min-w-0">
