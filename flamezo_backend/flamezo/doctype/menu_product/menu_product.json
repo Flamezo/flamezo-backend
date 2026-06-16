@@ -22,6 +22,7 @@
   "section_break_pricing",
   "price",
   "original_price",
+  "food_cost",
   "column_break_pricing",
   "has_no_media",
   "section_break_details",
@@ -140,6 +141,12 @@
    "fieldname": "original_price",
    "fieldtype": "Currency",
    "label": "Original Price"
+  },
+  {
+   "description": "Cost to make this item (ingredients/COGS). Used to compute margins and design profit-safe offers. Not shown to customers.",
+   "fieldname": "food_cost",
+   "fieldtype": "Currency",
+   "label": "Food Cost (COGS)"
   },
   {
    "fieldname": "column_break_pricing",

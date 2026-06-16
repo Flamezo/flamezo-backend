@@ -65,7 +65,27 @@ def process_media_asset(media_asset_name):
 				asset.mark_as_ready()
 				sync_media_asset_to_owner(asset)
 
+				# Delete the raw original file from Cloudflare to save storage space
+				try:
+					if asset.raw_object_key and asset.primary_object_key and asset.raw_object_key != asset.primary_object_key:
+						from .storage import delete_object
+						delete_object(asset.raw_object_key)
+						frappe.db.set_value("Media Asset", asset.name, "raw_object_key", None, update_modified=False)
+						frappe.db.commit()
+				except Exception as e:
+					safe_log_error("Raw Object Deletion Error", str(e))
+
 			frappe.logger().info(f"Successfully processed media asset {asset.media_id}")
+			
+			if asset.owner_doctype == "UGC Story Submission":
+				frappe.enqueue(
+					"flamezo_backend.flamezo.services.ai.ugc_verifier.verify_submission",
+					submission_name=asset.owner_name,
+					queue="default",
+					timeout=300,
+					enqueue_after_commit=True,
+				)
+			
 			return
 
 		except OperationalError as e:

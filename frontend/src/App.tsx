@@ -67,6 +67,7 @@ const BoostNewCampaign = lazy(() => import('./pages/BoostNewCampaign'))
 const BoostCampaignDetail = lazy(() => import('./pages/BoostCampaignDetail'))
 const BoostRedeem = lazy(() => import('./pages/BoostRedeem'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
+const MenuCosting = lazy(() => import('./pages/MenuCosting'))
 const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
 const PetpoojaLiveTesting = lazy(() => import('./pages/PetpoojaLiveTesting'))
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
@@ -186,6 +187,7 @@ function AppContent() {
 								<Route path="/team" element={<TeamManagement />} />
 
 								<Route path="/menu" element={<MenuManagement />} />
+								<Route path="/menu-costing" element={<MenuCosting />} />
 								<Route path="/addon-groups" element={<AddonGroupManagement />} />
 								<Route path="/petpooja-testing" element={<PetpoojaLiveTesting />} />
 								<Route path="/qr-codes" element={<QRCodes />} />

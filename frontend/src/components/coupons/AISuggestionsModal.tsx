@@ -42,6 +42,14 @@ export interface AISuggestion {
   goal: string
   rationale: string
   expected_impact: string
+  economics?: {
+    perceived_discount_pct: number | null
+    est_margin_pct: number | null
+    real_cost: number | null
+    verdict: 'safe' | 'ok' | 'thin'
+    headline: string
+    resolved: boolean
+  } | null
 }
 
 interface QuotaInfo {
@@ -215,6 +223,25 @@ function SuggestionCard({
         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
           {suggestion.description}
         </p>
+
+        {/* Profit-safety badge — feels big to the customer, safe for the owner */}
+        {suggestion.economics?.headline && (
+          <div
+            className={
+              'flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium ' +
+              (suggestion.economics.verdict === 'safe'
+                ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-400'
+                : suggestion.economics.verdict === 'ok'
+                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400'
+                : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400')
+            }
+          >
+            <span className="font-bold">
+              {suggestion.economics.verdict === 'safe' ? 'Profit-safe ✓' : suggestion.economics.verdict === 'ok' ? 'OK margin' : 'Thin margin'}
+            </span>
+            <span className="opacity-80">· {suggestion.economics.headline}</span>
+          </div>
+        )}
 
         {/* Key parameters */}
         <div className="flex flex-wrap gap-1.5">

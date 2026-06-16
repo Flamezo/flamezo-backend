@@ -969,3 +969,69 @@ def get_restaurant_tables(restaurant_id):
 		}
 
 
+@frappe.whitelist(allow_guest=True)
+def get_all_customer_bookings(phone, limit=50):
+	"""
+	Cross-restaurant UPCOMING bookings (Table + Banquet) for a verified customer.
+	No restaurant_id — powers the consumer Activity badge/list ecosystem-wide.
+	Mirrors get_all_customer_orders' auth + phone-variant lookup.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			normalize_phone, get_phone_variants_for_lookup,
+			validate_customer_session, get_customer_token, is_phone_verified,
+		)
+
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+
+		session_token = get_customer_token()
+		if not validate_customer_session(phone, session_token) and not is_phone_verified(phone):
+			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to view your bookings."}}
+
+		phone_variants = get_phone_variants_for_lookup(normalized)
+		ph = ", ".join(["%s"] * len(phone_variants))
+		today_str = today()
+
+		def _fetch(doctype, bad_statuses):
+			st = ", ".join(["%s"] * len(bad_statuses))
+			return frappe.db.sql(
+				"SELECT name, restaurant, `date`, time_slot, status FROM `tab" + doctype + "` "
+				"WHERE customer_phone IN (" + ph + ") AND `date` >= %s "
+				"AND status NOT IN (" + st + ") ORDER BY `date` ASC LIMIT 50",
+				phone_variants + [today_str] + bad_statuses, as_dict=True,
+			)
+
+		table_rows = _fetch("Table Booking", ["cancelled", "completed", "rejected", "no-show"])
+		banquet_rows = _fetch("Banquet Booking", ["cancelled", "completed"])
+
+		rest_ids = list({r.get("restaurant") for r in (table_rows + banquet_rows) if r.get("restaurant")})
+		meta = {}
+		if rest_ids:
+			for m in frappe.get_all("Restaurant", filters={"name": ["in", rest_ids]}, fields=["name", "restaurant_name", "city"]):
+				meta[m["name"]] = m
+
+		def _fmt(r, btype):
+			m = meta.get(r.get("restaurant"), {})
+			return {
+				"id": r.get("name"),
+				"type": btype,
+				"restaurantId": r.get("restaurant"),
+				"restaurantName": m.get("restaurant_name") or r.get("restaurant"),
+				"city": m.get("city") or "",
+				"date": str(r.get("date")) if r.get("date") else None,
+				"timeSlot": r.get("time_slot"),
+				"status": r.get("status"),
+			}
+
+		bookings = [_fmt(r, "table") for r in table_rows] + [_fmt(r, "banquet") for r in banquet_rows]
+		bookings.sort(key=lambda b: b.get("date") or "")
+		try:
+			lim = int(limit)
+		except Exception:
+			lim = 50
+		return {"success": True, "data": {"count": len(bookings), "bookings": bookings[:lim]}}
+	except Exception as e:
+		frappe.log_error(f"get_all_customer_bookings: {e}", "Bookings_Ecosystem")
+		return {"success": False, "error": {"code": "BOOKINGS_FETCH_ERROR", "message": str(e)}}
