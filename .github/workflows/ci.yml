@@ -91,6 +91,7 @@ jobs:
         run: |
           bench get-app flamezo_backend $GITHUB_WORKSPACE
           bench setup requirements --dev
+          ./env/bin/pip install "pyOpenSSL>=24.0.0" "cryptography>=42.0.0"
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app flamezo_backend
           bench build
