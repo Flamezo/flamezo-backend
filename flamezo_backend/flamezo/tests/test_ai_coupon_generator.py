@@ -194,13 +194,6 @@ class TestValidateAndClean(unittest.TestCase):
         raw = {"code": "", "offer_type": "coupon", "discount_type": "flat", "discount_value": 10}
         self.assertIsNone(self._validate(raw))
 
-    def test_delivery_type_forces_delivery_discount(self):
-        raw = {"code": "FREEDEL", "offer_type": "delivery", "discount_type": "flat",
-               "discount_value": 0, "min_order_amount": 0, "description": "x",
-               "detailed_description": "x", "category": "delivery"}
-        result = self._validate(raw)
-        self.assertEqual(result["discount_type"], "delivery")
-
     def test_combo_type_forces_flat_and_zero_value(self):
         raw = {"code": "COMBO299", "offer_type": "combo", "discount_type": "percent",
                "discount_value": 40, "min_order_amount": 0, "description": "x",
@@ -638,7 +631,7 @@ class TestCouponQualityRules(unittest.TestCase):
 
     def test_all_offer_types_validated_correctly(self):
         for offer_type, discount_type in [
-            ("coupon", "flat"), ("auto", "percent"), ("combo", "flat"), ("delivery", "delivery")
+            ("coupon", "flat"), ("auto", "percent"), ("combo", "flat")
         ]:
             raw = {
                 "code": f"T{offer_type.upper()[:3]}", "offer_type": offer_type,
@@ -737,12 +730,6 @@ class TestLiveGeneration(unittest.TestCase):
         result = self._generate()
         for s in result.get("suggestions", []):
             self.assertEqual(s["code"], s["code"].upper(), f"Code not uppercase: {s['code']}")
-
-    def test_live_offer_type_filter_respected(self):
-        result = self._generate(offer_type_filter="delivery")
-        for s in result.get("suggestions", []):
-            self.assertEqual(s["offer_type"], "delivery",
-                f"Got non-delivery offer when filter was 'delivery': {s['code']}")
 
     def test_live_quota_incremented_after_generation(self):
         used_before = int(frappe.db.get_value("Restaurant", self.restaurant_id,

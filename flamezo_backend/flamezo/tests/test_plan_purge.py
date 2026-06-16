@@ -58,6 +58,9 @@ class TestPlanPurge(unittest.TestCase):
     def setUpClass(cls):
         """Create shared test fixtures once per suite."""
         frappe.set_user("Administrator")
+        # Ensure DB reflects the current platform default (3.0% gold commission)
+        frappe.db.set_single_value("Flamezo Settings", "gold_commission_percent", 3.0)
+        frappe.db.commit()
 
         cls.res_id = "test-plan-purge-restaurant"
         _make_restaurant(cls.res_id, plan_type="GOLD")

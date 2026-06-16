@@ -362,15 +362,8 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, deliv
 				discount_amount = max(0, selected_total - flt(offer.combo_price))
 
 			elif combo_type == "fixed_bundle" and offer.combo_price is not None:
-				# Sum only the required combo items, not the entire cart
-				required = []
-				if offer.required_items:
-					try:
-						required = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
-					except Exception:
-						pass
-				combo_items_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in required)
-				discount_amount = max(0, combo_items_total - flt(offer.combo_price))
+				# Discount = full cart total minus the bundle price
+				discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
 
 			else:
 				discount_amount = flt(offer.discount_value)

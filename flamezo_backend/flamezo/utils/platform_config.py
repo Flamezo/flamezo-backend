@@ -36,6 +36,8 @@ PLATFORM_LOYALTY = {
     # ── Growth & Bonuses ──────────────────────────────────────────────────────
     "birthday_bonus_coins":         100,   # ₹100 birthday bonus
     "welcome_reward_coins":         150,   # Referee gets ₹150 welcome cash on first claim
+    "referral_share_coins":         40,    # Referrer earns ₹40 per unique claim (at claim time)
+    "max_opens_rewarded_per_share": 10,    # Referrer earns on at most 10 unique claims per link
 
     # ── Referral Cashback (platform-level, order-triggered) ───────────────────
     # Referrer earns: ₹50 flat when referee places first order, then 1% of
@@ -104,6 +106,8 @@ def get_referral_cashback_orders() -> int:
 def get_referral_max_cashback() -> int:
     return int(PLATFORM_LOYALTY["referral_max_cashback"])  # type: ignore
 
+def get_referral_share_coins() -> int:
+    return int(PLATFORM_LOYALTY["referral_share_coins"])
+
 def get_max_opens_rewarded_per_share() -> int:
-    # Kept for backward-compat; monthly cycle cap is now derived from referral_max_cashback
-    return 10
+    return int(PLATFORM_LOYALTY["max_opens_rewarded_per_share"])
