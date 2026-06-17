@@ -42,7 +42,7 @@ def _make_coupon(restaurant, is_active=1):
         "doctype": "Coupon",
         "restaurant": restaurant,
         "code": frappe.generate_hash(length=8).upper(),
-        "discount_type": "Percentage",
+        "discount_type": "percent",
         "discount_value": 10,
         "is_active": is_active,
         "min_order_amount": 0,
@@ -158,7 +158,7 @@ class TestListRestaurants(unittest.TestCase):
             "doctype": "Restaurant Gallery Item",
             "restaurant": cls.res_a,
             "url": "https://example.com/photo1.jpg",
-            "media_type": "image",
+            "media_type": "Image",
             "is_selected": 1,
             "sort_order": 1,
         }).insert(ignore_permissions=True)

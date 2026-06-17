@@ -15,6 +15,17 @@ from flamezo_backend.flamezo.utils.feature_gate import require_plan
 import json
 
 
+def _require_system_admin():
+    """Raise PermissionError if caller is not a Flamezo system admin."""
+    roles = frappe.get_roles(frappe.session.user)
+    if not (
+        frappe.session.user == 'Administrator' or
+        'System Manager' in roles or
+        'Flamezo Supervisor' in roles
+    ):
+        frappe.throw(_("Only Flamezo admins can perform this action."), frappe.PermissionError)
+
+
 # ═══════════════════════════════════════════════════════════════════
 # OVERVIEW
 # ═══════════════════════════════════════════════════════════════════
@@ -45,7 +56,7 @@ def get_marketing_overview(restaurant_id):
         active_triggers = frappe.db.count("Marketing Trigger", {"restaurant": restaurant, "is_active": 1})
         opted_out_count = frappe.db.sql("""
             SELECT COUNT(DISTINCT c.name) FROM `tabCustomer` c
-            JOIN `tabOrder` o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
         """, (restaurant,))[0][0] or 0
 
@@ -115,6 +126,7 @@ def get_segments(restaurant_id):
 @frappe.whitelist()
 @require_plan('GOLD')
 def save_segment(restaurant_id, segment_data):
+    _require_system_admin()
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(segment_data, str):
         segment_data = json.loads(segment_data)
@@ -164,6 +176,7 @@ def preview_segment_reach(restaurant_id, criteria_type, days_since_last_visit=30
 @frappe.whitelist()
 @require_plan('GOLD')
 def delete_segment(restaurant_id, segment_name):
+    _require_system_admin()
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     doc_name = frappe.db.get_value(
         "Marketing Segment", {"segment_name": segment_name, "restaurant": restaurant}, "name"
@@ -200,6 +213,7 @@ def get_campaigns(restaurant_id, status=None):
 @frappe.whitelist()
 @require_plan('GOLD')
 def create_campaign(restaurant_id, campaign_data):
+    _require_system_admin()
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(campaign_data, str):
         campaign_data = json.loads(campaign_data)
@@ -218,6 +232,7 @@ def create_campaign(restaurant_id, campaign_data):
 @require_plan('GOLD')
 def send_campaign(campaign_id):
     """Validate balance → enqueue dispatch."""
+    _require_system_admin()
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 
@@ -313,6 +328,7 @@ def get_campaign_analytics(campaign_id):
 @frappe.whitelist()
 @require_plan('GOLD')
 def cancel_campaign(campaign_id):
+    _require_system_admin()
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
     doc = frappe.get_doc("Marketing Campaign", campaign_id)
@@ -326,6 +342,7 @@ def cancel_campaign(campaign_id):
 @frappe.whitelist()
 @require_plan('GOLD')
 def delete_campaign(campaign_id):
+    _require_system_admin()
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
     doc = frappe.get_doc("Marketing Campaign", campaign_id)
@@ -360,6 +377,7 @@ def get_triggers(restaurant_id):
 @frappe.whitelist()
 @require_plan('GOLD')
 def save_trigger(restaurant_id, trigger_data):
+    _require_system_admin()
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(trigger_data, str):
         trigger_data = json.loads(trigger_data)
@@ -383,6 +401,7 @@ def save_trigger(restaurant_id, trigger_data):
 @frappe.whitelist()
 @require_plan('GOLD')
 def delete_trigger(trigger_name):
+    _require_system_admin()
     restaurant_id = frappe.db.get_value("Marketing Trigger", trigger_name, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
     frappe.delete_doc("Marketing Trigger", trigger_name, ignore_permissions=True)
@@ -418,14 +437,14 @@ def get_optout_stats(restaurant_id):
     total_opted_out = frappe.db.sql("""
         SELECT COUNT(DISTINCT c.name)
         FROM `tabCustomer` c
-        JOIN `tabOrder` o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
     """, (restaurant,))[0][0] or 0
 
     recent_optouts = frappe.db.sql("""
         SELECT c.phone, c.customer_name, c.opted_out_at, c.opted_out_keyword
         FROM `tabCustomer` c
-        JOIN `tabOrder` o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
         ORDER BY c.opted_out_at DESC
         LIMIT 20

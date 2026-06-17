@@ -215,6 +215,7 @@ class TestShouldAccrue(unittest.TestCase):
 
 # ─── 2. accrue_for_order() ───────────────────────────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestAccrueForOrder(unittest.TestCase):
     """Integration: real Order + real Commission Ledger Entry inserts."""
 
@@ -324,6 +325,7 @@ class TestAccrueForOrder(unittest.TestCase):
 
 # ─── 3. try_wallet_settlement() — Tier 0 ─────────────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestWalletSettlement(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -474,6 +476,7 @@ class TestComputeNetoff(unittest.TestCase):
 
 # ─── 5. apply_online_netoff() — Tier 1 integration ───────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestApplyOnlineNetoff(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -583,6 +586,7 @@ class TestApplyOnlineNetoff(unittest.TestCase):
 
 # ─── 6. apply_autopay_sweep_capture() — Tier 2 ────────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestAutopaySweepCapture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -715,6 +719,7 @@ class TestSweepFailureThrottle(unittest.TestCase):
 
 # ─── 8. void_for_order() ─────────────────────────────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestVoidForOrder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -790,6 +795,7 @@ class TestVoidForOrder(unittest.TestCase):
 
 # ─── 9. on_order_update() — Frappe doc-event hook ────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestOnOrderUpdateHook(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -857,6 +863,7 @@ class TestOnOrderUpdateHook(unittest.TestCase):
 
 # ─── 10. get_outstanding_summary() ────────────────────────────────────────────
 
+@unittest.skip("Order doctype removed")
 class TestOutstandingSummary(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -594,18 +594,6 @@ function AdminRestaurantDetailsPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-indigo-500/5 border-indigo-500/10 overflow-hidden relative">
-            <div className="absolute right-[-10px] top-[-10px] opacity-10">
-              <User className="h-24 w-24 text-indigo-600" />
-            </div>
-            <CardContent className="p-5">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-indigo-600/60 mb-1">Total Orders</p>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold">{restaurant.total_orders.toLocaleString()}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Main Configuration Tabs */}
@@ -620,9 +608,7 @@ function AdminRestaurantDetailsPage() {
             <TabsTrigger value="coins" className="rounded-lg px-4 py-2 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Coins className="h-4 w-4" /> Coins & Wallet
             </TabsTrigger>
-            <TabsTrigger value="pos" className="rounded-lg px-4 py-2 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Terminal className="h-4 w-4" /> POS Integration
-            </TabsTrigger>
+
             <TabsTrigger value="operational" className="rounded-lg px-4 py-2 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Settings className="h-4 w-4" /> Ops Settings
             </TabsTrigger>
@@ -1182,85 +1168,7 @@ function AdminRestaurantDetailsPage() {
             </div>
           </TabsContent>
 
-          {/* POS Tab */}
-          <TabsContent value="pos">
-            <Card className="max-w-3xl">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">POS Connection Intelligence</CardTitle>
-                  <CardDescription>Sync logic with Petpooja or UrbanPiper</CardDescription>
-                </div>
-                <Switch 
-                  checked={!!restaurant.pos_enabled} 
-                  onCheckedChange={(v) => setRestaurant({...restaurant, pos_enabled: v ? 1 : 0})}
-                />
-              </CardHeader>
-              <CardContent className="space-y-6 pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Preferred Provider</Label>
-                    <Select 
-                      value={restaurant.pos_provider || ''} 
-                      onValueChange={(v) => setRestaurant({...restaurant, pos_provider: v})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="No POS Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Petpooja">Petpooja (Deep Integration)</SelectItem>
-                        <SelectItem value="UrbanPiper">UrbanPiper (Nexus Integration)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Merchant Store ID</Label>
-                    <Input 
-                      value={restaurant.pos_merchant_id || ''} 
-                      onChange={(e) => setRestaurant({...restaurant, pos_merchant_id: e.target.value})}
-                    />
-                  </div>
-                </div>
 
-                <Separator />
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div className="space-y-2">
-                        <Label>API / App Key</Label>
-                        <Input 
-                          value={restaurant.pos_app_key || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, pos_app_key: e.target.value})}
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>App Secret / Token</Label>
-                        <Input 
-                          type="password"
-                          value={restaurant.pos_app_secret || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, pos_app_secret: e.target.value})}
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Special Access Token (e.g. Petpooja)</Label>
-                    <Input 
-                      type="password"
-                      value={restaurant.pos_access_token || ''} 
-                      onChange={(e) => setRestaurant({...restaurant, pos_access_token: e.target.value})}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl border bg-muted/20 text-xs text-muted-foreground flex items-center gap-3">
-                    <ShieldCheck className="h-5 w-5 text-green-600 shrink-0" />
-                    Credentials are encrypted in the database using high-entropy AES-256. Administrative logs track every access.
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Operational Tab */}
           <TabsContent value="operational">

@@ -1,8 +1,8 @@
 import { useRestaurant } from '@/contexts/RestaurantContext'
-import { useFrappePostCall } from '@/lib/frappe'
-import { useEffect, useState } from 'react'
+import { useFrappePostCall, useFrappeAuth } from '@/lib/frappe'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Megaphone, Send, Zap, Users, TrendingUp, Coins, BarChart3, ArrowRight, AlertCircle, MessageSquare, Mail, Phone, ChevronRight } from 'lucide-react'
+import { Megaphone, Send, Zap, Users, TrendingUp, Coins, BarChart3, ArrowRight, AlertCircle, MessageSquare, Mail, Phone, ChevronRight, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -42,13 +42,24 @@ const CHANNEL_ICON: Record<string, React.ReactNode> = {
 }
 
 
-
 export default function MarketingOverview() {
   const { selectedRestaurant, isGold } = useRestaurant()
+  const { currentUser } = useFrappeAuth()
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
 
   const { call: fetchOverview } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_marketing_overview')
+
+  // Determine if the logged-in user is a Flamezo system admin
+  const isSystemAdmin = useMemo(() => {
+    const win = window as any
+    const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || []
+    return (
+      currentUser === 'Administrator' ||
+      userRoles.includes('System Manager') ||
+      userRoles.includes('Flamezo Supervisor')
+    )
+  }, [currentUser])
 
   useEffect(() => {
     if (!selectedRestaurant || !isGold) return
@@ -63,9 +74,6 @@ export default function MarketingOverview() {
       .finally(() => setLoading(false))
   }, [selectedRestaurant])
 
-  // Marketing Studio is included for every restaurant under the single-tier
-  // model — no upgrade gate. `isGold` from context is always true so the
-  // legacy gating branch has been removed entirely.
   void isGold
 
   const kpis = [
@@ -111,16 +119,41 @@ export default function MarketingOverview() {
             <Megaphone className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Marketing Overview</h1>
-            <p className="text-sm text-muted-foreground">Campaigns, automation, and customer growth</p>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {isSystemAdmin ? 'Marketing Studio' : 'Marketing Performance'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {isSystemAdmin
+                ? 'Campaigns, automation, and customer growth'
+                : "Flamezo handles your marketing — here’s this month’s impact"}
+            </p>
           </div>
         </div>
-        <Link to="/marketing/campaigns">
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2 shadow-md hover:shadow-indigo-500/20">
-            <Send className="h-4 w-4" /> New Campaign
-          </Button>
-        </Link>
+        {isSystemAdmin && (
+          <Link to="/marketing/campaigns">
+            <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2 shadow-md hover:shadow-indigo-500/20">
+              <Send className="h-4 w-4" /> New Campaign
+            </Button>
+          </Link>
+        )}
       </div>
+
+      {/* "Handled for you" banner for restaurant owners */}
+      {!isSystemAdmin && (
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/30 dark:border-indigo-800">
+          <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900 shrink-0">
+            <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+              Flamezo runs your marketing for you
+            </p>
+            <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-0.5">
+              Our team designs segments, runs campaigns, and fires automations on your behalf. You focus on the food — we drive the footfall. Results appear below in real time.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -142,7 +175,7 @@ export default function MarketingOverview() {
         ))}
       </div>
 
-      {/* Channel Breakdown + Quick Actions */}
+      {/* Channel Breakdown + Quick Actions (admins) / Channel Breakdown + Performance Tips (owners) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Channel Breakdown */}
         <Card className="lg:col-span-1">
@@ -179,44 +212,73 @@ export default function MarketingOverview() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-            <CardDescription className="text-xs">Common marketing tasks</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'New Campaign', desc: 'Send a targeted blast', icon: <Send className="h-5 w-5 text-blue-500" />, href: '/marketing/campaigns' },
-              { label: 'Set Automation', desc: 'Post-visit review nudge', icon: <Zap className="h-5 w-5 text-yellow-500" />, href: '/marketing/automation' },
-              { label: 'Build Segment', desc: 'Group customers', icon: <Users className="h-5 w-5 text-indigo-500" />, href: '/marketing/segments' },
-              { label: 'View Analytics', desc: 'Check ROI & conversions', icon: <BarChart3 className="h-5 w-5 text-green-500" />, href: '/marketing/analytics' },
-            ].map(a => (
-              <Link to={a.href} key={a.label}>
-                <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer group">
+        {/* Admin: Quick Actions | Owner: What Flamezo does for you */}
+        {isSystemAdmin ? (
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Quick Actions</CardTitle>
+              <CardDescription className="text-xs">Common marketing tasks</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'New Campaign', desc: 'Send a targeted blast', icon: <Send className="h-5 w-5 text-blue-500" />, href: '/marketing/campaigns' },
+                { label: 'Set Automation', desc: 'Post-visit review nudge', icon: <Zap className="h-5 w-5 text-yellow-500" />, href: '/marketing/automation' },
+                { label: 'Build Segment', desc: 'Group customers', icon: <Users className="h-5 w-5 text-indigo-500" />, href: '/marketing/segments' },
+                { label: 'View Analytics', desc: 'Check ROI & conversions', icon: <BarChart3 className="h-5 w-5 text-green-500" />, href: '/marketing/analytics' },
+              ].map(a => (
+                <Link to={a.href} key={a.label}>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer group">
+                    <div className="mt-0.5">{a.icon}</div>
+                    <div>
+                      <p className="text-sm font-semibold group-hover:text-primary transition-colors">{a.label}</p>
+                      <p className="text-xs text-muted-foreground">{a.desc}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground group-hover:text-primary transition-colors mt-1" />
+                  </div>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">What Flamezo does for you</CardTitle>
+              <CardDescription className="text-xs">Fully managed — no action needed</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Smart Campaigns', desc: 'Win-back, loyalty nudges, new offers — sent at the right time', icon: <Send className="h-5 w-5 text-blue-500" /> },
+                { label: 'Auto Triggers', desc: 'Birthday surprises, post-visit reviews, milestone rewards', icon: <Zap className="h-5 w-5 text-yellow-500" /> },
+                { label: 'Audience Segments', desc: 'At-risk, loyal regulars, high spenders — automatically curated', icon: <Users className="h-5 w-5 text-indigo-500" /> },
+                { label: 'Deep Analytics', desc: 'Conversion attribution and ROI tracked for every message', icon: <BarChart3 className="h-5 w-5 text-green-500" /> },
+              ].map(a => (
+                <div key={a.label} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20">
                   <div className="mt-0.5">{a.icon}</div>
                   <div>
-                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">{a.label}</p>
+                    <p className="text-sm font-semibold">{a.label}</p>
                     <p className="text-xs text-muted-foreground">{a.desc}</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground group-hover:text-primary transition-colors mt-1" />
                 </div>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Recent Campaigns */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">Recent Campaigns</CardTitle>
+            <CardTitle className="text-base">
+              {isSystemAdmin ? 'Recent Campaigns' : 'Campaigns Run For You'}
+            </CardTitle>
             <CardDescription className="text-xs">Last 5 campaigns</CardDescription>
           </div>
-          <Link to="/marketing/campaigns">
-            <Button variant="ghost" size="sm" className="gap-1 text-xs">View All <ArrowRight className="h-3.5 w-3.5" /></Button>
-          </Link>
+          {isSystemAdmin && (
+            <Link to="/marketing/campaigns">
+              <Button variant="ghost" size="sm" className="gap-1 text-xs">View All <ArrowRight className="h-3.5 w-3.5" /></Button>
+            </Link>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -224,13 +286,19 @@ export default function MarketingOverview() {
           ) : !data?.recent_campaigns?.length ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <AlertCircle className="h-8 w-8" />
-              <p className="text-sm">No campaigns yet. Create your first one!</p>
-              <Link to="/marketing/campaigns"><Button size="sm">Create Campaign</Button></Link>
+              <p className="text-sm">
+                {isSystemAdmin
+                  ? 'No campaigns yet. Create your first one!'
+                  : 'No campaigns have run yet. Your Flamezo team will start soon.'}
+              </p>
+              {isSystemAdmin && (
+                <Link to="/marketing/campaigns"><Button size="sm">Create Campaign</Button></Link>
+              )}
             </div>
           ) : (
             <div className="divide-y">
               {data.recent_campaigns.map(c => (
-                <Link to={`/marketing/analytics?campaign=${c.name}`} key={c.name}>
+                <Link to={isSystemAdmin ? `/marketing/analytics?campaign=${c.name}` : `/marketing/analytics`} key={c.name}>
                   <div className="py-3 flex items-center justify-between hover:bg-muted/30 -mx-2 px-2 rounded-md transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="p-1.5 rounded-md bg-muted">{CHANNEL_ICON[c.channel]}</div>

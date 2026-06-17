@@ -87,6 +87,11 @@ def get_onboarding_details(token):
             'gst_number': getattr(doc, 'gst_number', None),
             'tax_rate': getattr(doc, 'tax_rate', None),
             'pan_number': getattr(doc, 'pan_number', None),
+            'legal_name': getattr(doc, 'legal_name', None),
+            'business_type': getattr(doc, 'business_type', None),
+            'bank_account_number': getattr(doc, 'bank_account_number', None),
+            'bank_ifsc': getattr(doc, 'bank_ifsc', None),
+            'bank_holder_name': getattr(doc, 'bank_holder_name', None),
             'opening_time': str(doc.opening_time) if getattr(doc, 'opening_time', None) else None,
             'closing_time': str(doc.closing_time) if getattr(doc, 'closing_time', None) else None,
             'swiggy_link': getattr(doc, 'swiggy_link', None),
@@ -99,7 +104,7 @@ def get_onboarding_details(token):
             'enable_banquet_booking': getattr(doc, 'enable_banquet_booking', None),
             'enable_events': getattr(doc, 'enable_events', None),
             'enable_offers': getattr(doc, 'enable_offers', None),
-            'enable_experience_lounge': getattr(doc, 'enable_experience_lounge', None),
+            
             'address': getattr(doc, 'address', None),
             'city': getattr(doc, 'city', None),
             'state': getattr(doc, 'state', None),
@@ -150,12 +155,11 @@ def submit_onboarding_data(token, data):
             'tagline', 'instagram_link', 'facebook_link', 'website_link', 
             'google_review_link', 'menu_link', 'address', 'city', 'state', 'zip_code', 'google_map_url',
             'logo', 'hero_image', 'fssai_number', 'gst_number', 'tax_rate', 
-            'pan_number', 'opening_time', 'closing_time', 
+            'pan_number', 'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name', 'opening_time', 'closing_time', 
             'swiggy_link', 'zomato_link', 'subtitle', 'description', 
             'default_theme', 'menu_layout', 'enable_table_booking', 
             'enable_banquet_booking', 'enable_events', 'enable_offers', 
-            'enable_experience_lounge'
-        ]
+            ]
         
         for field in fields:
             if field in data:

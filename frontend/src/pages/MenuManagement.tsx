@@ -51,30 +51,11 @@ export default function MenuManagement() {
     limit: 1,
   })
   const restaurantDoc = restaurantDocList?.[0] || null
-  const isPOSManaged = !!(restaurantDoc?.pos_enabled && restaurantDoc?.pos_provider && restaurantDoc?.pos_menu_sync_enabled !== 0)
-  const posProvider = restaurantDoc?.pos_provider || ''
+  const isPOSManaged = false
+  const posProvider = ''
 
   const [isSyncingMenu, setIsSyncingMenu] = useState(false)
-  const { call: syncMenuCall } = useFrappePostCall('flamezo_backend.flamezo.api.pos.sync_menu')
-
-  const handleSyncMenu = async () => {
-    if (!selectedRestaurant) return
-    // Petpooja is push-only (fetch API deprecated) — direct owner to their POS tablet
-    if (posProvider === 'Petpooja') {
-      toast.info('Go to your Petpooja dashboard → Menu Management → Push Menu to sync.', { duration: 6000 })
-      return
-    }
-    setIsSyncingMenu(true)
-    try {
-      await syncMenuCall({ restaurant_id: selectedRestaurant })
-      toast.success(`Menu sync requested from ${posProvider}. This may take a few seconds.`)
-      setTimeout(() => { mutateCategories(); mutateProducts() }, 3000)
-    } catch {
-      toast.error('Menu sync failed')
-    } finally {
-      setIsSyncingMenu(false)
-    }
-  }
+  const handleSyncMenu = async () => {}
 
   const sensors = useSensors(
     useSensor(PointerSensor),

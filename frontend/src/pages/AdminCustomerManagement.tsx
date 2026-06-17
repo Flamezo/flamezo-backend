@@ -22,19 +22,18 @@ interface CustomerRow {
   birthday: string | null
   created: string
   last_seen: string
-  total_orders: number
   total_spend: number
   loyalty_balance: number
   lifetime_earned: number
   total_redeemed: number
 }
 
-type SortField = 'name' | 'total_orders' | 'total_spend' | 'loyalty_balance' | 'lifetime_earned' | 'last_seen' | 'created'
+type SortField = 'name' | 'total_spend' | 'loyalty_balance' | 'lifetime_earned' | 'last_seen' | 'created'
 type SortOrder = 'asc' | 'desc'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmtR    = (n: number) => `₹${n.toLocaleString('en-IN')}`
+const fmtR    = (n?: number) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
@@ -107,8 +106,7 @@ export default function AdminCustomerManagement() {
 
   // Summary stats derived from current page — shows range feel
   const pageStats = customers.length > 0 ? {
-    totalOrders:    customers.reduce((s, c) => s + c.total_orders, 0),
-    totalSpend:     customers.reduce((s, c) => s + c.total_spend, 0),
+    totalSpend:     customers.reduce((s, c) => s + (c.total_spend ?? 0), 0),
     totalBalance:   customers.reduce((s, c) => s + c.loyalty_balance, 0),
     withBalance:    customers.filter(c => c.loyalty_balance > 0).length,
   } : null
@@ -153,10 +151,6 @@ export default function AdminCustomerManagement() {
       {pageStats && !isLoading && (
         <div className="flex items-center gap-6 px-6 py-2.5 border-b bg-muted/30 text-xs text-muted-foreground shrink-0 overflow-x-auto">
           <span className="flex items-center gap-1.5 whitespace-nowrap">
-            <ShoppingBag className="w-3.5 h-3.5" />
-            {pageStats.totalOrders.toLocaleString('en-IN')} orders on this page
-          </span>
-          <span className="flex items-center gap-1.5 whitespace-nowrap">
             <TrendingUp className="w-3.5 h-3.5" />
             {fmtR(pageStats.totalSpend)} spend
           </span>
@@ -189,7 +183,6 @@ export default function AdminCustomerManagement() {
               <TableRow className="hover:bg-transparent">
                 <SortableHead field="name">Customer</SortableHead>
                 <TableHead>Phone</TableHead>
-                <SortableHead field="total_orders">Orders</SortableHead>
                 <SortableHead field="total_spend">Total Spend</SortableHead>
                 <SortableHead field="loyalty_balance">Cash Balance</SortableHead>
                 <SortableHead field="lifetime_earned">Lifetime Earned</SortableHead>
@@ -213,9 +206,6 @@ export default function AdminCustomerManagement() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-sm text-muted-foreground">{c.phone || '—'}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-semibold">{c.total_orders}</Badge>
-                  </TableCell>
                   <TableCell className="font-semibold text-sm">{fmtR(c.total_spend)}</TableCell>
                   <TableCell>
                     <Badge

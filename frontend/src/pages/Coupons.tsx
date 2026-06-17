@@ -134,14 +134,14 @@ const TEMPLATES: CouponTemplate[] = [
       discount_value: 50,
       min_order_amount: 299,
       code: 'FLAT50',
-      description: 'Flat ₹50 off on orders above ₹299',
+      description: 'Flat ₹50 off on bills above ₹299',
       category: 'best',
     },
   },
   {
     id: 'big_percent',
     label: 'Big % Off',
-    tagline: 'High % with a rupee cap — drives big orders',
+    tagline: 'High % with a rupee cap — drives big bills',
     icon: <Percent className="h-6 w-6" />,
     accent: 'bg-purple-500',
     defaults: {
@@ -168,7 +168,7 @@ const TEMPLATES: CouponTemplate[] = [
       discount_value: 0,
       min_order_amount: 149,
       code: 'FREEDEL',
-      description: 'Free delivery on orders above ₹149',
+      description: 'Free delivery on bills above ₹149',
       category: 'delivery',
     },
   },
@@ -187,7 +187,7 @@ const TEMPLATES: CouponTemplate[] = [
       valid_time_start: '11:00:00',
       valid_time_end: '15:00:00',
       code: 'LUNCH15',
-      description: '15% off all orders between 11 AM – 3 PM',
+      description: '15% off all bills between 11 AM – 3 PM',
       category: 'best',
     },
   },
@@ -205,7 +205,7 @@ const TEMPLATES: CouponTemplate[] = [
       min_order_amount: 249,
       valid_days_of_week: JSON.stringify(['saturday', 'sunday']),
       code: 'WEEKEND25',
-      description: '25% off every weekend on orders above ₹249',
+      description: '25% off every weekend on bills above ₹249',
       category: 'best',
     },
   },
@@ -239,7 +239,7 @@ const TEMPLATES: CouponTemplate[] = [
       max_discount_cap: 150,
       min_order_amount: 999,
       code: 'GROUP12',
-      description: '12% off on group orders above ₹999',
+      description: '12% off on group bills above ₹999',
       category: 'best',
     },
   },
@@ -1041,9 +1041,9 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               onChange={(e) => set({ description: e.target.value })}
               placeholder={
                 formData.offer_type === 'combo'    ? 'Get 2 Pizzas + 1 Drink at a special combo price' :
-                formData.offer_type === 'delivery' ? 'Free delivery on orders above ₹149' :
-                formData.offer_type === 'auto'     ? 'Weekend special — 25% off all orders' :
-                                                     'Get 20% off on orders above ₹299'
+                formData.offer_type === 'delivery' ? 'Free delivery on bills above ₹149' :
+                formData.offer_type === 'auto'     ? 'Weekend special — 25% off all bills' :
+                                                     'Get 20% off on bills above ₹299'
               }
             />
           </div>

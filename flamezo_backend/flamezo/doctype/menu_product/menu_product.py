@@ -66,8 +66,7 @@ class MenuProduct(Document):
 			frappe.delete_doc("Media Asset", asset.name, ignore_permissions=True)
 		
 		# 3. Cleanup non-transactional references
-		# Delete cart entries for this product
-		frappe.db.delete("Cart Entry", {"product": self.name})
+		pass
 		
 		# Delete recommendations for this product
 		frappe.db.delete("Menu Recommendation", {"source_product": self.name})

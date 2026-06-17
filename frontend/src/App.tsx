@@ -14,7 +14,7 @@ import { PageSkeleton } from './components/PageSkeleton'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const GrowthDashboard = lazy(() => import('./pages/GrowthDashboard'))
 const Login = lazy(() => import('./pages/Login'))
-const OrderReceipt = lazy(() => import('./pages/OrderReceipt'))
+
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
@@ -23,16 +23,12 @@ const MyAccount = lazy(() => import('./pages/MyAccount'))
 const FeatureLocked = lazy(() => import('./pages/FeatureLocked'))
 const TieredSetupWizard = lazy(() => import('./pages/TieredSetupWizard'))
 const ModuleDetail = lazy(() => import('./pages/ModuleDetail'))
-const Orders = lazy(() => import('./pages/Orders'))
-const AcceptOrders = lazy(() => import('./pages/AcceptOrders'))
-const PastOrders = lazy(() => import('./pages/PastOrders'))
-const OrderDetail = lazy(() => import('./pages/OrderDetail'))
 const QRCodes = lazy(() => import('./pages/QRCodes'))
 const LegacyContent = lazy(() => import('./pages/LegacyContent'))
 const LegacySignatureDish = lazy(() => import('./pages/LegacySignatureDish'))
 const Payment = lazy(() => import('./pages/Payment'))
 const PaymentSettings = lazy(() => import('./pages/PaymentSettings'))
-const OrderSettings = lazy(() => import('./pages/OrderSettings'))
+
 const RecommendationsEngine = lazy(() => import('./pages/RecommendationsEngine'))
 const Customers = lazy(() => import('./pages/Customers'))
 const Bookings = lazy(() => import('./pages/Bookings'))
@@ -49,7 +45,7 @@ const AutopaySetupPage = lazy(() => import('./pages/AutopaySetupPage'))
 const RouteKycPage = lazy(() => import('./pages/RouteKycPage'))
 const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
 const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
-const POSIntegration = lazy(() => import('./pages/POSIntegration'))
+
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
 const MarketingOverview = lazy(() => import('./pages/MarketingOverview'))
 const MarketingCampaigns = lazy(() => import('./pages/MarketingCampaigns'))
@@ -69,7 +65,7 @@ const BoostRedeem = lazy(() => import('./pages/BoostRedeem'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
 const MenuCosting = lazy(() => import('./pages/MenuCosting'))
 const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
-const PetpoojaLiveTesting = lazy(() => import('./pages/PetpoojaLiveTesting'))
+
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
 const UGCConfig = lazy(() => import('./pages/UGCConfig'))
 const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
@@ -87,8 +83,7 @@ function AppContent() {
 						<Route path="/login" element={<Login />} />
 						<Route path="/forgot-password" element={<ForgotPassword />} />
 						<Route path="/reset-password" element={<ResetPassword />} />
-						{/* Public order receipt — opened from the WhatsApp "View Full Order" button (token-secured, no login) */}
-						<Route path="/o/:token" element={<OrderReceipt />} />
+
 
 
 
@@ -110,24 +105,12 @@ function AppContent() {
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
-								<Route element={<FeatureProtectedRoute anyOf={['ordering', 'whatsapp_orders']} />}>
-									<Route path="/orders" element={<Orders />} />
-									<Route path="/accept-orders" element={<AcceptOrders />} />
-									<Route path="/orders/:orderId" element={<OrderDetail />} />
-									<Route path="/past-orders" element={<PastOrders />} />
-								</Route>
 
 								<Route element={<FeatureProtectedRoute feature="coupons" />}>
 									<Route path="/coupons" element={<Coupons />} />
 								</Route>
 
-								<Route element={<FeatureProtectedRoute feature="ordering" />}>
-									<Route path="/pos-integration" element={<POSIntegration />} />
-								</Route>
-								<Route element={<FeatureProtectedRoute feature="order_settings" />}>
-									<Route path="/frontend-ordering" element={<OrderSettings />} />
-									<Route path="/order-settings" element={<OrderSettings />} />
-								</Route>
+
 
 								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
 									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
@@ -189,7 +172,7 @@ function AppContent() {
 								<Route path="/menu" element={<MenuManagement />} />
 								<Route path="/menu-costing" element={<MenuCosting />} />
 								<Route path="/addon-groups" element={<AddonGroupManagement />} />
-								<Route path="/petpooja-testing" element={<PetpoojaLiveTesting />} />
+
 								<Route path="/qr-codes" element={<QRCodes />} />
 								<Route path="/gallery-management" element={<GalleryManagement />} />
 

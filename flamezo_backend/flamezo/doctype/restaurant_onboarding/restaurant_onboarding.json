@@ -19,11 +19,16 @@
   "whatsapp_number",
   "onboarding_link",
   "section_break_legal",
+  "legal_name",
+  "business_type",
   "fssai_number",
   "gst_number",
   "tax_rate",
   "pan_number",
   "column_break_legal",
+  "bank_account_number",
+  "bank_ifsc",
+  "bank_holder_name",
   "opening_time",
   "closing_time",
   "section_break_config",
@@ -134,6 +139,18 @@
    "label": "Legal & Operations"
   },
   {
+   "fieldname": "legal_name",
+   "fieldtype": "Data",
+   "label": "Legal Business Name"
+  },
+  {
+   "fieldname": "business_type",
+   "fieldtype": "Select",
+   "label": "Business Type",
+   "options": "\nproprietorship\npartnership\nprivate_limited\npublic_limited\nllp\nindividual",
+   "description": "Required for Route KYC submission"
+  },
+  {
    "fieldname": "fssai_number",
    "fieldtype": "Data",
    "label": "FSSAI Number"
@@ -157,6 +174,21 @@
   {
    "fieldname": "column_break_legal",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bank_account_number",
+   "fieldtype": "Data",
+   "label": "Bank Account Number"
+  },
+  {
+   "fieldname": "bank_ifsc",
+   "fieldtype": "Data",
+   "label": "IFSC Code"
+  },
+  {
+   "fieldname": "bank_holder_name",
+   "fieldtype": "Data",
+   "label": "Account Holder Name"
   },
   {
    "fieldname": "opening_time",

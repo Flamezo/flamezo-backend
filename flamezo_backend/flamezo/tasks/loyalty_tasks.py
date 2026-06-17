@@ -6,7 +6,7 @@ Loyalty Scheduler Tasks
 
   grant_birthday_bonuses — runs daily at 08:00 IST
     Finds customers whose birthday is today (month+day match), verifies they
-    have order history at the restaurant, and credits birthday_bonus_coins.
+    have bill history at the restaurant, and credits birthday_bonus_coins.
     Idempotent: skips customers who already received a Birthday Bonus entry
     for the current calendar year at that restaurant.
 
@@ -27,7 +27,7 @@ def grant_birthday_bonuses():
 	"""
 	Daily scheduler job. Awards birthday bonus coins to all customers whose
 	birthday is today at every restaurant with an active loyalty program.
-	Only grants to customers who have prior order/loyalty history at the restaurant.
+	Only grants to customers who have prior bill/loyalty history at the restaurant.
 	"""
 	today_date = getdate(today())
 	today_month = today_date.month
@@ -202,7 +202,7 @@ def send_coin_expiry_notifications():
 
 		title = "Your Flamezo Cash is expiring soon!"
 		if days_left == 0:
-			body = f"₹{balance} Cash expires today. Use it on your next order!"
+			body = f"₹{balance} Cash expires today. Use it on your next bill!"
 		elif days_left == 1:
 			body = f"₹{balance} Cash expires tomorrow. Don't let it go to waste!"
 		else:

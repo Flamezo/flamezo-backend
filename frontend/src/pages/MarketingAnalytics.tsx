@@ -17,7 +17,7 @@ interface CampaignAnalytics {
   status_breakdown: Record<string, number>
   events: Array<{
     name: string; customer: string; phone: string; channel: string; status: string
-    sent_at: string; converted_at: string; coins_charged: number; conversion_order: string; error_message: string
+    sent_at: string; converted_at: string; coins_charged: number; error_message: string
   }>
 }
 
@@ -71,7 +71,7 @@ export default function MarketingAnalytics() {
   const kpis = analytics ? [
     { label: 'Total Sent', value: analytics.campaign.total_sent.toLocaleString(), icon: <MessageSquare className="h-5 w-5 text-blue-500" />, sub: `${analytics.campaign.total_failed} failed` },
     { label: 'Delivery Rate', value: `${deliveryRate}%`, icon: <CheckCircle2 className="h-5 w-5 text-green-500" />, sub: 'Messages delivered' },
-    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: <TrendingUp className="h-5 w-5 text-indigo-500" />, sub: `${analytics.campaign.total_conversions} orders placed` },
+    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: <TrendingUp className="h-5 w-5 text-indigo-500" />, sub: `${analytics.campaign.total_conversions} conversions` },
     { label: 'Cost', value: `${analytics.campaign.total_cost_coins.toFixed(1)} Coins`, icon: <Coins className="h-5 w-5 text-amber-500" />, sub: `₹${analytics.campaign.revenue_attributed.toFixed(0)} revenue attributed` },
   ] : []
 

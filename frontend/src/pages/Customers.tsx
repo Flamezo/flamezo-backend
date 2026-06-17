@@ -17,23 +17,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import, Lock, Unlock } from 'lucide-react'
+import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Search, UserCheck, Upload, Import, Lock, Unlock } from 'lucide-react'
 import CustomerImportModal from '@/components/CustomerImportModal'
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
-
-interface OrderItem {
-  name: string
-  order_number: string
-  total: number
-  status: string
-  creation: string
-  customer_rating?: number
-  customer_feedback?: string
-  food_rating?: number
-  service_rating?: number
-}
 
 interface RestaurantCustomer {
   id: string
@@ -43,7 +31,6 @@ interface RestaurantCustomer {
   birthday: string | null
   lastVisited: string | null
   isImported?: boolean
-  orders: OrderItem[]
   tableBookings: unknown[]
   banquetBookings: unknown[]
   is_unlocked?: boolean
@@ -52,7 +39,6 @@ interface RestaurantCustomer {
 interface RestaurantData {
   restaurant_id: string
   restaurant_name: string
-  orders: OrderItem[]
   tableBookings: unknown[]
   banquetBookings: unknown[]
 }
@@ -249,25 +235,11 @@ export default function Customers() {
                   <TableBody>
                     {customers.map((c) => {
                       const isExpanded = expandedId === c.id
-                      const hasOrders = c.orders && c.orders.length > 0
                       return (
                         <Fragment key={c.id}>
                           <TableRow>
                             <TableCell className="text-center">
-                              {hasOrders && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                                  className="h-8 w-8"
-                                >
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
+                              
                             </TableCell>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
@@ -314,55 +286,7 @@ export default function Customers() {
                               </div>
                             </TableCell>
                           </TableRow>
-                          {isExpanded && hasOrders && (
-                            <TableRow>
-                              <TableCell colSpan={6} className="bg-muted/30 p-4">
-                                <div className="rounded-md border bg-card">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead className="pl-4">Order #</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                        <TableHead>Rating</TableHead>
-                                        <TableHead className="text-right pr-4">Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {c.orders.map((o) => (
-                                        <TableRow key={o.name}>
-                                          <TableCell className="pl-4 font-medium text-primary">
-                                            <Link to={`/orders/${o.name}`} className="hover:underline">
-                                              {o.order_number}
-                                            </Link>
-                                          </TableCell>
-                                          <TableCell className="text-muted-foreground">{formatDate(o.creation)}</TableCell>
-                                          <TableCell className="font-semibold">{formatAmountNoDecimals(o.total ?? 0)}</TableCell>
-                                          <TableCell className="text-center">
-                                            <Badge variant="outline" className="capitalize">{o.status}</Badge>
-                                          </TableCell>
-                                          <TableCell>
-                                            {(o.food_rating ?? o.customer_rating) != null ? (
-                                              <div className="flex items-center gap-1">
-                                                <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                                                <span className="text-xs font-medium">{o.food_rating ?? o.customer_rating}.0</span>
-                                              </div>
-                                            ) : '—'}
-                                          </TableCell>
-                                          <TableCell className="text-right pr-4">
-                                            <Link to={`/orders/${o.name}`}>
-                                              <Button variant="outline" size="sm" className="h-7 text-xs">Details</Button>
-                                            </Link>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
+                          
                         </Fragment>
                       )
                     })}
@@ -446,54 +370,7 @@ export default function Customers() {
                 <div>
                   {profileData.data.restaurants.map((rest) => (
                     <div key={rest.restaurant_id} className="space-y-4">
-                      {rest.orders && rest.orders.length > 0 && (
-                        <div className="text-sm">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Order History</p>
-                          <div className="rounded-md border bg-card/50">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="pl-4 h-9 text-xs">Order #</TableHead>
-                                  <TableHead className="h-9 text-xs">Date</TableHead>
-                                  <TableHead className="h-9 text-xs">Amount</TableHead>
-                                  <TableHead className="text-center h-9 text-xs">Status</TableHead>
-                                  <TableHead className="h-9 text-xs">Rating</TableHead>
-                                  <TableHead className="text-right pr-4 h-9 text-xs">Actions</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {rest.orders.map((o: OrderItem) => (
-                                  <TableRow key={o.name} className="hover:bg-muted/50 border-border/50">
-                                    <TableCell className="pl-4 font-bold text-primary py-2 text-xs">
-                                      <Link to={`/orders/${o.name}`} className="hover:underline">
-                                        {o.order_number}
-                                      </Link>
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground py-2 text-xs">{formatDate(o.creation)}</TableCell>
-                                    <TableCell className="font-bold py-2 text-xs">{formatAmountNoDecimals(o.total ?? 0)}</TableCell>
-                                    <TableCell className="text-center py-2 text-xs">
-                                      <Badge variant="outline" className="capitalize text-[10px] h-5 py-0 px-1.5">{o.status}</Badge>
-                                    </TableCell>
-                                    <TableCell className="py-2 text-xs">
-                                      {(o.food_rating ?? o.customer_rating) != null ? (
-                                        <Badge variant="outline" className="border-amber-200 text-amber-600 bg-amber-50 h-5 px-1.5 py-0 text-[10px] font-bold">
-                                          <Star className="h-2.5 w-2.5 fill-amber-500 mr-1" />
-                                          {o.food_rating ?? o.customer_rating}.0
-                                        </Badge>
-                                      ) : <span className="text-muted-foreground/50">—</span>}
-                                    </TableCell>
-                                    <TableCell className="text-right pr-4 py-2">
-                                      <Link to={`/orders/${o.name}`}>
-                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] font-semibold px-2">View</Button>
-                                      </Link>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      )}
+                      
                       <div className="flex gap-4">
                         {rest.tableBookings && rest.tableBookings.length > 0 && (
                           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -506,8 +383,7 @@ export default function Customers() {
                           </p>
                         )}
                       </div>
-                      {(!rest.orders || rest.orders.length === 0) &&
-                        (!rest.tableBookings || rest.tableBookings.length === 0) &&
+                      {(!rest.tableBookings || rest.tableBookings.length === 0) &&
                         (!rest.banquetBookings || rest.banquetBookings.length === 0) && (
                           <div className="py-12 flex flex-col items-center justify-center border rounded-md border-dashed border-border/60 bg-muted/10">
                             <p className="text-sm font-medium text-muted-foreground">No transaction history found</p>

@@ -851,6 +851,7 @@ class TestOfferStacking(unittest.TestCase):
             self.restaurant, self.items,
             coupon_code=coupon_code,
             delivery_type="Dine-in",
+            session_verified=True,
         )
 
     def test_manual_coupon_applied(self):
