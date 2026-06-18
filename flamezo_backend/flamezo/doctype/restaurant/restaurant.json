@@ -20,6 +20,7 @@
   "owner_phone",
   "column_break_owner",
   "owner_name",
+  "onboarding_password",
   "section_break_address",
   "address",
   "city",
@@ -222,6 +223,12 @@
    "fieldname": "owner_name",
    "fieldtype": "Data",
    "label": "Owner Name"
+  },
+  {
+   "fieldname": "onboarding_password",
+   "fieldtype": "Password",
+   "label": "Generated Password",
+   "read_only": 0
   },
   {
    "fieldname": "section_break_address",
