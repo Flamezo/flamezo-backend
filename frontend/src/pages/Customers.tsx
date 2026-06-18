@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Search, UserCheck, Upload, Import, Lock, Unlock } from 'lucide-react'
-import CustomerImportModal from '@/components/CustomerImportModal'
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
@@ -30,7 +29,6 @@ interface RestaurantCustomer {
   verifiedAt: string | null
   birthday: string | null
   lastVisited: string | null
-  isImported?: boolean
   tableBookings: unknown[]
   banquetBookings: unknown[]
   is_unlocked?: boolean
@@ -60,7 +58,6 @@ export default function Customers() {
   const [profileData, setProfileData] = useState<CustomerProfileData | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [isUpdatingVerify, setIsUpdatingVerify] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
 
   const {
     data: fetchedCustomers,
@@ -174,15 +171,6 @@ export default function Customers() {
             Build and manage your loyal customer base
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 h-9 rounded-xl border-dashed self-start sm:self-auto"
-          onClick={() => setImportOpen(true)}
-        >
-          <Upload className="h-4 w-4" />
-          Import Customers
-        </Button>
       </div>
 
       <Card>
@@ -246,17 +234,7 @@ export default function Customers() {
                                 <div>
                                   {c.customerName || '—'}
                                 </div>
-                                {c.isImported && (
-                                  <div className="relative group inline-flex items-center">
-                                    <Import className="h-3 w-3 text-blue-500 cursor-default" />
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100]">
-                                      <div className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-xl whitespace-nowrap font-medium ring-1 ring-white/10">
-                                        Imported by restaurant
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
+                                
                               </div>
                             </TableCell>
                             <TableCell>
@@ -306,16 +284,6 @@ export default function Customers() {
           )}
         </CardContent>
       </Card>
-
-      <CustomerImportModal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        restaurantId={selectedRestaurant}
-        onImportComplete={() => {
-          setImportOpen(false)
-          refreshCustomers()
-        }}
-      />
 
       {/* Admin: Full Customer Profile Dialog */}
       <Dialog open={!!profileCustomerId} onOpenChange={(open) => !open && setProfileCustomerId(null)}>

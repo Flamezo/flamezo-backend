@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Edit2, Trash2, Users, Image, Star as StarIcon, Loader2, Instagram, MessageSquare } from 'lucide-react'
+import { Plus, Edit2, Trash2, Image, Loader2, Instagram, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { uploadToR2 } from '@/lib/r2Upload'
 
@@ -32,7 +32,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   const [currentSection, setCurrentSection] = useState<string>('')
   const [uploading, setUploading] = useState(false)
   const [reelsToAdd, setReelsToAdd] = useState<string[]>([''])
-  const [selectedDish, setSelectedDish] = useState<string>('')
   const [heroData, setHeroData] = useState({
     opening_text: '',
     paragraph_1: ''
@@ -75,7 +74,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   )
   const rawDoc = legacyDoc?.message ?? null
 
-  const signatureDishes = rawDoc?.signature_dishes || []
   const members = rawDoc?.members || []
   const testimonials = rawDoc?.testimonials || []
   const instagramReels = rawDoc?.instagram_reels || []
@@ -224,83 +222,12 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
 
   const getChildTableField = (doctype: string) => {
     const mapping: Record<string, string> = {
-      'Legacy Signature Dish': 'signature_dishes',
       'Legacy Testimonial': 'testimonials',
       'Legacy Member': 'members',
       'Legacy Instagram Reel': 'instagram_reels'
     }
     return mapping[doctype] || ''
   }
-
-  const renderSignatureDishesSection = () => (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <StarIcon className="h-5 w-5" />
-            Signature Dishes
-            <Badge variant="secondary">{signatureDishes?.length || 0}/3</Badge>
-          </CardTitle>
-          <Button 
-            size="sm" 
-            onClick={() => {
-              setSelectedDish('')
-              setEditingItem({ type: 'Signature Dish', doctype: 'Legacy Signature Dish' })
-              setCurrentSection('Signature Dish')
-              setIsDialogOpen(true)
-            }}
-            disabled={(signatureDishes?.length || 0) >= 3}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Signature Dish
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {signatureDishes && signatureDishes.length > 0 ? (
-          <div className="space-y-4">
-            {signatureDishes.map((item: any) => {
-              const product = allMenuProducts?.find((p: any) => p.name === item.dish)
-              return (
-                <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    {product?.image ? (
-                      <img src={product.image} className="h-12 w-12 rounded-md object-cover" alt={item.dish_name} />
-                    ) : (
-                      <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
-                        <Image className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div>
-                      <h4 className="font-semibold">{item.dish_name || product?.product_name || item.dish}</h4>
-                      <p className="text-sm text-muted-foreground">Order: {item.display_order}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => {
-                      setSelectedDish(item.dish || '')
-                      setEditingItem({ ...item, type: 'Signature Dish', doctype: 'Legacy Signature Dish' })
-                      setCurrentSection('Signature Dish')
-                      setIsDialogOpen(true)
-                    }}>
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Signature Dish', item.name, 'Signature Dish')}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            No signature dishes yet. Add up to 3 signature dishes from your menu.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
 
   // Members section removed
 
@@ -428,14 +355,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
       
       try {
         switch (currentSection) {
-          case 'Signature Dish':
-            if (!selectedDish) {
-              toast.error('Please select a dish')
-              return
-            }
-            data.dish = selectedDish
-            data.display_order = parseInt(formData.get('display_order') as string) || 0
-            break
           case 'Testimonial':
             data.customer_name = formData.get('customer_name')
             data.location = formData.get('location')
@@ -483,57 +402,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
       } catch (error: any) {
         toast.error(error.message || `Failed to save ${currentSection}`)
       }
-    }
-
-    if (currentSection === 'Signature Dish') {
-      return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="dish">Select Dish from Menu</Label>
-            <Select value={selectedDish} onValueChange={setSelectedDish}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a dish from your menu" />
-              </SelectTrigger>
-              <SelectContent>
-                {allMenuProducts?.map((product: MenuProduct) => (
-                  <SelectItem key={product.name} value={product.name}>
-                    <div className="flex items-center gap-2">
-                      {product.image && (
-                        <img
-                          src={product.image}
-                          alt={product.product_name}
-                          className="h-4 w-4 rounded object-cover"
-                        />
-                      )}
-                      <span>{product.product_name}</span>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        ({product.category_name || 'Uncategorised'})
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {allMenuProducts && allMenuProducts.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-2">
-                No menu products found. Please add menu products first.
-              </p>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="display_order">Display Order</Label>
-            <NumberInput  name="display_order" defaultValue={editingItem?.display_order || 0} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isCreating || isUpdating}>
-              {editingItem?.name ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </form>
-      )
     }
 
     if (currentSection === 'Testimonial') {
@@ -712,7 +580,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
       </Card>
 
       <div className="grid gap-6">
-        {renderSignatureDishesSection()}
         {renderTestimonialsSection()}
         {renderInstagramReelsSection()}
       </div>

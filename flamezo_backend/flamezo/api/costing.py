@@ -229,3 +229,62 @@ def apply_global_cost_pct(restaurant_id, pct):
 	except Exception as e:
 		frappe.log_error(f"Error in apply_global_cost_pct: {str(e)}")
 		return {"success": False, "error": {"message": str(e)}}
+
+
+@frappe.whitelist()
+def check_food_cost_coverage(restaurant_id):
+	"""
+	Check whether all active menu items have food cost set.
+	Used to gate AI coupon generation — AI needs cost data on every item to
+	generate profit-safe, margin-aware offers.
+	"""
+	try:
+		restaurant = _require_restaurant(restaurant_id)
+
+		total = frappe.db.count("Menu Product", {"restaurant": restaurant, "is_active": 1})
+
+		if total == 0:
+			return {
+				"success": True,
+				"data": {
+					"all_covered": False,
+					"total_items": 0,
+					"items_with_cost": 0,
+					"items_without_cost": 0,
+					"coverage_pct": 0,
+				},
+			}
+
+		if not _has_food_cost_col():
+			return {
+				"success": True,
+				"data": {
+					"all_covered": False,
+					"total_items": total,
+					"items_with_cost": 0,
+					"items_without_cost": total,
+					"coverage_pct": 0,
+				},
+			}
+
+		costed = frappe.db.count(
+			"Menu Product",
+			{"restaurant": restaurant, "is_active": 1, "food_cost": [">", 0]},
+		)
+		without_cost = total - costed
+
+		return {
+			"success": True,
+			"data": {
+				"all_covered": without_cost == 0,
+				"total_items": total,
+				"items_with_cost": costed,
+				"items_without_cost": without_cost,
+				"coverage_pct": round(costed / total * 100, 0),
+			},
+		}
+	except (frappe.DoesNotExistError, frappe.ValidationError, frappe.PermissionError) as e:
+		return {"success": False, "error": {"message": str(e)}}
+	except Exception as e:
+		frappe.log_error(f"Error in check_food_cost_coverage: {str(e)}")
+		return {"success": False, "error": {"message": str(e)}}

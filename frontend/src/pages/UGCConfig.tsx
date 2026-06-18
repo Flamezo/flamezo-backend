@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import StoryTemplateFrame from '@/components/StoryTemplateFrame'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappeGetCall, useFrappePostCall, useFrappeGetDocList } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,8 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket } from 'lucide-react'
+import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, CheckCircle2, XCircle, Wallet, PlayCircle } from 'lucide-react'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
+import UGCGrowthSimulatorModal from '@/components/UGCGrowthSimulatorModal'
+import { Button } from '@/components/ui/button'
 
 type TemplateRow = { media_asset: string; label?: string; is_default?: number; url?: string; kind?: string }
 
@@ -15,12 +18,13 @@ const isVideo = (t: TemplateRow) =>
   t.kind === 'video' || (!!t.url && /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(t.url))
 
 export default function UGCConfig() {
-  const { selectedRestaurant, restaurant } = useRestaurant()
+  const { selectedRestaurant, restaurants } = useRestaurant()
   const [configName, setConfigName] = useState<string>('')
   const [templates, setTemplates] = useState<TemplateRow[]>([])
   const [viewerCoupon, setViewerCoupon] = useState<string>('')
-  const [nextVisitCoupon, setNextVisitCoupon] = useState<string>('')
+  const [ugcIsActive, setUgcIsActive] = useState<boolean>(false)
   const [uploading, setUploading] = useState(false)
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const { data: configRes, mutate } = useFrappeGetCall(
@@ -28,11 +32,17 @@ export default function UGCConfig() {
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `ugc-config-${selectedRestaurant}` : undefined,
   )
+
+  const { data: voucherStatsRes } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.ugc.get_voucher_stats',
+    selectedRestaurant ? { restaurant_id: selectedRestaurant, days: 30 } : undefined,
+    selectedRestaurant ? `ugc-voucher-stats-${selectedRestaurant}` : undefined,
+  )
   const { call: saveConfig } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.save_ugc_config')
   const { call: deleteTemplate } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.delete_ugc_template')
 
   const { data: coupons } = useFrappeGetDocList('Coupon', {
-    fields: ['name', 'code'],
+    fields: ['name', 'code', 'discount_type', 'discount_value', 'description', 'valid_until'],
     filters: selectedRestaurant ? [['restaurant', '=', selectedRestaurant]] : [],
     limit: 200,
   } as any, selectedRestaurant ? `ugc-coupons-${selectedRestaurant}` : null)
@@ -43,11 +53,11 @@ export default function UGCConfig() {
       setConfigName(body.data.name || '')
       setTemplates(body.data.templates || [])
       setViewerCoupon(body.data.coupon_for_viewers || '')
-      setNextVisitCoupon(body.data.next_visit_coupon || '')
+      setUgcIsActive(!!body.data.ugc_is_active)
     }
   }, [configRes])
 
-  const saveCoupons = async (patch: { coupon_for_viewers?: string; next_visit_coupon?: string }) => {
+  const saveCoupons = async (patch: { coupon_for_viewers?: string }) => {
     if (!selectedRestaurant) return
     try {
       const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: patch })
@@ -104,27 +114,91 @@ export default function UGCConfig() {
   }
 
   const tpl = templates[0]
-  const restaurantName = (restaurant as any)?.restaurant_name || 'your restaurant'
+  const vStats = ((voucherStatsRes as any)?.message || voucherStatsRes)?.data
+  const restaurantName = (restaurants as any[]).find(
+    r => r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant
+  )?.restaurant_name || ''
+  const selectedCoupon = (coupons as any[] | undefined)?.find((c: any) => c.name === viewerCoupon)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-3">
-          <Megaphone className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">UGC Cashback</h1>
-          <Badge variant="secondary" className="text-xs">Growth Loop</Badge>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Megaphone className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">UGC Cashback</h1>
+            <Badge variant="secondary" className="text-xs">Growth Loop</Badge>
+            {ugcIsActive ? (
+              <span className="flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400">
+                <CheckCircle2 className="w-3.5 h-3.5" /> UGC Active
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400">
+                <XCircle className="w-3.5 h-3.5" /> Setup incomplete
+              </span>
+            )}
+          </div>
+          <Button onClick={() => setIsSimulatorOpen(true)} className="gap-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-md rounded-full px-5 w-full sm:w-auto">
+            <PlayCircle className="w-4 h-4" />
+            Show how it works
+          </Button>
         </div>
         <p className="text-muted-foreground mt-2">
           Diners keep a story for your restaurant and earn wallet cashback — <strong>your story views in ₹, up to 100% of the bill</strong>.
         </p>
       </div>
 
-      {templates.length === 0 && (
+      {!ugcIsActive && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/20 dark:text-amber-400">
           <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <p className="text-sm">Upload your <strong>story template</strong> below to activate the offer for your diners.</p>
+          <p className="text-sm">
+            UGC cashback is <strong>inactive</strong>. To activate it:
+            {templates.length === 0 && <span className="block mt-1">① Upload your <strong>story template</strong> below.</span>}
+            {!viewerCoupon && <span className="block mt-1">{templates.length === 0 ? '②' : '①'} Set a <strong>flat-discount coupon for story viewers</strong> in the Story Coupons section below.</span>}
+            {viewerCoupon && templates.length > 0 && <span className="block mt-1"> Viewer coupon must use <strong>flat discount</strong> (not percent).</span>}
+          </p>
         </div>
+      )}
+
+      {/* Voucher stats — last 30 days */}
+      {vStats && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" />Story Cashback Vouchers <span className="text-xs font-normal text-muted-foreground ml-1">last 30 days</span></CardTitle>
+            <CardDescription>Vouchers issued, redeemed, and outstanding for this restaurant.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-2xl font-black">{vStats.totalIssued ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Vouchers Issued</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-2xl font-black">₹{vStats.totalIssuedValue ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Total Value Issued</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-2xl font-black">₹{vStats.totalRedeemedValue ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Total Redeemed</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-2xl font-black">{vStats.active ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Active Vouchers</p>
+                {(vStats.expiringSoon ?? 0) > 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">{vStats.expiringSoon} expiring in 7 days</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
+              <span>{vStats.exhausted ?? 0} fully redeemed</span>
+              <span>·</span>
+              <span>{vStats.expired ?? 0} expired</span>
+              <span>·</span>
+              <span>{vStats.redemptionCount ?? 0} total redemption events</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Template + preview — 50 / 50 */}
@@ -160,25 +234,41 @@ export default function UGCConfig() {
           </CardContent>
         </Card>
 
-        {/* Story preview mockup */}
+        {/* Story preview — with Flamezo brand overlay */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Story Preview</CardTitle><CardDescription>How it appears on a diner's story.</CardDescription></CardHeader>
-          <CardContent className="flex justify-center">
-            <div className="relative w-[210px] aspect-[9/16] rounded-[1.6rem] overflow-hidden bg-black shadow-xl border-4 border-gray-900">
+          <CardHeader>
+            <CardTitle className="text-base">Story Preview</CardTitle>
+            <CardDescription>Flamezo watermark applied automatically — logo left, WhatsApp QR right.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <div className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
               {tpl?.url ? (
-                isVideo(tpl)
-                  ? <video src={tpl.url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
-                  : <img src={tpl.url} className="absolute inset-0 w-full h-full object-cover" />
+                <StoryTemplateFrame
+                  mediaUrl={tpl.url}
+                  mediaType={isVideo(tpl) ? 'video' : 'image'}
+                  width={210}
+                  couponCode={selectedCoupon?.code}
+                  discountType={selectedCoupon?.discount_type}
+                  discountValue={selectedCoupon?.discount_value}
+                  validUntil={selectedCoupon?.valid_until}
+                  offerDescription={selectedCoupon?.description}
+                  restaurantName={restaurantName}
+                />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-white/50 text-xs text-center px-4">Upload a template to preview</div>
+                <div className="w-[210px] flex items-center justify-center text-white/50 text-xs text-center px-4" style={{ height: Math.round((210 / 9) * 16) }}>
+                  Upload a template to preview
+                </div>
               )}
-              <div className="absolute top-2 left-2 right-2 h-0.5 rounded-full bg-white/40 overflow-hidden"><div className="h-full w-1/3 bg-white" /></div>
-              <div className="absolute top-4 left-2.5 right-2.5 flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2px]"><div className="w-full h-full rounded-full bg-gray-300" /></div>
-                <span className="text-white text-[11px] font-semibold drop-shadow truncate">{restaurantName}</span>
-                <span className="text-white/70 text-[10px]">now</span>
-              </div>
             </div>
+            {/* Local-file tester */}
+            <LocalMediaTester
+              couponCode={selectedCoupon?.code}
+              discountType={selectedCoupon?.discount_type}
+              discountValue={selectedCoupon?.discount_value}
+              validUntil={selectedCoupon?.valid_until}
+              offerDescription={selectedCoupon?.description}
+              restaurantName={restaurantName}
+            />
           </CardContent>
         </Card>
       </div>
@@ -186,31 +276,30 @@ export default function UGCConfig() {
       {/* Coupons — the one restaurant-managed control */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" />Story Coupons <span className="text-xs font-normal text-muted-foreground">(optional)</span></CardTitle>
-          <CardDescription>Attach your own coupons — one shown to friends who see the story, one for the poster's next visit.</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" />Story Coupons</CardTitle>
+          <CardDescription>Set the coupon shown to friends who view the story. Required to activate UGC — must be a flat (₹) discount.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label className="text-sm">Coupon for story viewers</Label>
+            <Label className="text-sm">Coupon for story viewers <span className="text-red-500">*</span></Label>
             <Select value={viewerCoupon || 'none'} onValueChange={v => { const val = v === 'none' ? '' : v; setViewerCoupon(val); saveCoupons({ coupon_for_viewers: val }) }}>
               <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
-                {(coupons || []).map((c: any) => <SelectItem key={c.name} value={c.name}>{c.code}</SelectItem>)}
+                {(coupons || []).filter((c: any) => c.discount_type === 'flat').map((c: any) => (
+                  <SelectItem key={c.name} value={c.name}>{c.code}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">Shown to friends who see the story.</p>
+            <p className="text-[11px] text-muted-foreground">Required for UGC activation — must be a flat (₹) discount. Shown to friends who see the story.</p>
+            {!(coupons || []).some((c: any) => c.discount_type === 'flat') && (coupons || []).length > 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">No flat-discount coupons found. Go to Coupons and create one with a fixed ₹ amount.</p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">Next-visit coupon for poster</Label>
-            <Select value={nextVisitCoupon || 'none'} onValueChange={v => { const val = v === 'none' ? '' : v; setNextVisitCoupon(val); saveCoupons({ next_visit_coupon: val }) }}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {(coupons || []).map((c: any) => <SelectItem key={c.name} value={c.name}>{c.code}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">Rewarded to the diner for coming back.</p>
+          <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+            <p className="text-sm font-medium">What the poster earns (platform-fixed)</p>
+            <p className="text-sm text-muted-foreground">Flamezo automatically issues the poster a <strong className="text-foreground">Story Cashback Voucher = min(story views, bill, ₹2,000)</strong>. They get <strong className="text-foreground">33% off each return visit</strong> until the balance is fully redeemed.</p>
+            <p className="text-[11px] text-muted-foreground">Voucher valid 45 days · redeemable only at this restaurant · max ₹2,000 per claim · managed by Flamezo.</p>
           </div>
         </CardContent>
       </Card>
@@ -224,11 +313,60 @@ export default function UGCConfig() {
           <CardDescription>Cashback rules, caps and verification are standardised across all Flamezo restaurants.</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1.5">
-          <p>• <strong className="text-foreground">“Keep a story, get up to 100% cashback”</strong> — cashback = story views in ₹, capped at the bill: min(views, bill).</p>
+          <p>• <strong className="text-foreground">"Keep a story, get up to 100% cashback"</strong> — cashback = story views in ₹, capped at the bill (max ₹2,000).</p>
+          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — 33% off each return visit until fully redeemed. Valid 45 days.</p>
           <p>• Your staff verify the diner's story at the table; the next day the diner uploads their view count and AI reads it.</p>
-          <p>• One claim per order · paid as Flamezo wallet cash · stories must stay live 24h · fraud is auto-screened.</p>
+          <p>• Up to 2 claims per restaurant per 30 days · stories must stay live 24h · fraud is auto-screened.</p>
         </CardContent>
       </Card>
+
+      <UGCGrowthSimulatorModal isOpen={isSimulatorOpen} onClose={() => setIsSimulatorOpen(false)} />
+    </div>
+  )
+}
+
+// ── Local-file tester ─────────────────────────────────────────────────────────
+type TesterProps = Pick<import('@/components/StoryTemplateFrame').StoryTemplateFrameProps,
+  'couponCode' | 'discountType' | 'discountValue' | 'validUntil' | 'offerDescription' | 'restaurantName'>
+
+function LocalMediaTester(props: TesterProps) {
+  const [localUrl, setLocalUrl] = useState<string | null>(null)
+  const [localType, setLocalType] = useState<'image' | 'video'>('image')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (localUrl) URL.revokeObjectURL(localUrl)
+    setLocalType(file.type.startsWith('video') ? 'video' : 'image')
+    setLocalUrl(URL.createObjectURL(file))
+  }
+
+  if (!localUrl) {
+    return (
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition"
+      >
+        Test with a local file
+        <input ref={inputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <p className="text-xs font-medium text-muted-foreground">Local preview</p>
+      <div className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
+        <StoryTemplateFrame mediaUrl={localUrl} mediaType={localType} width={210} {...props} />
+      </div>
+      <button
+        onClick={() => { URL.revokeObjectURL(localUrl); setLocalUrl(null); if (inputRef.current) inputRef.current.value = '' }}
+        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition"
+      >
+        Clear
+        <input ref={inputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+      </button>
     </div>
   )
 }

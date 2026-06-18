@@ -47,20 +47,29 @@ def send_ugc_whatsapp(submission_name, kind):
 
 	messages = {
 		"story_verified": (
-			f"✅ Your story for {rname} is verified! Tomorrow, upload a quick screen "
-			f"recording of your story's view count to claim your cashback." + _claim_link(sub)
+			f"✅ Your story for {rname} is verified! You have 48 hours to upload a "
+			f"10–15 second screen recording of your story's view count.\n\n"
+			f"How to record:\n"
+			f"📱 Instagram: Open your story → swipe up → see "Seen by" count → screen record for 10–15 sec.\n"
+			f"📱 Facebook: Open your story → tap the eye icon → screen record for 10–15 sec.\n\n"
+			f"Make sure your phone's clock and battery bar are visible. Max 20 MB."
+			+ _claim_link(sub)
 		),
 		"story_rejected": (
 			f"Your story submission for {rname} couldn't be verified. "
 			f"Please make sure it was posted exactly as shown and try again."
 		),
 		"proof_reminder": (
-			f"⏰ Don't miss your cashback from {rname}! Upload a screen recording of your "
-			f"Instagram/Facebook story views to claim it." + _claim_link(sub)
+			f"⏰ Last reminder! Upload your story views to claim cashback from {rname}.\n\n"
+			f"Instagram: Open story → swipe up → screen record the "Seen by" count (10–15 sec).\n"
+			f"Facebook: Open story → tap eye icon → screen record (10–15 sec).\n\n"
+			f"Keep it under 20 MB. Upload here before your 48-hour window closes:"
+			+ _claim_link(sub)
 		),
 		"cashback_credited": (
-			f"🎉 Cashback credited! {cint(sub.cashback_coins)} Cash from {rname} is now in "
-			f"your Flamezo wallet — use it within {get_expiry_days()} days on your next bill."
+			f"🎉 Your Story Cashback voucher is ready! ₹{cint(sub.cashback_coins)} from {rname} "
+			f"— use 33% off each visit until it's fully redeemed. Valid for 45 days, only at {rname}."
+			+ _claim_link(sub)
 		),
 		"proof_rejected": (
 			f"Your cashback claim at {rname} couldn't be approved. "
@@ -144,18 +153,30 @@ def send_proof_reminders():
 			frappe.log_error(f"UGC reminder for {row.name}: {e}", "UGC")
 
 	# ── 2. Expiry sweep ──────────────────────────────────────────────────────
-	# Default window 48h; read per-restaurant config where present.
+	# Each state has its own anchor and window:
+	#   offer_shown / story_shared  — 7 days from submission_date
+	#     (diner never posted or staff never showed up; long window to be fair)
+	#   story_verified              — 48 h from story_verified_at
+	#     (diner has a full 48 h from the moment staff taps Approve)
 	open_claims = frappe.get_all(
 		"UGC Story Submission",
 		filters={"status": ["in", ("offer_shown", "story_shared", "story_verified")]},
-		fields=["name", "restaurant", "submission_date"],
+		fields=["name", "status", "submission_date", "story_verified_at"],
 		limit_page_length=1000,
 	)
-	PROOF_WINDOW_HOURS = 48  # platform-fixed
 	for row in open_claims:
-		if not row.submission_date:
+		if row.status == "story_verified":
+			# Proof window: 48 h from staff verification.
+			anchor = row.story_verified_at or row.submission_date
+			window_hours = 48
+		else:
+			# Unverified offers expire after 7 days so they don't clog the queue.
+			anchor = row.submission_date
+			window_hours = 7 * 24
+
+		if not anchor:
 			continue
-		deadline = add_to_date(get_datetime(row.submission_date), hours=PROOF_WINDOW_HOURS)
+		deadline = add_to_date(get_datetime(anchor), hours=window_hours)
 		if now > deadline:
 			try:
 				frappe.db.set_value("UGC Story Submission", row.name, "status", "expired", update_modified=False)

@@ -162,6 +162,7 @@ permission_query_conditions = {
 	"Recommendation Interaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 
 	"Menu Product Embedding Cache": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Offer Claim": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 }
 
 has_permission = {

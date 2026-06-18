@@ -1,0 +1,138 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-06-17 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "voucher_code",
+  "customer",
+  "restaurant",
+  "column_break_identity",
+  "status",
+  "ugc_submission",
+  "section_break_amounts",
+  "original_amount",
+  "balance",
+  "column_break_amounts",
+  "issued_at",
+  "expires_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "voucher_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Voucher Code",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "active\nexhausted\nexpired",
+   "default": "active",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ugc_submission",
+   "fieldtype": "Link",
+   "label": "UGC Submission",
+   "options": "UGC Story Submission"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "original_amount",
+   "fieldtype": "Currency",
+   "label": "Original Amount",
+   "reqd": 1,
+   "precision": "0"
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "label": "Balance",
+   "reqd": 1,
+   "precision": "0"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issued_at",
+   "fieldtype": "Datetime",
+   "label": "Issued At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires At",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-06-17 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "UGC Voucher",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "sort_field": "issued_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 0
+}

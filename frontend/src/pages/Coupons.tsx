@@ -21,8 +21,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   Plus, Edit, Trash2, Tag, Percent, Gift, Calendar, Users,
-  TrendingUp, AlertCircle, Zap, X, Bike, Sparkles, ArrowLeft,
-  Clock, Star, ShoppingBag, Flame, RotateCcw, Download
+  TrendingUp, AlertCircle, Zap, X, Sparkles, ArrowLeft,
+  Clock, Star, ShoppingBag, Flame, RotateCcw, Download,
+  Lock, Unlock, ShieldCheck, BarChart3, CheckCircle2,
+  XCircle, ChevronDown, ChevronUp, Phone, CreditCard, RefreshCw,
+  Eye, EyeOff
 } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
@@ -153,23 +156,6 @@ const TEMPLATES: CouponTemplate[] = [
       code: 'BIG40',
       description: 'Get 40% off up to ₹80 on your order',
       category: 'best',
-    },
-  },
-  {
-    id: 'free_delivery',
-    label: 'Free Delivery',
-    tagline: 'Zero delivery fee — huge conversion driver',
-    icon: <Bike className="h-6 w-6" />,
-    accent: 'bg-blue-500',
-    badge: 'Popular',
-    defaults: {
-      offer_type: 'delivery',
-      discount_type: 'delivery',
-      discount_value: 0,
-      min_order_amount: 149,
-      code: 'FREEDEL',
-      description: 'Free delivery on bills above ₹149',
-      category: 'delivery',
     },
   },
   {
@@ -316,6 +302,10 @@ export default function Coupons() {
   const { call: createCoupon } = useFrappePostCall('frappe.client.insert')
   const { updateDoc: updateCoupon } = useFrappeUpdateDoc()
   const { deleteDoc: deleteCoupon } = useFrappeDeleteDoc()
+  const { call: checkFoodCostCoverage } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.costing.check_food_cost_coverage'
+  )
+  const [aiGateLoading, setAiGateLoading] = useState(false)
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -436,13 +426,40 @@ export default function Coupons() {
     setIsCreateDialogOpen(true)
   }
 
+  const handleOpenAIModal = async () => {
+    setAiGateLoading(true)
+    try {
+      const res = await checkFoodCostCoverage({ restaurant_id: selectedRestaurant })
+      const payload = res?.message ?? res
+      const data = payload?.data
+      if (!payload?.success) {
+        toast.error('Could not verify food cost data', { description: payload?.error?.message })
+        return
+      }
+      if (!data?.all_covered) {
+        const missing = data?.items_without_cost ?? 0
+        const total = data?.total_items ?? 0
+        toast.error('Food cost required for AI generation', {
+          description: `${missing} of ${total} menu items are missing food cost. Go to Food Cost in the sidebar and set costs for all items — the AI needs this data to generate profit-safe offers.`,
+          duration: 7000,
+        })
+        return
+      }
+    } catch (err: any) {
+      toast.error('Could not verify food cost data', { description: err?.message })
+      return
+    } finally {
+      setAiGateLoading(false)
+    }
+    setIsAIModalOpen(true)
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const getOfferTypeIcon = (type: string) => {
     switch (type) {
       case 'combo':    return <Gift className="h-4 w-4" />
       case 'auto':     return <TrendingUp className="h-4 w-4" />
-      case 'delivery': return <Bike className="h-4 w-4" />
       default:         return <Tag className="h-4 w-4" />
     }
   }
@@ -486,9 +503,13 @@ export default function Coupons() {
             variant="outline"
             size="sm"
             className="gap-2 border-purple-400/40 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-            onClick={() => setIsAIModalOpen(true)}
+            onClick={handleOpenAIModal}
+            disabled={aiGateLoading}
           >
-            <Sparkles className="h-4 w-4" />
+            {aiGateLoading
+              ? <RefreshCw className="h-4 w-4 animate-spin" />
+              : <Sparkles className="h-4 w-4" />
+            }
             Generate with AI
           </Button>
           <Button onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
@@ -520,6 +541,12 @@ export default function Coupons() {
         ))}
       </div>
 
+      {/* PIN Setup + Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PinSetupCard restaurantId={selectedRestaurant} />
+        <ClaimsAnalyticsCard restaurantId={selectedRestaurant} />
+      </div>
+
       {/* List */}
       <Card>
         <CardHeader>
@@ -549,7 +576,6 @@ export default function Coupons() {
                   <SelectItem value="coupon">Coupon Codes</SelectItem>
                   <SelectItem value="auto">Auto Offers</SelectItem>
                   <SelectItem value="combo">Combo Deals</SelectItem>
-                  <SelectItem value="delivery">Delivery Offers</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -574,19 +600,14 @@ export default function Coupons() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {coupons.map((coupon: any) => {
-                  const isDelivery = coupon.discount_type === 'delivery' || coupon.offer_type === 'delivery'
-                  const isPercent  = coupon.discount_type === 'percent'
+                  const isPercent = coupon.discount_type === 'percent'
 
-                  const discountLabel = isDelivery
-                    ? 'FREE DELIVERY'
-                    : isPercent
+                  const discountLabel = isPercent
                     ? `${coupon.discount_value}% OFF`
                     : `${formatAmountNoDecimals(coupon.discount_value)} OFF`
 
-                  const discountColor = isDelivery ? 'text-blue-500' : 'text-green-600 dark:text-green-400'
-                  const stripeColor   = isDelivery
-                    ? 'bg-blue-500'
-                    : coupon.offer_type === 'combo'
+                  const discountColor = 'text-green-600 dark:text-green-400'
+                  const stripeColor   = coupon.offer_type === 'combo'
                     ? 'bg-purple-500'
                     : coupon.offer_type === 'auto'
                     ? 'bg-orange-500'
@@ -625,14 +646,12 @@ export default function Coupons() {
 
                         {/* Discount hero */}
                         <div className={`flex items-center gap-1.5 ${discountColor}`}>
-                          {isDelivery
-                            ? <Bike className="h-4 w-4 shrink-0" />
-                            : isPercent
+                          {isPercent
                             ? <Percent className="h-4 w-4 shrink-0" />
                             : <Tag className="h-4 w-4 shrink-0" />
                           }
                           <span className="text-lg font-extrabold leading-none">{discountLabel}</span>
-                          {coupon.max_discount_cap > 0 && !isDelivery && (
+                          {coupon.max_discount_cap > 0 && (
                             <span className="text-[11px] font-normal text-muted-foreground ml-0.5">
                               up to {formatAmountNoDecimals(coupon.max_discount_cap)}
                             </span>
@@ -1015,8 +1034,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                 value={formData.offer_type}
                 onValueChange={(v) => {
                   const patch: any = { offer_type: v }
-                  if (v === 'delivery') { patch.category = 'delivery'; patch.discount_type = 'delivery' }
-                  else if (v === 'combo') { patch.category = 'best'; patch.discount_type = 'flat' }
+                  if (v === 'combo') { patch.category = 'best'; patch.discount_type = 'flat' }
                   else { patch.category = 'best' }
                   set(patch)
                 }}
@@ -1026,7 +1044,6 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                   <SelectItem value="coupon">Coupon Code</SelectItem>
                   <SelectItem value="auto">Auto-Applied</SelectItem>
                   <SelectItem value="combo">Combo Deal</SelectItem>
-                  <SelectItem value="delivery">Delivery Offer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1040,10 +1057,9 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               value={formData.description}
               onChange={(e) => set({ description: e.target.value })}
               placeholder={
-                formData.offer_type === 'combo'    ? 'Get 2 Pizzas + 1 Drink at a special combo price' :
-                formData.offer_type === 'delivery' ? 'Free delivery on bills above ₹149' :
-                formData.offer_type === 'auto'     ? 'Weekend special — 25% off all bills' :
-                                                     'Get 20% off on bills above ₹299'
+                formData.offer_type === 'combo' ? 'Get 2 Pizzas + 1 Drink at a special combo price' :
+                formData.offer_type === 'auto'  ? 'Weekend special — 25% off all bills' :
+                                                  'Get 20% off on bills above ₹299'
               }
             />
           </div>
@@ -1191,33 +1207,6 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               </div>
             </div>
 
-          ) : formData.offer_type === 'delivery' ? (
-            <div className="space-y-4 rounded-xl border border-blue-200 dark:border-blue-900 p-4">
-              <p className="text-sm font-semibold flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                <Bike className="h-4 w-4" />Delivery Discount
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Delivery Benefit</Label>
-                  <Select value={formData.discount_type} onValueChange={(v) => set({ discount_type: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="delivery">Free Delivery (waive full fee)</SelectItem>
-                      <SelectItem value="flat">Flat {currencySymbol} off the fee</SelectItem>
-                      <SelectItem value="percent">% off the fee</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {formData.discount_type !== 'delivery' && (
-                  <div className="space-y-1.5">
-                    <Label>Discount Value *</Label>
-                    <NumberInput value={formData.discount_value}
-                      onChange={(e: any) => set({ discount_value: parseFloat(e.target.value) || 0 })} min="0" required />
-                  </div>
-                )}
-              </div>
-            </div>
-
           ) : (
             <div className="space-y-4 rounded-xl border p-4">
               <p className="text-sm font-semibold flex items-center gap-2"><Tag className="h-4 w-4 text-green-600" />Discount</p>
@@ -1229,7 +1218,6 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                     <SelectContent>
                       <SelectItem value="percent">Percentage (%)</SelectItem>
                       <SelectItem value="flat">Flat Amount ({currencySymbol})</SelectItem>
-                      <SelectItem value="delivery">Free Delivery</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1341,5 +1329,342 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ─── PIN Setup Card ───────────────────────────────────────────────────────────
+
+function PinSetupCard({ restaurantId }: { restaurantId: string }) {
+  const [pin, setPin] = useState(['', '', '', ''])
+  const [isSet, setIsSet] = useState<boolean | null>(null)
+  const [currentPin, setCurrentPin] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [showPin, setShowPin] = useState(false)
+  const [showCurrentPin, setShowCurrentPin] = useState(false)
+
+  const { call: setPinCall } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.coupons.set_offer_pin'
+  )
+  const { call: getPinStatus } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.coupons.get_offer_pin_status'
+  )
+
+  useEffect(() => {
+    if (!restaurantId) return
+    getPinStatus({ restaurant_id: restaurantId })
+      .then((res: any) => {
+        const payload = res?.message ?? res
+        setIsSet(!!payload?.data?.is_set)
+        setCurrentPin(payload?.data?.pin || '')
+      })
+      .catch(() => setIsSet(false))
+  }, [restaurantId])
+
+  const handleDigit = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return
+    const next = [...pin]
+    next[index] = value.slice(-1)
+    setPin(next)
+    if (value && index < 3) {
+      const nextInput = document.getElementById(`pin-digit-${index + 1}`) as HTMLInputElement | null
+      nextInput?.focus()
+    }
+  }
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !pin[index] && index > 0) {
+      const prevInput = document.getElementById(`pin-digit-${index - 1}`) as HTMLInputElement | null
+      prevInput?.focus()
+    }
+  }
+
+  const handleSave = async () => {
+    const fullPin = pin.join('')
+    if (fullPin.length !== 4) { toast.error('Enter all 4 digits'); return }
+    setSaving(true)
+    try {
+      const res = await setPinCall({ restaurant_id: restaurantId, pin: fullPin })
+      const payload = (res as any)?.message ?? res
+      if (payload?.success) {
+        toast.success('PIN saved — staff are ready to verify offers')
+        setIsSet(true)
+        setCurrentPin(fullPin)
+        setShowForm(false)
+        setPin(['', '', '', ''])
+        setShowPin(false)
+      } else {
+        toast.error(payload?.error?.message || 'Failed to save PIN')
+      }
+    } catch { toast.error('Failed to save PIN') } finally { setSaving(false) }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Offer Verification PIN</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Staff enter this on customer's phone to claim an offer
+              </CardDescription>
+            </div>
+          </div>
+          {isSet !== null && (
+            <Badge variant={isSet ? 'default' : 'secondary'} className={isSet ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 border-green-200' : ''}>
+              {isSet ? <><Unlock className="h-3 w-3 mr-1" />PIN Set</> : <><Lock className="h-3 w-3 mr-1" />Not Set</>}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!showForm ? (
+          <div className="space-y-4">
+            {isSet && currentPin ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Current PIN — share with your staff</p>
+                <div className="flex items-center gap-3">
+                  {(showCurrentPin ? currentPin.split('') : ['•','•','•','•']).map((ch, i) => (
+                    <div key={i} className="w-12 h-12 flex items-center justify-center text-xl font-bold rounded-xl border-2 border-border bg-muted/40 select-none">
+                      {ch}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPin(v => !v)}
+                    className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    title={showCurrentPin ? 'Hide PIN' : 'Reveal PIN'}
+                  >
+                    {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Set a 4-digit PIN that staff enter on a customer's phone to verify an offer claim. Every claim is recorded for analytics.
+              </p>
+            )}
+            <Button size="sm" variant={isSet ? 'outline' : 'default'} onClick={() => setShowForm(true)}>
+              {isSet ? 'Change PIN' : 'Set PIN'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Enter a new 4-digit PIN:</p>
+            <div className="flex items-center gap-3">
+              {pin.map((digit, i) => (
+                <input
+                  key={i}
+                  id={`pin-digit-${i}`}
+                  type={showPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigit(i, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(i, e)}
+                  className="w-12 h-12 text-center text-xl font-bold rounded-xl border-2 bg-background focus:border-primary focus:outline-none transition-colors"
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowPin(v => !v)}
+                className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={showPin ? 'Hide PIN' : 'Show PIN'}
+              >
+                {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSave} disabled={saving || pin.join('').length < 4}>
+                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                Save PIN
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setPin(['', '', '', '']); setShowPin(false) }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Claims Analytics Card ────────────────────────────────────────────────────
+
+function ClaimsAnalyticsCard({ restaurantId }: { restaurantId: string }) {
+  const [period, setPeriod] = useState('30d')
+  const [showDetails, setShowDetails] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [analytics, setAnalytics] = useState<any>(null)
+
+  const { call: fetchAnalytics } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.coupons.get_offer_claims_analytics'
+  )
+
+  const load = async (p = period) => {
+    if (!restaurantId) return
+    setLoading(true)
+    try {
+      const res = await fetchAnalytics({ restaurant_id: restaurantId, period: p })
+      const payload = (res as any)?.message ?? res
+      if (payload?.success) setAnalytics(payload.data)
+    } catch { /* silent */ } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [restaurantId, period])
+
+  const summary = analytics?.summary
+  const byCoupon: any[] = analytics?.byCoupon || []
+  const recentClaims: any[] = analytics?.recentClaims || []
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Offer Claims</CardTitle>
+              <CardDescription className="text-xs mt-0.5">How many claims converted to Flamezo payments</CardDescription>
+            </div>
+          </div>
+          <Select value={period} onValueChange={(v) => { setPeriod(v); load(v) }}>
+            <SelectTrigger className="w-[90px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">7 days</SelectItem>
+              <SelectItem value="30d">30 days</SelectItem>
+              <SelectItem value="90d">90 days</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading && !analytics ? (
+          <div className="flex items-center justify-center py-6">
+            <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !summary ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No claims data yet</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Total Claims', value: summary.totalClaims, color: '' },
+                { label: 'Paid via Flamezo', value: `${summary.conversionRate}%`, color: 'text-green-600 dark:text-green-400' },
+                { label: 'Paid', value: summary.paidCount, color: 'text-green-600' },
+                { label: 'Drop-off', value: summary.notPaidCount, color: 'text-red-500' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="rounded-xl bg-muted/50 p-3 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {summary.totalPaidAmount > 0 && (
+              <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-green-700 dark:text-green-400">Revenue via Flamezo</span>
+                <span className="text-lg font-bold text-green-700 dark:text-green-400">
+                  ₹{summary.totalPaidAmount.toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowDetails(v => !v)}
+              className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+            >
+              <span className="font-medium">{showDetails ? 'Hide details' : 'Per-coupon breakdown & recent claims'}</span>
+              {showDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+
+            {showDetails && (
+              <div className="space-y-4 border-t pt-4">
+                {byCoupon.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">By Coupon</p>
+                    <div className="space-y-2">
+                      {byCoupon.map((row) => (
+                        <div key={row.coupon_id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="font-mono font-bold text-sm truncate">{row.coupon_code}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {row.total_claims} claims · {row.paid_count} paid · {row.not_paid_count} drop-off
+                            </p>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className={row.conversion_rate >= 50
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 shrink-0'
+                              : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 shrink-0'}
+                          >
+                            {row.conversion_rate}%
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recentClaims.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Recent Claims</p>
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Coupon</th>
+                            <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Customer</th>
+                            <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Claimed</th>
+                            <th className="text-right px-3 py-2 font-semibold text-muted-foreground">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {recentClaims.slice(0, 20).map((c) => (
+                            <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-3 py-2 font-mono font-bold">{c.couponCode}</td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3 shrink-0" />{c.customerPhone}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {c.isPaid ? (
+                                  <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />Paid
+                                    {c.paidAmount > 0 && <span className="text-muted-foreground font-normal ml-1">₹{c.paidAmount}</span>}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-red-500">
+                                    <XCircle className="h-3.5 w-3.5" />Not paid
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }

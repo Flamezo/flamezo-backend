@@ -1,0 +1,126 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-06-17 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "voucher",
+  "customer",
+  "restaurant",
+  "column_break_identity",
+  "order",
+  "redeemed_at",
+  "section_break_amounts",
+  "bill_amount",
+  "amount_used",
+  "balance_before",
+  "balance_after"
+ ],
+ "fields": [
+  {
+   "fieldname": "voucher",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Voucher",
+   "options": "UGC Voucher",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "label": "Order",
+   "options": "Order"
+  },
+  {
+   "fieldname": "redeemed_at",
+   "fieldtype": "Datetime",
+   "label": "Redeemed At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "bill_amount",
+   "fieldtype": "Currency",
+   "label": "Bill Amount",
+   "reqd": 1,
+   "precision": "0"
+  },
+  {
+   "fieldname": "amount_used",
+   "fieldtype": "Currency",
+   "label": "Amount Used",
+   "reqd": 1,
+   "precision": "0"
+  },
+  {
+   "fieldname": "balance_before",
+   "fieldtype": "Currency",
+   "label": "Balance Before",
+   "precision": "0"
+  },
+  {
+   "fieldname": "balance_after",
+   "fieldtype": "Currency",
+   "label": "Balance After",
+   "precision": "0"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-06-17 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "UGC Voucher Redemption",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "sort_field": "redeemed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 0
+}

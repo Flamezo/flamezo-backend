@@ -59,10 +59,10 @@
    "fieldname": "offer_type",
    "fieldtype": "Select",
    "label": "Offer Type",
-   "options": "coupon\nauto\ncombo\ndelivery",
+   "options": "coupon\nauto\ncombo",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing | Delivery: Delivery fee discount"
+   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing"
   },
   {
    "fieldname": "code",
@@ -77,7 +77,7 @@
    "fieldname": "discount_type",
    "fieldtype": "Select",
    "label": "Discount Type",
-   "options": "flat\npercent\ndelivery",
+   "options": "flat\npercent",
    "reqd": 1
   },
   {

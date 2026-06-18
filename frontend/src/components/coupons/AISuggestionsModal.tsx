@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Sparkles, Zap, Flame, Leaf, Tag, Gift, Bike, TrendingUp,
+  Sparkles, Zap, Flame, Leaf, Tag, Gift, TrendingUp,
   RefreshCw, ChevronRight, AlertCircle, Info, Coins, CheckSquare, Square, CheckCheck,
 } from 'lucide-react'
 import { useFrappePostCall } from '@/lib/frappe'
@@ -23,8 +23,8 @@ import { cn } from '@/lib/utils'
 
 export interface AISuggestion {
   code: string
-  offer_type: 'coupon' | 'auto' | 'combo' | 'delivery'
-  discount_type: 'flat' | 'percent' | 'delivery'
+  offer_type: 'coupon' | 'auto' | 'combo'
+  discount_type: 'flat' | 'percent'
   discount_value: number
   min_order_amount: number
   max_discount_cap: number | null
@@ -103,7 +103,6 @@ const OFFER_TYPE_OPTIONS = [
   { value: 'coupon', label: 'Coupon Code' },
   { value: 'auto', label: 'Auto Offer' },
   { value: 'combo', label: 'Combo Deal' },
-  { value: 'delivery', label: 'Delivery Offer' },
 ]
 
 const GOAL_COLORS: Record<string, string> = {
@@ -111,7 +110,6 @@ const GOAL_COLORS: Record<string, string> = {
   aov:         'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   frequency:   'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
   retention:   'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-  delivery:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
   upsell:      'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   offpeak:     'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
 }
@@ -121,7 +119,6 @@ const GOAL_LABELS: Record<string, string> = {
   aov:         'Grow AOV',
   frequency:   'More Orders',
   retention:   'Retention',
-  delivery:    'Delivery',
   upsell:      'Upsell',
   offpeak:     'Off-Peak',
 }
@@ -132,17 +129,15 @@ function getOfferTypeIcon(type: string) {
   switch (type) {
     case 'combo':    return <Gift className="h-3.5 w-3.5" />
     case 'auto':     return <TrendingUp className="h-3.5 w-3.5" />
-    case 'delivery': return <Bike className="h-3.5 w-3.5" />
     default:         return <Tag className="h-3.5 w-3.5" />
   }
 }
 
 function getOfferTypeLabel(type: string) {
-  return { coupon: 'Coupon', auto: 'Auto', combo: 'Combo', delivery: 'Delivery' }[type] ?? type
+  return { coupon: 'Coupon', auto: 'Auto', combo: 'Combo' }[type] ?? type
 }
 
 function formatDiscount(s: AISuggestion): string {
-  if (s.discount_type === 'delivery') return 'FREE DELIVERY'
   if (s.discount_type === 'percent') {
     const cap = s.max_discount_cap ? ` (max ₹${s.max_discount_cap})` : ''
     return `${s.discount_value}% OFF${cap}`
@@ -151,7 +146,6 @@ function formatDiscount(s: AISuggestion): string {
 }
 
 function getStripeColor(s: AISuggestion): string {
-  if (s.discount_type === 'delivery' || s.offer_type === 'delivery') return 'bg-blue-500'
   if (s.offer_type === 'combo') return 'bg-purple-500'
   if (s.offer_type === 'auto') return 'bg-orange-500'
   return 'bg-green-500'
@@ -351,6 +345,11 @@ export function AISuggestionsModal({
         } else if (errCode === 'INSUFFICIENT_BALANCE') {
           toast.error('Insufficient wallet balance', {
             description: payload.message,
+          })
+        } else if (errCode === 'FOOD_COST_REQUIRED') {
+          toast.error('Food cost missing', {
+            description: payload.message || 'Set food cost for all menu items in the Food Cost page first.',
+            duration: 7000,
           })
         } else {
           toast.error('Generation failed', { description: payload?.message || payload?.error?.message })
