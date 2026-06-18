@@ -441,6 +441,15 @@ def get_restaurant_config(restaurant_id):
 			# Non-fatal: if fetching features fails, continue without them
 			pass
 
+		# UGC activation status — governs promo banner + ugc-claim page visibility.
+		# Active = story template uploaded AND a flat-discount viewer coupon is set.
+		try:
+			from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
+			ugc_config = _get_active_config(restaurant_doc.name)
+			response_data["ugcActive"] = _is_ugc_active(ugc_config) if ugc_config else False
+		except Exception:
+			response_data["ugcActive"] = False
+
 		if frappe.session.user == "Guest":
 			frappe.cache().set_value(cache_key, json.dumps({"success": True, "data": response_data}), expires_in_sec=60)
 

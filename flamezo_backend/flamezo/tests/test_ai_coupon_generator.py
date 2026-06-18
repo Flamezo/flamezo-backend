@@ -342,17 +342,6 @@ MOCK_SUGGESTIONS_JSON = json.dumps([
         "goal": "aov", "rationale": "Push AOV above ₹399.",
         "expected_impact": "Increases average order by ₹80",
     },
-    {
-        "code": "MOCKDEL", "offer_type": "delivery", "discount_type": "delivery",
-        "discount_value": 0, "min_order_amount": 199, "max_discount_cap": None,
-        "description": "Free delivery",
-        "detailed_description": "Free delivery on orders above ₹199.",
-        "category": "delivery", "valid_days_of_week": None,
-        "valid_time_start": None, "valid_time_end": None,
-        "max_uses": 0, "max_uses_per_user": 0, "can_stack": False, "priority": 4,
-        "goal": "delivery", "rationale": "Removes delivery barrier.",
-        "expected_impact": "Lifts delivery conversion",
-    },
 ])
 
 
@@ -582,7 +571,7 @@ class TestCouponQualityRules(unittest.TestCase):
             if not s["max_discount_cap"]:
                 return s["min_order_amount"] >= 200
             return True  # cap bounds the loss
-        return True  # delivery discounts are not loss scenarios (fee waiver)
+        return True
 
     def test_calm_suggestions_never_cause_loss(self):
         calm_raws = [
@@ -699,13 +688,13 @@ class TestLiveGeneration(unittest.TestCase):
     def test_live_suggestions_have_valid_offer_types(self):
         result = self._generate()
         for s in result.get("suggestions", []):
-            self.assertIn(s["offer_type"], ("coupon", "auto", "combo", "delivery"),
+            self.assertIn(s["offer_type"], ("coupon", "auto", "combo"),
                           f"Invalid offer_type: {s['offer_type']}")
 
     def test_live_suggestions_have_valid_discount_types(self):
         result = self._generate()
         for s in result.get("suggestions", []):
-            self.assertIn(s["discount_type"], ("flat", "percent", "delivery"),
+            self.assertIn(s["discount_type"], ("flat", "percent"),
                           f"Invalid discount_type: {s['discount_type']}")
 
     def test_live_aggressive_no_owner_loss(self):

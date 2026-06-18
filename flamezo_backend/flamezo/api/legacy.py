@@ -49,12 +49,6 @@ def get_legacy_content(restaurant_id):
 			"paragraph1": legacy_doc.paragraph_1 or ""
 		}
 		
-		# Format signature dishes - return array of dish IDs for frontend compatibility
-		signature_dishes = []
-		sorted_dishes = sorted(legacy_doc.signature_dishes, key=lambda x: x.display_order or 0)
-		for dish in sorted_dishes:
-			signature_dishes.append(dish.dish)
-		
 		# Format testimonials
 		testimonials = []
 		for testimonial in legacy_doc.testimonials:
@@ -159,7 +153,6 @@ def get_legacy_content(restaurant_id):
 			"data": {
 				"hero": hero,
 				"content": content,
-				"signatureDishes": signature_dishes,
 				"testimonials": testimonials,
 				"members": members,
 				"gallery": gallery,
@@ -179,7 +172,7 @@ def get_legacy_content(restaurant_id):
 
 
 @frappe.whitelist()
-def update_legacy_content(restaurant_id, hero=None, content=None, signature_dishes=None, testimonials=None, members=None, gallery=None, instagram_reels=None, footer=None):
+def update_legacy_content(restaurant_id, hero=None, content=None, testimonials=None, members=None, gallery=None, instagram_reels=None, footer=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.legacy.update_legacy_content
 	Update content for "The Place & Its Legacy" page (Admin only)
@@ -193,8 +186,6 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 			hero = json.loads(hero) if hero else {}
 		if isinstance(content, str):
 			content = json.loads(content) if content else {}
-		if isinstance(signature_dishes, str):
-			signature_dishes = json.loads(signature_dishes) if signature_dishes else []
 		if isinstance(testimonials, str):
 			testimonials = json.loads(testimonials) if testimonials else []
 		if isinstance(members, str):
@@ -225,15 +216,6 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 				legacy_doc.opening_text = content["openingText"]
 			if "paragraph1" in content:
 				legacy_doc.paragraph_1 = content["paragraph1"]
-		
-		# Update signature dishes
-		if signature_dishes:
-			legacy_doc.signature_dishes = []
-			for dish_data in signature_dishes:
-				legacy_doc.append("signature_dishes", {
-					"dish": dish_data.get("dishId"),
-					"display_order": dish_data.get("displayOrder", 0)
-				})
 		
 		# Update testimonials
 		if testimonials:
@@ -314,7 +296,6 @@ def get_default_legacy_content(restaurant_name):
 			"openingText": "",
 			"paragraph1": ""
 		},
-		"signatureDishes": [],
 		"testimonials": [],
 		"members": [],
 		"gallery": {
@@ -413,31 +394,13 @@ def generate_legacy_content(restaurant_id):
 		# Build members removed
 		members_payload = []
 
-		# Match signature dishes by name to find their IDs
-		signature_dishes_payload = []
-		chosen_names = ai_result.get("signature_dish_names", [])
-		
-		# Create a name-to-id map for all dishes
-		dish_name_to_id = {d["item_name"].lower(): d["id"] for d in items}
-		
-		seen_ids = set()
-		for chosen_name in chosen_names:
-			dish_id = dish_name_to_id.get(chosen_name.lower())
-			if dish_id and dish_id not in seen_ids:
-				signature_dishes_payload.append({
-					"dishId": dish_id,
-					"displayOrder": len(signature_dishes_payload) + 1
-				})
-				seen_ids.add(dish_id)
-		
 		update_result = update_legacy_content(
 			restaurant_id=restaurant_id,
 			hero=hero_payload,
 			content=content_payload,
 			footer=footer_payload,
 			testimonials=testimonials_payload,
-			members=members_payload,
-			signature_dishes=signature_dishes_payload
+			members=members_payload
 		)
 		
 		if not update_result.get("success"):

@@ -20,7 +20,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 import json
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 @frappe.whitelist(allow_guest=True)
@@ -524,7 +524,7 @@ def get_ai_coupon_quota(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None, order_type=None):
+def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.get_applicable_offers
 	Get ALL offers (both eligible and ineligible) with detailed reasons
@@ -591,16 +591,6 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 		for offer in offers:
 			is_eligible = True
 			ineligibility_reasons = []
-
-			# Check delivery specific logic
-			is_delivery_offer = (offer.discount_type == 'delivery' or offer.category == 'delivery' or offer.offer_type == 'delivery')
-			if is_delivery_offer and order_type != "delivery":
-				is_eligible = False
-				ineligibility_reasons.append({
-					"code": "INVALID_MODE",
-					"message": "Only available for delivery orders",
-					"type": "schedule"
-				})
 
 			# Skip if not within validity dates
 			if offer.valid_from and getdate(offer.valid_from) > getdate(today_date):
@@ -818,11 +808,6 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					discount_amount = flt(offer.max_discount_cap)
 				potential_discount = discount_amount
 
-			if is_delivery_offer:
-				if offer.discount_type == 'delivery':
-					discount_amount = 0
-				potential_discount = discount_amount
-
 			# Build offer data
 			offer_data = {
 				"id": str(offer.name),
@@ -882,4 +867,270 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 		}
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Offer PIN management
+# ──────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def set_offer_pin(restaurant_id, pin):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.coupons.set_offer_pin
+	Merchant sets/updates their 4-digit offer verification PIN.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		pin = str(pin).strip()
+		if not pin.isdigit() or len(pin) != 4:
+			return {"success": False, "error": {"code": "INVALID_PIN", "message": "PIN must be exactly 4 digits"}}
+
+		frappe.db.set_value("Restaurant Config", restaurant, "offer_verification_pin", pin)
+		frappe.db.commit()
+
+		return {"success": True, "data": {"message": "PIN updated successfully"}}
+	except Exception as e:
+		frappe.log_error(f"Error in set_offer_pin: {str(e)}")
+		return {"success": False, "error": {"code": "PIN_SET_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist()
+def get_offer_pin_status(restaurant_id):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.coupons.get_offer_pin_status
+	Returns whether a PIN is set. Never returns the PIN value itself.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		stored = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		return {"success": True, "data": {"is_set": bool(stored)}}
+	except Exception as e:
+		return {"success": False, "error": {"code": "PIN_STATUS_ERROR", "message": str(e)}}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Offer claim flow  (customer-facing, called from flamezo-web)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def claim_offer_with_pin(restaurant_id, coupon_id, pin):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.coupons.claim_offer_with_pin
+
+	Customer flow: waiter enters 4-digit PIN on customer's phone.
+	On success, records the claim in Offer Claim DocType.
+	Returns the claim ID so the frontend can reference it later.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		# Require logged-in customer
+		token = get_customer_token()
+		if not token:
+			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Please log in to claim offers"}}
+
+		customer_id = get_customer_from_token(token)
+		if not customer_id:
+			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Session expired — please log in again"}}
+
+		# Fetch customer phone
+		customer_phone = frappe.db.get_value("Customer Data", customer_id, "phone") or ""
+
+		# Validate PIN
+		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		if not stored_pin:
+			return {"success": False, "error": {"code": "PIN_NOT_SET", "message": "This restaurant has not set up offer verification"}}
+
+		if str(pin).strip() != stored_pin:
+			return {"success": False, "error": {"code": "INVALID_PIN", "message": "Incorrect PIN — please try again"}}
+
+		# Validate the coupon exists and belongs to this restaurant
+		coupon = frappe.db.get_value(
+			"Coupon",
+			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
+			["name", "code"],
+			as_dict=True,
+		)
+		if not coupon:
+			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Offer not found or inactive"}}
+
+		# Server-side dedup: one claim per customer per restaurant per calendar day.
+		today_start = frappe.utils.get_datetime(frappe.utils.today())
+		existing_today = frappe.db.exists(
+			"Offer Claim",
+			{
+				"restaurant": restaurant,
+				"customer": customer_id,
+				"claimed_at": [">=", today_start],
+				"is_paid": 0,
+			},
+		)
+		if existing_today:
+			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant today"}}
+
+		# Record the claim with full customer attribution
+		claim = frappe.get_doc({
+			"doctype": "Offer Claim",
+			"restaurant": restaurant,
+			"coupon": coupon.name,
+			"coupon_code": coupon.code,
+			"customer": customer_id,
+			"customer_phone": customer_phone,
+			"claimed_at": now_datetime(),
+			"is_paid": 0,
+		})
+		claim.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"data": {
+				"claimId": claim.name,
+				"couponCode": coupon.code,
+				"message": "Offer claimed successfully!"
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in claim_offer_with_pin: {str(e)}")
+		return {"success": False, "error": {"code": "CLAIM_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist()
+def mark_claim_paid(restaurant_id, claim_id, payment_id, paid_amount):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.coupons.mark_claim_paid
+	Called from the payment webhook / verify_payment flow to mark a claim as paid.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		claim = frappe.get_doc("Offer Claim", claim_id)
+		if claim.restaurant != restaurant:
+			return {"success": False, "error": {"code": "FORBIDDEN", "message": "Claim does not belong to this restaurant"}}
+
+		claim.is_paid = 1
+		claim.paid_amount = flt(paid_amount)
+		claim.paid_at = now_datetime()
+		claim.payment_id = str(payment_id)
+		claim.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		return {"success": True, "data": {"message": "Claim marked as paid"}}
+	except Exception as e:
+		frappe.log_error(f"Error in mark_claim_paid: {str(e)}")
+		return {"success": False, "error": {"code": "MARK_PAID_ERROR", "message": str(e)}}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Offer claims analytics  (merchant dashboard)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_offer_claims_analytics(restaurant_id, period="30d", coupon_id=None):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.coupons.get_offer_claims_analytics
+
+	Returns:
+	  - summary: total_claims, paid_count, not_paid_count, conversion_rate, total_paid_amount
+	  - by_coupon: per-coupon breakdown
+	  - recent_claims: last 50 individual claim records
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		# Resolve date range
+		period_map = {"7d": 7, "30d": 30, "90d": 90, "all": None}
+		days = period_map.get(str(period), 30)
+		date_filter = []
+		if days:
+			from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+			date_filter = [["claimed_at", ">=", from_date]]
+
+		base_filters = [["restaurant", "=", restaurant]] + date_filter
+		if coupon_id:
+			base_filters.append(["coupon", "=", coupon_id])
+
+		claims = frappe.get_all(
+			"Offer Claim",
+			filters=base_filters,
+			fields=[
+				"name", "coupon", "coupon_code", "customer_phone",
+				"claimed_at", "is_paid", "paid_amount", "paid_at", "payment_id"
+			],
+			order_by="claimed_at desc",
+			limit=500,
+		)
+
+		total_claims = len(claims)
+		paid_claims = [c for c in claims if c.get("is_paid")]
+		not_paid_claims = [c for c in claims if not c.get("is_paid")]
+		total_paid_amount = sum(flt(c.get("paid_amount") or 0) for c in paid_claims)
+		conversion_rate = round((len(paid_claims) / total_claims * 100) if total_claims else 0, 1)
+
+		# Per-coupon breakdown
+		coupon_map = {}
+		for c in claims:
+			key = c.get("coupon") or "unknown"
+			code = c.get("coupon_code") or key
+			if key not in coupon_map:
+				coupon_map[key] = {
+					"coupon_id": key,
+					"coupon_code": code,
+					"total_claims": 0,
+					"paid_count": 0,
+					"not_paid_count": 0,
+					"total_paid_amount": 0.0,
+					"conversion_rate": 0.0,
+				}
+			coupon_map[key]["total_claims"] += 1
+			if c.get("is_paid"):
+				coupon_map[key]["paid_count"] += 1
+				coupon_map[key]["total_paid_amount"] += flt(c.get("paid_amount") or 0)
+			else:
+				coupon_map[key]["not_paid_count"] += 1
+
+		for row in coupon_map.values():
+			n = row["total_claims"]
+			row["conversion_rate"] = round((row["paid_count"] / n * 100) if n else 0, 1)
+
+		by_coupon = sorted(coupon_map.values(), key=lambda x: x["total_claims"], reverse=True)
+
+		# Recent individual claims (last 50)
+		recent = [
+			{
+				"id": c["name"],
+				"couponCode": c.get("coupon_code") or "",
+				"customerPhone": _mask_phone(c.get("customer_phone") or ""),
+				"claimedAt": str(c.get("claimed_at") or ""),
+				"isPaid": bool(c.get("is_paid")),
+				"paidAmount": flt(c.get("paid_amount") or 0),
+				"paidAt": str(c.get("paid_at") or "") if c.get("paid_at") else None,
+			}
+			for c in claims[:50]
+		]
+
+		return {
+			"success": True,
+			"data": {
+				"summary": {
+					"totalClaims": total_claims,
+					"paidCount": len(paid_claims),
+					"notPaidCount": len(not_paid_claims),
+					"conversionRate": conversion_rate,
+					"totalPaidAmount": total_paid_amount,
+				},
+				"byCoupon": by_coupon,
+				"recentClaims": recent,
+				"period": period,
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_offer_claims_analytics: {str(e)}")
+		return {"success": False, "error": {"code": "ANALYTICS_ERROR", "message": str(e)}}
+
+
+def _mask_phone(phone: str) -> str:
+	"""Show only last 4 digits: ******1234"""
+	if len(phone) >= 4:
+		return "*" * (len(phone) - 4) + phone[-4:]
+	return phone
 

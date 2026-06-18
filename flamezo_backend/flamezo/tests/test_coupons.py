@@ -29,7 +29,6 @@ Covers:
       * Valid coupon returns success with correct discount_amount
 
   - validate_offer_eligibility() (pricing.py)
-      * Delivery offer rejected for non-delivery order type
       * Future valid_from skipped
       * Expired valid_until skipped
       * Min order not met → failure
@@ -39,8 +38,6 @@ Covers:
       * Combo required items not in cart → failure
       * Flat discount returned correctly
       * Percent discount returned correctly (with max cap)
-      * Delivery free-delivery discount equals delivery_fee
-      * Delivery percent discount calculated on delivery_fee
 
 Run with:
     bench run-tests --app flamezo_backend --module flamezo_backend.flamezo.tests.test_coupons
@@ -408,24 +405,9 @@ class TestValidateOfferEligibility(unittest.TestCase):
             setattr(mock, k, v)
         return mock
 
-    def _call(self, offer, cart_total=200, customer_id=None, cart_items=None, delivery_type=None, delivery_fee=0):
+    def _call(self, offer, cart_total=200, customer_id=None, cart_items=None):
         from flamezo_backend.flamezo.utils.pricing import validate_offer_eligibility
-        return validate_offer_eligibility(
-            offer, cart_total, customer_id,
-            cart_items or [], delivery_type, delivery_fee,
-        )
-
-    # ── Delivery offer guards ─────────────────────────────────────────────────
-
-    def test_delivery_offer_rejected_for_dine_in(self):
-        offer = self._offer(discount_type="delivery")
-        result = self._call(offer, delivery_type="Dine-in")
-        self.assertFalse(result["success"])
-
-    def test_delivery_offer_accepted_for_delivery_order(self):
-        offer = self._offer(discount_type="delivery", discount_value=40.0)
-        result = self._call(offer, delivery_type="Delivery", delivery_fee=40.0)
-        self.assertTrue(result["success"])
+        return validate_offer_eligibility(offer, cart_total, customer_id, cart_items or [])
 
     # ── Date guards ───────────────────────────────────────────────────────────
 
@@ -541,22 +523,6 @@ class TestValidateOfferEligibility(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertAlmostEqual(result["discount_amount"], 40.0)
 
-    def test_delivery_free_delivery_equals_fee(self):
-        offer = self._offer(discount_type="delivery", category="delivery")
-        result = self._call(offer, delivery_type="Delivery", delivery_fee=60.0)
-        self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 60.0)
-
-    def test_delivery_percent_discount(self):
-        offer = self._offer(
-            discount_type="percent",
-            discount_value=50.0,
-            category="delivery",
-        )
-        result = self._call(offer, delivery_type="Delivery", delivery_fee=80.0)
-        self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 40.0)  # 50% of 80
-
 
 # ─── Test: get_coupons() API ─────────────────────────────────────────────────
 
@@ -642,14 +608,13 @@ class TestGetApplicableOffersAPI(unittest.TestCase):
     def tearDown(self):
         cleanup_coupons(self.restaurant)
 
-    def _call(self, cart_items=None, cart_total=300, customer_id=None, order_type=None):
+    def _call(self, cart_items=None, cart_total=300, customer_id=None):
         from flamezo_backend.flamezo.api.coupons import get_applicable_offers
         return get_applicable_offers(
             self.restaurant,
             cart_items=cart_items or [],
             cart_total=cart_total,
             customer_id=customer_id,
-            order_type=order_type,
         )
 
     def test_returns_success_structure(self):
@@ -690,13 +655,6 @@ class TestGetApplicableOffersAPI(unittest.TestCase):
         result = self._call(cart_total=300)
         self.assertIsNotNone(result["data"]["bestOffer"])
         self.assertEqual(result["data"]["bestOffer"]["code"], "GAO5")
-
-    def test_delivery_offer_ineligible_for_dine_in(self):
-        make_coupon(self.restaurant, code="GAO6", discount_type="delivery",
-                    category="delivery", offer_type="delivery", discount_value=0.0)
-        result = self._call(cart_total=300, order_type="dine_in")
-        ineligible_codes = [o["code"] for o in result["data"]["ineligibleOffers"]]
-        self.assertIn("GAO6", ineligible_codes)
 
     def test_total_offers_count(self):
         make_coupon(self.restaurant, code="GAO7", discount_value=10.0, min_order_amount=100.0)

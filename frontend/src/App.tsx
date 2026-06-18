@@ -25,7 +25,6 @@ const TieredSetupWizard = lazy(() => import('./pages/TieredSetupWizard'))
 const ModuleDetail = lazy(() => import('./pages/ModuleDetail'))
 const QRCodes = lazy(() => import('./pages/QRCodes'))
 const LegacyContent = lazy(() => import('./pages/LegacyContent'))
-const LegacySignatureDish = lazy(() => import('./pages/LegacySignatureDish'))
 const Payment = lazy(() => import('./pages/Payment'))
 const PaymentSettings = lazy(() => import('./pages/PaymentSettings'))
 
@@ -182,7 +181,6 @@ function AppContent() {
 								<Route path="/ai-menu-theme-history" element={<AIMenuThemeHistoryPage />} />
 
 								<Route path="/Legacy Content" element={<LegacyContent />} />
-								<Route path="/Legacy Signature Dish" element={<LegacySignatureDish />} />
 								<Route path="/restaurant/:restaurantId/payment" element={<Payment />} />
 								<Route path="/restaurant/:restaurantId/billing" element={<PaymentSettings />} />
 								<Route path="/restaurant/:restaurantId/route-kyc" element={<RouteKycPage />} />

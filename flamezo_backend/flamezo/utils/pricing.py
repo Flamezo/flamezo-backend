@@ -36,7 +36,7 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 		price = flt(item.get("unitPrice") or item.get("price") or 0)
 		subtotal += qty * price
 
-	# 2. Pre-calculate Delivery and Packaging Fees (needed for delivery-specific offers)
+	# 2. Pre-calculate Delivery and Packaging Fees
 	delivery_fee = 0
 	packaging_fee = 0
 	delivery_details = {}
@@ -98,7 +98,6 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	# 3. Identify and Apply Offers (Auto + Manual)
 	applied_offers = []
 	total_item_discount = 0
-	total_delivery_discount = 0
 
 	# Savings-Corner gate: when the customer is unverified, skip coupons + auto-offers.
 	# Exception: combo offers with a matching coupon_code always apply — they are
@@ -124,11 +123,9 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 			continue
 
 		# Validate eligibility
-		# Pass delivery_type to validation so we can reject delivery-only offers if type is Dine-in
-		res = validate_offer_eligibility(offer, subtotal, customer, items, delivery_type, delivery_fee)
+		res = validate_offer_eligibility(offer, subtotal, customer, items)
 		if res.get("success"):
 			offer.discount_amount = res.get("discount_amount")
-			offer.is_delivery_discount = (offer.discount_type == 'delivery' or offer.category == 'delivery')
 			eligible_offers.append(offer)
 	
 	# Sort by priority DESC, then by discount_amount DESC as tiebreaker
@@ -138,22 +135,12 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 		best = eligible_offers[0]
 		if not best.can_stack:
 			applied_offers.append(best)
-			if best.is_delivery_discount:
-				total_delivery_discount = best.discount_amount
-			else:
-				total_item_discount = best.discount_amount
+			total_item_discount = best.discount_amount
 		else:
 			for o in eligible_offers:
 				if o.can_stack:
 					applied_offers.append(o)
-					if o.is_delivery_discount:
-						total_delivery_discount += o.discount_amount
-					else:
-						total_item_discount += o.discount_amount
-	
-	# Cap delivery discount to current delivery fee
-	total_delivery_discount = min(total_delivery_discount, delivery_fee)
-	delivery_fee = max(0, delivery_fee - total_delivery_discount)
+					total_item_discount += o.discount_amount
 
 	# 4. Apply Loyalty Discount
 	# Two gates, both required: verified session AND pay_online. Cash orders
@@ -187,12 +174,7 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	]
 	for offer in applied_offers:
 		label = f"Offer: {offer.code}" if offer.offer_type == "coupon" else f"Offer: {offer.description or 'Auto Discount'}"
-		val = -offer.discount_amount
-		# If it's a delivery discount, cap it in the UI label too
-		if offer.is_delivery_discount:
-			val = -min(offer.discount_amount, total_delivery_discount) # approximation for label
-		
-		bill_details.append({"label": label, "value": val, "type": "discount"})
+		bill_details.append({"label": label, "value": -offer.discount_amount, "type": "discount"})
 	
 	if loyalty_discount > 0:
 		bill_details.append({"label": "Loyalty Discount", "value": -loyalty_discount, "type": "discount"})
@@ -205,9 +187,7 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	if packaging_fee > 0:
 		bill_details.append({"label": "Packaging and Extra Charges", "value": packaging_fee, "type": "fee"})
 	if delivery_type == "Delivery" and serviceable:
-		bill_details.append({"label": "Delivery Fee", "value": (delivery_fee + total_delivery_discount), "type": "fee"})
-		if total_delivery_discount > 0:
-			bill_details.append({"label": "Delivery Discount", "value": -total_delivery_discount, "type": "discount"})
+		bill_details.append({"label": "Delivery Fee", "value": delivery_fee, "type": "fee"})
 	
 	bill_details.append({"label": "Total Payable", "value": max(0, total), "type": "total"})
 
@@ -217,7 +197,6 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	return {
 		"subtotal": subtotal,
 		"discount": total_item_discount,
-		"deliveryDiscount": total_delivery_discount,
 		"appliedCoupon": coupon_code if any(o.code == coupon_code for o in applied_offers) else None,
 		"appliedOffers": [o.code for o in applied_offers],
 		"loyaltyDiscount": loyalty_discount,
@@ -239,13 +218,8 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 		"currencySymbolOnRight": currency_info.get("symbolOnRight", False)
 	}
 
-def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, delivery_type=None, delivery_fee=0):
+def validate_offer_eligibility(offer, cart_total, customer_id, cart_items):
 	"""Internal helper to validate a single offer doc against current cart."""
-	# 0. Delivery Specific Validation
-	is_delivery_offer = (offer.discount_type == 'delivery' or offer.category == 'delivery' or offer.offer_type == 'delivery')
-	if is_delivery_offer and delivery_type != "Delivery":
-		return {"success": False}
-
 	# 1. Date Checks
 	today_date = today()
 	if offer.valid_from and getdate(offer.valid_from) > getdate(today_date):
@@ -328,51 +302,43 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items, deliv
 
 	# Calculate Discount
 	discount_amount = 0
-	if is_delivery_offer:
-		if offer.discount_type == 'delivery':
-			discount_amount = flt(delivery_fee)
-		elif offer.discount_type == 'flat':
-			discount_amount = flt(offer.discount_value)
-		elif offer.discount_type == 'percent':
-			discount_amount = (flt(delivery_fee) * flt(offer.discount_value)) / 100
-	else:
-		if offer.offer_type == "combo":
-			if combo_type == "bogo":
-				# Cheapest qualifying item is free
-				pool = []
-				if offer.item_pool:
-					try:
-						pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-					except Exception:
-						pass
-				matching_prices = sorted(
-					[flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool]
-				)
-				discount_amount = matching_prices[0] if matching_prices else 0
+	if offer.offer_type == "combo":
+		if combo_type == "bogo":
+			# Cheapest qualifying item is free
+			pool = []
+			if offer.item_pool:
+				try:
+					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+				except Exception:
+					pass
+			matching_prices = sorted(
+				[flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool]
+			)
+			discount_amount = matching_prices[0] if matching_prices else 0
 
-			elif combo_type == "build_your_own" and offer.combo_price is not None:
-				# Sum of qualifying items minus combo_price
-				pool = []
-				if offer.item_pool:
-					try:
-						pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-					except Exception:
-						pass
-				selected_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool)
-				discount_amount = max(0, selected_total - flt(offer.combo_price))
+		elif combo_type == "build_your_own" and offer.combo_price is not None:
+			# Sum of qualifying items minus combo_price
+			pool = []
+			if offer.item_pool:
+				try:
+					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
+				except Exception:
+					pass
+			selected_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool)
+			discount_amount = max(0, selected_total - flt(offer.combo_price))
 
-			elif combo_type == "fixed_bundle" and offer.combo_price is not None:
-				# Discount = full cart total minus the bundle price
-				discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
+		elif combo_type == "fixed_bundle" and offer.combo_price is not None:
+			# Discount = full cart total minus the bundle price
+			discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
 
-			else:
-				discount_amount = flt(offer.discount_value)
-
-		elif offer.discount_type == "percent":
-			discount_amount = (flt(cart_total) * flt(offer.discount_value)) / 100
-			if offer.max_discount_cap and discount_amount > flt(offer.max_discount_cap):
-				discount_amount = flt(offer.max_discount_cap)
 		else:
 			discount_amount = flt(offer.discount_value)
+
+	elif offer.discount_type == "percent":
+		discount_amount = (flt(cart_total) * flt(offer.discount_value)) / 100
+		if offer.max_discount_cap and discount_amount > flt(offer.max_discount_cap):
+			discount_amount = flt(offer.max_discount_cap)
+	else:
+		discount_amount = flt(offer.discount_value)
 
 	return {"success": True, "discount_amount": discount_amount}

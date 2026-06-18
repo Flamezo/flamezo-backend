@@ -1,6 +1,5 @@
 import { ReactNode, useState } from 'react'
 import { useFrappeGetDocList, useFrappeGetCall } from '@/lib/frappe'
-import { DeliveryTrackerCard } from '@/components/DeliveryTrackerCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Wallet,
@@ -396,9 +395,7 @@ export default function Dashboard() {
   const totalRevenue = 0
 
   // Today's Stats
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayOrders = []
+  const todayOrders: any[] = []
 
 
   // 7-day Trend for Chart
@@ -757,7 +754,7 @@ export default function Dashboard() {
               <CardTitle className="text-lg font-bold">Today's Transactions</CardTitle>
               <CardDescription>Latest bills paid via Flamezo</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" className="text-xs rounded-full" asChild>
+            <Button variant="ghost" size="sm" className="text-xs rounded-full">
             </Button>
           </CardHeader>
           <CardContent>

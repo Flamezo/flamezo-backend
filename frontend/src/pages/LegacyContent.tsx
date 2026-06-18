@@ -58,12 +58,6 @@ export default function LegacyContentPage() {
   }, [legacyContent, selectedRestaurant])
 
   // Get child table data
-  const { data: signatureDishes, mutate: mutateSignatureDishes } = useFrappeGetDocList('Legacy Signature Dish', {
-    filters: [['parent', '=', selectedRestaurant]],
-    fields: ['name', 'dish', 'display_order', 'dish_name'],
-    orderBy: { field: 'display_order', order: 'asc' }
-  })
-
   const { data: testimonials, mutate: mutateTestimonials } = useFrappeGetDocList('Legacy Testimonial', {
     filters: [['parent', '=', selectedRestaurant]],
     fields: ['name', 'customer_name', 'rating', 'text', 'location', 'avatar', 'display_order'],
@@ -83,12 +77,6 @@ export default function LegacyContentPage() {
     orderBy: { field: 'display_order', order: 'asc' }
   })
 
-  // Get menu products for signature dishes selection
-  const { data: menuProducts } = useFrappeGetDocList('Menu Product', {
-    filters: [['restaurant', '=', selectedRestaurant]],
-    fields: ['name', 'product_name', 'image']
-  })
-
   const { call: createDoc, loading: isCreating } = useFrappePostCall('frappe.client.insert')
   const { updateDoc, loading: isUpdating } = useFrappeUpdateDoc()
   const { deleteDoc } = useFrappeDeleteDoc()
@@ -101,7 +89,6 @@ export default function LegacyContentPage() {
       if (res?.message?.success) {
         toast.success('Legacy content generated successfully')
         mutateContent()
-        mutateSignatureDishes()
         mutateTestimonials()
         mutateMembers()
       } else {
@@ -189,7 +176,6 @@ export default function LegacyContentPage() {
       setEditingItem(null)
       
       // Refresh relevant data
-      mutateSignatureDishes()
       mutateTestimonials()
       mutateMembers()
       mutateReels()
@@ -204,7 +190,6 @@ export default function LegacyContentPage() {
       toast.success(`${type} deleted successfully`)
       
       // Refresh relevant data
-      mutateSignatureDishes()
       mutateTestimonials()
       mutateMembers()
       mutateReels()
@@ -215,7 +200,6 @@ export default function LegacyContentPage() {
 
   const getChildTableField = (doctype: string) => {
     const mapping: Record<string, string> = {
-      'Legacy Signature Dish': 'signature_dishes',
       'Legacy Testimonial': 'testimonials',
       'Legacy Member': 'members',
       'Legacy Instagram Reel': 'instagram_reels'
@@ -274,10 +258,6 @@ export default function LegacyContentPage() {
       const data: any = {}
       
       switch (type) {
-        case 'Signature Dish':
-          data.dish = formData.get('dish')
-          data.display_order = parseInt(formData.get('display_order') as string) || 0
-          break
         case 'Testimonial':
           data.customer_name = formData.get('customer_name')
           data.rating = parseInt(formData.get('rating') as string) || 5
@@ -304,30 +284,6 @@ export default function LegacyContentPage() {
 
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        {type === 'Signature Dish' && (
-          <>
-            <div>
-              <Label htmlFor="dish">Dish</Label>
-              <Select key={editingData?.name || 'new'} name="dish" defaultValue={editingData?.dish} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a dish" />
-                </SelectTrigger>
-                <SelectContent>
-                  {menuProducts?.map((product: any) => (
-                    <SelectItem key={product.name} value={product.name}>
-                      {product.product_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="display_order">Display Order</Label>
-              <NumberInput  name="display_order" defaultValue={editingData?.display_order || 0} />
-            </div>
-          </>
-        )}
-        
         {type === 'Testimonial' && (
           <>
             <div>
@@ -495,42 +451,6 @@ export default function LegacyContentPage() {
       </Card>
 
       <div className="grid gap-6">
-        {renderSection(
-          'Signature Dishes',
-          <Star className="h-5 w-5" />,
-          signatureDishes || [],
-          'Signature Dish',
-          'Legacy Signature Dish',
-          (item) => {
-            const product = menuProducts?.find((p: any) => p.name === item.dish)
-            return (
-              <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {product?.image ? (
-                    <img src={product.image} className="h-12 w-12 rounded-md object-cover" alt={item.dish_name} />
-                  ) : (
-                    <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
-                      <Image className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-semibold">{item.dish_name || product?.product_name || item.dish}</h4>
-                    <p className="text-sm text-muted-foreground">Order: {item.display_order}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditingItem({ ...item, type: 'Signature Dish', doctype: 'Legacy Signature Dish' })}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Signature Dish', item.name, 'Signature Dish')}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )
-          }
-        )}
-
         {renderSection(
           'Testimonials',
           <Users className="h-5 w-5" />,

@@ -9,7 +9,7 @@ v2 improvements (10/10):
   - Time-window suggestions strongly encouraged for auto offers
   - Weekend/weekday urgency woven into aggressive tone
   - Better description quality: explicit 3-sentence requirement
-  - Delivery threshold calibrated to actual delivery_fee
+  - Offer thresholds calibrated to restaurant AOV and price tier
   - Robust JSON extraction (array search fallback)
   - Parse error logging with raw snippet for debugging
 
@@ -516,10 +516,6 @@ def _validate_and_clean_suggestion(s: dict, tone: str, cost_map: dict | None = N
         if offer_type not in OFFER_TYPES:
             offer_type = "coupon"
 
-        # Delivery is no longer offered (dine-in / takeaway only) — drop any such suggestion.
-        if s.get("offer_type") == "delivery" or s.get("discount_type") == "delivery":
-            return None
-
         discount_type = s.get("discount_type") or "flat"
         if discount_type not in ("flat", "percent"):
             discount_type = "flat"
@@ -854,6 +850,35 @@ def generate_suggestions(
     count = max(3, min(count, 8))
     if offer_type_filter and offer_type_filter not in OFFER_TYPES:
         offer_type_filter = None
+
+    # Gate: AI generation requires food cost on every active menu item so the
+    # AI can compute real margins and generate profit-safe offers.
+    try:
+        total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+        costed = (
+            frappe.db.count(
+                "Menu Product",
+                {"restaurant": restaurant_id, "is_active": 1, "food_cost": [">", 0]},
+            )
+            if total_active > 0
+            else 0
+        )
+    except Exception:
+        # food_cost column not yet migrated — treat as fully uncovered
+        total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+        costed = 0
+
+    if total_active > 0 and costed < total_active:
+        missing = total_active - costed
+        plural = "s are" if missing != 1 else " is"
+        return {
+            "success": False,
+            "error_code": "FOOD_COST_REQUIRED",
+            "message": (
+                f"{missing} menu item{plural} missing food cost. "
+                f"Please set food cost for all {total_active} items in the Food Cost page before using AI generation."
+            ),
+        }
 
     # Quota check + increment
     quota = _check_and_increment_quota(restaurant_id)

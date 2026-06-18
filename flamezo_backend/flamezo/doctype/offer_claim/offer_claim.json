@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "creation": "2025-06-17 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "issingle": 0,
+ "field_order": [
+  "restaurant",
+  "coupon",
+  "coupon_code",
+  "column_break_1",
+  "customer_phone",
+  "claimed_at",
+  "section_break_payment",
+  "is_paid",
+  "paid_amount",
+  "paid_at",
+  "payment_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "coupon",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Coupon",
+   "options": "Coupon",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "coupon_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Coupon Code",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer Phone",
+   "search_index": 1
+  },
+  {
+   "default": "now",
+   "fieldname": "claimed_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Claimed At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_payment",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_paid",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Paid via Flamezo"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount"
+  },
+  {
+   "fieldname": "paid_at",
+   "fieldtype": "Datetime",
+   "label": "Paid At"
+  },
+  {
+   "fieldname": "payment_id",
+   "fieldtype": "Data",
+   "label": "Payment ID"
+  }
+ ],
+ "links": [],
+ "modified": "2025-06-17 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Offer Claim",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "claimed_at",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

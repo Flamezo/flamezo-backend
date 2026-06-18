@@ -42,6 +42,7 @@
   "enable_banquet_booking",
   "column_break_settings",
   "verify_my_user",
+  "offer_verification_pin",
   "section_break_social_media",
   "google_review_link",
   "instagram_profile_link",
@@ -250,6 +251,12 @@
    "fieldtype": "Check",
    "label": "Verify My User",
    "description": "Require OTP verification before table booking, coupons, events, games"
+  },
+  {
+   "fieldname": "offer_verification_pin",
+   "fieldtype": "Data",
+   "label": "Offer Verification PIN",
+   "description": "4-digit PIN staff enter on the customer's phone to verify and claim an offer"
   },
   {
    "fieldname": "section_break_social_media",
