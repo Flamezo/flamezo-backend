@@ -211,8 +211,8 @@
   {
    "fieldname": "reward_entry",
    "fieldtype": "Link",
-   "label": "Loyalty Entry",
-   "options": "Restaurant Loyalty Entry",
+   "label": "UGC Voucher",
+   "options": "UGC Voucher",
    "read_only": 1
   },
   {

@@ -10,7 +10,7 @@ def get_app_base_url():
     Priority:
     1. frappe.conf.app_base_url (Site configuration)
     2. os.environ.get("APP_BASE_URL") (Environment variable)
-    3. Fallback: https://app.flamezo_backend.com/
+    3. Fallback: https://flamezo.in/
     """
     # 1. Check site config (common_site_config.json or site_config.json)
     base_url = frappe.conf.get("app_base_url")
@@ -21,7 +21,7 @@ def get_app_base_url():
         
     # 3. Final Fallback
     if not base_url:
-        base_url = "https://app.flamezo_backend.com/"
+        base_url = "https://flamezo.in/"
         
     return base_url.rstrip("/") + "/"
 

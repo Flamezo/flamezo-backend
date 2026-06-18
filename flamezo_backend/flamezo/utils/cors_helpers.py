@@ -11,7 +11,7 @@ import frappe
 
 # Allowed origins for CORS
 ALLOWED_ORIGINS = [
-	'https://app.flamezo_backend.com',
+	'https://flamezo.in',
 	'https://flamezo_backend.com',
 	'https://www.flamezo_backend.com',
 	'http://localhost:3000',

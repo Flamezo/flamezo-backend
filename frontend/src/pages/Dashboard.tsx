@@ -973,7 +973,7 @@ export default function Dashboard() {
             <Button 
               className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 flex-1 shadow-lg shadow-emerald-500/20 font-bold"
               onClick={() => {
-                const text = `Hey! I'm using Flamezo for my restaurant and it's amazing. Use my referral code *${referralCode}* to get ₹500 bonus on your first recharge. Register at: https://flamezo_backend.com`
+                const text = `Hey! I'm using Flamezo for my restaurant and it's amazing. Use my referral code *${referralCode}* to get ₹500 bonus on your first recharge. Register at: https://flamezo.in`
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
               }}
             >

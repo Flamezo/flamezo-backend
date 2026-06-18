@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, CheckCircle2, XCircle, Wallet, PlayCircle } from 'lucide-react'
+import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, CheckCircle2, XCircle, Wallet, PlayCircle, Expand, Download } from 'lucide-react'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 import UGCGrowthSimulatorModal from '@/components/UGCGrowthSimulatorModal'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,10 @@ export default function UGCConfig() {
   const [ugcIsActive, setUgcIsActive] = useState<boolean>(false)
   const [uploading, setUploading] = useState(false)
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
 
   const { data: configRes, mutate } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_config',
@@ -106,6 +110,81 @@ export default function UGCConfig() {
     } catch (e: any) {
       toast.error(e.message || 'Failed to delete')
       await mutate()  // resync on failure
+    }
+  }
+
+  const downloadPreview = async () => {
+    if (!tpl) return
+    setDownloading(true)
+    const loadingToast = toast.loading('Preparing download…')
+    try {
+      const csrf = (window as any).frappe?.csrf_token || ''
+      const mediaType = isVideo(tpl) ? 'video' : 'image'
+
+      // 1. Enqueue background job on the server — returns immediately with job_id.
+      //    Server generates overlay at native resolution + composites via ffmpeg/Pillow
+      //    + uploads to R2. No Frappe worker is blocked; 100 concurrent downloads
+      //    just queue up.
+      const startRes = await fetch(
+        '/api/method/flamezo_backend.flamezo.api.story_generator.start_story_download',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrf },
+          body: JSON.stringify({
+            template_url:      tpl.url,
+            media_type:        mediaType,
+            restaurant_name:   restaurantName,
+            coupon_code:       selectedCoupon?.code        ?? null,
+            discount_type:     selectedCoupon?.discount_type  ?? null,
+            discount_value:    selectedCoupon?.discount_value  ?? null,
+            offer_description: selectedCoupon?.description  ?? null,
+            valid_until:       selectedCoupon?.valid_until  ?? null,
+          }),
+        },
+      )
+      const startJson = await startRes.json()
+      const jobId: string = startJson.message?.job_id
+      if (!jobId) throw new Error('Failed to start download job')
+
+      // 2. Poll status every 2 s until done or error (60 s timeout).
+      const deadline = Date.now() + 60_000
+      let cdnUrl: string | null = null
+
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000))
+
+        const pollRes  = await fetch(
+          `/api/method/flamezo_backend.flamezo.api.story_generator.get_story_download_status?job_id=${jobId}`,
+          { headers: { 'X-Frappe-CSRF-Token': csrf } },
+        )
+        const pollJson = await pollRes.json()
+        const status   = pollJson.message?.status
+
+        if (status === 'done') {
+          cdnUrl = pollJson.message?.url
+          break
+        }
+        if (status === 'error') {
+          throw new Error(pollJson.message?.error || 'Generation failed')
+        }
+        // 'pending' | 'processing' → keep polling
+      }
+
+      if (!cdnUrl) throw new Error('Timed out waiting for download')
+
+      // 3. Download directly from CDN — fast, no Frappe bandwidth used.
+      const ext  = mediaType === 'video' ? 'mp4' : 'jpg'
+      const a    = document.createElement('a')
+      a.href     = cdnUrl
+      a.download = `${restaurantName || 'story'}-preview.${ext}`
+      a.click()
+
+      toast.success('Downloaded!', { id: loadingToast })
+    } catch (err) {
+      console.error('[download]', err)
+      toast.error('Could not download preview', { id: loadingToast })
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -235,17 +314,17 @@ export default function UGCConfig() {
         </Card>
 
         {/* Story preview — with Flamezo brand overlay */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Story Preview</CardTitle>
-            <CardDescription>Flamezo watermark applied automatically — logo left, WhatsApp QR right.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <div className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
-              {tpl?.url ? (
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Story Preview</CardTitle>
+              <CardDescription>Live preview — updates as you change the coupon selection below.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <div ref={previewRef} className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
                 <StoryTemplateFrame
-                  mediaUrl={tpl.url}
-                  mediaType={isVideo(tpl) ? 'video' : 'image'}
+                  mediaUrl={tpl?.url || ''}
+                  mediaType={tpl && isVideo(tpl) ? 'video' : 'image'}
                   width={210}
                   couponCode={selectedCoupon?.code}
                   discountType={selectedCoupon?.discount_type}
@@ -254,14 +333,39 @@ export default function UGCConfig() {
                   offerDescription={selectedCoupon?.description}
                   restaurantName={restaurantName}
                 />
-              ) : (
-                <div className="w-[210px] flex items-center justify-center text-white/50 text-xs text-center px-4" style={{ height: Math.round((210 / 9) * 16) }}>
-                  Upload a template to preview
-                </div>
-              )}
-            </div>
-            {/* Local-file tester */}
-            <LocalMediaTester
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action buttons below the preview card */}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => setPreviewOpen(true)}>
+              <Expand className="w-3.5 h-3.5" /> Preview
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={downloadPreview} disabled={downloading}>
+              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {downloading ? 'Saving…' : 'Download'}
+            </Button>
+            {tpl && (
+              <Button variant="destructive" size="sm" className="flex-1 gap-1.5 text-white" onClick={() => removeTemplate(tpl.media_asset)}>
+                <Trash2 className="w-3.5 h-3.5 text-white" /> Delete
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Full-size preview modal ── */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-[420px] flex flex-col items-center gap-4 p-6">
+          <DialogHeader className="w-full">
+            <DialogTitle>Story Preview</DialogTitle>
+          </DialogHeader>
+          <div className="rounded-[2rem] overflow-hidden shadow-2xl border-4 border-gray-900 bg-black">
+            <StoryTemplateFrame
+              mediaUrl={tpl?.url || ''}
+              mediaType={tpl && isVideo(tpl) ? 'video' : 'image'}
+              width={360}
               couponCode={selectedCoupon?.code}
               discountType={selectedCoupon?.discount_type}
               discountValue={selectedCoupon?.discount_value}
@@ -269,9 +373,9 @@ export default function UGCConfig() {
               offerDescription={selectedCoupon?.description}
               restaurantName={restaurantName}
             />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Coupons — the one restaurant-managed control */}
       <Card>
@@ -325,48 +429,3 @@ export default function UGCConfig() {
   )
 }
 
-// ── Local-file tester ─────────────────────────────────────────────────────────
-type TesterProps = Pick<import('@/components/StoryTemplateFrame').StoryTemplateFrameProps,
-  'couponCode' | 'discountType' | 'discountValue' | 'validUntil' | 'offerDescription' | 'restaurantName'>
-
-function LocalMediaTester(props: TesterProps) {
-  const [localUrl, setLocalUrl] = useState<string | null>(null)
-  const [localType, setLocalType] = useState<'image' | 'video'>('image')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (localUrl) URL.revokeObjectURL(localUrl)
-    setLocalType(file.type.startsWith('video') ? 'video' : 'image')
-    setLocalUrl(URL.createObjectURL(file))
-  }
-
-  if (!localUrl) {
-    return (
-      <button
-        onClick={() => inputRef.current?.click()}
-        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition"
-      >
-        Test with a local file
-        <input ref={inputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
-      </button>
-    )
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <p className="text-xs font-medium text-muted-foreground">Local preview</p>
-      <div className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
-        <StoryTemplateFrame mediaUrl={localUrl} mediaType={localType} width={210} {...props} />
-      </div>
-      <button
-        onClick={() => { URL.revokeObjectURL(localUrl); setLocalUrl(null); if (inputRef.current) inputRef.current.value = '' }}
-        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition"
-      >
-        Clear
-        <input ref={inputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
-      </button>
-    </div>
-  )
-}

@@ -24,6 +24,11 @@ import uuid
 import random
 import string
 import hashlib
+import base64
+import subprocess
+import tempfile
+import os
+from urllib.parse import urlparse
 
 import frappe
 from frappe import _
@@ -189,11 +194,13 @@ def _max_cashback(order_amount):
 
 def _is_ugc_active(config) -> bool:
 	"""
-	UGC is considered active — and surfaces to diners — only when BOTH:
+	UGC surfaces to diners only when ALL three are true:
 	  1. At least one story template has been uploaded.
-	  2. A flat-discount viewer coupon is set (this is the first-visit reward
-	     that makes the story worth sharing; percent coupons are not allowed
+	  2. A flat-discount viewer coupon is set (percent coupons not allowed
 	     because they can run at an unexpected loss).
+	  3. The composited story preview is ready (story_preview_url set).
+	     This ensures diners always get the final branded media instantly —
+	     the offer is hidden while the background generation job is still running.
 	"""
 	has_template = bool(config.template_assets)
 	if not has_template:
@@ -202,11 +209,19 @@ def _is_ugc_active(config) -> bool:
 	if not viewer_coupon:
 		return False
 	discount_type = frappe.db.get_value("Coupon", viewer_coupon, "discount_type")
-	return discount_type == "flat"
+	if discount_type != "flat":
+		return False
+	return bool(config.story_preview_url)
 
 
 def _resolve_templates(config):
-	"""Return the list of shareable template images with their CDN URLs."""
+	"""Return the list of shareable templates.
+
+	`url` is the pre-generated composited preview (logo + QR + coupon overlay)
+	when available; falls back to the raw CDN media so the flow always works
+	even while the background generation job is still running.
+	"""
+	preview_url = config.story_preview_url or None
 	out = []
 	for row in (config.template_assets or []):
 		if not row.media_asset:
@@ -219,12 +234,93 @@ def _resolve_templates(config):
 			continue
 		out.append({
 			"media_id": asset.name,
-			"url": asset.primary_url,
+			"url": preview_url or asset.primary_url,
 			"kind": asset.media_kind,
 			"label": row.label,
 			"is_default": cint(row.is_default),
 		})
 	return out
+
+
+def _raw_template_url(config):
+	"""Return the raw (un-composited) CDN URL of the first active template."""
+	for row in (config.template_assets or []):
+		if not row.media_asset:
+			continue
+		info = frappe.db.get_value(
+			"Media Asset", row.media_asset,
+			["primary_url", "media_kind", "status"], as_dict=True,
+		)
+		if info and info.status != "deleted" and info.primary_url:
+			return info.primary_url, info.media_kind or "image"
+	return None, "image"
+
+
+def _enqueue_config_preview(config):
+	"""Enqueue a background job to composite the story preview for this config.
+
+	Called after save_ugc_config when a template + viewer coupon are both set.
+	Clears any stale preview URL first so the diner never sees an outdated composite.
+	"""
+	raw_url, _ = _raw_template_url(config)
+	if not raw_url or not config.coupon_for_viewers:
+		return
+	frappe.db.set_value("UGC Cashback Config", config.name, "story_preview_url", None)
+	frappe.db.commit()
+	frappe.enqueue(
+		"flamezo_backend.flamezo.api.ugc._generate_config_preview",
+		queue="long",
+		timeout=300,
+		config_name=config.name,
+	)
+
+
+def _generate_config_preview(config_name):
+	"""Background job: composite the story preview and write the CDN URL back to the config doc."""
+	try:
+		import re as _re
+		config = frappe.get_doc("UGC Cashback Config", config_name)
+		raw_url, media_kind = _raw_template_url(config)
+		if not raw_url:
+			return
+		media_type = "video" if (
+			media_kind == "video" or
+			bool(_re.search(r"\.(mp4|webm|mov|m4v|ogg)(\?|$)", raw_url, _re.I))
+		) else "image"
+
+		coupon = _coupon_brief(config.coupon_for_viewers)
+		restaurant_name = frappe.db.get_value("Restaurant", config.restaurant, "restaurant_name") or ""
+
+		from flamezo_backend.flamezo.api.story_generator import _run_job, _get_cache
+		import uuid
+		job_id = str(uuid.uuid4())
+		_run_job(
+			job_id=job_id,
+			template_url=raw_url,
+			media_type=media_type,
+			restaurant_name=restaurant_name,
+			coupon_code=coupon.get("code") if coupon else None,
+			discount_type=coupon.get("discount_type") if coupon else None,
+			discount_value=coupon.get("discount_value") if coupon else None,
+			offer_description=None,
+			valid_until=None,
+		)
+		result = _get_cache(job_id)
+		if result and result.get("status") == "done" and result.get("url"):
+			frappe.db.set_value("UGC Cashback Config", config_name, "story_preview_url", result["url"])
+			frappe.db.commit()
+			# Bust the Frappe Redis cache for get_restaurant_config so the next
+			# consumer request reflects ugcActive=true without waiting for TTL.
+			restaurant_id = frappe.db.get_value("UGC Cashback Config", config_name, "restaurant")
+			if restaurant_id:
+				frappe.cache().delete_key(f"restaurant_config:{restaurant_id}")
+		else:
+			frappe.log_error(
+				f"Story preview generation finished with status={result.get('status') if result else 'None'} for {config_name}",
+				"UGC",
+			)
+	except Exception as e:
+		frappe.log_error(f"_generate_config_preview failed for {config_name}: {e}", "UGC")
 
 
 def _coupon_brief(coupon_name):
@@ -937,6 +1033,7 @@ def _config_to_dict(config):
 		"coins_issued_this_month": cint(config.coins_issued_this_month),
 		"templates": templates,
 		"viewer_coupon": _coupon_brief(config.coupon_for_viewers),
+		"story_preview_url": config.story_preview_url or None,
 		"ugc_is_active": _is_ugc_active(config),
 	})
 	return data
@@ -986,6 +1083,14 @@ def save_ugc_config(restaurant_id, payload):
 
 		config.save(ignore_permissions=True)
 		frappe.db.commit()
+
+		# Kick off compositing whenever the config has both a template and a coupon.
+		# The job runs in the background so save_ugc_config returns instantly.
+		# It also clears any stale story_preview_url so the diner never sees an
+		# outdated composite while the new one is being generated.
+		if config.template_assets and config.coupon_for_viewers:
+			_enqueue_config_preview(config)
+
 		return _ok(_config_to_dict(config))
 	except frappe.PermissionError as e:
 		return _err("PERMISSION_DENIED", str(e))
@@ -1041,6 +1146,10 @@ def delete_ugc_template(restaurant_id, media_asset):
 		config.set("template_assets", [])
 		for r in remaining:
 			config.append("template_assets", {"media_asset": r.media_asset, "label": r.label, "is_default": 1})
+
+		# Clear the pre-generated preview — it was composited from the deleted media.
+		config.story_preview_url = None
+
 		config.save(ignore_permissions=True)
 
 		_purge_template_media(media_asset, restaurant)
@@ -1121,6 +1230,68 @@ def get_my_ugc_vouchers(restaurant_id=None):
 		return _ok({"items": items})
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "get_my_ugc_vouchers")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
+	"""
+	Paginated list of all UGC Story Submissions for the logged-in diner.
+	Optionally filtered to a single restaurant.
+	Used by the consumer app's "My Story Claims" history view.
+
+	Returns lightweight rows — enough to render status chips, cashback amounts,
+	and a deep-link "Continue" button for in-progress claims.
+	"""
+	try:
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
+
+		page, page_size = cint(page) or 1, min(cint(page_size) or 10, 50)
+		filters: dict = {"customer": customer}
+
+		if restaurant_id:
+			try:
+				restaurant = validate_restaurant_for_api(restaurant_id)
+				filters["restaurant"] = restaurant
+			except Exception:
+				pass
+
+		total = frappe.db.count("UGC Story Submission", filters=filters)
+		rows = frappe.get_all(
+			"UGC Story Submission",
+			filters=filters,
+			fields=[
+				"name", "restaurant", "order", "status",
+				"order_amount", "cashback_coins",
+				"submission_date", "story_verified_at",
+			],
+			order_by="submission_date desc",
+			limit_page_length=page_size,
+			start=(page - 1) * page_size,
+		)
+
+		items = []
+		for r in rows:
+			restaurant_name = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_name") or r.restaurant
+			restaurant_slug = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_id") or r.restaurant
+			items.append({
+				"submission_id": r.name,
+				"restaurant_id": restaurant_slug,
+				"restaurant_name": restaurant_name,
+				"order_id": r.order,
+				"status": r.status,
+				"order_amount": flt(r.order_amount),
+				"cashback_coins": cint(r.cashback_coins),
+				"submission_date": str(r.submission_date) if r.submission_date else None,
+				"story_verified_at": str(r.story_verified_at) if r.story_verified_at else None,
+				"proof_window_open": _proof_window_open(frappe._dict(r)),
+			})
+
+		return _ok({"items": items, "total": total, "page": page, "page_size": page_size})
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "get_my_ugc_submissions")
 		return _err("INTERNAL_ERROR")
 
 
@@ -1351,3 +1522,129 @@ def _notify(submission_name, kind):
 		submission_name=submission_name, kind=kind,
 		queue="short", timeout=60, enqueue_after_commit=True,
 	)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Story Media Compositor
+# Frontend sends: media_url, media_type, overlay_png (base64)
+# Backend: downloads media, composites overlay via ffmpeg (video) or Pillow
+# (image), returns the final MP4 / PNG as a base64-encoded file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ALLOWED_CDN_DOMAINS = {"dinematters.com", "flamezo.in", "flamezo.in"}
+
+
+def _cdn_url_allowed(url: str) -> bool:
+	try:
+		host = urlparse(url).hostname or ""
+		return any(host == d or host.endswith("." + d) for d in _ALLOWED_CDN_DOMAINS)
+	except Exception:
+		return False
+
+
+@frappe.whitelist()
+def composite_story_media(media_url: str, media_type: str, overlay_png_b64: str):
+	"""
+	Composite the overlay PNG onto the restaurant's story media and return
+	the finished file as base64 so the browser can trigger a download.
+
+	media_type: "image" | "video"
+	overlay_png_b64: base64-encoded PNG of the overlay layer (logo, QR,
+	                 coupon strip, vignette) captured via html-to-image on
+	                 the frontend.  The overlay must already be at a 9:16
+	                 aspect ratio — it will be scaled to match the media
+	                 native resolution by ffmpeg / Pillow.
+	"""
+	if not _cdn_url_allowed(media_url):
+		frappe.throw("Media URL is not from an allowed CDN domain.", frappe.PermissionError)
+
+	overlay_data = base64.b64decode(overlay_png_b64)
+
+	import requests as _requests
+
+	with tempfile.TemporaryDirectory() as tmp:
+		overlay_path = os.path.join(tmp, "overlay.png")
+		with open(overlay_path, "wb") as f:
+			f.write(overlay_data)
+
+		# Download source media from CDN
+		r = _requests.get(media_url, timeout=120, stream=True)
+		r.raise_for_status()
+		ext = "mp4" if media_type == "video" else "jpg"
+		media_path = os.path.join(tmp, f"source.{ext}")
+		with open(media_path, "wb") as f:
+			for chunk in r.iter_content(65536):
+				f.write(chunk)
+
+		if media_type == "video":
+			output_path = os.path.join(tmp, "output.mp4")
+			_composite_video(media_path, overlay_path, output_path)
+			with open(output_path, "rb") as f:
+				data = f.read()
+			return {
+				"success": True,
+				"filename": "story-preview.mp4",
+				"mime_type": "video/mp4",
+				"data_b64": base64.b64encode(data).decode(),
+			}
+		else:
+			output_path = os.path.join(tmp, "output.jpg")
+			_composite_image(media_path, overlay_path, output_path)
+			with open(output_path, "rb") as f:
+				data = f.read()
+			return {
+				"success": True,
+				"filename": "story-preview.jpg",
+				"mime_type": "image/jpeg",
+				"data_b64": base64.b64encode(data).decode(),
+			}
+
+
+def _get_video_dims(video_path: str):
+	result = subprocess.run(
+		[
+			"ffprobe", "-v", "error",
+			"-select_streams", "v:0",
+			"-show_entries", "stream=width,height",
+			"-of", "csv=p=0",
+			video_path,
+		],
+		capture_output=True, text=True, timeout=15,
+	)
+	w, h = result.stdout.strip().split(",")
+	return int(w), int(h)
+
+
+def _composite_video(video_path: str, overlay_path: str, output_path: str):
+	vw, vh = _get_video_dims(video_path)
+	filter_complex = (
+		f"[1:v]scale={vw}:{vh}[ov];"
+		f"[0:v][ov]overlay=0:0"
+	)
+	cmd = [
+		"ffmpeg", "-y",
+		"-i", video_path,
+		"-i", overlay_path,
+		"-filter_complex", filter_complex,
+		"-c:v", "libx264", "-preset", "fast", "-crf", "18",
+		"-c:a", "copy",
+		"-movflags", "+faststart",
+		output_path,
+	]
+	result = subprocess.run(cmd, capture_output=True, timeout=120)
+	if result.returncode != 0:
+		frappe.log_error(result.stderr.decode(), "Story video composite failed")
+		frappe.throw("Video compositing failed. Please try again.")
+
+
+def _composite_image(image_path: str, overlay_path: str, output_path: str):
+	try:
+		from PIL import Image
+	except ImportError:
+		frappe.throw("Pillow is not installed on this server.")
+
+	base = Image.open(image_path).convert("RGBA")
+	overlay = Image.open(overlay_path).convert("RGBA").resize(base.size, Image.LANCZOS)
+	composite = Image.alpha_composite(base, overlay).convert("RGB")
+	composite.save(output_path, "JPEG", quality=92)
+

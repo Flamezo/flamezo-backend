@@ -21,11 +21,9 @@ import {
   Settings,
   Coins,
   CreditCard,
-  Terminal,
   Info,
   Activity,
   Zap,
-  Star,
   ShieldAlert,
   UploadCloud,
   ExternalLink,
@@ -37,7 +35,10 @@ import {
   ClipboardCopy,
   MessageSquare,
   Sparkles,
-  Loader2
+  Loader2,
+  ImagePlus,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
@@ -49,6 +50,7 @@ interface Restaurant {
   owner_email?: string
   owner_phone?: string
   owner_name?: string
+  onboarding_password?: string
   is_active: number
   coins_balance: number
   platform_fee_percent: number
@@ -118,7 +120,7 @@ function AdminRestaurantDetailsPage() {
   const [onboardName, setOnboardName] = useState('')
   const [onboardEmail, setOnboardEmail] = useState('')
   const [isOnboarding, setIsOnboarding] = useState(false)
-  const [onboardResult, setOnboardResult] = useState<{message: string, link?: string, emailSent: boolean} | null>(null)
+  const [onboardResult, setOnboardResult] = useState<{message: string, generatedPassword?: string, emailSent: boolean} | null>(null)
   
   const [manualRechargeAmount, setManualRechargeAmount] = useState('')
   const [generatedRechargeLink, setGeneratedRechargeLink] = useState('')
@@ -158,6 +160,31 @@ function AdminRestaurantDetailsPage() {
   const { call: generateLegacyContent } = useFrappePostCall(
     'flamezo_backend.flamezo.api.legacy.generate_legacy_content'
   )
+
+  const [isGeneratingPhotos, setIsGeneratingPhotos] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const { call: generateBulkPhotos } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.admin.admin_generate_bulk_food_photos'
+  )
+
+  const handleGeneratePhotos = async () => {
+    if (!id) return
+    try {
+      setIsGeneratingPhotos(true)
+      const result = await generateBulkPhotos({ restaurant_id: id }) as any
+      if (result?.message?.success) {
+        toast.success('Bulk photo generation started!', {
+          description: 'Background worker is now generating Fal.ai photos for all products without media.'
+        })
+      } else {
+        throw new Error(result?.message?.error || 'Generation failed')
+      }
+    } catch (error) {
+      toast.error('Failed to start bulk generation', { description: getFrappeError(error) })
+    } finally {
+      setIsGeneratingPhotos(false)
+    }
+  }
 
   const handleGenerateLegacy = async () => {
     if (!id) return
@@ -294,9 +321,9 @@ function AdminRestaurantDetailsPage() {
         const data = result.message.data
         const emailSent = data.email_sent
         const message = result.message.message
-        const link = data.onboard_link
+        const generatedPassword = data.generated_password
         
-        setOnboardResult({message, link, emailSent})
+        setOnboardResult({message, generatedPassword, emailSent})
         
         if (emailSent) {
           toast.success(message)
@@ -408,21 +435,31 @@ function AdminRestaurantDetailsPage() {
               </div>
               <p className="text-muted-foreground font-mono text-sm flex items-center gap-2">
                 ID: {restaurant.restaurant_id} <Separator className="h-3 w-px mx-1 bg-muted-foreground/30" /> 
-                <Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo_backend.com
+                <Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo.in
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {canGenerateLegacy && (
-              <Button 
-                onClick={handleGenerateLegacy}
-                disabled={isGeneratingLegacy}
-                className="bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 shadow-lg gap-2 text-white"
-              >
-                {isGeneratingLegacy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Generate Legacy
-              </Button>
+              <>
+                <Button 
+                  onClick={handleGenerateLegacy}
+                  disabled={isGeneratingLegacy}
+                  className="bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 shadow-lg gap-2 text-white"
+                >
+                  {isGeneratingLegacy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Generate Legacy
+                </Button>
+                <Button 
+                  onClick={handleGeneratePhotos}
+                  disabled={isGeneratingPhotos}
+                  className="bg-purple-600 hover:bg-purple-700 shadow-purple-500/20 shadow-lg gap-2 text-white"
+                >
+                  {isGeneratingPhotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                  Generate Food Photo
+                </Button>
+              </>
             )}
 
              <Dialog open={isMenuModalOpen} onOpenChange={setIsMenuModalOpen}>
@@ -454,7 +491,7 @@ function AdminRestaurantDetailsPage() {
                   <DialogDescription>
                     {onboardResult 
                       ? "The owner has been successfully configured in the system."
-                      : "Create a system user, assign the required roles, and send them a secure password-setup email."}
+                      : "Create a system user, assign the required roles, and generate a secure password."}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -468,22 +505,22 @@ function AdminRestaurantDetailsPage() {
                       <p className="text-sm font-medium">{onboardResult.message}</p>
                     </div>
 
-                    {onboardResult.link && !onboardResult.emailSent && (
+                    {onboardResult.generatedPassword && (
                       <div className="space-y-3">
-                        <Label className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Manual Setup Link</Label>
+                        <Label className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Generated Credentials</Label>
                         <div className="flex gap-2">
-                          <Input value={onboardResult.link} readOnly className="font-mono text-[10px] bg-muted/30" />
+                          <Input value={onboardResult.generatedPassword} readOnly className="font-mono text-sm bg-muted/30 font-bold" />
                           <Button 
                             variant="secondary" 
                             size="icon" 
-                            onClick={() => handleCopyLink(onboardResult.link!)}
-                            title="Copy link"
+                            onClick={() => handleCopyLink(onboardResult.generatedPassword!)}
+                            title="Copy password"
                           >
                             <Save className="h-4 w-4" />
                           </Button>
                         </div>
                         <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                          Send this link to the owner via WhatsApp or Email. It will allow them to securely set their password and log in.
+                          Send this password to the owner via WhatsApp or Email. It will allow them to log in to their dashboard.
                         </p>
                       </div>
                     )}
@@ -511,7 +548,7 @@ function AdminRestaurantDetailsPage() {
                           onChange={(e) => setOnboardEmail(e.target.value)} 
                           placeholder="e.g. john@restaurant.com"
                         />
-                        <p className="text-xs text-muted-foreground mt-1">A secure welcome email will be dispatched to this address.</p>
+                        <p className="text-xs text-muted-foreground mt-1">A secure welcome email with credentials will be dispatched to this address.</p>
                       </div>
                     </div>
                     <div className="flex justify-end gap-3">
@@ -526,15 +563,7 @@ function AdminRestaurantDetailsPage() {
               </DialogContent>
             </Dialog>
 
-            <Button 
-              variant="outline" 
-              onClick={loadDetails} 
-              disabled={loading}
-              className="gap-2"
-            >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-              Sync
-            </Button>
+
           </div>
         </div>
 
@@ -669,6 +698,30 @@ function AdminRestaurantDetailsPage() {
                           value={restaurant.owner_phone || ''} 
                           onChange={(e) => setRestaurant({...restaurant, owner_phone: e.target.value})}
                         />
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      <Label>Generated Password</Label>
+                      <div className="flex items-center gap-2 max-w-sm">
+                        <Input 
+                          type={showPassword ? "text" : "password"}
+                          value={restaurant.onboarding_password || 'Onboarding is left'} 
+                          readOnly
+                          className="bg-muted text-muted-foreground font-mono"
+                        />
+                        {restaurant.onboarding_password && (
+                          <>
+                            <Button variant="outline" size="icon" onClick={() => setShowPassword(!showPassword)}>
+                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={() => {
+                              copyToClipboard(restaurant.onboarding_password!);
+                              toast.success('Password copied to clipboard!');
+                            }}>
+                              <ClipboardCopy className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

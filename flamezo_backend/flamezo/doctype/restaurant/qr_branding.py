@@ -135,21 +135,24 @@ def read_logo_bytes(logo_url):
 
 	try:
 		from PIL import Image
-		
+		from urllib.parse import quote
+
 		# Handle local file paths
 		if logo_url.startswith("/"):
-			if os.path.exists(logo_url):
+			site_fs_path = frappe.get_site_path("public" + logo_url)
+			actual_path = site_fs_path if os.path.exists(site_fs_path) else (logo_url if os.path.exists(logo_url) else None)
+			if actual_path:
 				if logo_url.endswith('.svg'):
-					return convert_svg_to_png(logo_url)
+					return convert_svg_to_png(actual_path)
 				else:
-					with Image.open(logo_url) as img:
+					with Image.open(actual_path) as img:
 						img = img.convert("RGBA")
 						img.thumbnail((320, 320), Image.Resampling.LANCZOS)
 						buffer = BytesIO()
 						img.save(buffer, format="PNG")
 						return buffer.getvalue()
 			else:
-				logo_url = get_url(logo_url)
+				logo_url = get_url(quote(logo_url, safe="/:"))
 
 		# Use unified media fetcher (handles CDN/R2 and HTTP with User-Agent)
 		content = resolve_and_fetch_media(logo_url)
@@ -213,31 +216,28 @@ def read_background_image_bytes(image_url, size=(940, 980)):
 
 	try:
 		from PIL import Image, ImageEnhance, ImageOps
-		
-		# Handle local file paths first
-		if image_url.startswith("/"):
-			if os.path.exists(image_url):
-				with Image.open(image_url) as img:
-					img = ImageOps.exif_transpose(img)
-					img = img.convert("RGB")
-					img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-					img = ImageEnhance.Brightness(img).enhance(0.75)
-					buffer = BytesIO()
-					img.save(buffer, format="JPEG", quality=75, optimize=True)
-					return buffer.getvalue()
-			else:
-				image_url = get_url(image_url)
+		from urllib.parse import quote
 
-		# Use unified media fetcher
+		def _process(img_obj):
+			img_obj = ImageOps.exif_transpose(img_obj)
+			img_obj = img_obj.convert("RGB")
+			img_obj = ImageOps.fit(img_obj, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+			buf = BytesIO()
+			img_obj.save(buf, format="JPEG", quality=85, optimize=True)
+			return buf.getvalue()
+
+		if image_url.startswith("/"):
+			# Try real filesystem path via Frappe site directory first (avoids HTTP + encoding issues)
+			site_fs_path = frappe.get_site_path("public" + image_url)
+			if os.path.exists(site_fs_path):
+				with Image.open(site_fs_path) as img:
+					return _process(img)
+			# Fallback: encode spaces/special chars before fetching via HTTP
+			image_url = get_url(quote(image_url, safe="/:"))
+
 		content = resolve_and_fetch_media(image_url)
 		with Image.open(BytesIO(content)) as img:
-			img = ImageOps.exif_transpose(img)
-			img = img.convert("RGB")
-			img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-			img = ImageEnhance.Brightness(img).enhance(0.75)
-			buffer = BytesIO()
-			img.save(buffer, format="JPEG", quality=75, optimize=True)
-			return buffer.getvalue()
+			return _process(img)
 	except Exception as e:
 		safe_log_error("QR Background Error", f"Error reading background image {image_url}: {e}")
 		return None
@@ -260,6 +260,12 @@ def load_font(size, bold=False):
 	from PIL import ImageFont
 
 	font_candidates = [
+		# macOS
+		"/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+		"/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+		"/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
+		"/System/Library/Fonts/SFNS.ttf",
+		# Linux
 		"/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf",
 		"/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
 		"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -268,7 +274,22 @@ def load_font(size, bold=False):
 	for font_path in font_candidates:
 		if os.path.exists(font_path):
 			return ImageFont.truetype(font_path, size)
-	return ImageFont.load_default()
+	return ImageFont.load_default(size)
+
+
+def load_playfair_font(size, bold=False):
+	"""Load Playfair Display (the flamezo-web brand font) — falls back to load_font."""
+	from PIL import ImageFont
+	variant = "Bold" if bold else "Regular"
+	bundled = os.path.normpath(
+		os.path.join(
+			os.path.dirname(__file__),
+			f"../../../public/flamezo_backend/images/PlayfairDisplay-{variant}.ttf",
+		)
+	)
+	if os.path.exists(bundled):
+		return ImageFont.truetype(bundled, size)
+	return load_font(size, bold=bold)
 
 
 def measure_text(draw, text, font):
@@ -358,78 +379,248 @@ def build_artistic_qr_image(qr_data, logo_bytes, background_image_bytes):
 	return final_img
 
 
+def _make_gradient_scrim(width, height, alpha_start, alpha_end, power=1.5):
+	"""Vertical gradient from alpha_start (top) to alpha_end (bottom)."""
+	from PIL import Image, ImageDraw
+	scrim = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+	draw = ImageDraw.Draw(scrim)
+	for y in range(height):
+		t = y / max(height - 1, 1)
+		a = int(alpha_start + (alpha_end - alpha_start) * (t ** power))
+		draw.line([(0, y), (width, y)], fill=(0, 0, 0, a))
+	return scrim
+
+
+def _make_h_gradient_scrim(width, height, alpha_start, alpha_end, power=1.5):
+	"""Horizontal gradient from alpha_start (left) to alpha_end (right)."""
+	from PIL import Image, ImageDraw
+	scrim = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+	draw = ImageDraw.Draw(scrim)
+	for x in range(width):
+		t = x / max(width - 1, 1)
+		a = int(alpha_start + (alpha_end - alpha_start) * (t ** power))
+		draw.line([(x, 0), (x, height)], fill=(0, 0, 0, a))
+	return scrim
+
+
+def _remove_white_bg(img):
+	"""Corner-seeded flood fill to make the outer white background transparent."""
+	data = img.load()
+	w, h = img.size
+	stack = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+	visited = set(stack)
+	while stack:
+		x, y = stack.pop()
+		r, g, b, a = data[x, y]
+		if r > 238 and g > 238 and b > 238:
+			data[x, y] = (r, g, b, 0)
+			for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+				nx, ny = x + dx, y + dy
+				if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in visited:
+					visited.add((nx, ny))
+					stack.append((nx, ny))
+	return img
+
+
+def _load_flamezo_wordmark(max_width=300, max_height=90):
+	"""Load Flamezo light wordmark, strip white bg, crop to content, then resize."""
+	import os
+	from PIL import Image
+	logo_path = os.path.normpath(
+		os.path.join(os.path.dirname(__file__), "../../../public/flamezo_backend/images/main-logo-light.png")
+	)
+	if not os.path.exists(logo_path):
+		return None
+	with Image.open(logo_path) as img:
+		img = img.convert("RGBA")
+		img = _remove_white_bg(img)
+		# Crop to content bounding box (removes the transparent padding from the square canvas)
+		bbox = img.getbbox()
+		if bbox:
+			img = img.crop(bbox)
+		img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+		return img.copy()
+
+
 def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_bytes, background_image_bytes):
 	import qrcode
-	from PIL import Image, ImageDraw, ImageOps
+	from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
-	def draw_text_with_shadow(draw_obj, position, text, font, fill, shadow_fill=(0, 0, 0, 170), shadow_offset=(3, 4)):
-		x, y = position
-		draw_obj.text((x + shadow_offset[0], y + shadow_offset[1]), text, fill=shadow_fill, font=font)
-		draw_obj.text((x, y), text, fill=fill, font=font)
+	W, H = 1200, 1600
 
-	canvas = Image.new("RGBA", (1200, 1600), "white")
-	draw = ImageDraw.Draw(canvas)
+	# ── 1. Base: blurred background or warm dark gradient ────────────────────
 	if background_image_bytes:
-		with Image.open(BytesIO(background_image_bytes)) as bg_img:
-			bg_img = ImageOps.exif_transpose(bg_img)
-			bg_img = bg_img.convert("RGBA")
-			bg_img = ImageOps.fit(bg_img, (1096, 1496), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-			canvas.paste(bg_img, (52, 52), bg_img)
+		with Image.open(BytesIO(background_image_bytes)) as bg:
+			bg = ImageOps.exif_transpose(bg).convert("RGBA")
+			bg = ImageOps.fit(bg, (W, H), method=Image.Resampling.LANCZOS)
+			bg = bg.filter(ImageFilter.GaussianBlur(radius=5))
+			canvas = bg.copy()
+		# NO global overlay — scrims alone handle text legibility, bg stays vivid
 	else:
-		draw.rounded_rectangle((52, 52, 1148, 1548), radius=56, fill="white")
+		# Warm charcoal gradient — not pitch black
+		canvas = Image.new("RGBA", (W, H), (38, 28, 24, 255))
+		draw_bg = ImageDraw.Draw(canvas)
+		for y in range(H):
+			t = y / H
+			r = int(58 - t * 20)
+			g = int(42 - t * 14)
+			b = int(36 - t * 12)
+			draw_bg.line([(0, y), (W, y)], fill=(r, g, b, 255))
 
-	title_font = load_font(64, bold=True)
-	footer_font = load_font(60, bold=True)
-	brand_font = load_font(44, bold=False)
+	# ── 2. Top scrim — darkens header zone, clear by 320px ──────────────────
+	canvas.alpha_composite(_make_gradient_scrim(W, 320, 165, 0, power=2.5), dest=(0, 0))
 
-	if background_image_bytes:
-		# Subtle white overlay for text readability over images
-		overlay = Image.new("RGBA", (1096, 250), (255, 255, 255, 210))
-		canvas.paste(overlay, (52, 1298), overlay)
-	
-	# Draw table title
-	title_text = f"Table {table_number}"
-	title_w, _ = measure_text(draw, title_text, title_font)
-	draw.text(((1200 - title_w) / 2, 110), title_text, fill=brand_color, font=title_font)
+	# ── 3. Left/right edge vignettes — mask text/distractions near edges ─────
+	left_vignette = _make_h_gradient_scrim(320, H, 160, 0, power=1.6)
+	canvas.alpha_composite(left_vignette, dest=(0, 0))
+	right_vignette = left_vignette.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+	canvas.alpha_composite(right_vignette, dest=(W - 320, 0))
 
-	# Generate QR code (always use the clean qrcode approach for consistent quality)
-	qr = qrcode.QRCode(
-		version=None,
-		error_correction=qrcode.constants.ERROR_CORRECT_H,
-		box_size=20,
-		border=4,
+	# ── 4. Bottom scrim — covers cashback badge + footer ─────────────────────
+	canvas.alpha_composite(_make_gradient_scrim(W, 490, 0, 240, power=0.6), dest=(0, H - 490))
+
+	# ── 5. Artistic QR (segno logo-infused) or clean QR fallback ─────────────
+	QS = 660
+	qx = (W - QS) // 2
+	qy = (H - QS) // 2 + 10
+
+	# Solid white card behind QR — makes black dots pop and QR look print-ready
+	card_pad = 8
+	qr_card = Image.new("RGBA", (QS + card_pad * 2, QS + card_pad * 2), (0, 0, 0, 0))
+	ImageDraw.Draw(qr_card).rounded_rectangle(
+		(0, 0, qr_card.width - 1, qr_card.height - 1), radius=36, fill=(255, 255, 255, 255)
 	)
-	qr.add_data(qr_data)
-	qr.make(fit=True)
-	qr_img = qr.make_image(fill_color=brand_color, back_color="white").convert("RGBA")
-	qr_img = qr_img.resize((520, 520), Image.Resampling.NEAREST)
+	canvas.alpha_composite(qr_card, dest=(qx - card_pad, qy - card_pad))
 
-	# Paste QR on canvas
-	canvas.paste(qr_img, (340, 570), qr_img if qr_img.mode == 'RGBA' else None)
-
+	artistic_done = False
 	if logo_bytes:
-		with Image.open(BytesIO(logo_bytes)) as logo_img:
-			logo_img = logo_img.convert("RGBA")
-			logo_img.thumbnail((130, 130), Image.Resampling.LANCZOS)
-			logo_card = Image.new("RGBA", (180, 180), (255, 255, 255, 0))
-			logo_draw = ImageDraw.Draw(logo_card)
-			logo_draw.rounded_rectangle((4, 4, 176, 176), radius=42, fill="white", outline="#E7E7E7", width=8)
-			logo_x = (180 - logo_img.width) // 2
-			logo_y = (180 - logo_img.height) // 2
-			logo_card.paste(logo_img, (logo_x, logo_y), logo_img)
-			canvas.paste(logo_card, (510, 750), logo_card)
+		try:
+			import segno
+			logo_stream = BytesIO(logo_bytes)
+			art_stream = BytesIO()
+			qr_art = segno.make(qr_data, error="h")
+			qr_art.to_artistic(
+				background=logo_stream,
+				target=art_stream,
+				scale=10,
+				kind="png",
+				border=2,
+			)
+			art_stream.seek(0)
+			qr_img = Image.open(art_stream).convert("RGBA")
+			qr_img = qr_img.resize((QS, QS), Image.Resampling.LANCZOS)
+			canvas.paste(qr_img, (qx, qy), qr_img)
+			artistic_done = True
+		except Exception:
+			pass
 
-	scan_text = "Scan to order"
-	scan_width, _ = measure_text(draw, scan_text, footer_font)
-	draw.text(((1200 - scan_width) / 2, 1340), scan_text, fill="#222222", font=footer_font)
+	if not artistic_done:
+		# Fallback: clean QR with logo card in center
+		qr = qrcode.QRCode(
+			version=None, error_correction=qrcode.constants.ERROR_CORRECT_H,
+			box_size=18, border=3,
+		)
+		qr.add_data(qr_data)
+		qr.make(fit=True)
+		qr_img = qr.make_image(fill_color=brand_color, back_color="white").convert("RGBA")
+		qr_img = qr_img.resize((QS, QS), Image.Resampling.NEAREST)
+		canvas.paste(qr_img, (qx, qy), qr_img)
 
-	brand_text = "Powered by Flamezo"
-	brand_width, _ = measure_text(draw, brand_text, brand_font)
-	draw.text(((1200 - brand_width) / 2, 1435), brand_text, fill="#666666", font=brand_font)
+		# Logo card center overlay (only for non-artistic)
+		if logo_bytes:
+			with Image.open(BytesIO(logo_bytes)) as logo:
+				logo = logo.convert("RGBA")
+				logo.thumbnail((138, 138), Image.Resampling.LANCZOS)
+				lw, lh = logo.width + 24, logo.height + 24
+				lcard = Image.new("RGBA", (lw, lh), (0, 0, 0, 0))
+				ImageDraw.Draw(lcard).rounded_rectangle((0, 0, lw - 1, lh - 1), radius=18, fill=(255, 255, 255, 255))
+				lcard.paste(logo, ((lw - logo.width) // 2, (lh - logo.height) // 2), logo)
+				canvas.paste(lcard, (qx + (QS - lw) // 2, qy + (QS - lh) // 2), lcard)
 
-	buffer = BytesIO()
-	canvas.save(buffer, format="PNG", optimize=True)
-	return buffer.getvalue()
+	# ── 9. Full-width black strap for cashback message ────────────────────────
+	strap_font_sm = load_playfair_font(34, bold=False)
+	strap_font_lg = load_playfair_font(50, bold=True)
+
+	line1 = "Scan & get a chance to win"
+	line2 = "up to 100% cashback on your bill"
+
+	# Measure text on a temp draw to get sizes before RGB conversion
+	_tmp = Image.new("RGB", (W, 1))
+	_tmp_draw = ImageDraw.Draw(_tmp)
+	l1w, l1h = measure_text(_tmp_draw, line1, strap_font_sm)
+	l2w, l2h = measure_text(_tmp_draw, line2, strap_font_lg)
+	del _tmp, _tmp_draw
+
+	strap_pad_v = 38
+	strap_h = l1h + 14 + l2h + strap_pad_v * 2
+	strap_y = 0  # strap sticks to the very top of the card
+
+	# Draw the strap as a full-width rectangle directly on canvas (RGBA)
+	strap_layer = Image.new("RGBA", (W, strap_h), (8, 6, 4, 248))  # near-solid black
+	canvas.alpha_composite(strap_layer, dest=(0, strap_y))
+
+	# ── 10. Convert to RGB for all text rendering ─────────────────────────────
+	out = canvas.convert("RGB")
+	draw = ImageDraw.Draw(out)
+
+	# ── 11. TABLE N ───────────────────────────────────────────────────────────
+	tbl_font = load_font(116, bold=True)
+	label = f"TABLE {table_number}"
+	tw, th = measure_text(draw, label, tbl_font)
+	tbl_bbox = draw.textbbox((0, 0), label, font=tbl_font)
+	tx, ty = (W - tw) // 2, strap_h + 34  # positioned below the cashback strap
+	draw.text((tx + 4, ty + 6), label, fill=(0, 0, 0), font=tbl_font)
+	draw.text((tx, ty), label, fill=(255, 255, 255), font=tbl_font)
+
+	# ── 12. Restaurant name — anchored to visual bottom of TABLE text ─────────
+	name_font = load_font(44, bold=False)
+	rname = (restaurant_name[:26] + "…") if len(restaurant_name) > 26 else restaurant_name
+	rw, _ = measure_text(draw, rname, name_font)
+	name_y = ty + tbl_bbox[3] + 30  # 30px below the visual bottom of the TABLE glyphs
+	draw.text(((W - rw) // 2, name_y), rname, fill=(215, 205, 195), font=name_font)
+
+	# ── 13. Cashback strap text — Playfair Display ────────────────────────────
+	line1_y = strap_y + strap_pad_v
+	line2_y = line1_y + l1h + 14
+	draw.text(((W - l1w) // 2, line1_y), line1, fill=(228, 212, 188), font=strap_font_sm)
+	draw.text(((W - l2w) // 2, line2_y), line2, fill=(252, 196, 50), font=strap_font_lg)
+
+	# ── 14. Scan CTA — positioned below the QR card ──────────────────────────
+	scan_y = qy + QS + card_pad + 96
+	div_w = 140
+	draw.line([(W // 2 - div_w, scan_y - 18), (W // 2 + div_w, scan_y - 18)], fill=(195, 175, 148), width=2)
+
+	scan_font = load_playfair_font(72, bold=True)
+	scan_text = "Scan to Explore"
+	sw, sh = measure_text(draw, scan_text, scan_font)
+	# stronger shadow for legibility over background image
+	for dx, dy in ((3, 3), (2, 2), (1, 1)):
+		draw.text(((W - sw) // 2 + dx, scan_y + dy), scan_text, fill=(0, 0, 0), font=scan_font)
+	draw.text(((W - sw) // 2, scan_y), scan_text, fill=(255, 255, 255), font=scan_font)
+
+	# ── 15. Powered by Flamezo — bottom right ─────────────────────────────────
+	flamezo_wm = _load_flamezo_wordmark(max_width=190, max_height=52)
+	powered_font = load_font(24, bold=False)
+	powered_text = "Powered by"
+	pw, ph = measure_text(draw, powered_text, powered_font)
+
+	if flamezo_wm:
+		logo_y = H - flamezo_wm.height - 52
+		x_start = W - pw - 10 - flamezo_wm.width - 36
+		text_y = logo_y + (flamezo_wm.height - ph) // 2
+		draw.text((x_start, text_y), powered_text, fill=(155, 140, 126), font=powered_font)
+		out_rgba = out.convert("RGBA")
+		out_rgba.alpha_composite(flamezo_wm, dest=(x_start + pw + 10, logo_y))
+		out = out_rgba.convert("RGB")
+		draw = ImageDraw.Draw(out)
+	else:
+		brand_font = load_font(28, bold=False)
+		bw, _ = measure_text(draw, "Powered by Flamezo", brand_font)
+		draw.text((W - bw - 36, H - 50), "Powered by Flamezo", fill=(155, 140, 126), font=brand_font)
+
+	buf = BytesIO()
+	out.save(buf, format="PNG", optimize=True)
+	return buf.getvalue()
 
 
 def upload_content_bytes(content, suffix, object_key, content_type):
@@ -604,24 +795,25 @@ def generate_pdf_from_assets(assets, layout="2x2"):
 			pdf_canvas_obj.showPage()
 
 	else:
-		# 1×1: One card centred per A4 page
+		# 1×1: One card filling 85% of A4, centred with drop shadow
 		page_width, page_height = A4
-		card_width = 4.4 * inch
-		card_height = 5.85 * inch
+		margin = 0.55 * inch
+		card_width = page_width - 2 * margin
+		card_height = page_height - 2 * margin - 0.35 * inch  # room for URL below
 
 		pdf_canvas_obj = rl_canvas.Canvas(pdf_buffer, pagesize=A4)
 
 		for index, asset in enumerate(assets, start=1):
 			card_buffer = _download_asset_as_jpeg(asset, download_object, Image)
-			x = (page_width - card_width) / 2
-			y = (page_height - card_height) / 2 + 0.1 * inch
+			x = margin
+			y = page_height - margin - card_height
 
 			if card_buffer:
 				pdf_canvas_obj.drawImage(ImageReader(card_buffer), x, y, width=card_width, height=card_height)
 
-			pdf_canvas_obj.setFont("Helvetica", 9)
-			pdf_canvas_obj.setFillColorRGB(0.4, 0.4, 0.4)
-			pdf_canvas_obj.drawCentredString(page_width / 2, y - 0.18 * inch, asset["qr_data"])
+			pdf_canvas_obj.setFont("Helvetica", 8)
+			pdf_canvas_obj.setFillColorRGB(0.5, 0.5, 0.5)
+			pdf_canvas_obj.drawCentredString(page_width / 2, y - 0.22 * inch, asset["qr_data"])
 
 			if index < len(assets):
 				pdf_canvas_obj.showPage()

@@ -40,7 +40,7 @@ const MOCK_ANALYTICS_DATA = {
 
 export default function UGCAnalytics() {
   const { selectedRestaurant } = useRestaurant()
-  const [demoMode, setDemoMode] = useState(true)
+  const [demoMode, setDemoMode] = useState(selectedRestaurant === 'unvind')
 
   const { data, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_analytics',
@@ -75,22 +75,24 @@ export default function UGCAnalytics() {
           <h1 className="text-3xl font-bold tracking-tight">UGC Analytics</h1>
           <p className="text-muted-foreground mt-1">Lifetime performance of your story-for-cashback loop.</p>
         </div>
-        <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
-          <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
-          <button
-            onClick={() => setDemoMode(!demoMode)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-muted ${
-              demoMode ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                demoMode ? 'translate-x-4' : 'translate-x-0'
+        {selectedRestaurant === 'unvind' && (
+          <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
+            <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
+            <button
+              onClick={() => setDemoMode(!demoMode)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-muted ${
+                demoMode ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'
               }`}
-            />
-          </button>
-          <span className={!demoMode ? "text-primary font-semibold" : "text-muted-foreground"}>Live Data</span>
-        </div>
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  demoMode ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className={!demoMode ? "text-primary font-semibold" : "text-muted-foreground"}>Live Data</span>
+          </div>
+        )}
       </div>
 
       {demoMode && (

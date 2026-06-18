@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 
 const WA_CHANNEL_URL = 'https://whatsapp.com/channel/0029VbDInYjE50Up33JZob10'
+const LOGO_URL = `${import.meta.env.BASE_URL}images/main-logo-dark.png`
 
 const qrPromise = QRCode.toDataURL(WA_CHANNEL_URL, {
   width: 220,
@@ -69,12 +70,14 @@ export default function StoryTemplateFrame({
   // Typography scale
   const fs = (ratio: number) => Math.max(7, Math.round(dims.w * ratio))
 
-  // Discount display
+  // Discount display — always produce a headline so the strip is never empty
   const discountLine = discountValue
     ? discountType === 'percentage'
       ? `${discountValue}% OFF`
       : `₹${discountValue} OFF`
-    : null
+    : couponCode
+      ? 'Exclusive Offer'
+      : null
 
   const hasOffer = !!(couponCode || discountLine)
 
@@ -90,8 +93,10 @@ export default function StoryTemplateFrame({
       className={`relative overflow-hidden ${className}`}
       style={{ width, height }}
     >
-      {/* Full-bleed media */}
-      {mediaType === 'video' ? (
+      {/* Full-bleed media — fallback gradient when no URL */}
+      {!mediaUrl ? (
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg,#0f1520 0%,#1a2d4a 50%,#0a1020 100%)' }} />
+      ) : mediaType === 'video' ? (
         <video
           src={mediaUrl}
           autoPlay muted loop playsInline
@@ -106,11 +111,11 @@ export default function StoryTemplateFrame({
         />
       )}
 
-      {/* Subtle full-frame bottom vignette so bottom text is always readable */}
+      {/* Strong bottom vignette — ensures strip area is always readable on any BG */}
       <div
         style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%)',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0) 25%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.65) 75%, rgba(0,0,0,0.88) 100%)',
         }}
       />
 
@@ -129,7 +134,7 @@ export default function StoryTemplateFrame({
         }}
       >
         <img
-          src="/images/main-logo-dark.png"
+          src={LOGO_URL}
           alt="Flamezo"
           draggable={false}
           style={{ width: logoW, height: 'auto', objectFit: 'contain', display: 'block' }}
@@ -182,99 +187,98 @@ export default function StoryTemplateFrame({
         <div
           style={{
             position: 'absolute',
-            bottom: Math.round(dims.h * 0.14),
+            bottom: Math.round(dims.h * 0.22),
             left: '50%',
             transform: 'translateX(-50%)',
-            width: Math.round(dims.w * 0.84),
+            width: Math.round(dims.w * 0.82),
             background: 'rgba(10,10,12,0.55)',
             backdropFilter: 'blur(24px) saturate(1.6)',
             WebkitBackdropFilter: 'blur(24px) saturate(1.6)',
             borderRadius: Math.round(dims.w * 0.035),
             border: '0.5px solid rgba(255,255,255,0.14)',
-            padding: `${Math.round(dims.w * 0.030)}px ${Math.round(dims.w * 0.038)}px`,
+            padding: `${Math.round(dims.w * 0.024)}px ${Math.round(dims.w * 0.032)}px`,
             display: 'flex',
             flexDirection: 'column',
-            gap: Math.round(dims.w * 0.014),
+            gap: Math.round(dims.w * 0.010),
+            overflow: 'hidden',
           }}
         >
-          {/* Restaurant name label */}
-          {restaurantName && (
-            <p style={{
-              color: 'rgba(255,255,255,0.42)', fontSize: fs(0.022),
-              margin: 0, fontWeight: 500, letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-            }}>
-              {restaurantName}
-            </p>
-          )}
-
-          {/* Main row: left offer + divider + right code */}
-          <div style={{
-            display: 'flex', flexDirection: 'row', alignItems: 'center',
-            justifyContent: 'space-between', gap: Math.round(dims.w * 0.03),
-          }}>
-            {/* Left: discount + description + validity */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: Math.round(dims.w * 0.006), flex: 1, minWidth: 0 }}>
-              {discountLine && (
-                <p style={{
-                  color: '#fff', fontSize: fs(0.058), fontWeight: 800,
-                  lineHeight: 1, margin: 0, letterSpacing: '-0.01em',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {discountLine}
-                </p>
-              )}
+          {/* Row 1: restaurant name (left) + coupon code chip (right) */}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Math.round(dims.w * 0.02) }}>
+            {restaurantName && (
               <p style={{
-                color: 'rgba(255,255,255,0.55)', fontSize: fs(0.026),
-                margin: 0, lineHeight: 1.3, fontWeight: 400,
+                color: 'rgba(255,255,255,0.45)', fontSize: fs(0.021),
+                margin: 0, fontWeight: 600, letterSpacing: '0.055em',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                flex: 1, minWidth: 0,
               }}>
-                {offerDescription || 'on dine-in'}
+                {restaurantName}
               </p>
-              {validityLabel && (
-                <p style={{
-                  color: 'rgba(183,65,14,0.9)', fontSize: fs(0.022),
-                  margin: 0, fontWeight: 500,
-                }}>
-                  {validityLabel} · T&C apply
-                </p>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div style={{ width: 0.5, alignSelf: 'stretch', background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-
-            {/* Right: code chip + CTA */}
+            )}
             {couponCode && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(dims.w * 0.01) }}>
-                <div style={{
-                  border: '1px dashed rgba(183,65,14,0.75)',
-                  borderRadius: Math.round(dims.w * 0.018),
-                  padding: `${Math.round(dims.w * 0.01)}px ${Math.round(dims.w * 0.022)}px`,
-                  background: 'rgba(183,65,14,0.18)',
+              <div style={{
+                border: '1px dashed rgba(183,65,14,0.85)',
+                borderRadius: Math.round(dims.w * 0.014),
+                padding: `${Math.round(dims.w * 0.006)}px ${Math.round(dims.w * 0.014)}px`,
+                background: 'rgba(183,65,14,0.20)',
+                flexShrink: 0,
+                maxWidth: Math.round(dims.w * 0.44),
+                overflow: 'hidden',
+              }}>
+                <span style={{
+                  color: '#fff', fontSize: fs(0.024), fontWeight: 800,
+                  letterSpacing: '0.04em', fontFamily: 'ui-monospace, monospace',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  display: 'block',
                 }}>
-                  <span style={{
-                    color: '#fff', fontSize: fs(0.036), fontWeight: 800,
-                    letterSpacing: '0.06em', fontFamily: 'ui-monospace, monospace',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {couponCode}
-                  </span>
-                </div>
-                <p style={{
-                  color: 'rgba(255,255,255,0.38)', fontSize: fs(0.022),
-                  margin: 0, textAlign: 'center', lineHeight: 1.4,
-                }}>
-                  Show at checkout
-                </p>
-                <p style={{
-                  color: 'rgba(255,255,255,0.28)', fontSize: fs(0.020),
-                  margin: 0, textAlign: 'center', lineHeight: 1.4,
-                }}>
-                  Take a screenshot now
-                </p>
+                  {couponCode}
+                </span>
               </div>
             )}
           </div>
+
+          {/* Row 2: discount headline — full width */}
+          {discountLine && (
+            <p style={{
+              color: '#fff',
+              fontSize: discountValue ? fs(0.058) : fs(0.038),
+              fontWeight: 800, lineHeight: 1, margin: 0,
+              letterSpacing: discountValue ? '-0.01em' : '0.01em',
+              whiteSpace: 'nowrap',
+            }}>
+              {discountLine}
+            </p>
+          )}
+
+          {/* Row 3: description — full width, up to 2 lines */}
+          <p style={{
+            color: 'rgba(255,255,255,0.55)', fontSize: fs(0.026),
+            margin: 0, lineHeight: 1.3, fontWeight: 400,
+            display: '-webkit-box', WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {offerDescription || 'on dine-in'}
+          </p>
+
+          {/* Row 4: validity (own line) */}
+          {validityLabel && (
+            <p style={{
+              color: 'rgba(183,65,14,1)', fontSize: fs(0.021),
+              margin: 0, fontWeight: 600,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {validityLabel} · T&C apply
+            </p>
+          )}
+
+          {/* Row 5: CTA (wraps if needed) */}
+          <p style={{
+            color: 'rgba(255,255,255,0.3)', fontSize: fs(0.019),
+            margin: 0, lineHeight: 1.3,
+          }}>
+            Show at checkout · Take a screenshot now
+          </p>
         </div>
       )}
     </div>

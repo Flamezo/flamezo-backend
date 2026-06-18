@@ -1,10 +1,12 @@
 """
 Flamezo Coupon Tasks
-Handles scheduled coupon activation and expiry based on valid_from / valid_until.
+- auto_activate_scheduled_coupons : daily 00:05 — go-live coupons
+- auto_deactivate_expired_coupons : daily 00:05 — expire coupons
+- send_offer_claim_notification   : short-queue — WhatsApp after PIN claim
 """
 
 import frappe
-from frappe.utils import today, getdate
+from frappe.utils import today, getdate, flt
 
 
 def auto_activate_scheduled_coupons():
@@ -65,3 +67,60 @@ def auto_deactivate_expired_coupons():
         frappe.logger().info(f"[coupon_tasks] Auto-deactivated {len(deactivated)} expired coupons: {deactivated}")
 
     return deactivated
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# WhatsApp notification — fires after a successful PIN claim
+# ──────────────────────────────────────────────────────────────────────────────
+
+def send_offer_claim_notification(claim_id):
+    """
+    Short-queue task enqueued (enqueue_after_commit=True) from claim_offer_with_pin.
+    Sends a WhatsApp message confirming the offer and including the pay-bill link.
+    """
+    try:
+        claim = frappe.get_doc("Offer Claim", claim_id)
+    except frappe.DoesNotExistError:
+        return
+
+    phone = claim.customer_phone or ""
+    if not phone:
+        phone = frappe.db.get_value("Customer Data", claim.customer, "phone") or ""
+    if not phone:
+        return
+
+    restaurant_name = (
+        frappe.db.get_value("Restaurant", claim.restaurant, "restaurant_name") or "the restaurant"
+    )
+    restaurant_slug = (
+        frappe.db.get_value("Restaurant", claim.restaurant, "restaurant_id") or claim.restaurant
+    )
+
+    # Resolve discount label from the coupon
+    coupon_row = frappe.db.get_value(
+        "Coupon",
+        claim.coupon,
+        ["discount_value", "discount_type"],
+        as_dict=True,
+    ) or {}
+    discount_val = flt(coupon_row.get("discount_value") or 0)
+    discount_type = (coupon_row.get("discount_type") or "flat").lower()
+    if discount_type == "percent":
+        discount_label = f"{int(discount_val)}% OFF"
+    else:
+        discount_label = f"₹{int(discount_val)} flat off"
+
+    button_url_suffix = f"{restaurant_slug}/pay-bill?offer={claim.coupon_code}"
+
+    from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
+    try:
+        success, result = send_whatsapp_cloud_message(
+            to_phone=phone,
+            template_name="offer_claim_pay_bill",
+            body_params=[discount_label, restaurant_name, claim.coupon_code],
+            button_url_param=button_url_suffix,
+        )
+        if not success:
+            frappe.log_error(f"send_offer_claim_notification({claim_id}): {result}", "Coupon")
+    except Exception as e:
+        frappe.log_error(f"send_offer_claim_notification({claim_id}): {e}", "Coupon")

@@ -26,6 +26,7 @@
   "ai_confidence_threshold",
   "section_break_templates",
   "template_assets",
+  "story_preview_url",
   "section_break_coupons",
   "coupon_for_viewers",
   "next_visit_coupon",
@@ -158,6 +159,14 @@
    "label": "Template Images",
    "options": "UGC Template Asset",
    "description": "Pre-approved story images the diner can share. Upload via the dashboard."
+  },
+  {
+   "fieldname": "story_preview_url",
+   "fieldtype": "Data",
+   "label": "Story Preview URL",
+   "read_only": 1,
+   "hidden": 1,
+   "description": "CDN URL of the pre-generated composited story media (auto-set when config is saved with a template + coupon)."
   },
   {
    "fieldname": "section_break_coupons",

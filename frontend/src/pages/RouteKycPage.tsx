@@ -46,6 +46,9 @@ import {
   ArrowRight,
   ArrowLeft,
   Download,
+  Sparkles,
+  UploadCloud,
+  FileText
 } from 'lucide-react'
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
@@ -102,6 +105,45 @@ export default function RouteKycPage() {
     bank_holder_name: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [entryMode, setEntryMode] = useState<'upload' | 'manual'>('upload')
+  const [analyzingImage, setAnalyzingImage] = useState(false)
+  const [uploadedFileName, setUploadedFileName] = useState('')
+
+  const { call: extractDetails } = useFrappePostCall<{ success: boolean; data: any }>('flamezo_backend.flamezo.api.kyc_ai.extract_bank_details')
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    setUploadedFileName(file.name)
+    setAnalyzingImage(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64_image = reader.result as string
+        const res: any = await extractDetails({ base64_image })
+        const data = res?.message ?? res
+        if (data?.success && data?.data) {
+          setForm(prev => ({
+            ...prev,
+            legal_name: data.data.legal_business_name || prev.legal_name,
+            bank_account_number: data.data.account_number || prev.bank_account_number,
+            bank_ifsc: data.data.ifsc_code || prev.bank_ifsc,
+            bank_holder_name: data.data.legal_business_name || prev.bank_holder_name
+          }))
+          toast.success("Bank details extracted successfully!")
+        } else {
+          toast.error("Could not extract all details. Please verify and enter manually.")
+        }
+        setAnalyzingImage(false)
+      }
+      reader.readAsDataURL(file)
+    } catch (err) {
+      console.error(err)
+      toast.error("Error processing image")
+      setAnalyzingImage(false)
+    }
+  }
 
   // Sync server state into form once it loads.
   useEffect(() => {
@@ -445,8 +487,57 @@ export default function RouteKycPage() {
           </div>
 
           <div className="p-5 space-y-5">
-            <Field
-              label="Account Number"
+            <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-fit">
+              <button
+                onClick={() => setEntryMode('upload')}
+                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'upload' ? 'bg-white shadow-sm text-primary ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Auto-fill (Upload)
+              </button>
+              <button
+                onClick={() => setEntryMode('manual')}
+                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'manual' ? 'bg-white shadow-sm text-foreground ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Manual Entry
+              </button>
+            </div>
+
+            {entryMode === 'upload' ? (
+              <div className="border-2 border-dashed border-primary/20 bg-primary/5 rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors hover:border-primary/40 hover:bg-primary/10 relative overflow-hidden">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={analyzingImage || docLoading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                />
+                {analyzingImage ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                    <p className="text-sm font-bold text-foreground">Analyzing document with AI...</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Extracting Account Number, IFSC, and Name</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3 shadow-inner">
+                      <UploadCloud className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-foreground">
+                      {uploadedFileName ? 'Upload a different cheque' : 'Upload Cancelled Cheque'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1 max-w-[250px]">
+                      {uploadedFileName ? `Last uploaded: ${uploadedFileName}` : 'We will use AI to automatically extract and fill your bank details to prevent typos.'}
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            <div className={cn("space-y-5 transition-all duration-500", entryMode === 'upload' ? 'opacity-90' : 'opacity-100')}>
+              <Field
+                label="Account Number"
               hint="Numbers only. Find it on your passbook or cheque book."
               error={fieldErrors.bank_account_number}
             >
@@ -495,6 +586,7 @@ export default function RouteKycPage() {
                 className="h-11 rounded-xl"
               />
             </Field>
+            </div>
           </div>
         </CardContent>
       </Card>

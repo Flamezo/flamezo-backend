@@ -386,13 +386,24 @@ class Restaurant(Document):
 			)
 			for file_doc in existing_files:
 				try:
+					# Clear any document lock before deleting
+					frappe.db.sql("DELETE FROM `__DocumentLock` WHERE `name` = %s", file_doc.name)
+					frappe.db.commit()
+				except Exception:
+					pass
+				try:
 					frappe.delete_doc("File", file_doc.name, ignore_permissions=True, force=True)
 					frappe.db.commit()
-				except Exception as e:
-					frappe.log_error(
-						f"Error deleting existing QR code file {file_doc.name}: {str(e)}",
-						"QR Code File Deletion",
-					)
+				except Exception:
+					# Fallback: direct DB delete to bypass lock checks
+					try:
+						frappe.db.delete("File", {"name": file_doc.name})
+						frappe.db.commit()
+					except Exception as e:
+						frappe.log_error(
+							f"Error deleting existing QR code file {file_doc.name}: {str(e)}",
+							"QR Code File Deletion",
+						)
 
 			# Clear URL field before creating new file
 			try:

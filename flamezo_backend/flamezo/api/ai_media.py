@@ -417,21 +417,16 @@ def download_image(url):
     return temp_path
 
 
-def generate_image_gemini(image_path, dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
-    """Uses Gemini 2.5 Flash Image for native image-to-image enhancement."""
-    gemini_key = frappe.conf.get("gemini_api_key")
-    if not gemini_key:
-        frappe.throw("Gemini API key required for generation")
-    
-    # Load input image
+def generate_image_fal_ai_enhance(image_path, dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
+    """Uses Fal.ai FLUX.1 [schnell] for image-to-image enhancement."""
+    fal_key = frappe.conf.get("fal_api_key")
+    if not fal_key:
+        frappe.throw("Fal.ai API key required for generation")
+
+    import base64
     with open(image_path, "rb") as f:
-        img_data = f.read()
-    
-    # Load random local reference image
-    ref_path = get_random_reference_image()
-    
-    with open(ref_path, "rb") as f:
-        ref_data = f.read()
+        img_b64 = base64.b64encode(f.read()).decode('utf-8')
+    data_uri = f"data:image/jpeg;base64,{img_b64}"
 
     description_text = f"Dish Details: {dish_description}" if dish_description else ""
     category_text = f"Category: {dish_category}" if dish_category else ""
@@ -439,106 +434,108 @@ def generate_image_gemini(image_path, dish_name, dish_description, dish_category
     branding_text = ""
     if include_branding and restaurant_name:
         branding_text = (
-            f"\nBRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way like in photography or pinterest level"
-            f"It could be on the plating utensils (like a subtle engraving on a spoon or fork), "
-            f"on a napkin, or discretely in the background (like eg on wooden table). "
-            f"Keep it elegant and integrated into the scene."
+            f"BRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way. "
         )
 
     prompt = (
-        f"Disclaimer: Don't generate whole new image as per you, generated image should be aligned with first image."
-        f"Convert (first image) which is {dish_name} image into professional food photography, restaurant menu photography, "
-        f"magazine quality Pinterest-Style Images editorial food photography highly detailed. \n"
-        f"{category_text}\n"
-        f"{description_text}\n"
-        f"{branding_text}\n"
-        f"Note: I HAVE ALSO ATTACHED REFERENCE IMAGE (second image) FOR THE VISUALS I AM EXPECTING IN IMAGE, AND MAKE SURE THE BACKGROUND IS HAVING INGREDIENTS OR SIDES OR GARNISHES OR SERVING STYLE RELATED TO DISH"
-    )
+        f"Professional food photography of {dish_name}. "
+        f"Style: restaurant menu photography, magazine-quality, Pinterest-style, editorial food photography, highly detailed, 4k, 8k resolution. "
+        f"The dish should be beautifully plated, with relevant garnishes, ingredients, or sides visible in the blurred background. "
+        f"{category_text} "
+        f"{description_text} "
+        f"Lighting: soft natural light coming from a window, moody shadows. "
+        f"Settings: Shot on 85mm lens, f/1.8 aperture for shallow depth of field, sharp focus on the food. "
+        f"{branding_text}"
+    ).strip()
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={gemini_key}"
+    url = "https://fal.run/fal-ai/flux/schnell"
+    headers = {
+        "Authorization": f"Key {fal_key}",
+        "Content-Type": "application/json"
+    }
     payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt},
-                {"inline_data": {"mime_type": "image/png", "data": base64.b64encode(img_data).decode('utf-8')}},
-                {"inline_data": {"mime_type": "image/png", "data": base64.b64encode(ref_data).decode('utf-8')}}
-            ]
-        }]
+        "prompt": prompt,
+        "image_url": data_uri,
+        "strength": 0.85, # High strength to enhance quality while maintaining base structure
+        "image_size": "square_hd",
+        "num_inference_steps": 4,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "enable_safety_checker": True
     }
     
-    response = _gemini_post_with_retry(url, payload)
-    res_json = response.json()
+    import requests
+    import uuid
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    data = response.json()
     
-    # Extract image from response
-    if 'candidates' in res_json and res_json['candidates']:
-        for part in res_json['candidates'][0]['content']['parts']:
-            if 'inlineData' in part:
-                # Save to a temporary file and return the path
-                temp_output = f"/tmp/{uuid.uuid4().hex}.png"
-                with open(temp_output, "wb") as f:
-                    f.write(base64.b64decode(part['inlineData']['data']))
-                return temp_output
-                
-    frappe.throw("Gemini failed to generate an image in the response.")
+    if 'images' in data and data['images']:
+        image_url = data['images'][0]['url']
+        temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
+        img_data = requests.get(image_url).content
+        with open(temp_output, "wb") as f:
+            f.write(img_data)
+        return temp_output
+        
+    frappe.throw("Fal.ai failed to enhance the image.")
 
 
-def generate_image_gemini_from_product(dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
-    """Generates a NEW food photo from scratch using only product info + reference image."""
-    gemini_key = frappe.conf.get("gemini_api_key")
-    if not gemini_key:
-        frappe.throw("Gemini API key required for generation")
-
-    # Load random local reference image
-    ref_path = get_random_reference_image()
-
-    with open(ref_path, "rb") as f:
-        ref_data = f.read()
+def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
+    """Generates a NEW food photo from scratch using FLUX.1 [schnell]."""
+    fal_key = frappe.conf.get("fal_api_key")
+    if not fal_key:
+        frappe.throw("Fal.ai API key required for generation")
 
     description_text = f"Dish Details: {dish_description}" if dish_description else ""
     category_text = f"Category: {dish_category}" if dish_category else ""
-
+    
     branding_text = ""
     if include_branding and restaurant_name:
         branding_text = (
-            f"\nBRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way like in photography or pinterest level"
-            f"It could be on the plating utensils (like a subtle engraving on a spoon or fork), "
-            f"on a napkin, or discretely in the background (like eg on wooden table). "
-            f"Keep it elegant and integrated into the scene."
+            f"BRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way. "
         )
 
     prompt = (
-        f"Generate a brand-new, original, professional food photography image of '{dish_name}'. "
-        f"Style: restaurant menu photography, magazine-quality, Pinterest-style, editorial food photography, highly detailed. "
-        f"The dish should be beautifully plated, with relevant garnishes, ingredients, or sides visible in the background. "
-        f"{category_text}\n"
-        f"{description_text}\n"
-        f"{branding_text}\n"
-        f"IMPORTANT: Use the attached REFERENCE IMAGE only for the visual style, lighting, and composition you should aim for — NOT as the dish itself. "
-        f"Generate an entirely new image of '{dish_name}'. Do NOT copy or reproduce the reference dish."
-    )
+        f"Professional food photography of {dish_name}. "
+        f"Style: restaurant menu photography, magazine-quality, Pinterest-style, editorial food photography, highly detailed, 4k, 8k resolution. "
+        f"The dish should be beautifully plated, with relevant garnishes, ingredients, or sides visible in the blurred background. "
+        f"{category_text} "
+        f"{description_text} "
+        f"Lighting: soft natural light coming from a window, moody shadows. "
+        f"Settings: Shot on 85mm lens, f/1.8 aperture for shallow depth of field, sharp focus on the food. "
+        f"{branding_text}"
+    ).strip()
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={gemini_key}"
-    payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt},
-                {"inline_data": {"mime_type": "image/png", "data": base64.b64encode(ref_data).decode('utf-8')}}
-            ]
-        }]
+    url = "https://fal.run/fal-ai/flux/schnell"
+    headers = {
+        "Authorization": f"Key {fal_key}",
+        "Content-Type": "application/json"
     }
-
-    response = _gemini_post_with_retry(url, payload)
-    res_json = response.json()
-
-    if 'candidates' in res_json and res_json['candidates']:
-        for part in res_json['candidates'][0]['content']['parts']:
-            if 'inlineData' in part:
-                temp_output = f"/tmp/{uuid.uuid4().hex}.png"
-                with open(temp_output, "wb") as f:
-                    f.write(base64.b64decode(part['inlineData']['data']))
-                return temp_output
-
-    frappe.throw("Gemini failed to generate a new image from product details.")
+    payload = {
+        "prompt": prompt,
+        "image_size": "square_hd",
+        "num_inference_steps": 4,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "enable_safety_checker": True
+    }
+    
+    import requests
+    import uuid
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    data = response.json()
+    
+    if 'images' in data and data['images']:
+        image_url = data['images'][0]['url']
+        temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
+        img_data = requests.get(image_url).content
+        with open(temp_output, "wb") as f:
+            f.write(img_data)
+        return temp_output
+        
+    frappe.throw("Fal.ai failed to generate a new image from product details.")
 
 
 def process_ai_image_enhancement(generation_name, mode="enhance", include_branding=False, coins_to_refund=0):
@@ -568,14 +565,14 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
 
         if mode == "generate":
             # Generate a new photo from scratch — no input image needed
-            temp_output_path = generate_image_gemini_from_product(dish_name, dish_description, dish_category, include_branding, restaurant_name)
+            temp_output_path = generate_image_fal_ai_generate(dish_name, dish_description, dish_category, include_branding, restaurant_name)
         else:
             # Enhance the uploaded photo
             # 1. Download input
             temp_input_path = download_image(doc.original_image_url)
 
-            # 2. Generate enhanced image using Gemini
-            temp_output_path = generate_image_gemini(temp_input_path, dish_name, dish_description, dish_category, include_branding, restaurant_name)
+            # 2. Generate enhanced image using Fal.ai
+            temp_output_path = generate_image_fal_ai_enhance(temp_input_path, dish_name, dish_description, dish_category, include_branding, restaurant_name)
         
         # 4. Upload to R2 (temp_output_path is already set by generator above)
 

@@ -498,19 +498,14 @@ export default function Layout({ children }: LayoutProps) {
   // Preview URL path: slug preferred, fallback to restaurant_id for all pages
   const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentRestaurant?.restaurant_id || selectedRestaurant || ''
 
-  // Removed order fetching as ordering system is deleted
-  const analytics = {
-    todayRevenue: 0,
-    todayOrders: 0,
-    pendingOrders: 0,
-    totalRevenue: 0,
-    totalOrders: 0,
-    avgOrderValue: 0,
-    yesterdayRevenue: 0,
-    yesterdayOrders: 0,
-    revenueChange: 0,
-    ordersChange: 0,
-  }
+  const { data: dashboardSummary } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.analytics.get_dashboard_summary',
+    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
+    selectedRestaurant ? `analytics-header-${selectedRestaurant}` : undefined
+  )
+  const analyticsData = dashboardSummary?.message?.success ? dashboardSummary.message : (dashboardSummary?.success ? dashboardSummary : null)
+  const traffic = analyticsData?.traffic || { totalViews: 0, uniqueVisitors: 0, growth: 0 }
+  const enhanced = analyticsData?.enhanced || { totalOrders: 0, revenue: 0, conversionRate: 0, avgOrderValue: 0 }
 
   const pendingOrders = 0
   const acceptPendingOrders = 0
@@ -616,7 +611,7 @@ export default function Layout({ children }: LayoutProps) {
                   align="start"
                   side="bottom"
                   sideOffset={4}
-                  className="w-[260px] p-0 rounded-md border border-border/80 shadow-md z-[60] bg-popover"
+                  className="w-[260px] p-0 rounded-md border border-border shadow-md z-[60] bg-popover"
                 >
                   {/* Admin actions at top — stacked */}
                   {isAdmin && (
@@ -637,13 +632,13 @@ export default function Layout({ children }: LayoutProps) {
                           <span className="text-[12px] font-semibold">Manage All</span>
                         </DropdownMenuItem>
                       </div>
-                      <div className="h-px bg-border/60" />
+                      <div className="h-px bg-border" />
                     </>
                   )}
 
                   {/* Search */}
                   <div className="px-2 py-2">
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-muted/50 border border-border/60">
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-muted/50 border border-border">
                       <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                       <input
                         autoFocus
@@ -657,7 +652,7 @@ export default function Layout({ children }: LayoutProps) {
                     </div>
                   </div>
 
-                  <div className="h-px bg-border/60" />
+                  <div className="h-px bg-border" />
 
                   {/* Restaurant list */}
                   <div className="max-h-[280px] overflow-y-auto py-1">
@@ -674,8 +669,8 @@ export default function Layout({ children }: LayoutProps) {
                           <DropdownMenuItem
                             key={restaurant.name}
                             className={cn(
-                              "flex items-center gap-2.5 mx-1 px-2 py-1.5 rounded cursor-pointer focus:bg-accent",
-                              isActive && "bg-accent"
+                              "flex items-center gap-2.5 px-3 py-2.5 cursor-pointer focus:bg-accent border-b border-border last:border-0",
+                              isActive && "bg-accent/50"
                             )}
                             onSelect={() => {
                               setSelectedRestaurant(restaurant.name)
@@ -813,7 +808,7 @@ export default function Layout({ children }: LayoutProps) {
                       )} />
                       {showExpanded && (
                         <>
-                          <span className="flex-1">{item.name}</span>
+                          <span className="flex-1 truncate">{item.name}</span>
                           {item.adminOnly && (
                             <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
                               <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
@@ -990,10 +985,10 @@ export default function Layout({ children }: LayoutProps) {
                       )} />
                       {showExpanded && (
                         <>
-                          <span className="flex-1 text-left flex items-center gap-1.5">
-                            {group.name}
+                          <span className="flex-1 text-left flex items-center gap-1.5 min-w-0">
+                            <span className="truncate shrink min-w-0">{group.name}</span>
                             {(group.id === 'google-growth' || group.id === 'boost' || group.id === 'ugc-cashback') && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20">
+                              <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20 shrink-0">
                                 BETA
                               </span>
                             )}
@@ -1077,7 +1072,7 @@ export default function Layout({ children }: LayoutProps) {
                                 )}
                               >
                                 <ChildIcon className="h-4 w-4 flex-shrink-0" />
-                                <span className="flex-1">{child.name}</span>
+                                <span className="flex-1 truncate">{child.name}</span>
                                 {child.adminOnly && (
                                   <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
                                     <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
@@ -1108,8 +1103,8 @@ export default function Layout({ children }: LayoutProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const baseUrl = restaurantDoc?.base_url || 'https://app.flamezo.in/'
-                    const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
+                    const baseUrl = restaurantDoc?.base_url || 'https://flamezo.in/'
+                    const url = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) + '/' + previewPath
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }}
                   className={cn(
@@ -1196,12 +1191,11 @@ export default function Layout({ children }: LayoutProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const baseUrl = restaurantDoc?.base_url || 'https://app.flamezo.in/'
-                      const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
+                      const baseUrl = restaurantDoc?.base_url || 'https://flamezo.in/'
+                      const url = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) + '/' + previewPath
                       window.open(url, '_blank', 'noopener,noreferrer')
                     }}
                     className="w-10 h-10 p-0"
-
                     title="Watch preview"
                   >
                     <Eye className="h-4 w-4" />
@@ -1257,96 +1251,63 @@ export default function Layout({ children }: LayoutProps) {
         {/* Top Header - Analytics Magic Panel - Unified with Sidebar */}
         <header className="sticky top-0 z-30 bg-card border-b border-border shadow-sm">
           <div className="flex items-center h-[3.5rem]">
-            {/* Analytics Panel - Full Width from Start */}
             <div className="hidden lg:flex items-center gap-4 flex-1 pl-6 pr-6 flex-nowrap overflow-x-auto h-full">
-              {/* Today's Revenue */}
+              {/* Menu Scans (7D) */}
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors group whitespace-nowrap">
-                <DollarSign className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                <span className="text-xs text-muted-foreground">Today:</span>
+                <QrCode className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                <span className="text-xs text-muted-foreground">Scans (7D):</span>
                 <span className="text-sm font-semibold text-foreground">
-                  {formatAmountNoDecimals(analytics.todayRevenue)}
+                  {traffic.totalViews}
                 </span>
-                {analytics.revenueChange !== 0 && (
+                {traffic.growth !== 0 && (
                   <div className={cn(
                     "flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ml-1",
-                    analytics.revenueChange > 0
+                    traffic.growth > 0
                       ? "text-[#107c10] bg-[#dff6dd] dark:text-[#81c784] dark:bg-[#1b5e20]"
                       : "text-[#d13438] bg-[#fde7e9] dark:text-white dark:bg-[#b71c1c]"
                   )}>
-                    {analytics.revenueChange > 0 ? (
-                      <TrendingUp className={cn(
-                        "h-2.5 w-2.5",
-                        analytics.revenueChange > 0
-                          ? "text-[#107c10] dark:text-[#81c784]"
-                          : "text-[#d13438] dark:text-white"
-                      )} />
+                    {traffic.growth > 0 ? (
+                      <TrendingUp className="h-2.5 w-2.5 text-[#107c10] dark:text-[#81c784]" />
                     ) : (
-                      <TrendingDown className={cn(
-                        "h-2.5 w-2.5",
-                        analytics.revenueChange > 0
-                          ? "text-[#107c10] dark:text-[#81c784]"
-                          : "text-[#d13438] dark:text-white"
-                      )} />
+                      <TrendingDown className="h-2.5 w-2.5 text-[#d13438] dark:text-white" />
                     )}
-                    <span className="whitespace-nowrap">{Math.abs(analytics.revenueChange).toFixed(0)}%</span>
+                    <span className="whitespace-nowrap">{Math.abs(traffic.growth).toFixed(1)}%</span>
                   </div>
                 )}
               </div>
 
-              {/* Today's Orders */}
+              {/* Unique Guests */}
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors group whitespace-nowrap">
-                <ShoppingCart className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                <span className="text-xs text-muted-foreground">Orders:</span>
+                <Users className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                <span className="text-xs text-muted-foreground">Unique Guests:</span>
                 <span className="text-sm font-semibold text-foreground">
-                  {analytics.todayOrders}
+                  {traffic.uniqueVisitors}
                 </span>
-                {analytics.ordersChange !== 0 && (
-                  <div className={cn(
-                    "flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ml-1",
-                    analytics.ordersChange > 0
-                      ? "text-[#107c10] bg-[#dff6dd] dark:text-[#81c784] dark:bg-[#1b5e20]"
-                      : "text-[#d13438] bg-[#fde7e9] dark:text-white dark:bg-[#b71c1c]"
-                  )}>
-                    {analytics.ordersChange > 0 ? (
-                      <TrendingUp className={cn(
-                        "h-2.5 w-2.5",
-                        analytics.ordersChange > 0
-                          ? "text-[#107c10] dark:text-[#81c784]"
-                          : "text-[#d13438] dark:text-white"
-                      )} />
-                    ) : (
-                      <TrendingDown className={cn(
-                        "h-2.5 w-2.5",
-                        analytics.ordersChange > 0
-                          ? "text-[#107c10] dark:text-[#81c784]"
-                          : "text-[#d13438] dark:text-white"
-                      )} />
-                    )}
-                    <span className="whitespace-nowrap">{Math.abs(analytics.ordersChange).toFixed(0)}%</span>
-                  </div>
-                )}
               </div>
 
-              {/* Pending Orders Alert */}
-              {analytics.pendingOrders > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#fff4ce] dark:bg-[#ca5010]/20 border border-[#ffe69d] dark:border-[#ca5010]/40 hover:bg-[#fff4ce]/80 dark:hover:bg-[#ca5010]/30 transition-colors whitespace-nowrap">
-                  <AlertCircle className="h-3.5 w-3.5 text-[#ca5010] dark:text-[#ffaa44] flex-shrink-0" />
-                  <span className="text-xs text-[#ca5010] dark:text-[#ffaa44] font-medium">Pending:</span>
-                  <span className="text-sm font-semibold text-[#ca5010] dark:text-[#ffaa44]">
-                    {analytics.pendingOrders}
+              {/* Scan to Pay Conversion (if available) */}
+              {enhanced.conversionRate !== undefined && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors group whitespace-nowrap">
+                  <Zap className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground">Conv:</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {enhanced.conversionRate}%
                   </span>
                 </div>
               )}
 
-              {/* Average Order Value */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors group whitespace-nowrap">
-                <Activity className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                <span className="text-xs text-muted-foreground">Avg:</span>
-                <span className="text-sm font-semibold text-foreground">
-                  {formatAmountNoDecimals(analytics.avgOrderValue)}
-                </span>
-              </div>
+              {/* Revenue (7D) */}
+              {enhanced.revenue !== undefined && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors group whitespace-nowrap">
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground">Revenue (7D):</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {formatAmountNoDecimals(enhanced.revenue)}
+                  </span>
+                </div>
+              )}
             </div>
+
             <div className="lg:hidden flex items-center gap-1 flex-1 min-w-0">
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -1357,31 +1318,21 @@ export default function Layout({ children }: LayoutProps) {
               </button>
 
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                {/* Today's Revenue - Mobile */}
+                {/* Menu Scans (7D) - Mobile */}
                 <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap">
-                  <DollarSign className="h-3 w-3 text-primary flex-shrink-0" />
+                  <QrCode className="h-3 w-3 text-primary flex-shrink-0" />
                   <span className="text-[10px] font-bold text-foreground">
-                    {formatAmountNoDecimals(analytics.todayRevenue)}
+                    {traffic.totalViews} scans
                   </span>
                 </div>
 
-                {/* Today's Orders - Mobile */}
+                {/* Unique Guests - Mobile */}
                 <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap">
-                  <ShoppingCart className="h-3 w-3 text-primary flex-shrink-0" />
+                  <Users className="h-3 w-3 text-primary flex-shrink-0" />
                   <span className="text-[10px] font-bold text-foreground">
-                    {analytics.todayOrders}
+                    {traffic.uniqueVisitors} guests
                   </span>
                 </div>
-
-                {/* Pending Orders - Mobile Alert */}
-                {analytics.pendingOrders > 0 && (
-                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#fff4ce] dark:bg-[#ca5010]/20 border border-[#ffe69d] dark:border-[#ca5010]/40 whitespace-nowrap animate-pulse">
-                    <AlertCircle className="h-3 w-3 text-[#ca5010] dark:text-[#ffaa44] flex-shrink-0" />
-                    <span className="text-[10px] font-bold text-[#ca5010] dark:text-[#ffaa44]">
-                      {analytics.pendingOrders}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1536,7 +1487,7 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Search */}
           <div className="px-5 py-3 border-b border-border">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/60">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground/70" />
               <input
                 autoFocus
@@ -1565,8 +1516,8 @@ export default function Layout({ children }: LayoutProps) {
                   <button
                     key={restaurant.name}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-left mb-0.5",
-                      isSelected ? "bg-accent" : "hover:bg-accent/60"
+                      "w-full flex items-center gap-3 px-3 py-3 transition-colors text-left border-b border-border last:border-0",
+                      isSelected ? "bg-accent/50" : "hover:bg-accent/30"
                     )}
                     onClick={() => {
                       setSelectedRestaurant(restaurant.name)
