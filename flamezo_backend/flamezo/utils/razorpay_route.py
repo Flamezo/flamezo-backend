@@ -130,7 +130,7 @@ def ensure_linked_account(restaurant) -> dict:
             "addresses": {
                 "registered": {
                     "street1": (res.get("address") or "")[:100],
-                    "street2": "",
+                    "street2": (res.get("city") or res.get("address") or "")[:100],
                     "city": res.get("city") or "",
                     "state": res.get("state") or "",
                     "postal_code": res.get("zip_code") or "",
