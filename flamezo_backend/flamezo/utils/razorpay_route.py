@@ -138,9 +138,12 @@ def ensure_linked_account(restaurant) -> dict:
                 }
             },
         },
+        # For proprietorship the owner's PAN goes in the stakeholder KYC only.
+        # Sending it in legal_info.pan causes Razorpay to reject it as a
+        # "company PAN" mismatch. Only non-proprietorship types use this field.
         "legal_info": {
-            "pan": res.get("pan_number") or "",
-            "gst": res.get("gst_number") or "",
+            **({"pan": res.get("pan_number")} if (res.get("business_type") or "proprietorship") != "proprietorship" and res.get("pan_number") else {}),
+            **({"gst": res.get("gst_number")} if res.get("gst_number") else {}),
         },
     }
 

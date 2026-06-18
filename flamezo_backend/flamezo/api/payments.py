@@ -326,29 +326,28 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		transfer_payload = None
 		platform_keep_paise = platform_fee_paise
 
-		if True:
-			route_decision = route_adapter.decide_route_mode(restaurant)
-			if route_decision.mode == "direct_split" and route_decision.linked_account_id:
-				# Tier 1 net-off: pull outstanding cash commission into the
-				# platform's slice of this order so Flamezo recovers it
-				# automatically. Capped at 40% of the order (see engine).
-				netoff_paise = commission_engine.compute_netoff_for_online_order(
-					restaurant_id, final_total_paise
-				)
-				platform_keep_paise = platform_fee_paise + netoff_paise
+		route_decision = route_adapter.decide_route_mode(restaurant)
+		if route_decision.mode == "direct_split" and route_decision.linked_account_id:
+			# Tier 1 net-off: pull outstanding cash commission into the
+			# platform's slice of this order so Flamezo recovers it
+			# automatically. Capped at 40% of the order (see engine).
+			netoff_paise = commission_engine.compute_netoff_for_online_order(
+				restaurant_id, final_total_paise
+			)
+			platform_keep_paise = platform_fee_paise + netoff_paise
 
-				# Safety: ensure merchant slice is non-negative
-				if platform_keep_paise >= final_total_paise:
-					platform_keep_paise = max(0, final_total_paise - 100)  # leave at least ₹1 to merchant
-					netoff_paise = max(0, platform_keep_paise - platform_fee_paise)
+			# Safety: ensure merchant slice is non-negative
+			if platform_keep_paise >= final_total_paise:
+				platform_keep_paise = max(0, final_total_paise - 100)  # leave at least ₹1 to merchant
+				netoff_paise = max(0, platform_keep_paise - platform_fee_paise)
 
-				transfer_payload = route_adapter.build_transfer_payload(
-					linked_account_id=route_decision.linked_account_id,
-					total_paise=final_total_paise,
-					platform_keep_paise=platform_keep_paise,
-					order_name=order_doc.name or "",
-				)
-				settlement_mode = "route_split"
+			transfer_payload = route_adapter.build_transfer_payload(
+				linked_account_id=route_decision.linked_account_id,
+				total_paise=final_total_paise,
+				platform_keep_paise=platform_keep_paise,
+				order_name=order_doc.name or "",
+			)
+			settlement_mode = "route_split"
 
 		# Build the Razorpay order. Typed as a plain dict so we can attach
 		# `transfers` (Razorpay accepts it as a top-level key when Route is
@@ -1165,32 +1164,47 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 
 @frappe.whitelist()
 def initiate_razorpay_refund(restaurant_id, payment_id, amount=None, reason=None):
-	"""Initiate a refund for a Razorpay payment."""
+	"""Initiate a refund for a Razorpay payment.
+
+	For Route split orders, reverses the linked-account transfer first so the
+	restaurant's slice is clawed back before Razorpay refunds the customer.
+	Without this, Flamezo absorbs the full refund while the restaurant keeps its cut.
+	"""
 	try:
 		validate_restaurant_for_api(restaurant_id)
 		client = get_razorpay_client(restaurant_id)
-		
+
+		# Reverse the Route transfer if this order had a split
+		order_name = frappe.db.get_value("Order", {"razorpay_payment_id": payment_id}, "name")
+		if order_name:
+			order_doc = frappe.get_doc("Order", order_name)
+			transfer_id = getattr(order_doc, "razorpay_transfer_id", None)
+			if transfer_id:
+				try:
+					refund_amount_paise = int(float(amount) * 100) if amount else None
+					reversal_params = {"amount": refund_amount_paise} if refund_amount_paise else {}
+					client.request("POST", f"/v1/transfers/{transfer_id}/reversals", params=reversal_params)
+				except Exception as rev_err:
+					frappe.log_error(f"Transfer reversal failed for {transfer_id}: {rev_err}", "razorpay.refund_reversal")
+
 		params = {}
 		if amount:
-			# amount in rupees, convert to paise
 			params["amount"] = int(float(amount) * 100)
-		
+
 		if reason:
 			params["notes"] = {"reason": reason}
 			if reason.lower() in ["duplicate", "fraud", "requested_by_customer"]:
 				params["speed"] = "normal"
-				
+
 		refund = client.payment.refund(payment_id, params)
-		
-		# Log refund in Order if found
-		order_name = frappe.db.get_value("Order", {"razorpay_payment_id": payment_id}, "name")
+
 		if order_name:
-			frappe.get_doc("Order", order_name).add_comment("Info", text=f"Refund of ₹{amount if amount else 'full'} initiated via Razorpay. Refund ID: {refund.get('id')}")
-			
-		return {
-			"success": True,
-			"data": refund
-		}
+			frappe.get_doc("Order", order_name).add_comment(
+				"Info",
+				text=f"Refund of ₹{amount if amount else 'full'} initiated. Refund ID: {refund.get('id')}"
+			)
+
+		return {"success": True, "data": refund}
 	except Exception as e:
 		frappe.log_error(f"Failed to initiate Razorpay refund: {str(e)}", "razorpay.initiate_refund")
 		return {"success": False, "error": str(e)}
