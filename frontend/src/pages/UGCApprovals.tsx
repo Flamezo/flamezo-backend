@@ -173,7 +173,7 @@ const mockFlaggedData = [
 export default function UGCApprovals() {
   const { selectedRestaurant } = useRestaurant()
   const [tab, setTab] = useState<Tab>('verify')
-  const [demoMode, setDemoMode] = useState(true)
+  const [demoMode, setDemoMode] = useState(false)
   const [reviewing, setReviewing] = useState<any | null>(null)
   const [viewCount, setViewCount] = useState('')
   const [busy, setBusy] = useState(false)
@@ -254,22 +254,24 @@ export default function UGCApprovals() {
           <h1 className="text-3xl font-bold tracking-tight">UGC Approvals</h1>
           <p className="text-muted-foreground mt-1">Verify diners' stories in person, then resolve any view-counts the AI couldn't auto-approve.</p>
         </div>
-        <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
-          <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
-          <button
-            onClick={() => setDemoMode(!demoMode)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-muted ${
-              demoMode ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                demoMode ? 'translate-x-4' : 'translate-x-0'
+        {selectedRestaurant === 'unvind' && (
+          <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
+            <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
+            <button
+              onClick={() => setDemoMode(!demoMode)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-muted ${
+                demoMode ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'
               }`}
-            />
-          </button>
-          <span className={!demoMode ? "text-primary font-semibold" : "text-muted-foreground"}>Live Data</span>
-        </div>
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  demoMode ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className={!demoMode ? "text-primary font-semibold" : "text-muted-foreground"}>Live Data</span>
+          </div>
+        )}
       </div>
 
       {demoMode && (
@@ -346,7 +348,15 @@ export default function UGCApprovals() {
             <div className="space-y-4">
               {reviewing.proof_video_url ? (
                 <video src={reviewing.proof_video_url} controls playsInline className="w-full rounded-lg max-h-[50vh] bg-black" />
-              ) : <p className="text-sm text-muted-foreground">Video unavailable.</p>}
+              ) : reviewing.proof_hidden ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <strong>Video hidden — retention window elapsed.</strong> The proof video is no longer
+                  accessible for staff review (7-day visibility limit). Approve only if you have
+                  independent confirmation of the view count (e.g. a screenshot sent by the diner).
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No video uploaded for this submission.</p>
+              )}
               <div className="text-sm text-muted-foreground">
                 Order amount: <strong>₹{reviewing.order_amount}</strong>. Cashback = min(views, order).
               </div>

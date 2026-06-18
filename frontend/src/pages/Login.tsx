@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams, Navigate } from 'react-router-dom'
 
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -7,13 +7,20 @@ import { Input } from '@/components/ui/input'
 import loginImage from '/images/login-flamezo_backend.webp'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { useFrappeAuth } from '@/lib/frappe'
 
 export default function Login() {
   const location = useLocation()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [searchParams] = useSearchParams()
+  const [email, setEmail] = useState(searchParams.get('email') || '')
+  const [password, setPassword] = useState(searchParams.get('pwd') || '')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const { currentUser, isLoading } = useFrappeAuth()
+
+  if (!isLoading && currentUser) {
+    return <Navigate to="/flamezo_backend" replace />
+  }
 
 
   const handleSubmit = async (e: any) => {

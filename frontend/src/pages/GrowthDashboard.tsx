@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, Users, Receipt, Banknote, Target, CheckSquare, BarChart3, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useRestaurant } from '@/contexts/RestaurantContext'
 import { cn } from '@/lib/utils'
 
 function MetricCard({ 
@@ -104,6 +105,21 @@ function OutcomeCheck({ text, highlight = false }: any) {
 
 export default function GrowthDashboard() {
   const { formatAmountNoDecimals } = useCurrency()
+  const { selectedRestaurant } = useRestaurant()
+
+  if (selectedRestaurant !== 'unvind') {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 animate-in fade-in">
+        <div className="p-4 bg-primary/10 rounded-full">
+          <TrendingUp className="h-8 w-8 text-primary" />
+        </div>
+        <h2 className="text-xl font-bold">Growth Report Coming Soon</h2>
+        <p className="text-muted-foreground max-w-md">
+          Not enough data has been collected to generate your growth outcome report. Please check back after your UGC campaign has been running for 45 days.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8 pb-10 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">

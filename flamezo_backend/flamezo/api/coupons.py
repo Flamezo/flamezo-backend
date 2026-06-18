@@ -981,11 +981,26 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		claim.insert(ignore_permissions=True)
 		frappe.db.commit()
 
+		# Notify the customer on WhatsApp with their confirmed offer + pay-bill link
+		frappe.enqueue(
+			"flamezo_backend.flamezo.tasks.coupon_tasks.send_offer_claim_notification",
+			claim_id=claim.name,
+			queue="short",
+			timeout=60,
+			enqueue_after_commit=True,
+		)
+
+		# Build the pay-bill deep link so the frontend can surface it immediately too
+		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
+		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
+
 		return {
 			"success": True,
 			"data": {
 				"claimId": claim.name,
 				"couponCode": coupon.code,
+				"payLink": pay_link,
 				"message": "Offer claimed successfully!"
 			}
 		}

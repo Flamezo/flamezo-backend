@@ -671,8 +671,25 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             create_restaurant_user_permission,
         )
 
+        # Generate password
+        import string
+        import random
+        clean_name = ''.join(e for e in restaurant.restaurant_name if e.isalnum())
+        if not clean_name:
+            clean_name = restaurant_id.replace('-', '')
+            
+        suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        symbols = ['!', '@', '#', '$', '%', '&', '*']
+        random_symbol = random.choice(symbols)
+        
+        generated_password = f"{clean_name.capitalize()}{random_symbol}{suffix}!"
+
+        # Save generated password for admin visibility
+        restaurant.onboarding_password = generated_password
+        restaurant.save(ignore_permissions=True)
+        frappe.db.commit()
+
         is_new = False
-        onboard_link = None
         email_sent = False
 
         if not user_id:
@@ -681,34 +698,24 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
                 "doctype": "User",
                 "email": owner_email,
                 "first_name": first_name,
-                "user_type": "System User"
+                "user_type": "System User",
+                "send_welcome_email": 0
             })
             user_doc.insert(ignore_permissions=True)
             user_id = user_doc.name
             is_new = True
-
-            # Generate link manually and fix protocol
-            onboard_link = user_doc.reset_password(send_email=False)
-            if onboard_link and onboard_link.startswith("http://"):
-                onboard_link = onboard_link.replace("http://", "https://", 1)
-
-            try:
-                send_onboarding_email(owner_email, first_name, onboard_link)
-                email_sent = True
-            except Exception:
-                frappe.log_error("Onboarding Email Failed", f"Failed to send welcome email to {owner_email}. Link: {onboard_link}")
         else:
-            # Existing user - try to send reset email
             user_doc = frappe.get_doc("User", user_id)
-            onboard_link = user_doc.reset_password(send_email=False)
-            if onboard_link and onboard_link.startswith("http://"):
-                onboard_link = onboard_link.replace("http://", "https://", 1)
 
-            try:
-                send_onboarding_email(owner_email, first_name, onboard_link)
-                email_sent = True
-            except Exception:
-                frappe.log_error("Password Reset Email Failed", f"Failed to send reset email to {owner_email}. Link: {onboard_link}")
+        # Set the password directly
+        from frappe.utils.password import update_password
+        update_password(user=owner_email, pwd=generated_password)
+
+        try:
+            send_onboarding_email(owner_email, first_name, generated_password)
+            email_sent = True
+        except Exception as e:
+            frappe.log_error("Onboarding Email Failed", f"Failed to send welcome email to {owner_email}. Error: {e}")
 
         # 3. Add necessary roles
         roles_to_add = ["System User", "Restaurant Staff"]
@@ -737,7 +744,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
         frappe.db.commit()
 
         status_msg = "successfully onboarded" if is_new else "already exists and has been granted access"
-        email_msg = "An email has been sent." if email_sent else f"Email could not be sent. Link: {onboard_link}"
+        email_msg = "An email has been sent with credentials." if email_sent else "Email could not be sent."
 
         full_msg = f"Owner {owner_email} {status_msg}. {email_msg}"
 
@@ -749,7 +756,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
                 'email': owner_email,
                 'is_new': is_new,
                 'email_sent': email_sent,
-                'onboard_link': onboard_link
+                'generated_password': generated_password
             }
         }
     except Exception as e:
@@ -757,19 +764,20 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
-def send_onboarding_email(recipient, name, link):
+def send_onboarding_email(recipient, name, password):
     """
-    Send a custom branded onboarding email to the restaurant owner.
-    Fixes protocol and provides a premium experience.
+    Send a custom branded onboarding email to the restaurant owner with credentials.
     """
-    site_url = "https://backend.flamezo_backend.com"
-    subject = "Welcome to Flamezo"
+    import urllib.parse
+    site_url = "https://backend.flamezo.in"
+    subject = "Welcome to Flamezo - Your Account Credentials"
+    login_url = f"{site_url}/flamezo_backend/login?email={urllib.parse.quote(recipient)}&pwd={urllib.parse.quote(password)}"
 
     html_content = f"""
     <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; background-color: #f9fafb;">
         <div style="background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-            <div style="display: flex; align-items: center; margin-bottom: 32px;">
-                <div style="width: 12px; height: 12px; background-color: #10b981; border-radius: 50%; margin-right: 12px;"></div>
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #f3f4f6;">
+                <img src="https://flamezo.in/logo.png" alt="Flamezo Logo" style="height: 40px; object-fit: contain; margin-bottom: 20px;" />
                 <h1 style="font-size: 24px; font-weight: 700; margin: 0; color: #111827;">Welcome to Flamezo</h1>
             </div>
 
@@ -782,20 +790,19 @@ def send_onboarding_email(recipient, name, link):
             </p>
 
             <p style="font-size: 16px; line-height: 24px; margin-bottom: 32px; color: #374151;">
-                Your login id is: <strong style="color: #111827;">{recipient}</strong><br>
-                Click on the link below to complete your registration and set a new password.
+                Your login credentials are:<br><br>
+                Email: <strong style="color: #111827;">{recipient}</strong><br>
+                Password: <strong style="color: #111827;">{password}</strong><br><br>
+                You can log in and change your password anytime from your dashboard.
             </p>
 
             <div style="margin-bottom: 40px;">
-                <a href="{link}" style="display: inline-block; background-color: #111827; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center;">Complete Registration</a>
+                <a href="{login_url}" style="display: inline-block; background-color: #111827; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center;">Login to Dashboard</a>
             </div>
 
             <div style="padding-top: 32px; border-top: 1px solid #e5e7eb;">
                 <p style="font-size: 14px; line-height: 20px; color: #6b7280; margin-bottom: 8px;">
-                    You can also copy-paste following link in your browser:
-                </p>
-                <p style="font-size: 14px; line-height: 20px; color: #2563eb; word-break: break-all;">
-                    <a href="{link}" style="color: #2563eb; text-decoration: none;">{link}</a>
+                    Please keep these credentials safe.
                 </p>
             </div>
         </div>
@@ -1287,3 +1294,62 @@ def admin_delete_customer(customer_id):
     frappe.db.commit()
     return {"success": True}
 
+
+@frappe.whitelist()
+def admin_generate_bulk_food_photos(restaurant_id):
+    """
+    Enqueue a background job to generate Fal.ai food photos for all 
+    products in a restaurant that currently lack media.
+    """
+    try:
+        # Check admin access first
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        frappe.enqueue(
+            'flamezo_backend.flamezo.api.admin.process_bulk_food_photos',
+            restaurant_id=restaurant_id,
+            queue='long',
+            timeout=1500
+        )
+
+        return {
+            'success': True,
+            'message': 'Bulk photo generation job enqueued successfully.'
+        }
+    except Exception as e:
+        frappe.log_error("Bulk Photo Gen Error", f"Failed to enqueue: {str(e)}")
+        return {'success': False, 'error': str(e)}
+
+def process_bulk_food_photos(restaurant_id):
+    try:
+        # Find products without media
+        products = frappe.get_all('Menu Product', filters={'restaurant': restaurant_id}, pluck='name')
+        for product_name in products:
+            product = frappe.get_doc('Menu Product', product_name)
+            if not product.product_media:
+                # Bypass coin billing for admin generated bulk photos
+                doc = frappe.get_doc({
+                    "doctype": "AI Image Generation",
+                    "restaurant": restaurant_id,
+                    "owner_doctype": "Menu Product",
+                    "owner_name": product_name,
+                    "original_image_url": "",
+                    "status": "Pending_Upload"
+                })
+                doc.insert(ignore_permissions=True)
+                frappe.db.commit()
+
+                # Enqueue the actual generation job
+                frappe.enqueue(
+                    "flamezo_backend.flamezo.api.ai_media.process_ai_image_enhancement",
+                    queue="default",
+                    timeout=300,
+                    generation_name=doc.name,
+                    mode="generate",
+                    include_branding=False,
+                    coins_to_refund=0 # Bypass billing refund
+                )
+    except Exception as e:
+        frappe.log_error("Bulk Photo Gen Background Error", str(e))

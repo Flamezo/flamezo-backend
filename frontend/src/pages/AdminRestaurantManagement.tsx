@@ -104,10 +104,7 @@ export default function AdminRestaurantManagement() {
   const [coinAction, setCoinAction] = useState<'grant' | 'deduct'>('grant')
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
 
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
-  const [editPlatformFee, setEditPlatformFee] = useState('')
-  const [editName, setEditName] = useState('')
-  const [editEmail, setEditEmail] = useState('')
+
 
   const [isSupervisorOnly, setIsSupervisorOnly] = useState(false)
   
@@ -259,37 +256,7 @@ export default function AdminRestaurantManagement() {
     }
   }
 
-  const handleUpdateSettings = async () => {
-    if (!selectedRestaurant) return
-    try {
-      setUpdating(selectedRestaurant.name)
-      const result = await updateSettings({
-        restaurant_id: selectedRestaurant.restaurant_id,
-        updates: {
-          platform_fee_percent: editPlatformFee,
-          restaurant_name: editName,
-          owner_email: editEmail,
-        }
-      }) as any
-      if (result?.message?.success) {
-        toast.success('Core settings updated')
-        if (selectedRestaurant) {
-          setSelectedRestaurant({
-            ...selectedRestaurant,
-            restaurant_name: editName,
-            owner_email: editEmail,
-            platform_fee_percent: parseFloat(editPlatformFee),
-          })
-        }
-        setIsSettingsModalOpen(false)
-        loadRestaurants()
-      }
-    } catch (error) {
-      toast.error('Settings update failed')
-    } finally {
-      setUpdating(null)
-    }
-  }
+
 
   const handleConfirmDelete = async () => {
     if (!restaurantToDelete || verificationInput !== restaurantToDelete.id) return
@@ -727,7 +694,7 @@ export default function AdminRestaurantManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Restaurant</TableHead>
+                      <TableHead className="sticky left-0 z-20 bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] min-w-[250px]">Restaurant</TableHead>
                       <TableHead>ID</TableHead>
                       <TableHead>Success Share</TableHead>
                       <TableHead className="text-right">Outstanding</TableHead>
@@ -739,8 +706,8 @@ export default function AdminRestaurantManagement() {
                   </TableHeader>
                   <TableBody>
                     {restaurants.map((restaurant: any) => (
-                      <TableRow key={restaurant.name}>
-                        <TableCell>
+                      <TableRow key={restaurant.name} className="group">
+                        <TableCell className="sticky left-0 z-10 bg-background group-hover:bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] transition-colors">
                           <div className="flex items-center gap-2">
                             {/* Status dot — green = Online (is_active=1),
                                 red = Offline. Pulses subtly on Online to
@@ -852,7 +819,7 @@ export default function AdminRestaurantManagement() {
                               variant="ghost" size="icon" className="h-8 w-8"
                               onClick={() => navigate(`/admin/restaurants/${restaurant.restaurant_id}`)}
                             >
-                              <ArrowUpRight className="h-4 w-4" />
+                              <Settings className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost" size="icon"
@@ -862,35 +829,19 @@ export default function AdminRestaurantManagement() {
                             >
                               {restaurant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                             </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Settings className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => {
-                                  setSelectedRestaurant(restaurant)
-                                  setEditName(restaurant.restaurant_name)
-                                  setEditEmail(restaurant.owner_email || '')
-                                  setEditPlatformFee(restaurant.platform_fee_percent.toString())
-                                  setIsSettingsModalOpen(true)
-                                }}>
-                                  <Settings className="h-4 w-4 mr-2" />
-                                  <span>Configure</span>
-                                </DropdownMenuItem>
-                                {!isSupervisorOnly && (
-                                  <DropdownMenuItem onClick={() => {
-                                    setRestaurantToDelete({ id: restaurant.restaurant_id, name: restaurant.restaurant_name })
-                                    setVerificationInput('')
-                                    setIsDeleteDialogOpen(true)
-                                  }} className="text-red-600">
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    <span>Delete</span>
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {!isSupervisorOnly && (
+                              <Button
+                                variant="ghost" size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => {
+                                  setRestaurantToDelete({ id: restaurant.restaurant_id, name: restaurant.restaurant_name })
+                                  setVerificationInput('')
+                                  setIsDeleteDialogOpen(true)
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -990,62 +941,7 @@ export default function AdminRestaurantManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Advanced Settings Modal */}
-      <Dialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen}>
-        <DialogContent className="sm:max-w-lg p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
-          <div className="p-6 pt-8 border-b bg-muted/10">
-            <DialogHeader>
-              <div className="flex items-center gap-3 mb-1">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Settings className="h-5 w-5 text-primary" />
-                </div>
-                <DialogTitle className="text-xl font-bold">Core Configuration</DialogTitle>
-              </div>
-              <DialogDescription className="text-sm font-medium pl-10 text-muted-foreground">
-                Administrative parameters for <span className="text-foreground font-semibold">{selectedRestaurant?.restaurant_name}</span>
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-          <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
-            {/* Primary Details Section */}
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground ml-1">Trade Name</Label>
-                <Input value={editName} onChange={(e: any) => setEditName(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground ml-1">Controller Email</Label>
-                <Input value={editEmail} onChange={(e: any) => setEditEmail(e.target.value)} className="h-11 rounded-xl border-slate-300 font-medium focus-visible:ring-primary/30 bg-background text-foreground" />
-              </div>
-            </div>
 
-            {/* Financial Parameters Section */}
-            <div className="space-y-5 p-5 rounded-xl border bg-muted/5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-background rounded-md border shadow-sm">
-                  <Coins className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Financial Parameters</span>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground ml-1">Success Share (%)</Label>
-                <NumberInput value={editPlatformFee} onChange={(e: any) => setEditPlatformFee(e.target.value)} className="h-11 rounded-xl bg-background border-slate-300 font-bold text-foreground" />
-              </div>
-            </div>
-
-          </div>
-          <DialogFooter className="p-4 bg-muted/30 border-t flex flex-row gap-2 sm:justify-end">
-            <Button variant="ghost" onClick={() => setIsSettingsModalOpen(false)} className="rounded-xl flex-1 sm:flex-none">Cancel</Button>
-            <Button
-              onClick={handleUpdateSettings}
-              className="rounded-xl px-8 font-bold bg-primary text-white hover:bg-primary/90 shadow-sm flex-1 sm:flex-none"
-            >
-              Save Configuration
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

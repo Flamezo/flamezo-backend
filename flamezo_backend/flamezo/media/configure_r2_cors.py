@@ -36,7 +36,7 @@ def configure_cors():
 		"http://localhost:3001",
 		"https://backend.flamezo.in",
 		"https://dev.flamezo.in",
-		"https://app.flamezo.in",
+		"https://flamezo.in",
 		"https://flamezo.in",
 		"https://www.flamezo.in",
 	]

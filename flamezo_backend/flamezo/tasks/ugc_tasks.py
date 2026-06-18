@@ -50,7 +50,7 @@ def send_ugc_whatsapp(submission_name, kind):
 			f"✅ Your story for {rname} is verified! You have 48 hours to upload a "
 			f"10–15 second screen recording of your story's view count.\n\n"
 			f"How to record:\n"
-			f"📱 Instagram: Open your story → swipe up → see "Seen by" count → screen record for 10–15 sec.\n"
+			f'📱 Instagram: Open your story → swipe up → see "Seen by" count → screen record for 10–15 sec.\n'
 			f"📱 Facebook: Open your story → tap the eye icon → screen record for 10–15 sec.\n\n"
 			f"Make sure your phone's clock and battery bar are visible. Max 20 MB."
 			+ _claim_link(sub)
@@ -61,7 +61,7 @@ def send_ugc_whatsapp(submission_name, kind):
 		),
 		"proof_reminder": (
 			f"⏰ Last reminder! Upload your story views to claim cashback from {rname}.\n\n"
-			f"Instagram: Open story → swipe up → screen record the "Seen by" count (10–15 sec).\n"
+			f'Instagram: Open story → swipe up → screen record the "Seen by" count (10–15 sec).\n'
 			f"Facebook: Open story → tap eye icon → screen record (10–15 sec).\n\n"
 			f"Keep it under 20 MB. Upload here before your 48-hour window closes:"
 			+ _claim_link(sub)
@@ -74,6 +74,14 @@ def send_ugc_whatsapp(submission_name, kind):
 		"proof_rejected": (
 			f"Your cashback claim at {rname} couldn't be approved. "
 			f"Reach out to the restaurant if you think this was a mistake."
+		),
+		"flagged": (
+			f"Your story cashback at {rname} is under manual review. "
+			f"Our team is checking the view count — we'll update you within 24 hours."
+		),
+		"expired": (
+			f"Your story cashback at {rname} has expired — the 48-hour window to upload "
+			f"your view-count proof has passed. Visit again and share your next story to earn cashback!"
 		),
 	}
 	message = messages.get(kind)
@@ -114,6 +122,68 @@ def purge_old_proof_videos():
 			frappe.db.commit()
 		except Exception as e:
 			frappe.log_error(f"UGC proof purge failed for {r.name}: {e}", "UGC")
+
+
+def retry_stalled_submissions():
+	"""
+	Every 30 minutes: find UGC Story Submissions stuck in 'proof_submitted' for
+	more than 30 minutes (media processing or AI verification job silently died)
+	and re-enqueue the AI verifier.
+
+	This is a safety net — the happy path goes:
+	  submit_ugc_proof → media processing job → verify_submission (AI)
+	If the media job or AI job crashes without updating status, the submission
+	stays in 'proof_submitted' forever with no cashback. This cron rescues those.
+
+	Capped at 3 retries to avoid infinite loops on persistently broken proofs.
+	"""
+	now = now_datetime()
+	cutoff = add_to_date(now, minutes=-30)
+	stalled = frappe.get_all(
+		"UGC Story Submission",
+		filters={
+			"status": "proof_submitted",
+			"proof_submitted_at": ["<", cutoff],
+		},
+		fields=["name", "proof_submitted_at"],
+		limit_page_length=100,
+	)
+	for row in stalled:
+		# Use ai_raw as a lightweight retry counter (set to "retry:N" on each attempt).
+		existing_raw = frappe.db.get_value("UGC Story Submission", row.name, "ai_raw") or ""
+		retry_count = 0
+		if existing_raw.startswith("retry:"):
+			try:
+				retry_count = int(existing_raw.split(":")[1])
+			except (IndexError, ValueError):
+				pass
+		if retry_count >= 3:
+			# Give up — flag for manual review rather than silently expire.
+			try:
+				frappe.db.set_value("UGC Story Submission", row.name, {
+					"status": "flagged",
+					"ai_tamper_signals": "stalled_job",
+				}, update_modified=False)
+				frappe.db.commit()
+				send_ugc_whatsapp(row.name, "flagged")
+			except Exception as e:
+				frappe.log_error(f"UGC stall-flag for {row.name}: {e}", "UGC")
+			continue
+
+		try:
+			frappe.db.set_value(
+				"UGC Story Submission", row.name, "ai_raw",
+				f"retry:{retry_count + 1}", update_modified=False,
+			)
+			frappe.db.commit()
+			frappe.enqueue(
+				"flamezo_backend.flamezo.services.ai.ugc_verifier.verify_submission",
+				submission_name=row.name,
+				queue="long",
+				timeout=300,
+			)
+		except Exception as e:
+			frappe.log_error(f"UGC stall-retry enqueue for {row.name}: {e}", "UGC")
 
 
 def send_proof_reminders():
@@ -181,5 +251,10 @@ def send_proof_reminders():
 			try:
 				frappe.db.set_value("UGC Story Submission", row.name, "status", "expired", update_modified=False)
 				frappe.db.commit()
+				# Only notify when the diner had an active proof window — unverified
+				# offers (offer_shown/story_shared) expired before the diner was
+				# ever told they had a deadline, so messaging them would be confusing.
+				if row.status == "story_verified":
+					send_ugc_whatsapp(row.name, "expired")
 			except Exception as e:
 				frappe.log_error(f"UGC expiry for {row.name}: {e}", "UGC")

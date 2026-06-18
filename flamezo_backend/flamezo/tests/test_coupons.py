@@ -53,6 +53,7 @@ from frappe.utils import today, add_days, flt
 
 from flamezo_backend.flamezo.tests.utils import (
     make_restaurant,
+    make_restaurant_config,
     make_customer,
     cleanup_restaurant,
 )
@@ -1361,6 +1362,410 @@ class TestComboTypeEligibility(unittest.TestCase):
         )
         result = self._call(offer, cart_total=200, cart_items=[{"dishId": "dish-X", "unitPrice": 200}])
         self.assertFalse(result["success"])
+
+
+# ─── Helpers for PIN / notification tests ────────────────────────────────────
+
+_PIN_PREFIX = "TEST-PIN"
+_NOTIF_PREFIX = "TEST-NOTIF"
+_WA_PATH = "flamezo_backend.flamezo.utils.whatsapp_utils.send_whatsapp_cloud_message"
+
+
+def cleanup_claims(restaurant):
+    frappe.db.delete("Offer Claim", {"restaurant": restaurant})
+    frappe.db.commit()
+
+
+# ─── Test: claim_offer_with_pin() ─────────────────────────────────────────────
+
+class TestClaimOfferWithPin(unittest.TestCase):
+    """
+    Tests for the claim_offer_with_pin() API endpoint.
+
+    Auth (get_customer_token / get_customer_from_token) is mocked because the
+    real machinery requires a live Redis session not available in unit tests.
+    frappe.enqueue is also mocked to prevent real background-job creation.
+
+    Covers:
+      - Missing / invalid auth token → AUTH_REQUIRED
+      - PIN not configured on restaurant → PIN_NOT_SET
+      - Wrong PIN → INVALID_PIN
+      - Coupon not found / inactive → COUPON_NOT_FOUND
+      - Same-day dedup (unpaid) → ALREADY_CLAIMED
+      - Paid claim same day does NOT block a new claim
+      - Happy path creates Offer Claim doc in DB
+      - Happy path returns payLink in response
+      - Happy path enqueues WhatsApp notification with correct args
+    """
+
+    CUSTOMER_ID = "TEST-PIN-CUST-001"
+    CORRECT_PIN = "1234"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant(f"{_PIN_PREFIX}-R").name
+        make_restaurant_config(cls.restaurant, offer_verification_pin=cls.CORRECT_PIN)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_claims(cls.restaurant)
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_claims(self.restaurant)
+        cleanup_coupons(self.restaurant)
+
+    def _call(self, coupon_id, pin, customer_id=None):
+        from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+        cid = customer_id or self.CUSTOMER_ID
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="test-tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=cid), \
+             patch("frappe.enqueue"):
+            return claim_offer_with_pin(self.restaurant, coupon_id, pin)
+
+    def _call_with_enqueue_mock(self, coupon_id, pin):
+        from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+        mock_enq = MagicMock()
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="test-tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=self.CUSTOMER_ID), \
+             patch("frappe.enqueue", mock_enq):
+            result = claim_offer_with_pin(self.restaurant, coupon_id, pin)
+        return result, mock_enq
+
+    # ── Auth guards ───────────────────────────────────────────────────────────
+
+    def test_no_token_returns_auth_required(self):
+        from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value=None):
+            result = claim_offer_with_pin(self.restaurant, "any", self.CORRECT_PIN)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "AUTH_REQUIRED")
+
+    def test_invalid_token_returns_auth_required(self):
+        from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="bad-tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=None):
+            result = claim_offer_with_pin(self.restaurant, "any", self.CORRECT_PIN)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "AUTH_REQUIRED")
+
+    # ── PIN guards ────────────────────────────────────────────────────────────
+
+    def test_pin_not_configured_returns_pin_not_set(self):
+        r = make_restaurant(f"{_PIN_PREFIX}-NOPIN").name
+        make_restaurant_config(r)  # no offer_verification_pin
+        coupon = make_coupon(r, code="NOPIN10")
+        try:
+            from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+            with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="tok"), \
+                 patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=self.CUSTOMER_ID), \
+                 patch("frappe.enqueue"):
+                result = claim_offer_with_pin(r, coupon.name, "1234")
+            self.assertFalse(result["success"])
+            self.assertEqual(result["error"]["code"], "PIN_NOT_SET")
+        finally:
+            cleanup_claims(r)
+            cleanup_coupons(r)
+            cleanup_restaurant(r)
+
+    def test_wrong_pin_returns_invalid_pin(self):
+        coupon = make_coupon(self.restaurant, code="WRONGPIN1")
+        result = self._call(coupon.name, "9999")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "INVALID_PIN")
+
+    # ── Coupon guards ─────────────────────────────────────────────────────────
+
+    def test_coupon_not_found_returns_error(self):
+        result = self._call("NO-SUCH-COUPON-XYZ", self.CORRECT_PIN)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "COUPON_NOT_FOUND")
+
+    def test_inactive_coupon_returns_not_found(self):
+        coupon = make_coupon(self.restaurant, code="INACT_PIN1", is_active=0)
+        result = self._call(coupon.name, self.CORRECT_PIN)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "COUPON_NOT_FOUND")
+
+    # ── Same-day dedup ────────────────────────────────────────────────────────
+
+    def test_same_day_unpaid_claim_blocks_second_claim(self):
+        coupon = make_coupon(self.restaurant, code="DEDUP_PIN1")
+        frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": frappe.utils.now_datetime(),
+            "is_paid": 0,
+        }).insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        result = self._call(coupon.name, self.CORRECT_PIN)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "ALREADY_CLAIMED")
+
+    def test_paid_claim_same_day_does_not_block_new_claim(self):
+        """A paid claim (is_paid=1) from today must NOT trigger the dedup guard."""
+        coupon = make_coupon(self.restaurant, code="PAIDDED_PIN1")
+        frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": frappe.utils.now_datetime(),
+            "is_paid": 1,
+        }).insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        result = self._call(coupon.name, self.CORRECT_PIN)
+        self.assertTrue(result["success"])
+
+    # ── Happy path ────────────────────────────────────────────────────────────
+
+    def test_successful_claim_creates_offer_claim_doc(self):
+        coupon = make_coupon(self.restaurant, code="HAPPY_PIN1")
+        result = self._call(coupon.name, self.CORRECT_PIN)
+
+        self.assertTrue(result["success"])
+        claim_id = result["data"]["claimId"]
+        claim = frappe.get_doc("Offer Claim", claim_id)
+        self.assertEqual(claim.restaurant, self.restaurant)
+        self.assertEqual(claim.coupon_code, coupon.code)
+        self.assertEqual(claim.customer, self.CUSTOMER_ID)
+        self.assertEqual(claim.is_paid, 0)
+
+    def test_successful_claim_returns_coupon_code_in_response(self):
+        coupon = make_coupon(self.restaurant, code="HAPPY_PIN2")
+        result = self._call(coupon.name, self.CORRECT_PIN)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["couponCode"], coupon.code)
+
+    def test_successful_claim_returns_pay_link_with_offer_param(self):
+        coupon = make_coupon(self.restaurant, code="HAPPY_PIN3")
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=self.CUSTOMER_ID), \
+             patch("frappe.enqueue"), \
+             patch.dict(frappe.conf, {"customer_web_url": "https://flamezo.in"}):
+            from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+            result = claim_offer_with_pin(self.restaurant, coupon.name, self.CORRECT_PIN)
+
+        self.assertTrue(result["success"])
+        pay_link = result["data"].get("payLink", "")
+        self.assertIn("/pay-bill", pay_link)
+        self.assertIn(f"offer={coupon.code}", pay_link)
+
+    def test_successful_claim_enqueues_whatsapp_with_correct_args(self):
+        coupon = make_coupon(self.restaurant, code="HAPPY_PIN4")
+        result, mock_enq = self._call_with_enqueue_mock(coupon.name, self.CORRECT_PIN)
+
+        self.assertTrue(result["success"])
+        mock_enq.assert_called_once()
+        pos_args, kw_args = mock_enq.call_args
+        self.assertEqual(
+            pos_args[0],
+            "flamezo_backend.flamezo.tasks.coupon_tasks.send_offer_claim_notification",
+        )
+        self.assertIn("claim_id", kw_args)
+        self.assertEqual(kw_args["queue"], "short")
+        self.assertEqual(kw_args["timeout"], 60)
+        self.assertTrue(kw_args["enqueue_after_commit"])
+
+    def test_claim_id_in_enqueue_matches_db_record(self):
+        coupon = make_coupon(self.restaurant, code="HAPPY_PIN5")
+        result, mock_enq = self._call_with_enqueue_mock(coupon.name, self.CORRECT_PIN)
+
+        self.assertTrue(result["success"])
+        enqueued_claim_id = mock_enq.call_args[1]["claim_id"]
+        self.assertEqual(enqueued_claim_id, result["data"]["claimId"])
+        # Also verify the DB record exists
+        self.assertTrue(frappe.db.exists("Offer Claim", enqueued_claim_id))
+
+
+# ─── Test: send_offer_claim_notification() ────────────────────────────────────
+
+class TestSendOfferClaimNotification(unittest.TestCase):
+    """
+    Tests for the background task that sends the WhatsApp message after a claim.
+
+    The Meta Cloud API call is mocked throughout — no real network requests.
+
+    Covers:
+      - Non-existent claim ID exits silently (no crash, no WA call)
+      - Claim with no phone exits silently
+      - Flat discount label: "₹50 flat off"
+      - Percent discount label: "20% OFF"
+      - Correct template name: "offer_claim_pay_bill"
+      - body_params contains [discount_label, restaurant_name, coupon_code]
+      - button_url_param = "{restaurant_slug}/pay-bill?offer={code}"
+      - WA API failure is logged, not raised
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant(f"{_NOTIF_PREFIX}-R").name
+        cls.coupon_flat = make_coupon(
+            cls.restaurant, code="NOTIF_FLAT50",
+            discount_type="flat", discount_value=50.0,
+        )
+        cls.coupon_pct = make_coupon(
+            cls.restaurant, code="NOTIF_PCT20",
+            discount_type="percent", discount_value=20.0,
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_claims(cls.restaurant)
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_claims(self.restaurant)
+
+    def _make_claim(self, coupon, phone="917487871213"):
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": "TEST-NOTIF-CUST",
+            "customer_phone": phone,
+            "claimed_at": frappe.utils.now_datetime(),
+            "is_paid": 0,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return claim
+
+    def _call(self, claim_id):
+        from flamezo_backend.flamezo.tasks.coupon_tasks import send_offer_claim_notification
+        send_offer_claim_notification(claim_id)
+
+    # ── Guard cases ───────────────────────────────────────────────────────────
+
+    def test_nonexistent_claim_id_exits_silently(self):
+        with patch(_WA_PATH) as mock_wa:
+            self._call("NO-SUCH-CLAIM-99999")
+        mock_wa.assert_not_called()
+
+    def test_claim_with_no_phone_exits_silently(self):
+        claim = self._make_claim(self.coupon_flat, phone="")
+        with patch(_WA_PATH) as mock_wa:
+            self._call(claim.name)
+        mock_wa.assert_not_called()
+
+    # ── Discount label formatting ─────────────────────────────────────────────
+
+    def test_flat_discount_formats_as_rupee_amount(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-001")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[0], "₹50 flat off")
+
+    def test_percent_discount_formats_as_percentage(self):
+        claim = self._make_claim(self.coupon_pct)
+        with patch(_WA_PATH, return_value=(True, "wamid-002")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[0], "20% OFF")
+
+    # ── Template and params ───────────────────────────────────────────────────
+
+    def test_correct_template_name_used(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-003")) as mock_wa:
+            self._call(claim.name)
+        self.assertEqual(mock_wa.call_args[1]["template_name"], "offer_claim_pay_bill")
+
+    def test_body_params_has_three_elements(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-004")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(len(body_params), 3)
+
+    def test_body_params_second_element_is_restaurant_name(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-005")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        restaurant_name = frappe.db.get_value("Restaurant", self.restaurant, "restaurant_name")
+        self.assertEqual(body_params[1], restaurant_name)
+
+    def test_body_params_third_element_is_coupon_code(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-006")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[2], self.coupon_flat.code)
+
+    def test_button_url_contains_pay_bill_path(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-007")) as mock_wa:
+            self._call(claim.name)
+        button_param = mock_wa.call_args[1]["button_url_param"]
+        self.assertIn("/pay-bill", button_param)
+
+    def test_button_url_contains_offer_code_as_query_param(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-008")) as mock_wa:
+            self._call(claim.name)
+        button_param = mock_wa.call_args[1]["button_url_param"]
+        self.assertIn(f"offer={self.coupon_flat.code}", button_param)
+
+    def test_button_url_starts_with_restaurant_slug(self):
+        """Button URL suffix must start with restaurant_id (the slug)."""
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-009")) as mock_wa:
+            self._call(claim.name)
+        button_param = mock_wa.call_args[1]["button_url_param"]
+        restaurant_slug = frappe.db.get_value("Restaurant", self.restaurant, "restaurant_id")
+        self.assertTrue(
+            button_param.startswith(restaurant_slug),
+            f"Expected button_url_param to start with '{restaurant_slug}', got: '{button_param}'",
+        )
+
+    def test_wa_phone_is_the_claim_phone(self):
+        claim = self._make_claim(self.coupon_flat, phone="919988776655")
+        with patch(_WA_PATH, return_value=(True, "wamid-010")) as mock_wa:
+            self._call(claim.name)
+        self.assertEqual(mock_wa.call_args[1]["to_phone"], "919988776655")
+
+    # ── Error handling ────────────────────────────────────────────────────────
+
+    def test_wa_api_failure_is_logged_not_raised(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(False, "Meta rate limit")), \
+             patch("frappe.log_error") as mock_log:
+            self._call(claim.name)
+        mock_log.assert_called_once()
+        log_msg = mock_log.call_args[0][0]
+        self.assertIn(claim.name, log_msg)
+
+    def test_wa_exception_is_logged_not_raised(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, side_effect=Exception("network timeout")), \
+             patch("frappe.log_error") as mock_log:
+            self._call(claim.name)  # must not raise
+        mock_log.assert_called_once()
+
+    def test_flat_discount_with_zero_value_formats_correctly(self):
+        """₹0 flat off — edge case, should not crash."""
+        zero_coupon = make_coupon(
+            self.restaurant, code="NOTIF_ZERO",
+            discount_type="flat", discount_value=0.0,
+        )
+        claim = self._make_claim(zero_coupon)
+        with patch(_WA_PATH, return_value=(True, "wamid-011")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[0], "₹0 flat off")
 
 
 if __name__ == "__main__":

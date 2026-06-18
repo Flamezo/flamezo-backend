@@ -3,7 +3,6 @@ import { useFrappeGetDoc, useFrappePostCall, useFrappeUpdateDoc } from '@/lib/fr
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -229,7 +228,6 @@ export default function QRCodes() {
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
-  const [qrMode, setQrMode] = useState<'dine_in' | 'takeaway'>('dine_in')
 
   // Fetch restaurant document
   const { data: restaurantDoc, mutate: refreshRestaurant } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', {
@@ -241,7 +239,6 @@ export default function QRCodes() {
   const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
   const { call: deleteQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.delete_qr_codes_pdf')
   const { call: getTableAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets')
-  const { call: getSpecialAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_special_qr_assets')
   const { call: getAnalytics } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics')
   const { call: getAppSettings } = useFrappePostCall('flamezo_backend.flamezo.utils.config_helpers.get_app_settings')
   const { updateDoc: updateRestaurant } = useFrappeUpdateDoc()
@@ -251,11 +248,10 @@ export default function QRCodes() {
     if (!restaurantDoc || !selectedRestaurant) return
     async function loadSettings() {
       try {
-        const settingsRes: any = await getAppSettings({})
-        const globalBaseUrl = settingsRes?.message?.app_base_url
-        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://app.flamezo.in/')
-      } catch {
-        setBaseUrl(restaurantDoc.base_url || 'https://app.flamezo.in/')
+        const globalBaseUrl = (await getAppSettings({}))?.message?.app_base_url
+        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://flamezo.in/')
+      } catch (err) {
+        setBaseUrl(restaurantDoc.base_url || 'https://flamezo.in/')
       }
       setTables(restaurantDoc.tables || 0)
       if (restaurantDoc.qr_codes_pdf_url) {
@@ -283,10 +279,7 @@ export default function QRCodes() {
     if (!selectedRestaurant) return
     setIsLoadingAssets(true)
     try {
-      const response: any = qrMode === 'takeaway'
-        ? await getSpecialAssets({ restaurant: selectedRestaurant, force: 0 })
-        : await getTableAssets({ restaurant: selectedRestaurant, force: 0 })
-
+      const response: any = await getTableAssets({ restaurant: selectedRestaurant, force: 0 })
       const items = response?.message?.items || []
       setTableAssets(items)
     } catch (e) {
@@ -294,7 +287,7 @@ export default function QRCodes() {
     } finally {
       setIsLoadingAssets(false)
     }
-  }, [selectedRestaurant, qrMode])
+  }, [selectedRestaurant])
 
   const loadAnalytics = useCallback(async () => {
     if (!selectedRestaurant) return
@@ -324,16 +317,10 @@ export default function QRCodes() {
       scanCountMap[`table-${row.tableNumber}`] = row.scanCount
     }
   }
-  if (analyticsData?.perOrderType) {
-    for (const [type, count] of Object.entries(analyticsData.perOrderType)) {
-      scanCountMap[`special-${type}`] = count as number
-    }
-  }
-
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleGenerateQrCodes = async () => {
     if (!selectedRestaurant) return toast.error('Select a restaurant first')
-    if (qrMode === 'dine_in' && (!tables || tables <= 0)) {
+    if (!tables || tables <= 0) {
       return toast.error('Set number of tables first')
     }
 
@@ -374,7 +361,6 @@ export default function QRCodes() {
         restaurant: selectedRestaurant,
         layout: pdfLayout,
         background_image: finalBgUrl || undefined,
-        qr_type: qrMode
       })
 
       const msg = response?.message
@@ -610,26 +596,7 @@ export default function QRCodes() {
                 <Settings className="h-5 w-5" />
                 QR Code Settings
               </CardTitle>
-              <CardDescription>Configure your QR code type and generation preferences</CardDescription>
-
-              <div className="mt-4 inline-flex p-1 bg-muted rounded-lg border border-border/50">
-                <Button
-                  variant={qrMode === 'dine_in' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setQrMode('dine_in')}
-                  className="h-8 rounded-md text-xs"
-                >
-                  Dine-In (Tables)
-                </Button>
-                <Button
-                  variant={qrMode === 'takeaway' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setQrMode('takeaway')}
-                  className="h-8 rounded-md text-xs"
-                >
-                  Takeaway/Delivery
-                </Button>
-              </div>
+              <CardDescription>Configure table count and PDF generation preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Base URL (read-only) */}
@@ -640,15 +607,13 @@ export default function QRCodes() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   QR codes encode: <code className="bg-muted px-1 rounded">
-                    {(baseUrl || 'https://app.flamezo.in').replace(/\/$/, '')}/restaurant-id
-                    {qrMode === 'dine_in' ? '?table_no=N' : '?order_type=takeaway|delivery'}
+                    {(baseUrl || 'https://flamezo.in').replace(/\/$/, '')}/restaurant-id?table_no=N
                   </code>
                 </p>
               </div>
 
-              {/* Tables count - only for Dine-In */}
-              {qrMode === 'dine_in' && (
-                <div className="space-y-2">
+              {/* Tables count */}
+              <div className="space-y-2">
                   <Label htmlFor="tables-input">Number of Tables</Label>
                   <div className="flex gap-2">
                     <NumberInput
@@ -691,7 +656,6 @@ export default function QRCodes() {
                     </p>
                   )}
                 </div>
-              )}
 
               {/* PDF Layout selector */}
               <div className="space-y-2">
@@ -730,11 +694,11 @@ export default function QRCodes() {
               </div>
 
               {/* Generate button */}
-              {(tableCount > 0 || qrMode === 'takeaway') && (
+              {tableCount > 0 && (
                 <div className="pt-2 border-t space-y-3">
                   <Button
                     onClick={() => setShowGenModal(true)}
-                    disabled={isGenerating || (qrMode === 'dine_in' && !tablesMatchSaved)}
+                    disabled={isGenerating || !tablesMatchSaved}
                     size="lg"
                     className="w-full sm:w-auto gap-2"
                   >
@@ -744,13 +708,13 @@ export default function QRCodes() {
                       <><QrCode className="h-4 w-4" />Generate QR Codes PDF</>
                     )}
                   </Button>
-                  {(qrMode === 'dine_in' && !tablesMatchSaved) && tables > 0 && (
+                  {!tablesMatchSaved && tables > 0 && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      Save table count before generating table QR codes
+                      Save table count before generating QR codes
                     </p>
                   )}
-                  {qrCodeUrl && (qrMode !== 'dine_in' || tablesMatchSaved) && (
+                  {qrCodeUrl && tablesMatchSaved && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <Activity className="h-3 w-3" />
                       PDF ready — click View PDF or Download PDF in the toolbar above
@@ -767,27 +731,14 @@ export default function QRCodes() {
               <div className="flex gap-3">
                 <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                 <div className="space-y-1.5">
-                  <h3 className="font-semibold text-sm">
-                    {qrMode === 'dine_in' ? 'How Table QR Codes Work' : 'How Takeaway/Delivery QRs Work'}
-                  </h3>
+                  <h3 className="font-semibold text-sm">How Table QR Codes Work</h3>
                   <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                    {qrMode === 'dine_in' ? (
-                      <>
-                        <li>Each QR encodes a unique URL: <code className="bg-muted px-1 rounded">domain/restaurant-id?table_no=N</code></li>
-                        <li>Customers scan → directly land on your full menu with the table pre-selected</li>
-                        <li>Table number is auto-attached to every cart item and order</li>
-                        <li>Use the <strong>Analytics</strong> tab to see which tables get scanned most</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>Each QR encodes an order type: <code className="bg-muted px-1 rounded">domain/restaurant-id?order_type=X</code></li>
-                        <li>Customers scan → land on mini-menu optimized for quick Takeaway or Delivery orders</li>
-                        <li>Order type is pre-filled during checkout to speed up service</li>
-                        <li>Use the <strong>Analytics</strong> tab to compare Takeaway vs Delivery scan volume</li>
-                      </>
-                    )}
+                    <li>Each QR encodes a unique URL: <code className="bg-muted px-1 rounded">domain/restaurant-id?table_no=N</code></li>
+                    <li>Customers scan → land on your digital menu with the table context pre-set</li>
+                    <li>Table context powers loyalty check-ins, offer claims, and pay-bill flows</li>
+                    <li>Use the <strong>Analytics</strong> tab to see which tables get scanned most</li>
                     <li><strong>2×2 grid PDF</strong> fits 4 cards per landscape A4 — recommended for mass printing</li>
-                    <li>Use the <strong>Assets</strong> tab (above) to download individual codes as PNG / SVG</li>
+                    <li>Use the <strong>Per-Table</strong> tab to download individual codes as PNG / SVG</li>
                   </ul>
                 </div>
               </div>
@@ -800,7 +751,7 @@ export default function QRCodes() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold">QR Code Assets</h2>
-              <p className="text-xs text-muted-foreground">Download table and order type QR codes as PNG or SVG</p>
+              <p className="text-xs text-muted-foreground">Download individual table QR codes as PNG or SVG</p>
             </div>
             <Button
               variant="outline"
@@ -815,34 +766,7 @@ export default function QRCodes() {
           </div>
 
           <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className={cn(
-                  "transition-all duration-300",
-                  qrMode === 'dine_in' ? "bg-primary/5 text-primary border-primary/20" : "text-muted-foreground border-border"
-                )}>
-                  {qrMode === 'dine_in' ? 'Table-Specific QRs' : 'Takeaway & Delivery QRs'}
-                </Badge>
-                <div className="flex-1 w-24 h-px bg-border" />
-              </div>
-
-              <div className="flex p-0.5 bg-muted rounded-md border text-[10px]">
-                <button
-                  onClick={() => setQrMode('dine_in')}
-                  className={cn("px-2 py-1 rounded-sm transition-all", qrMode === 'dine_in' ? "bg-background shadow-sm font-bold" : "text-muted-foreground")}
-                >
-                  Dine-In
-                </button>
-                <button
-                  onClick={() => setQrMode('takeaway')}
-                  className={cn("px-2 py-1 rounded-sm transition-all", qrMode === 'takeaway' ? "bg-background shadow-sm font-bold" : "text-muted-foreground")}
-                >
-                  Takeaway
-                </button>
-              </div>
-            </div>
-
-            {qrMode === 'dine_in' && !tables ? (
+            {!tables ? (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground text-sm">
                   <QrCode className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -883,10 +807,7 @@ export default function QRCodes() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {tableAssets.map((asset: any) => {
-                  const assetKey = qrMode === 'dine_in'
-                    ? `table-${asset.table_number}`
-                    : `special-${asset.order_type || asset.table_number}`
-
+                  const assetKey = `table-${asset.table_number}`
                   return (
                     <TableQRCard
                       key={assetKey}
@@ -897,7 +818,7 @@ export default function QRCodes() {
                       scanCount={scanCountMap[assetKey] || 0}
                       onDownloadPng={() => handleDownloadIndividual(asset, 'png')}
                       onDownloadSvg={() => handleDownloadIndividual(asset, 'svg')}
-                      customLabel={asset.label || (qrMode === 'takeaway' ? 'Order' : undefined)}
+                      customLabel={asset.label}
                     />
                   )
                 })}
@@ -1028,26 +949,9 @@ export default function QRCodes() {
           <DialogHeader>
             <DialogTitle>Generate QR Codes PDF</DialogTitle>
             <DialogDescription>
-              {qrMode === 'dine_in'
-                ? 'Generating production-ready PDF for your restaurant tables.'
-                : 'Generating special QRs for Takeaway and Delivery orders.'}
+              Generating a production-ready QR code PDF for your restaurant tables.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="flex justify-center p-1 bg-muted rounded-lg mb-4">
-            <button
-              className={cn("flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all", qrMode === 'dine_in' ? "bg-background shadow-sm" : "hover:bg-background/50")}
-              onClick={() => setQrMode('dine_in')}
-            >
-              Dine-In
-            </button>
-            <button
-              className={cn("flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all", qrMode === 'takeaway' ? "bg-background shadow-sm" : "hover:bg-background/50")}
-              onClick={() => setQrMode('takeaway')}
-            >
-              Takeaway/Delivery
-            </button>
-          </div>
 
           <div className="grid gap-6 py-4">
             {/* Background Image Upload */}

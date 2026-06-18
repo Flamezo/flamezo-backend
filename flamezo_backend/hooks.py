@@ -219,9 +219,7 @@ doc_events = {
 		],
 	},
 
-	"File": {
-		"on_update": "flamezo_backend.flamezo.doctype.home_feature.home_feature.update_home_feature_from_file",
-	},
+
 	# Media R2 cleanup — when a media-owning doc is trashed, delete its Media
 	# Assets and their Cloudflare objects so storage never accumulates orphans.
 	# (Menu Product / Menu Category / Menu Image Extractor / UGC Story Submission
@@ -245,7 +243,11 @@ doc_events = {
 scheduler_events = {
 	"cron": {
 		"30 3 * * *": [
-			"flamezo_backend.flamezo.tasks.marketing_tasks.generate_daily_seo_blog"
+			"flamezo_backend.flamezo.tasks.marketing_tasks.generate_daily_seo_blog",
+			# Cash commission engine — drain wallet balance into outstanding
+			# ledger entries (03:30 IST, after overnight wallet top-ups settle).
+			"flamezo_backend.flamezo.tasks.commission_tasks.retry_wallet_settlements",
+			"flamezo_backend.flamezo.tasks.commission_tasks.clear_expired_throttles",
 		],
 		# The 23:59 floor-recovery cron was retired when the ₹399 monthly floor
 		# was removed from the model. `process_daily_subscription_floors` and
@@ -258,6 +260,11 @@ scheduler_events = {
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.fire_triggers",
+			# UGC Cashback — stall recovery: re-enqueue AI verifier for
+			# proof_submitted submissions stuck >30 min (capped at 3 retries).
+			"flamezo_backend.flamezo.tasks.ugc_tasks.retry_stalled_submissions",
+			# Boost — sync Meta campaign performance metrics.
+			"flamezo_backend.flamezo.tasks.boost_tasks.sync_boost_performance",
 		],
 		# Google Growth: fetch insights daily
         "0 1 * * *": [
@@ -289,21 +296,10 @@ scheduler_events = {
 		"*/5 * * * *": [
 			"flamezo_backend.flamezo.tasks.extraction_recovery.recover_stuck_extractions",
 		],
-		# Cash commission engine — Tier 0 daily retry: drain any wallet
-		# balance into outstanding ledger entries (03:30 IST after wallet
-		# top-ups settle overnight).
-		"30 3 * * *": [
-			"flamezo_backend.flamezo.tasks.commission_tasks.retry_wallet_settlements",
-			"flamezo_backend.flamezo.tasks.commission_tasks.clear_expired_throttles",
-		],
 		# Cash commission engine — Tier 2 weekly autopay sweep: Mondays
 		# 03:45 IST charges any leftover balance via mandate.
 		"45 3 * * 1": [
 			"flamezo_backend.flamezo.tasks.commission_tasks.weekly_autopay_sweep",
-		],
-		# Boost — sync Meta campaign performance metrics every 30 minutes
-		"*/30 * * * *": [
-			"flamezo_backend.flamezo.tasks.boost_tasks.sync_boost_performance",
 		],
 		# Boost — daily health check at 9 AM: alert if guarantee at risk
 		"0 9 * * *": [

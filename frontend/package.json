@@ -40,6 +40,7 @@
     "firebase": "^12.12.0",
     "framer-motion": "^12.40.0",
     "frappe-react-sdk": "^1.12.0",
+    "html-to-image": "^1.11.13",
     "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.535.0",
