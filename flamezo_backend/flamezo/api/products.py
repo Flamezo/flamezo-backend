@@ -14,7 +14,7 @@ from flamezo_backend.flamezo.utils.api_helpers import (
 	validate_restaurant_for_api,
 	get_product_from_id
 )
-from flamezo_backend.flamezo.media.utils import get_media_asset_data
+from flamezo_backend.flamezo.media.utils import get_media_asset_data, bulk_get_media_asset_data
 from flamezo_backend.flamezo.utils.currency_helpers import get_restaurant_currency_info
 from flamezo_backend.flamezo.utils.customization_helpers import get_customization_options_map, load_product_customizations
 from flamezo_backend.flamezo.utils.addon_group_helpers import bulk_load_addon_groups, format_addon_groups_for_api
@@ -24,9 +24,15 @@ from collections import defaultdict
 
 def invalidate_product_cache(doc, method=None):
 	"""Invalidates caches associated with a Menu Product when updated"""
+	import time
 	restaurant_id = doc.get("restaurant") or doc.get("restaurant_id")
 	if restaurant_id:
 		frappe.cache().delete_key(f"top_picks:{restaurant_id}")
+		frappe.cache().delete_key(f"chef_special:{restaurant_id}")
+		# Bump version keys so all paginated product + category caches become stale
+		ts = str(int(time.time()))
+		frappe.cache().set_value(f"products_v:{restaurant_id}", ts, expires_in_sec=7200)
+		frappe.cache().set_value(f"cats_v:{restaurant_id}", ts, expires_in_sec=7200)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -207,7 +213,23 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 	try:
 		# Validate restaurant
 		restaurant = validate_restaurant_for_api(restaurant_id)
-		
+
+		# ── Redis cache (skip for search queries — unbounded key space) ──
+		page = cint(page) or 1
+		limit = cint(limit) or 50
+		if not search and not cint(include_inactive):
+			cache_version = frappe.cache().get_value(f"products_v:{restaurant}") or "0"
+			cache_key = (
+				f"products_v2:{restaurant}:{cache_version}"
+				f":{category or ''}:{type or ''}:{vegetarian if vegetarian is not None else ''}"
+				f":p{page}:l{limit}"
+			)
+			cached = frappe.cache().get_value(cache_key)
+			if cached:
+				return json.loads(cached)
+		else:
+			cache_key = None
+
 		# Build filters
 		filters = {"restaurant": restaurant}
 		if not cint(include_inactive):
@@ -249,8 +271,6 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 			}
 		
 		# Pagination
-		page = cint(page) or 1
-		limit = cint(limit) or 50
 		start = (page - 1) * limit
 		
 		# Get products
@@ -284,22 +304,50 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 		)
 		
 		# Get total count for pagination
-		# Note: frappe.db.count doesn't support or_filters, so we use get_all with limit=0
-		if or_filters:
-			total = len(frappe.get_all("Menu Product", filters=filters, or_filters=or_filters, fields=["name"]))
+		if or_filters and search:
+			# Use SQL COUNT to avoid fetching all rows just to count
+			like = f"%{search}%"
+			where_parts = ["`tabMenu Product`.restaurant = %s"]
+			params = [restaurant]
+			if not cint(include_inactive):
+				where_parts.append("`tabMenu Product`.is_active = 1")
+			if filters.get("category_name"):
+				cn = filters["category_name"]
+				if isinstance(cn, list) and cn[0] == "in":
+					placeholders = ",".join(["%s"] * len(cn[1]))
+					where_parts.append(f"`tabMenu Product`.category_name IN ({placeholders})")
+					params.extend(cn[1])
+				else:
+					where_parts.append("`tabMenu Product`.category_name = %s")
+					params.append(cn)
+			if type:
+				where_parts.append("`tabMenu Product`.product_type = %s")
+				params.append(type)
+			if vegetarian is not None:
+				where_parts.append("`tabMenu Product`.is_vegetarian = %s")
+				params.append(cint(vegetarian))
+			params += [like, like, like]
+			where_clause = " AND ".join(where_parts) + (
+				" AND (`tabMenu Product`.product_name LIKE %s"
+				" OR `tabMenu Product`.description LIKE %s"
+				" OR `tabMenu Product`.product_id LIKE %s)"
+			)
+			total = frappe.db.sql(
+				f"SELECT COUNT(*) FROM `tabMenu Product` WHERE {where_clause}", params
+			)[0][0]
 		else:
 			total = frappe.db.count("Menu Product", filters=filters)
-		
+
 		# Format products with media and customizations using bulk-loaded child tables
 		formatted_products = format_products_for_listing(products)
-		
+
 		# Calculate pagination
 		total_pages = (total + limit - 1) // limit if limit > 0 else 1
-		
+
 		# Get currency info for restaurant
 		currency_info = get_restaurant_currency_info(restaurant)
-		
-		return {
+
+		result = {
 			"success": True,
 			"data": {
 				"products": formatted_products,
@@ -314,6 +362,9 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 				"currencySymbolOnRight": currency_info.get("symbolOnRight", False)
 			}
 		}
+		if cache_key:
+			frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=300)
+		return result
 	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
 		return {
 			"success": False,
@@ -344,6 +395,11 @@ def format_products_for_listing(products):
 
 	product_names = [product["docname"] for product in products if product.get("docname")]
 	media_by_product = get_product_media_map(product_names)
+
+	# Bulk-load all Media Assets + Variants in 2 queries instead of 2×N (eliminates N+1)
+	all_media_items = [m for ml in media_by_product.values() for m in ml]
+	media_asset_cache = bulk_get_media_asset_data("Product Media", all_media_items)
+
 	questions_by_product, question_names = get_customization_questions_map(product_names)
 	options_by_question = get_customization_options_map(question_names)
 
@@ -357,7 +413,8 @@ def format_products_for_listing(products):
 			product,
 			media_by_product.get(docname, []),
 			questions_by_product.get(docname, []),
-			options_by_question
+			options_by_question,
+			media_asset_cache=media_asset_cache,
 		)
 
 		# Attach addon groups (new system)
@@ -387,6 +444,10 @@ def format_products_for_listing_minimal(products):
 	product_names = [product["docname"] for product in products if product.get("docname")]
 	media_by_product = get_product_media_map(product_names)
 
+	# Bulk-load all Media Assets + Variants in 2 queries instead of 2×N (eliminates N+1)
+	all_media_items = [m for ml in media_by_product.values() for m in ml]
+	media_asset_cache = bulk_get_media_asset_data("Product Media", all_media_items)
+
 	# Fetch which products have customizations (bulk check)
 	customization_data = frappe.get_all(
 		"Customization Question",
@@ -405,7 +466,8 @@ def format_products_for_listing_minimal(products):
 			format_product_from_row_minimal(
 				product,
 				media_by_product.get(product.get("docname"), []),
-				product.get("docname") in has_customizations_set
+				product.get("docname") in has_customizations_set,
+				media_asset_cache=media_asset_cache,
 			)
 		)
 
@@ -462,15 +524,16 @@ def get_customization_questions_map(product_names):
 
 
 
-def format_product_from_row(product_row, media_rows, customization_questions, options_by_question):
+def format_product_from_row(product_row, media_rows, customization_questions, options_by_question, media_asset_cache=None):
 	"""
 	Full row formatting including customizations and recommendations.
 	"""
 	# Start with the same base as minimal
 	product = format_product_from_row_minimal(
-		product_row, 
-		media_rows, 
-		has_customizations=len(customization_questions) > 0
+		product_row,
+		media_rows,
+		has_customizations=len(customization_questions) > 0,
+		media_asset_cache=media_asset_cache,
 	)
 	
 	# Add customizations (Full version)
@@ -537,7 +600,7 @@ def format_product_from_row(product_row, media_rows, customization_questions, op
 
 
 
-def format_product_from_row_minimal(product_row, media_rows=None, has_customizations=False):
+def format_product_from_row_minimal(product_row, media_rows=None, has_customizations=False, media_asset_cache=None):
 	"""
 	Minimal row formatting excluding customizations and recommendations.
 	"""
@@ -570,12 +633,21 @@ def format_product_from_row_minimal(product_row, media_rows=None, has_customizat
 
 	media = []
 	for media_item in media_rows or []:
-		media_asset_data = get_media_asset_data(
-			"Product Media",
-			media_item.get("name"),
-			f"product_{media_item.get('media_type') or 'image'}",
-			media_item.get("media_url")
-		)
+		if media_asset_cache is not None:
+			media_asset_data = media_asset_cache.get(media_item.get("name")) or {
+				"url": media_item.get("media_url") or "",
+				"blur_placeholder": None,
+				"media_id": None,
+				"variants": {},
+				"srcset": None,
+			}
+		else:
+			media_asset_data = get_media_asset_data(
+				"Product Media",
+				media_item.get("name"),
+				f"product_{media_item.get('media_type') or 'image'}",
+				media_item.get("media_url")
+			)
 
 		# Ensure URL is absolute if it's a local file
 		url = media_asset_data["url"]

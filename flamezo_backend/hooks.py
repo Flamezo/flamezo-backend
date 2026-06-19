@@ -219,6 +219,12 @@ doc_events = {
 		],
 	},
 
+	"Menu Category": {
+		"on_update": "flamezo_backend.flamezo.api.categories.invalidate_category_cache",
+		"after_insert": "flamezo_backend.flamezo.api.categories.invalidate_category_cache",
+		"on_trash": "flamezo_backend.flamezo.api.categories.invalidate_category_cache",
+	},
+
 
 	# Media R2 cleanup — when a media-owning doc is trashed, delete its Media
 	# Assets and their Cloudflare objects so storage never accumulates orphans.
