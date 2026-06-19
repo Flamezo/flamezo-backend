@@ -277,8 +277,12 @@ def get_restaurant_details(restaurant_id):
                 'error': 'Restaurant not found'
             }
 
-        # Convert password fields to stars/placeholder to protect secrets but allow checking if they exist
         restaurant_dict = restaurant.as_dict()
+        # Password fields come back as None from as_dict() — read the decrypted value explicitly.
+        try:
+            restaurant_dict['onboarding_password'] = restaurant.get_password('onboarding_password') or None
+        except Exception:
+            restaurant_dict['onboarding_password'] = None
 
         return {
             'success': True,
