@@ -456,8 +456,8 @@ def generate_image_fal_ai_enhance(image_path, dish_name, dish_description, dish_
     payload = {
         "prompt": prompt,
         "image_url": data_uri,
-        "strength": 0.85, # High strength to enhance quality while maintaining base structure
-        "image_size": "square_hd",
+        "strength": 0.85,
+        "image_size": "portrait_4_3",
         "num_inference_steps": 4,
         "guidance_scale": 3.5,
         "num_images": 1,
@@ -514,7 +514,7 @@ def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=No
     }
     payload = {
         "prompt": prompt,
-        "image_size": "square_hd",
+        "image_size": "portrait_4_3",
         "num_inference_steps": 4,
         "guidance_scale": 3.5,
         "num_images": 1,
@@ -594,6 +594,13 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         frappe.db.set_value("AI Image Generation", generation_name, "enhanced_image_url", r2_cdn_url)
         frappe.db.set_value("AI Image Generation", generation_name, "status", "Completed")
         frappe.db.commit()
+
+        # 7. Auto-apply to product to prevent wasted coins
+        if mode == "generate" and doc.owner_doctype == "Menu Product":
+            try:
+                apply_to_product(generation_name)
+            except Exception as apply_err:
+                frappe.log_error("Auto-Apply Failed", str(apply_err))
 
     except Exception as e:
         frappe.db.set_value("AI Image Generation", generation_name, "status", "Failed")

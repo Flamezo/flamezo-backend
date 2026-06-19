@@ -1315,7 +1315,7 @@ def admin_generate_bulk_food_photos(restaurant_id):
             'flamezo_backend.flamezo.api.admin.process_bulk_food_photos',
             restaurant_id=restaurant_id,
             queue='long',
-            timeout=1500
+            timeout=3600
         )
 
         return {

@@ -132,7 +132,6 @@ const navigation: NavItem[] = [
       { name: 'Menu Management', href: '/menu', icon: Package },
       { name: 'Food Cost & Margins', href: '/menu-costing', icon: Calculator },
       { name: 'Addon Groups', href: '/addon-groups', icon: Layers },
-      { name: 'AI Image Gallery', href: '/ai-enhancements', icon: Sparkles },
       { name: 'Recommendations Engine', href: '/recommendations-engine', icon: FolderTree, feature: 'ai_recommendations' },
     ],
   },
