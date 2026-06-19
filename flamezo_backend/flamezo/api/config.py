@@ -745,6 +745,12 @@ def get_filters(restaurant_id):
 	try:
 		# Validate restaurant
 		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		cache_key = f"filters_cache:{restaurant}"
+		cached = frappe.cache().get_value(cache_key)
+		if cached:
+			import json as _json
+			return _json.loads(cached)
 		
 		# Define filter configurations
 		filters = [
@@ -796,12 +802,15 @@ def get_filters(restaurant_id):
 			if config.get("color_palette_yellow"):
 				filters[3]["color"] = config["color_palette_yellow"]
 		
-		return {
+		result = {
 			"success": True,
 			"data": {
 				"filters": filters
 			}
 		}
+		import json as _json
+		frappe.cache().set_value(cache_key, _json.dumps(result), expires_in_sec=300)
+		return result
 	except Exception as e:
 		frappe.log_error(f"Error in get_filters: {str(e)}")
 		return {

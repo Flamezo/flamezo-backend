@@ -1,6 +1,7 @@
 # Copyright (c) 2025, Flamezo and contributors
 # For license information, please see license.txt
 
+import json
 import frappe
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
@@ -19,23 +20,73 @@ def _run_in_frappe_thread(site, fn, *args, **kwargs):
 		frappe.destroy()
 
 
+def _try_fast_path(restaurant_id, restaurant):
+	"""
+	Serve bootstrap entirely from Redis — zero thread overhead.
+	Returns assembled data dict when all 4 caches are warm, else None.
+	"""
+	# 1. Config cache (60s TTL, keyed by restaurant_id)
+	config_raw = frappe.cache().get_value(f"restaurant_config:{restaurant_id}")
+	if not config_raw:
+		return None
+
+	# 2. Categories cache (5-min, version-keyed)
+	cats_version = frappe.cache().get_value(f"cats_v:{restaurant}") or "0"
+	cats_raw = frappe.cache().get_value(f"categories_v2:{restaurant}:0:{cats_version}")
+	if not cats_raw:
+		return None
+
+	# 3. Products cache (5-min, version-keyed, page=1 limit=100 no filters)
+	prods_version = frappe.cache().get_value(f"products_v:{restaurant}") or "0"
+	prods_raw = frappe.cache().get_value(f"products_v2:{restaurant}:{prods_version}::::p1:l100")
+	if not prods_raw:
+		return None
+
+	# 4. Filters cache (5-min)
+	filters_raw = frappe.cache().get_value(f"filters_cache:{restaurant}")
+	if not filters_raw:
+		return None
+
+	config_resp  = json.loads(config_raw)
+	cats_resp    = json.loads(cats_raw)
+	prods_resp   = json.loads(prods_raw)
+	filters_resp = json.loads(filters_raw)
+
+	return {
+		"config":               config_resp.get("data"),
+		"categories":           cats_resp.get("data", {}).get("categories", []),
+		"filters":              filters_resp.get("data", {}).get("filters", []),
+		"products":             prods_resp.get("data", {}).get("products", []),
+		"pagination":           prods_resp.get("data", {}).get("pagination", {}),
+		"currency":             prods_resp.get("data", {}).get("currency", "INR"),
+		"currencySymbol":       prods_resp.get("data", {}).get("currencySymbol", "₹"),
+		"currencySymbolOnRight": prods_resp.get("data", {}).get("currencySymbolOnRight", False),
+	}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_restaurant_bootstrap(restaurant_id):
 	"""
 	Consolidated API to fetch all initial data for ONO Menu in one request.
-	Reduces waterfall requests and improves perceived performance.
-	All four sub-calls run in parallel via ThreadPoolExecutor.
+
+	Fast path  (all 4 caches warm): pure Redis reads, zero threads — ~40ms server-side.
+	Slow path  (any cache cold):     parallel ThreadPoolExecutor(4) — ~265ms server-side.
 	"""
 	try:
-		validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(restaurant_id)
 
+		# ── Fast path ──────────────────────────────────────────────────────
+		fast = _try_fast_path(restaurant_id, restaurant)
+		if fast is not None:
+			return {"success": True, "data": {**fast, "site": frappe.local.site}}
+
+		# ── Slow path: parallel threads ─────────────────────────────────────
 		site = frappe.local.site
-
 		task_map = {
-			"config":      (get_restaurant_config, [restaurant_id], {}),
-			"categories":  (get_categories,        [restaurant_id], {}),
-			"filters":     (get_filters,            [restaurant_id], {}),
-			"products":    (get_products,           [restaurant_id], {"limit": 100}),
+			"config":     (get_restaurant_config, [restaurant_id], {}),
+			"categories": (get_categories,        [restaurant_id], {}),
+			"filters":    (get_filters,            [restaurant_id], {}),
+			"products":   (get_products,           [restaurant_id], {"limit": 100}),
 		}
 
 		results = {}
@@ -48,26 +99,21 @@ def get_restaurant_bootstrap(restaurant_id):
 				key = future_to_key[future]
 				results[key] = future.result()
 
-		for key, resp in results.items():
+		for resp in results.values():
 			if not resp.get("success"):
 				return resp
-
-		config_resp    = results["config"]
-		categories_resp = results["categories"]
-		filters_resp   = results["filters"]
-		products_resp  = results["products"]
 
 		return {
 			"success": True,
 			"data": {
-				"config": config_resp.get("data"),
-				"categories": categories_resp.get("data", {}).get("categories", []),
-				"filters": filters_resp.get("data", {}).get("filters", []),
-				"products": products_resp.get("data", {}).get("products", []),
-				"pagination": products_resp.get("data", {}).get("pagination", {}),
-				"currency": products_resp.get("data", {}).get("currency", "INR"),
-				"currencySymbol": products_resp.get("data", {}).get("currencySymbol", "₹"),
-				"currencySymbolOnRight": products_resp.get("data", {}).get("currencySymbolOnRight", False),
+				"config":               results["config"].get("data"),
+				"categories":           results["categories"].get("data", {}).get("categories", []),
+				"filters":              results["filters"].get("data", {}).get("filters", []),
+				"products":             results["products"].get("data", {}).get("products", []),
+				"pagination":           results["products"].get("data", {}).get("pagination", {}),
+				"currency":             results["products"].get("data", {}).get("currency", "INR"),
+				"currencySymbol":       results["products"].get("data", {}).get("currencySymbol", "₹"),
+				"currencySymbolOnRight": results["products"].get("data", {}).get("currencySymbolOnRight", False),
 				"site": frappe.local.site,
 			},
 		}
