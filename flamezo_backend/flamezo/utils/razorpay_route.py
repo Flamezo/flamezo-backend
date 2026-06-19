@@ -187,41 +187,64 @@ def ensure_linked_account(restaurant) -> dict:
 
 def _attach_bank_and_stakeholder(client, account_id: str, res):
     """Push stakeholder + bank account into a freshly-created Linked Account.
-    Wrapped in try/except per call so partial success still gets the account
-    id stored (KYC team can finish it manually if needed)."""
+    Uses direct requests calls — Razorpay SDK's client.request() is unreliable
+    for v2 sub-resource endpoints. Two-step: create product first, then PATCH
+    settlements (Razorpay rejects settlements in the initial POST body)."""
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+    BASE = "https://api.razorpay.com"
+
     try:
-        stakeholder_payload = {
-            "name": res.get("owner_name") or res.restaurant_name,
-            "email": res.owner_email,
-            "phone": {"primary": _normalize_phone(res.owner_phone)},
-            "kyc": {"pan": res.get("pan_number") or ""},
-            "addresses": {
-                "residential": {
-                    "street": (res.get("address") or "")[:100],
-                    "city": res.get("city") or "",
-                    "state": res.get("state") or "",
-                    "postal_code": res.get("zip_code") or "",
-                    "country": "IN",
-                }
+        _requests.post(
+            f"{BASE}/v2/accounts/{account_id}/stakeholders",
+            auth=auth,
+            json={
+                "name": res.get("owner_name") or res.restaurant_name,
+                "email": res.owner_email,
+                "phone": {"primary": _normalize_phone(res.owner_phone)},
+                "kyc": {"pan": res.get("pan_number") or ""},
+                "addresses": {
+                    "residential": {
+                        "street": (res.get("address") or "")[:100],
+                        "city": res.get("city") or "",
+                        "state": res.get("state") or "",
+                        "postal_code": res.get("zip_code") or "",
+                        "country": "IN",
+                    }
+                },
             },
-        }
-        client.request("POST", f"/v2/accounts/{account_id}/stakeholders", params=stakeholder_payload)
+        ).raise_for_status()
     except Exception as e:
         frappe.log_error(f"Stakeholder attach failed for {account_id}: {e}", "razorpay_route.stakeholder")
 
     try:
-        product_payload = {
-            "product_name": "route",
-            "tnc_accepted": True,
-            "settlements": {
-                "account_number": res.get("bank_account_number") or "",
-                "ifsc_code": res.get("bank_ifsc") or "",
-                "beneficiary_name": res.get("bank_holder_name") or res.restaurant_name,
+        # Step 1: create Route product (no settlements in body — Razorpay rejects it)
+        r = _requests.post(
+            f"{BASE}/v2/accounts/{account_id}/products",
+            auth=auth,
+            json={"product_name": "route", "tnc_accepted": True},
+        )
+        product_id = r.json().get("id")
+        if not product_id:
+            raise Exception(f"No product id returned: {r.text}")
+
+        # Step 2: PATCH settlements onto the product
+        _requests.patch(
+            f"{BASE}/v2/accounts/{account_id}/products/{product_id}",
+            auth=auth,
+            json={
+                "settlements": {
+                    "account_number": res.get("bank_account_number") or "",
+                    "ifsc_code": res.get("bank_ifsc") or "",
+                    "beneficiary_name": res.get("bank_holder_name") or res.restaurant_name,
+                },
+                "tnc_accepted": True,
             },
-        }
-        client.request("POST", f"/v2/accounts/{account_id}/products", params=product_payload)
+        ).raise_for_status()
     except Exception as e:
-        frappe.log_error(f"Product config failed for {account_id}: {e}", "razorpay_route.product")
+        frappe.log_error(f"Product/bank config failed for {account_id}: {e}", "razorpay_route.product")
 
 
 def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Optional[dict] = None):
