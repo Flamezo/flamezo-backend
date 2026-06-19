@@ -456,8 +456,8 @@ def generate_image_fal_ai_enhance(image_path, dish_name, dish_description, dish_
     payload = {
         "prompt": prompt,
         "image_url": data_uri,
-        "strength": 0.85, # High strength to enhance quality while maintaining base structure
-        "image_size": "square_hd",
+        "strength": 0.85,
+        "image_size": "portrait_4_3",
         "num_inference_steps": 4,
         "guidance_scale": 3.5,
         "num_images": 1,
@@ -514,7 +514,7 @@ def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=No
     }
     payload = {
         "prompt": prompt,
-        "image_size": "square_hd",
+        "image_size": "portrait_4_3",
         "num_inference_steps": 4,
         "guidance_scale": 3.5,
         "num_images": 1,
