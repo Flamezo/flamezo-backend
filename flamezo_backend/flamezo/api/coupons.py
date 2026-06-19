@@ -39,7 +39,8 @@ def get_coupons(restaurant_id, active_only=True):
 		if active_only:
 			filters["is_active"] = 1
 		
-		# Get coupons
+		# Get coupons — always fetch active ones; day/time-gated are returned with
+		# currentlyRedeemable=False so the customer-facing UI can tease future offers.
 		coupons = frappe.get_all(
 			"Coupon",
 			fields=[
@@ -54,26 +55,66 @@ def get_coupons(restaurant_id, active_only=True):
 				"detailed_description",
 				"is_active",
 				"valid_from",
-				"valid_until"
+				"valid_until",
+				"valid_days_of_week",
+				"valid_time_start",
+				"valid_time_end",
 			],
 			filters=filters,
 			order_by="code asc"
 		)
-		
-		# Format coupons and filter by dates if active_only
+
+		today_date = today()
+		current_dt = now_datetime()
+		current_day = current_dt.strftime("%A").lower()
+		current_time = current_dt.time()
+
 		formatted_coupons = []
-		today_date = today() if active_only else None
-		
+
 		for coupon in coupons:
-			# Check validity dates if active_only
-			if active_only and today_date:
-				valid_from = coupon.get("valid_from")
-				valid_until = coupon.get("valid_until")
-				if valid_from and getdate(valid_from) > getdate(today_date):
-					continue  # Not valid yet
-				if valid_until and getdate(valid_until) < getdate(today_date):
-					continue  # Expired
-			
+			# Skip coupons not yet started or truly expired — they're useless to show.
+			valid_from = coupon.get("valid_from")
+			valid_until = coupon.get("valid_until")
+			if valid_from and getdate(valid_from) > getdate(today_date):
+				continue
+			if valid_until and getdate(valid_until) < getdate(today_date):
+				continue
+
+			# Determine real-time redeemability (day + time gates).
+			currently_redeemable = True
+			ineligibility_hint = None
+
+			if coupon.get("valid_days_of_week"):
+				try:
+					raw = coupon["valid_days_of_week"]
+					valid_days = json.loads(raw) if isinstance(raw, str) else list(raw)
+					valid_days_lower = [d.lower() for d in valid_days]
+					if current_day not in valid_days_lower:
+						currently_redeemable = False
+						day_labels = ", ".join(d.capitalize() for d in valid_days)
+						ineligibility_hint = f"Available on {day_labels} only"
+				except Exception:
+					pass
+
+			if currently_redeemable and (coupon.get("valid_time_start") or coupon.get("valid_time_end")):
+				try:
+					ts = coupon.get("valid_time_start")
+					te = coupon.get("valid_time_end")
+					start = datetime.strptime(str(ts).split(".")[0], "%H:%M:%S").time() if ts else None
+					end = datetime.strptime(str(te).split(".")[0], "%H:%M:%S").time() if te else None
+
+					def _fmt(t):
+						return datetime.strptime(str(t).split(".")[0], "%H:%M:%S").strftime("%-I:%M %p")
+
+					if start and current_time < start:
+						currently_redeemable = False
+						ineligibility_hint = f"Available from {_fmt(ts)}" + (f" to {_fmt(te)}" if te else "")
+					elif end and current_time > end:
+						currently_redeemable = False
+						ineligibility_hint = f"Available {_fmt(ts) if ts else ''} – {_fmt(te)}"
+				except Exception:
+					pass
+
 			coupon_data = {
 				"id": str(coupon["id"]),
 				"code": coupon["code"],
@@ -81,9 +122,18 @@ def get_coupons(restaurant_id, active_only=True):
 				"minOrderAmount": flt(coupon.get("min_order_amount", 0)),
 				"type": coupon.get("type", "flat"),
 				"offerType": coupon.get("offer_type", "coupon"),
-				"isActive": bool(coupon.get("is_active", False))
+				"isActive": bool(coupon.get("is_active", False)),
+				"currentlyRedeemable": currently_redeemable,
 			}
 
+			if ineligibility_hint:
+				coupon_data["ineligibilityHint"] = ineligibility_hint
+			if coupon.get("valid_days_of_week"):
+				coupon_data["validDays"] = coupon["valid_days_of_week"]
+			if coupon.get("valid_time_start"):
+				coupon_data["validTimeStart"] = str(coupon["valid_time_start"])
+			if coupon.get("valid_time_end"):
+				coupon_data["validTimeEnd"] = str(coupon["valid_time_end"])
 			if coupon.get("category"):
 				coupon_data["category"] = coupon["category"]
 			if coupon.get("description"):
@@ -94,7 +144,7 @@ def get_coupons(restaurant_id, active_only=True):
 				coupon_data["validFrom"] = str(coupon["valid_from"])
 			if coupon.get("valid_until"):
 				coupon_data["validUntil"] = str(coupon["valid_until"])
-			
+
 			formatted_coupons.append(coupon_data)
 		
 		return {

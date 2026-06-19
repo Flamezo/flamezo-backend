@@ -116,6 +116,8 @@ function AdminRestaurantDetailsPage() {
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
 
+  const [isRouteActionLoading, setIsRouteActionLoading] = useState(false)
+
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false)
   const [onboardName, setOnboardName] = useState('')
   const [onboardEmail, setOnboardEmail] = useState('')
@@ -215,14 +217,21 @@ function AdminRestaurantDetailsPage() {
   const { call: onboardOwner } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
     'flamezo_backend.flamezo.api.admin.admin_onboard_restaurant_owner'
   )
-  const { call: createManualLink } = useFrappePostCall<{ 
-    success: boolean, 
-    payment_link_url?: string, 
+  const { call: createManualLink } = useFrappePostCall<{
+    success: boolean,
+    payment_link_url?: string,
     amount?: number,
     base_amount?: number,
     gst_amount?: number,
-    error?: string 
+    error?: string
   }>('flamezo_backend.flamezo.api.admin.admin_create_manual_recharge_link')
+
+  const { call: suspendLinkedAccount } = useFrappePostCall<{ success: boolean, error?: string }>(
+    'flamezo_backend.flamezo.doctype.restaurant.restaurant.suspend_linked_account'
+  )
+  const { call: reactivateLinkedAccount } = useFrappePostCall<{ success: boolean, status?: string, error?: string }>(
+    'flamezo_backend.flamezo.doctype.restaurant.restaurant.reactivate_linked_account'
+  )
   
   const { data: platformSettingsData } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.admin.get_platform_settings',
@@ -943,6 +952,47 @@ function AdminRestaurantDetailsPage() {
                       className="bg-muted/50 font-mono text-xs"
                       placeholder="— Not created yet —"
                     />
+                    {restaurant.razorpay_account_id && (() => {
+                      const isSuspended = restaurant.razorpay_kyc_status === 'suspended'
+                      return (
+                        <Button
+                          size="sm"
+                          variant={isSuspended ? 'outline' : 'destructive'}
+                          className={isSuspended ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : ''}
+                          disabled={isRouteActionLoading}
+                          onClick={async () => {
+                            const action = isSuspended ? 'reactivate' : 'suspend'
+                            const confirmed = window.confirm(
+                              isSuspended
+                                ? `Reactivate linked account ${restaurant.razorpay_account_id} for ${restaurant.restaurant_name}?`
+                                : `Suspend linked account ${restaurant.razorpay_account_id} for ${restaurant.restaurant_name}? No Route transfers will go to this restaurant until reactivated.`
+                            )
+                            if (!confirmed) return
+                            setIsRouteActionLoading(true)
+                            try {
+                              const result = isSuspended
+                                ? await reactivateLinkedAccount({ restaurant: restaurant.name }) as any
+                                : await suspendLinkedAccount({ restaurant: restaurant.name }) as any
+                              const res = result?.message
+                              if (res?.success) {
+                                toast.success(isSuspended ? 'Linked account reactivated' : 'Linked account suspended')
+                                await loadDetails()
+                              } else {
+                                toast.error(res?.error || `Failed to ${action} account`)
+                              }
+                            } catch (e: any) {
+                              toast.error(getFrappeError(e) || `Failed to ${action} account`)
+                            } finally {
+                              setIsRouteActionLoading(false)
+                            }
+                          }}
+                        >
+                          {isRouteActionLoading
+                            ? (isSuspended ? 'Reactivating…' : 'Suspending…')
+                            : (isSuspended ? 'Reactivate Linked Account' : 'Suspend Linked Account')}
+                        </Button>
+                      )
+                    })()}
                   </div>
 
                   {/* Autopay Mandate — for monthly billing + cash sweep. */}
@@ -951,7 +1001,7 @@ function AdminRestaurantDetailsPage() {
                       <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Autopay Mandate</Label>
                       <Badge
                         variant={restaurant.mandate_status === 'active' ? 'default' : 'destructive'}
-                        className={restaurant.mandate_status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''}
+                        className={restaurant.mandate_status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'text-white'}
                       >
                         {restaurant.mandate_status ? restaurant.mandate_status.toUpperCase() : 'INACTIVE'}
                       </Badge>

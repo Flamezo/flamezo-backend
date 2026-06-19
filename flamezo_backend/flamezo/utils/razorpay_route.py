@@ -308,6 +308,65 @@ def build_transfer_payload(linked_account_id: str, total_paise: int,
     }]
 
 
+def suspend_linked_account(restaurant) -> dict:
+    """Suspend a restaurant's Razorpay linked account so no further transfers
+    can be routed to it. Sets route_mode to flamezo_hold on the restaurant doc."""
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    account_id = res.get("razorpay_account_id")
+    if not account_id:
+        return {"success": False, "error": "no_linked_account"}
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+    try:
+        r = _requests.delete(
+            f"https://api.razorpay.com/v2/accounts/{account_id}",
+            auth=auth,
+        )
+        r.raise_for_status()
+        frappe.db.set_value("Restaurant", res.name, {
+            "route_mode": "flamezo_hold",
+            "razorpay_kyc_status": "suspended",
+        })
+        frappe.db.commit()
+        return {"success": True, "account_id": account_id, "status": "suspended"}
+    except Exception as e:
+        frappe.log_error(f"Suspend linked account failed for {account_id}: {e}", "razorpay_route.suspend")
+        return {"success": False, "error": str(e)}
+
+
+def reactivate_linked_account(restaurant) -> dict:
+    """Re-enable a suspended Razorpay linked account. Sets route_mode back to
+    flamezo_hold (KYC must be re-verified before direct_split is re-enabled)."""
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    account_id = res.get("razorpay_account_id")
+    if not account_id:
+        return {"success": False, "error": "no_linked_account"}
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+    try:
+        r = _requests.patch(
+            f"https://api.razorpay.com/v2/accounts/{account_id}",
+            auth=auth,
+            json={"profile": {}},
+        )
+        r.raise_for_status()
+        resp = r.json()
+        new_status = resp.get("status", "")
+        frappe.db.set_value("Restaurant", res.name, {
+            "route_mode": "flamezo_hold",
+            "razorpay_kyc_status": new_status or "under_review",
+        })
+        frappe.db.commit()
+        return {"success": True, "account_id": account_id, "status": new_status}
+    except Exception as e:
+        frappe.log_error(f"Reactivate linked account failed for {account_id}: {e}", "razorpay_route.reactivate")
+        return {"success": False, "error": str(e)}
+
+
 def reverse_transfer(order, refund_amount_paise: int) -> dict:
     """Reverse the merchant portion of a Route transfer when an order is
     refunded. Razorpay's `reverse_transfer` API handles the prorated math
