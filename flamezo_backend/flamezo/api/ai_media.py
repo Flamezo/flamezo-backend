@@ -595,6 +595,13 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         frappe.db.set_value("AI Image Generation", generation_name, "status", "Completed")
         frappe.db.commit()
 
+        # 7. Auto-apply to product to prevent wasted coins
+        if mode == "generate" and doc.owner_doctype == "Menu Product":
+            try:
+                apply_to_product(generation_name)
+            except Exception as apply_err:
+                frappe.log_error("Auto-Apply Failed", str(apply_err))
+
     except Exception as e:
         frappe.db.set_value("AI Image Generation", generation_name, "status", "Failed")
         frappe.db.set_value("AI Image Generation", generation_name, "error_message", str(e))
