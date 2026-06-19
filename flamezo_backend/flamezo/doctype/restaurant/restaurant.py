@@ -939,3 +939,21 @@ def ensure_svg_files_exist(self):
 			
 		except Exception as e:
 			frappe.log_error(f"Error ensuring SVG file {svg['filename']}: {str(e)}", "SVG File Creation Error")
+
+
+@frappe.whitelist()
+def suspend_linked_account(restaurant):
+	"""Suspend the Razorpay linked account for a restaurant (admin only)."""
+	if frappe.session.user == "Guest":
+		frappe.throw("Not permitted", frappe.PermissionError)
+	from flamezo_backend.flamezo.utils.razorpay_route import suspend_linked_account as _suspend
+	return _suspend(restaurant)
+
+
+@frappe.whitelist()
+def reactivate_linked_account(restaurant):
+	"""Re-enable a suspended Razorpay linked account (admin only)."""
+	if frappe.session.user == "Guest":
+		frappe.throw("Not permitted", frappe.PermissionError)
+	from flamezo_backend.flamezo.utils.razorpay_route import reactivate_linked_account as _reactivate
+	return _reactivate(restaurant)

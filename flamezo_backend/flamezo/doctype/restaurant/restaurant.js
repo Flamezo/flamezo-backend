@@ -3,6 +3,57 @@
 
 frappe.ui.form.on('Restaurant', {
 	refresh: function(frm) {
+		// ── Razorpay Route: Suspend / Reactivate linked account ──────────────
+		if (frm.doc.razorpay_account_id) {
+			const isSuspended = frm.doc.razorpay_kyc_status === 'suspended';
+
+			if (!isSuspended) {
+				frm.add_custom_button(__('Suspend Linked Account'), function() {
+					frappe.confirm(
+						__('Suspend Razorpay linked account <b>{0}</b> for {1}? No further Route transfers will go to this restaurant until reactivated.', [frm.doc.razorpay_account_id, frm.doc.restaurant_name]),
+						function() {
+							frappe.call({
+								method: 'flamezo_backend.flamezo.doctype.restaurant.restaurant.suspend_linked_account',
+								args: { restaurant: frm.doc.name },
+								freeze: true,
+								freeze_message: __('Suspending linked account...'),
+								callback: function(r) {
+									if (r.message && r.message.success) {
+										frappe.show_alert({ message: __('Linked account suspended. Route mode set to Flamezo Hold.'), indicator: 'orange' }, 6);
+										frm.reload_doc();
+									} else {
+										frappe.msgprint({ title: __('Suspension Failed'), message: (r.message && r.message.error) || __('Unknown error'), indicator: 'red' });
+									}
+								}
+							});
+						}
+					);
+				}, __('Route'));
+			} else {
+				frm.add_custom_button(__('Reactivate Linked Account'), function() {
+					frappe.confirm(
+						__('Reactivate Razorpay linked account <b>{0}</b> for {1}?', [frm.doc.razorpay_account_id, frm.doc.restaurant_name]),
+						function() {
+							frappe.call({
+								method: 'flamezo_backend.flamezo.doctype.restaurant.restaurant.reactivate_linked_account',
+								args: { restaurant: frm.doc.name },
+								freeze: true,
+								freeze_message: __('Reactivating linked account...'),
+								callback: function(r) {
+									if (r.message && r.message.success) {
+										frappe.show_alert({ message: __('Linked account reactivated. KYC re-verification may be required before direct split resumes.'), indicator: 'green' }, 6);
+										frm.reload_doc();
+									} else {
+										frappe.msgprint({ title: __('Reactivation Failed'), message: (r.message && r.message.error) || __('Unknown error'), indicator: 'red' });
+									}
+								}
+							});
+						}
+					);
+				}, __('Route'));
+			}
+		}
+
 		// Add button to view/download QR codes PDF
 		if (frm.doc.tables && frm.doc.tables > 0) {
 			// Check if QR codes PDF exists

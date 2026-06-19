@@ -1139,13 +1139,10 @@ export default function Layout({ children }: LayoutProps) {
             {showExpanded ? (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center flex-1 min-w-0">
-                  <img 
-                    src={`${theme === 'dark' ? mainLogoDark : mainLogoLight}?v=1.0.3`} 
-                    alt="Flamezo" 
-                    className={cn(
-                      "w-auto object-contain shrink-0",
-                      theme === 'dark' ? "h-9" : "h-[30px]"
-                    )}
+                  <img
+                    src={`${theme === 'dark' ? mainLogoLight : mainLogoDark}?v=1.0.5`}
+                    alt="Flamezo"
+                    className="h-6 w-auto object-contain shrink-0"
                   />
                 </div>
                 {/* Animated Theme Switch - Expanded */}
