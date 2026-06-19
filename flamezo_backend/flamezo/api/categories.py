@@ -40,11 +40,22 @@ Rules:
   • productCount on a parent = its own direct products + all sub products.
 """
 
+import json
 import frappe
 from frappe import _
 from frappe.utils import get_url, cint
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 from flamezo_backend.flamezo.media.utils import format_media_field
+
+
+def invalidate_category_cache(doc=None, method=None, restaurant_id=None):
+	"""Invalidate the categories cache for a restaurant. Callable as a hook (doc, method) or directly."""
+	import time
+	rid = restaurant_id
+	if rid is None and doc is not None:
+		rid = doc.get("restaurant") or doc.get("restaurant_id")
+	if rid:
+		frappe.cache().set_value(f"cats_v:{rid}", str(int(time.time())), expires_in_sec=7200)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -57,6 +68,13 @@ def get_categories(restaurant_id, include_inactive=0):
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		# ── Redis cache ────────────────────────────────────────────────────
+		cache_version = frappe.cache().get_value(f"cats_v:{restaurant}") or "0"
+		cache_key = f"categories_v2:{restaurant}:{cint(include_inactive)}:{cache_version}"
+		cached = frappe.cache().get_value(cache_key)
+		if cached:
+			return json.loads(cached)
 
 		cat_filters = {"restaurant": restaurant}
 		if not cint(include_inactive):
@@ -113,9 +131,92 @@ def get_categories(restaurant_id, include_inactive=0):
 		for row in product_rows:
 			direct_count[row["category"]] = direct_count.get(row["category"], 0) + 1
 
+		# ── Bulk-load image data (eliminates N+1) ─────────────────────────
+		# 1. Category own Media Assets — full data (URL + variants) in 2 queries
+		all_cat_ids = [c["id"] for c in all_cats]
+		cat_ma_rows = frappe.get_all(
+			"Media Asset",
+			filters={
+				"owner_doctype": "Menu Category",
+				"owner_name": ["in", all_cat_ids] if all_cat_ids else ["__no_match__"],
+				"media_role": "category_image",
+				"status": "ready",
+			},
+			fields=["name", "owner_name", "primary_url", "blur_placeholder", "media_kind"],
+		)
+		# Bulk-load variants for category media assets
+		cat_ma_asset_names = [r["name"] for r in cat_ma_rows if r.get("media_kind") == "image"]
+		cat_variants_by_asset = {}
+		if cat_ma_asset_names:
+			cat_variant_rows = frappe.get_all(
+				"Media Variant",
+				filters={"parent": ["in", cat_ma_asset_names]},
+				fields=["parent", "variant_name", "file_url as url", "width", "height"],
+				order_by="width asc",
+			)
+			for v in cat_variant_rows:
+				cat_variants_by_asset.setdefault(v["parent"], []).append(v)
+
+		# Build {cat_id: full_media_data} map
+		from flamezo_backend.flamezo.media.utils import normalize_variant_name
+		category_media_data = {}
+		for row in cat_ma_rows:
+			variants_list = cat_variants_by_asset.get(row["name"], [])
+			variants_dict = {}
+			srcset_parts = []
+			for v in variants_list:
+				vname = normalize_variant_name(v.get("variant_name", ""))
+				variants_dict[vname] = {"url": v["url"], "width": v.get("width"), "height": v.get("height")}
+				if v.get("url") and v.get("width"):
+					srcset_parts.append(f"{v['url']} {v['width']}w")
+			category_media_data[row["owner_name"]] = {
+				"url": row.get("primary_url") or "",
+				"blur_placeholder": row.get("blur_placeholder"),
+				"media_id": row["name"],
+				"variants": variants_dict,
+				"srcset": ", ".join(srcset_parts) or None,
+			}
+		cats_with_media_asset = set(category_media_data.keys())
+
+		# 2. First product image per category docname — bulk SQL + Media Asset data in 2 more queries
+		product_image_by_catname = {}
+		if all_cat_names:
+			pm_rows = frappe.db.sql(
+				"""
+				SELECT mp.category AS cat_docname, pm.name AS media_name, pm.media_url
+				FROM `tabMenu Product` mp
+				INNER JOIN `tabProduct Media` pm
+					ON pm.parent = mp.name
+					AND pm.parenttype = 'Menu Product'
+					AND pm.parentfield = 'product_media'
+					AND pm.media_type = 'image'
+				WHERE mp.restaurant = %s AND mp.is_active = 1 AND mp.category IN %s
+				ORDER BY mp.category ASC, pm.idx ASC
+				""",
+				(restaurant, tuple(all_cat_names)),
+				as_dict=True,
+			)
+			# Take first per category
+			pm_items_by_catname = {}
+			for row in pm_rows:
+				if row.cat_docname not in pm_items_by_catname:
+					pm_items_by_catname[row.cat_docname] = row
+
+			# Bulk-load Media Asset data for these fallback product images
+			if pm_items_by_catname:
+				pm_media_items = [{"name": r["media_name"], "media_url": r.get("media_url")} for r in pm_items_by_catname.values()]
+				from flamezo_backend.flamezo.media.utils import bulk_get_media_asset_data
+				pm_asset_map = bulk_get_media_asset_data("Product Media", pm_media_items)
+				for cat_docname, pm_row in pm_items_by_catname.items():
+					product_image_by_catname[cat_docname] = {
+						**pm_row,
+						"asset_data": pm_asset_map.get(pm_row["media_name"]),
+					}
+
 		# ── Format helper ───────────────────────────────────────────────────
 		def _format_category(cat, children=None, parent_id=None):
 			frappe_name = cat["docname"]
+			cat_id = cat["id"]
 			own_count = direct_count.get(frappe_name, 0)
 
 			# Product count on a parent = own + all children's counts
@@ -123,7 +224,7 @@ def get_categories(restaurant_id, include_inactive=0):
 			total_count = own_count + child_count
 
 			data = {
-				"id": cat["id"],
+				"id": cat_id,
 				"name": cat["name"],
 				"displayName": cat["displayName"],
 				"description": cat.get("description") or "",
@@ -135,56 +236,45 @@ def get_categories(restaurant_id, include_inactive=0):
 			if parent_id:
 				data["parentId"] = parent_id
 
-			# ── Image resolution (same logic as before) ─────────────────────
-			has_media_asset = frappe.db.get_value(
-				"Media Asset",
-				{
-					"owner_doctype": "Menu Category",
-					"owner_name": cat.get("id"),
-					"media_role": "category_image",
-					"status": "ready",
-				},
-				"name",
+			# ── Image resolution — O(1) dict lookups, zero DB queries ───
+			has_media_asset = cat_id in cats_with_media_asset
+
+			# Find first product image: check this category then each child
+			catnames_to_check = [frappe_name] + ([c["docname"] for c in children] if children else [])
+			first_product_media = next(
+				(product_image_by_catname[cn] for cn in catnames_to_check if cn in product_image_by_catname),
+				None,
 			)
 
-			# Find product image — check direct products first, then subcategory products
-			category_names_to_search = [frappe_name]
-			if children:
-				category_names_to_search.extend([c.get("docname") or c.get("name") for c in children])
-
-			product_names_with_images = frappe.get_all(
-				"Menu Product",
-				filters={"category": ["in", category_names_to_search], "is_active": 1, "restaurant": restaurant},
-				pluck="name",
-			)
-
-			first_product_media = frappe.db.get_value(
-				"Product Media",
-				{
-					"parenttype": "Menu Product",
-					"media_type": "image",
-					"parent": ["in", product_names_with_images or ["__no_match__"]],
-				},
-				["name", "media_url"],
-				order_by="idx asc",
-				as_dict=True,
-			)
+			def _apply_media(media_data):
+				"""Write pre-loaded CDN media data fields into `data`."""
+				data["category_image"] = media_data["url"]
+				if media_data.get("blur_placeholder"):
+					data["categoryImageBlurPlaceholder"] = media_data["blur_placeholder"]
+				if media_data.get("media_id"):
+					data["mediaId"] = media_data["media_id"]
+				if media_data.get("variants"):
+					data["categoryImageVariants"] = media_data["variants"]
+				if media_data.get("srcset"):
+					data["categoryImageSrcset"] = media_data["srcset"]
 
 			if has_media_asset:
-				format_media_field(data, "category_image", "Menu Category", cat.get("id"), "category_image", "image")
+				_apply_media(category_media_data[cat_id])
+			elif first_product_media and first_product_media.get("asset_data"):
+				_apply_media(first_product_media["asset_data"])
+				if not data.get("category_image"):
+					data["category_image"] = first_product_media.get("media_url") or ""
 			elif first_product_media:
-				data["category_image"] = first_product_media["media_url"]
-				format_media_field(data, "category_image", "Product Media", first_product_media["name"], "media_url", "image")
+				data["category_image"] = first_product_media.get("media_url") or ""
 			elif cat.get("category_image"):
 				data["category_image"] = cat.get("category_image")
-				format_media_field(data, "category_image", "Menu Category", cat.get("id"), "category_image", "image")
 			else:
 				data["image"] = "/images/icons/burger.png"
 
 			# Attach subcategories
 			if children:
 				data["subcategories"] = [
-					_format_category(child, parent_id=cat["id"])
+					_format_category(child, parent_id=cat_id)
 					for child in sorted(children, key=lambda c: (c.get("display_order") or 0, c.get("name") or ""))
 				]
 
@@ -252,12 +342,14 @@ def get_categories(restaurant_id, include_inactive=0):
 			}
 			formatted_categories.insert(1 if top_picks_count > 0 else 0, chef_special)
 
-		return {
+		result = {
 			"success": True,
 			"data": {
 				"categories": formatted_categories,
 			},
 		}
+		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=300)
+		return result
 
 	except Exception as e:
 		frappe.log_error(f"Error in get_categories: {str(e)}")

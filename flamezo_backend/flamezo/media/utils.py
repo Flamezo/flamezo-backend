@@ -175,6 +175,91 @@ def get_media_asset_data(owner_doctype, owner_name, media_role, fallback_url=Non
 	}
 
 
+def bulk_get_media_asset_data(owner_doctype, media_items):
+	"""
+	Bulk version of get_media_asset_data — replaces N individual queries with 2 bulk queries.
+
+	media_items: list of dicts, each with at least {"name": str, "media_url": str|None}
+	Returns: {media_item_name: {url, blur_placeholder, media_id, variants, srcset}}
+	"""
+	if not media_items:
+		return {}
+
+	owner_names = [m["name"] for m in media_items if m.get("name")]
+	if not owner_names:
+		return {}
+
+	# 1. Bulk load all Media Assets
+	all_assets = frappe.get_all(
+		"Media Asset",
+		filters={
+			"owner_doctype": owner_doctype,
+			"owner_name": ["in", owner_names],
+			"status": ["in", ["uploaded", "ready"]],
+		},
+		fields=["name", "owner_name", "primary_url", "blur_placeholder", "media_kind", "status"],
+		order_by="modified desc",
+	)
+
+	# Group by owner_name — prefer 'ready' over 'uploaded'
+	assets_by_owner = {}
+	for asset in all_assets:
+		owner = asset["owner_name"]
+		existing = assets_by_owner.get(owner)
+		if not existing:
+			assets_by_owner[owner] = asset
+		elif asset.get("status") == "ready" and existing.get("status") != "ready":
+			assets_by_owner[owner] = asset
+
+	# 2. Bulk load Media Variants for image assets
+	image_asset_names = [a["name"] for a in assets_by_owner.values() if a.get("media_kind") == "image"]
+	variants_by_asset = {}
+	if image_asset_names:
+		all_variants = frappe.get_all(
+			"Media Variant",
+			filters={"parent": ["in", image_asset_names]},
+			fields=["parent", "variant_name", "file_url as url", "width", "height"],
+			order_by="width asc",
+		)
+		for v in all_variants:
+			variants_by_asset.setdefault(v["parent"], []).append(v)
+
+	# 3. Build result dict for every input item
+	result = {}
+	for item in media_items:
+		item_name = item.get("name")
+		if not item_name:
+			continue
+
+		asset = assets_by_owner.get(item_name)
+		if asset and asset.get("primary_url"):
+			variants_list = variants_by_asset.get(asset["name"], [])
+			variants_dict = {}
+			srcset_parts = []
+			for v in variants_list:
+				vname = normalize_variant_name(v.get("variant_name", ""))
+				variants_dict[vname] = {"url": v["url"], "width": v.get("width"), "height": v.get("height")}
+				if v.get("url") and v.get("width"):
+					srcset_parts.append(f"{v['url']} {v['width']}w")
+			result[item_name] = {
+				"url": asset["primary_url"],
+				"blur_placeholder": asset.get("blur_placeholder"),
+				"media_id": asset["name"],
+				"variants": variants_dict,
+				"srcset": ", ".join(srcset_parts) or None,
+			}
+		else:
+			result[item_name] = {
+				"url": item.get("media_url") or "",
+				"blur_placeholder": None,
+				"media_id": None,
+				"variants": {},
+				"srcset": None,
+			}
+
+	return result
+
+
 def format_media_field(data_dict, field_name, owner_doctype, owner_name, media_role, output_key=None):
 	"""
 	Helper to format a media field in API response data with CDN URLs, blur placeholders, and responsive variants
