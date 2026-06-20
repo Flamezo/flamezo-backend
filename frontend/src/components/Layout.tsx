@@ -612,8 +612,8 @@ export default function Layout({ children }: LayoutProps) {
                   sideOffset={4}
                   className="w-[260px] p-0 rounded-md border border-border shadow-md z-[60] bg-popover"
                 >
-                  {/* Admin actions at top — stacked */}
-                  {isAdmin && (
+                  {/* Admin actions at top — stacked (system admin only) */}
+                  {isSystemAdmin && (
                     <>
                       <div className="flex flex-col gap-1 px-2 pt-2 pb-1.5">
                         <DropdownMenuItem
@@ -1457,8 +1457,8 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
 
-          {/* Admin actions at top */}
-          {isAdmin && (
+          {/* Admin actions at top (system admin only) */}
+          {isSystemAdmin && (
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
               <Button
                 variant="default"

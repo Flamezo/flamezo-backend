@@ -102,6 +102,7 @@ def get_onboarding_details(token):
             'menu_layout': getattr(doc, 'menu_layout', None),
             'enable_table_booking': getattr(doc, 'enable_table_booking', None),
             'enable_banquet_booking': getattr(doc, 'enable_banquet_booking', None),
+            'tables': getattr(doc, 'tables', None),
             'enable_events': getattr(doc, 'enable_events', None),
             'enable_offers': getattr(doc, 'enable_offers', None),
             
@@ -158,7 +159,7 @@ def submit_onboarding_data(token, data):
             'pan_number', 'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name', 'opening_time', 'closing_time', 
             'swiggy_link', 'zomato_link', 'subtitle', 'description', 
             'default_theme', 'menu_layout', 'enable_table_booking', 
-            'enable_banquet_booking', 'enable_events', 'enable_offers', 
+            'enable_banquet_booking', 'tables', 'enable_events', 'enable_offers', 
             ]
         
         for field in fields:

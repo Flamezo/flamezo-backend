@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -173,7 +173,11 @@ const mockFlaggedData = [
 export default function UGCApprovals() {
   const { selectedRestaurant } = useRestaurant()
   const [tab, setTab] = useState<Tab>('verify')
-  const [demoMode, setDemoMode] = useState(false)
+  const [demoMode, setDemoMode] = useState(selectedRestaurant === 'unvind')
+
+  useEffect(() => {
+    setDemoMode(selectedRestaurant === 'unvind')
+  }, [selectedRestaurant])
   const [reviewing, setReviewing] = useState<any | null>(null)
   const [viewCount, setViewCount] = useState('')
   const [busy, setBusy] = useState(false)

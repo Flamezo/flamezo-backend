@@ -417,124 +417,214 @@ def download_image(url):
     return temp_path
 
 
+# ── Prompt helpers ────────────────────────────────────────────────────────────
+
+# Maps category keywords → surface/prop description.
+# More specific entries are listed first so they match before generic ones.
+_CATEGORY_SURFACE_MAP = [
+    ({"dessert", "sweet", "cake", "pastry", "mithai", "halwa", "kheer",
+      "gulab", "ladoo", "barfi", "rabdi", "phirni"},
+     "elegant white marble surface, a small dessert fork, soft pastel linen napkin"),
+    ({"drink", "beverage", "juice", "cocktail", "tea", "coffee", "chai",
+      "lassi", "mocktail", "sharbat", "nimbu"},
+     "polished wooden bar counter, condensation on the glass, warm amber backlight"),
+    ({"soup", "dal", "rasam", "shorba"},
+     "rustic wooden surface, deep terracotta or ceramic bowl, small ladle resting on the rim"),
+    ({"biryani", "pulao", "dum", "rice"},
+     "dark wooden serving platter, traditional copper handi, a garnish of crispy fried onions and fresh mint"),
+    ({"curry", "sabzi", "masala", "gravy", "makhani", "korma", "kadai",
+      "butter chicken", "paneer", "kofta"},
+     "dark stone surface, copper karahi or white ceramic bowl, whole spices and a naan on the side"),
+    ({"starter", "appetizer", "snack", "chaat", "tikka", "kebab", "barbeque",
+      "bbq", "tandoor", "seekh"},
+     "dark slate board, small ramekins of mint chutney and tamarind sauce, a lemon wedge"),
+    ({"seafood", "fish", "prawn", "crab", "lobster", "surmai", "pomfret"},
+     "slate or dark marble board, fresh lemon wedge, dill or parsley sprig"),
+    ({"pizza", "pasta", "risotto", "italian"},
+     "rustic wooden board, scattered fresh basil leaves, a sprinkle of parmesan"),
+    ({"burger", "sandwich", "wrap", "roll", "shawarma", "kathi"},
+     "parchment paper on a wooden tray, a small side of fries or pickled jalapeños"),
+    ({"salad", "bowl", "healthy", "grain", "quinoa"},
+     "clean white ceramic bowl on bright marble, fresh herb garnish, a drizzle of dressing"),
+    ({"bread", "naan", "roti", "paratha", "puri", "kulcha", "bhatura"},
+     "cloth or burlap surface, small copper bowl of ghee, earthy warm-tone props"),
+    ({"ice cream", "gelato", "sorbet", "kulfi"},
+     "white marble with a vintage metal spoon, scattered wafer cones, pastel background"),
+]
+
+
+def _surface_and_props(category):
+    """Return a surface + prop suggestion matched to the dish category."""
+    c = (category or "").lower()
+    for keywords, surface in _CATEGORY_SURFACE_MAP:
+        if any(kw in c for kw in keywords):
+            return surface
+    return "premium dark ceramic plate on a textured dark slate surface"
+
+
+def _build_generate_prompt(dish_name, dish_description, dish_category, restaurant_name, include_branding):
+    """
+    Rich, scene-setting prompt for text-to-image food photography (FLUX dev).
+    FLUX responds far better to naturalistic prose than to keyword stacking.
+    Branding is expressed through ambiance/atmosphere — never as text rendering,
+    which diffusion models cannot do reliably.
+    """
+    surface = _surface_and_props(dish_category)
+
+    desc_clause = ""
+    if dish_description:
+        cleaned = dish_description.strip().rstrip(".").lower()[:200]
+        desc_clause = f"featuring {cleaned}, "
+
+    ambiance = ""
+    if include_branding and restaurant_name:
+        ambiance = (
+            f"The styling reflects the refined character of {restaurant_name}. "
+        )
+
+    return (
+        f"A stunning food photograph of {dish_name}, {desc_clause}"
+        f"presented on a {surface}. "
+        f"Soft, diffused natural light from the upper left casts gentle highlights "
+        f"and clean shadows across the dish. "
+        f"Ultra-shallow depth of field keeps the hero dish razor-sharp while "
+        f"the background dissolves into warm, creamy bokeh. "
+        f"{ambiance}"
+        f"Meticulous plating — thoughtful garnishes, spotless plate edges, "
+        f"vibrant natural colors that make the food look irresistible. "
+        f"Editorial food photography, overhead or three-quarter angle, "
+        f"clean and appetizing. No text, no people, no hands."
+    )
+
+
+def _build_enhance_prompt(dish_name, dish_description, dish_category):
+    """
+    Minimal, guidance-light prompt for image-to-image enhancement (FLUX schnell).
+    At strength=0.55 the input image provides the composition; the prompt
+    nudges quality and lighting without overriding the source structure.
+    """
+    surface = _surface_and_props(dish_category)
+
+    desc_clause = ""
+    if dish_description:
+        cleaned = dish_description.strip().rstrip(".").lower()[:120]
+        desc_clause = f"{cleaned}, "
+
+    return (
+        f"{dish_name}, {desc_clause}"
+        f"professional restaurant menu photograph on a {surface}, "
+        f"soft natural window light from the side, sharp focus on the food, "
+        f"rich natural colors, elegant plating, clean appetizing presentation, "
+        f"editorial food photography, no text, no people."
+    )
+
+
+# Shared negative prompt — prevents the most common diffusion artifacts in food photos.
+_FOOD_NEGATIVE_PROMPT = (
+    "blurry, out of focus, low quality, watermark, text, logo, signature, "
+    "ugly plating, dirty plate, overexposed, oversaturated, washed out, "
+    "artificial plastic-looking food, fake food, cartoon, illustration, "
+    "hands, people, face, extra objects, deformed, distorted, cluttered background"
+)
+
+# ── Fal.ai generation functions ───────────────────────────────────────────────
+
 def generate_image_fal_ai_enhance(image_path, dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
-    """Uses Fal.ai FLUX.1 [schnell] for image-to-image enhancement."""
+    """
+    Image-to-image food photo enhancement using FLUX.1 [schnell].
+
+    strength=0.55 — preserves the original composition, colour and structure
+    while the model improves lighting quality, plating detail, and sharpness.
+    (The old value of 0.85 was so high it effectively ignored the source image
+    and hallucinated a completely different dish.)
+    num_inference_steps=8 — schnell's useful ceiling; meaningfully better than 4.
+    """
     fal_key = frappe.conf.get("fal_api_key")
     if not fal_key:
         frappe.throw("Fal.ai API key required for generation")
 
-    import base64
     with open(image_path, "rb") as f:
-        img_b64 = base64.b64encode(f.read()).decode('utf-8')
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
-    description_text = f"Dish Details: {dish_description}" if dish_description else ""
-    category_text = f"Category: {dish_category}" if dish_category else ""
-    
-    branding_text = ""
-    if include_branding and restaurant_name:
-        branding_text = (
-            f"BRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way. "
-        )
+    prompt = _build_enhance_prompt(dish_name, dish_description, dish_category)
 
-    prompt = (
-        f"Professional food photography of {dish_name}. "
-        f"Style: restaurant menu photography, magazine-quality, Pinterest-style, editorial food photography, highly detailed, 4k, 8k resolution. "
-        f"The dish should be beautifully plated, with relevant garnishes, ingredients, or sides visible in the blurred background. "
-        f"{category_text} "
-        f"{description_text} "
-        f"Lighting: soft natural light coming from a window, moody shadows. "
-        f"Settings: Shot on 85mm lens, f/1.8 aperture for shallow depth of field, sharp focus on the food. "
-        f"{branding_text}"
-    ).strip()
-
-    url = "https://fal.run/fal-ai/flux/schnell"
     headers = {
         "Authorization": f"Key {fal_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     payload = {
         "prompt": prompt,
+        "negative_prompt": _FOOD_NEGATIVE_PROMPT,
         "image_url": data_uri,
-        "strength": 0.85,
+        "strength": 0.55,
         "image_size": "portrait_4_3",
-        "num_inference_steps": 4,
-        "guidance_scale": 3.5,
+        "num_inference_steps": 8,
         "num_images": 1,
-        "enable_safety_checker": True
+        "enable_safety_checker": True,
     }
-    
-    import requests
-    import uuid
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+    response = requests.post(
+        "https://fal.run/fal-ai/flux/schnell",
+        headers=headers, json=payload, timeout=90,
+    )
     response.raise_for_status()
     data = response.json()
-    
-    if 'images' in data and data['images']:
-        image_url = data['images'][0]['url']
+
+    if data.get("images"):
         temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
-        img_data = requests.get(image_url).content
+        img_data = requests.get(data["images"][0]["url"]).content
         with open(temp_output, "wb") as f:
             f.write(img_data)
         return temp_output
-        
+
     frappe.throw("Fal.ai failed to enhance the image.")
 
 
 def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=None, include_branding=False, restaurant_name=None):
-    """Generates a NEW food photo from scratch using FLUX.1 [schnell]."""
+    """
+    Text-to-image food photo generation using FLUX.1 [dev].
+
+    Switched from schnell (4 steps, minimal prompt adherence) to dev
+    (25 steps, much stronger composition and detail) for noticeably
+    better output quality. Runtime is ~20-30 s — well within the job timeout.
+    """
     fal_key = frappe.conf.get("fal_api_key")
     if not fal_key:
         frappe.throw("Fal.ai API key required for generation")
 
-    description_text = f"Dish Details: {dish_description}" if dish_description else ""
-    category_text = f"Category: {dish_category}" if dish_category else ""
-    
-    branding_text = ""
-    if include_branding and restaurant_name:
-        branding_text = (
-            f"BRANDING INSTRUCTIONS: Incorporate the restaurant name '{restaurant_name}' in a minimalistic, professional way. "
-        )
+    prompt = _build_generate_prompt(
+        dish_name, dish_description, dish_category, restaurant_name, include_branding
+    )
 
-    prompt = (
-        f"Professional food photography of {dish_name}. "
-        f"Style: restaurant menu photography, magazine-quality, Pinterest-style, editorial food photography, highly detailed, 4k, 8k resolution. "
-        f"The dish should be beautifully plated, with relevant garnishes, ingredients, or sides visible in the blurred background. "
-        f"{category_text} "
-        f"{description_text} "
-        f"Lighting: soft natural light coming from a window, moody shadows. "
-        f"Settings: Shot on 85mm lens, f/1.8 aperture for shallow depth of field, sharp focus on the food. "
-        f"{branding_text}"
-    ).strip()
-
-    url = "https://fal.run/fal-ai/flux/schnell"
     headers = {
         "Authorization": f"Key {fal_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     payload = {
         "prompt": prompt,
+        "negative_prompt": _FOOD_NEGATIVE_PROMPT,
         "image_size": "portrait_4_3",
-        "num_inference_steps": 4,
+        "num_inference_steps": 25,
         "guidance_scale": 3.5,
         "num_images": 1,
-        "enable_safety_checker": True
+        "enable_safety_checker": True,
     }
-    
-    import requests
-    import uuid
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+    response = requests.post(
+        "https://fal.run/fal-ai/flux/dev",
+        headers=headers, json=payload, timeout=120,
+    )
     response.raise_for_status()
     data = response.json()
-    
-    if 'images' in data and data['images']:
-        image_url = data['images'][0]['url']
+
+    if data.get("images"):
         temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
-        img_data = requests.get(image_url).content
+        img_data = requests.get(data["images"][0]["url"]).content
         with open(temp_output, "wb") as f:
             f.write(img_data)
         return temp_output
-        
+
     frappe.throw("Fal.ai failed to generate a new image from product details.")
 
 
@@ -624,11 +714,21 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
                 frappe.log_error(error_msg[:140], "AI Billing Refund")
 
     finally:
-        # Cleanup
         if temp_input_path and os.path.exists(temp_input_path):
             os.remove(temp_input_path)
         if temp_output_path and os.path.exists(temp_output_path):
             os.remove(temp_output_path)
+        # Delete the raw /files/ upload created by upload_base64_image in enhance mode.
+        # It's a one-time intermediary — keeping it wastes public storage indefinitely.
+        try:
+            original_url = frappe.db.get_value("AI Image Generation", generation_name, "original_image_url") or ""
+            if original_url.startswith("/files/"):
+                file_name = frappe.db.get_value("File", {"file_url": original_url}, "name")
+                if file_name:
+                    frappe.delete_doc("File", file_name, ignore_permissions=True, force=True)
+                    frappe.db.commit()
+        except Exception:
+            pass
 
 
 @frappe.whitelist(allow_guest=False)

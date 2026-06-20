@@ -605,6 +605,14 @@
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="form-group">
+                        <label>Number of Tables</label>
+                        <input type="number" id="tables" placeholder="e.g. 10" min="0">
+                        <div class="helper-text">Number of tables in your restaurant</div>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Operating Hours</label>
                     <div class="row">
@@ -803,6 +811,7 @@
                     // Step 3: Store Setup
                     if (data.default_theme) document.getElementById('default_theme').value = data.default_theme;
                     if (data.menu_layout) document.getElementById('menu_layout').value = data.menu_layout;
+                    if (data.tables) document.getElementById('tables').value = data.tables;
                     if (data.opening_time) document.getElementById('opening_time').value = data.opening_time;
                     if (data.closing_time) document.getElementById('closing_time').value = data.closing_time;
 
@@ -873,7 +882,7 @@
                 'fssai_number', 'gst_number', 'tax_rate', 'pan_number',
                 'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name',
                 'opening_time', 'closing_time',
-                'default_theme', 'menu_layout'
+                'default_theme', 'menu_layout', 'tables'
             ];
             
             fields.forEach(f => {
