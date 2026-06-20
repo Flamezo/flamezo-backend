@@ -552,8 +552,10 @@ export default function AIEnhancementPage() {
             <div className="flex-1 border rounded-lg bg-muted/10 flex flex-col items-center justify-center p-4 min-h-[300px] mb-6">
               {generationIds.length === 0 ? (
                 <div className="text-muted-foreground flex flex-col items-center">
-                  <Sparkles className="h-10 w-10 mb-2 opacity-20" />
-                  Upload an image to start
+                  {aiMode === 'generate'
+                    ? <Camera className="h-10 w-10 mb-2 opacity-20" />
+                    : <Sparkles className="h-10 w-10 mb-2 opacity-20" />}
+                  {aiMode === 'generate' ? 'Click Generate Photo to start' : 'Upload an image to start'}
                 </div>
               ) : isAnyProcessing ? (
                 <div className="flex flex-col items-center space-y-4 text-primary">
@@ -562,7 +564,7 @@ export default function AIEnhancementPage() {
                     <Loader2 className="h-12 w-12 animate-spin relative z-10" />
                   </div>
                   <div className="font-medium animate-pulse">Running AI pipeline...</div>
-                  <p className="text-xs text-muted-foreground">This normally takes 10-15 seconds.</p>
+                  <p className="text-xs text-muted-foreground">This normally takes {aiMode === 'generate' ? '20–35' : '10–20'} seconds.</p>
                 </div>
               ) : allFailed ? (
                 <div className="text-destructive font-medium flex items-center">

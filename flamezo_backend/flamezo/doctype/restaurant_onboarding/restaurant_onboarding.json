@@ -38,6 +38,7 @@
   "column_break_config",
   "enable_table_booking",
   "enable_banquet_booking",
+  "tables",
   "section_break_address",
   "address",
   "city",
@@ -239,6 +240,12 @@
    "fieldtype": "Check",
    "label": "Enable Banquet Booking",
    "default": 1
+  },
+  {
+   "fieldname": "tables",
+   "fieldtype": "Int",
+   "label": "Number of Tables",
+   "default": 0
   },
   {
    "fieldname": "section_break_address",
