@@ -490,14 +490,14 @@ export default function RouteKycPage() {
             <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-fit">
               <button
                 onClick={() => setEntryMode('upload')}
-                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'upload' ? 'bg-white shadow-sm text-primary ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
+                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'upload' ? 'bg-background shadow-sm text-primary ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Auto-fill (Upload)
               </button>
               <button
                 onClick={() => setEntryMode('manual')}
-                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'manual' ? 'bg-white shadow-sm text-foreground ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
+                className={cn('flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2', entryMode === 'manual' ? 'bg-background shadow-sm text-foreground ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground')}
               >
                 <FileText className="h-3.5 w-3.5" />
                 Manual Entry

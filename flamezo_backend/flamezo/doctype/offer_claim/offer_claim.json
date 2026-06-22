@@ -10,8 +10,10 @@
   "coupon",
   "coupon_code",
   "column_break_1",
+  "customer",
   "customer_phone",
   "claimed_at",
+  "locked_until",
   "section_break_payment",
   "is_paid",
   "paid_amount",
@@ -51,6 +53,15 @@
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "search_index": 1
+  },
+  {
    "fieldname": "customer_phone",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -65,6 +76,14 @@
    "in_list_view": 1,
    "label": "Claimed At",
    "reqd": 1
+  },
+  {
+   "fieldname": "locked_until",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Locked Until",
+   "read_only": 1,
+   "description": "Offer claim is locked for 4 hours from claimed_at. No new claim at this restaurant until this expires."
   },
   {
    "fieldname": "section_break_payment",

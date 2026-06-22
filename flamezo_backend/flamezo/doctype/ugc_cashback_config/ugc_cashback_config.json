@@ -28,6 +28,12 @@
   "template_assets",
   "story_preview_url",
   "section_break_coupons",
+  "viewer_coupon_code",
+  "viewer_discount_type",
+  "viewer_discount_value",
+  "viewer_discount_cap",
+  "viewer_coupon_description",
+  "_ugc_coupon_ref",
   "coupon_for_viewers",
   "next_visit_coupon",
   "section_break_terms",
@@ -171,14 +177,58 @@
   {
    "fieldname": "section_break_coupons",
    "fieldtype": "Section Break",
-   "label": "Linked Coupons (optional)"
+   "label": "Story Viewer Coupon"
+  },
+  {
+   "fieldname": "viewer_coupon_code",
+   "fieldtype": "Data",
+   "label": "Coupon Code",
+   "reqd": 0,
+   "description": "Code shown on the story overlay that friends use to claim a discount (e.g. RASNA99)."
+  },
+  {
+   "fieldname": "viewer_discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "options": "flat\npercent",
+   "default": "flat",
+   "description": "flat = fixed ₹ amount off | percent = % off (requires Max Cap)"
+  },
+  {
+   "fieldname": "viewer_discount_value",
+   "fieldtype": "Float",
+   "label": "Discount Value",
+   "description": "₹ amount (flat) or percentage (percent). e.g. 99 for ₹99 off, or 15 for 15% off."
+  },
+  {
+   "fieldname": "viewer_discount_cap",
+   "fieldtype": "Currency",
+   "label": "Max Discount Cap (₹)",
+   "depends_on": "eval:doc.viewer_discount_type=='percent'",
+   "description": "Required for percent type. Sets the maximum ₹ discount regardless of bill size."
+  },
+  {
+   "fieldname": "viewer_coupon_description",
+   "fieldtype": "Data",
+   "label": "Offer Label",
+   "description": "Short text shown on the story overlay (e.g. '₹99 off your next visit'). Auto-generated if left blank."
+  },
+  {
+   "fieldname": "_ugc_coupon_ref",
+   "fieldtype": "Data",
+   "label": "Internal UGC Coupon Ref",
+   "hidden": 1,
+   "read_only": 1,
+   "description": "Auto-managed internal reference to the hidden Coupon doc created for checkout integration."
   },
   {
    "fieldname": "coupon_for_viewers",
    "fieldtype": "Link",
-   "label": "Coupon for Story Viewers",
+   "label": "Legacy Viewer Coupon (deprecated)",
    "options": "Coupon",
-   "description": "Existing coupon (from Manage Offers & Coupons) shown to the diner's friends who see the story."
+   "hidden": 1,
+   "read_only": 1,
+   "description": "Superseded by inline viewer coupon fields above. Kept for backward compatibility only."
   },
   {
    "fieldname": "next_visit_coupon",

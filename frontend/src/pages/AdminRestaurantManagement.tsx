@@ -36,7 +36,14 @@ import {
   ClipboardCopy,
   Gem,
   Trophy,
-  ExternalLink, Save
+  ExternalLink,
+  Save,
+  Eye,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Info,
+  RefreshCcw,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -79,6 +86,94 @@ interface AdminStats {
   total_outstanding_paise: number
   total_outstanding_rupees: number
   total_coins: number
+}
+
+interface OnboardingDetail {
+  name: string
+  restaurant_name: string
+  linked_restaurant?: string
+  status: string
+  owner_name?: string
+  owner_email?: string
+  owner_phone?: string
+  whatsapp_number?: string
+  fssai_number?: string
+  gst_number?: string
+  tax_rate?: number
+  pan_number?: string
+  legal_name?: string
+  business_type?: string
+  bank_account_number?: string
+  bank_ifsc?: string
+  bank_holder_name?: string
+  opening_time?: string
+  closing_time?: string
+  subtitle?: string
+  description?: string
+  default_theme?: string
+  menu_layout?: string
+  enable_table_booking?: number
+  enable_banquet_booking?: number
+  tables?: number
+  address?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  google_map_url?: string
+  tagline?: string
+  instagram_link?: string
+  facebook_link?: string
+  website_link?: string
+  google_review_link?: string
+  menu_link?: string
+  logo?: string
+  hero_image?: string
+  menu_photos?: string[]
+}
+
+type WarningSeverity = 'error' | 'warning' | 'info'
+interface FieldWarning { field: string; severity: WarningSeverity; message: string }
+
+function validateOnboardingData(d: OnboardingDetail): FieldWarning[] {
+  const warnings: FieldWarning[] = []
+  const w = (field: string, severity: WarningSeverity, message: string) => warnings.push({ field, severity, message })
+
+  // Contact
+  if (!d.owner_name?.trim()) w('Owner Name', 'error', 'Missing')
+  if (!d.owner_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.owner_email)) w('Owner Email', 'error', 'Invalid email format')
+  if (!d.owner_phone || !/^\d{10}$/.test(d.owner_phone.replace(/\D/g, ''))) w('Owner Phone', 'warning', 'Should be a 10-digit mobile number')
+  if (d.whatsapp_number && !/^\d{10}$/.test(d.whatsapp_number.replace(/\D/g, ''))) w('WhatsApp Number', 'warning', 'Should be 10 digits')
+
+  // Legal
+  if (!d.fssai_number || !/^\d{14}$/.test(d.fssai_number.replace(/\s/g, ''))) w('FSSAI Number', 'error', 'Must be exactly 14 digits')
+  if (!d.gst_number) w('GST Number', 'warning', 'Not provided')
+  else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(d.gst_number.toUpperCase())) w('GST Number', 'warning', "Doesn't match standard format (e.g. 27AAAAA0000A1Z5)")
+  if (!d.pan_number) w('PAN Number', 'warning', 'Not provided')
+  else if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(d.pan_number.toUpperCase())) w('PAN Number', 'warning', 'Should be 10 chars, e.g. AAAAA1234A')
+  if (!d.bank_account_number || !/^\d{9,18}$/.test(d.bank_account_number.replace(/\s/g, ''))) w('Bank Account', 'warning', 'Should be 9–18 digit account number')
+  if (!d.bank_ifsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(d.bank_ifsc.toUpperCase())) w('IFSC Code', 'warning', 'Format: 4 letters + 0 + 6 alphanumeric, e.g. HDFC0001234')
+  if (!d.legal_name?.trim()) w('Legal Name', 'warning', 'Business legal name not provided')
+  if (d.tax_rate !== null && d.tax_rate !== undefined && ![0, 5, 12, 18, 28].includes(Number(d.tax_rate))) w('Tax Rate', 'warning', `${d.tax_rate}% is not a standard GST slab (0/5/12/18/28%)`)
+
+  // Location
+  if (!d.address?.trim()) w('Address', 'error', 'Missing')
+  if (!d.city?.trim()) w('City', 'error', 'Missing')
+  if (!d.state?.trim()) w('State', 'error', 'Missing')
+  if (!d.zip_code || !/^\d{6}$/.test(d.zip_code)) w('PIN Code', 'warning', 'Should be a 6-digit Indian PIN code')
+  if (!d.google_map_url) w('Google Maps Link', 'info', 'Not provided')
+  else if (!/google\.com\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/.test(d.google_map_url)) w('Google Maps Link', 'warning', "Doesn't look like a Google Maps URL")
+
+  // Branding
+  if (!d.logo) w('Logo', 'error', 'Not uploaded')
+  if (!d.tagline?.trim()) w('Tagline', 'info', 'Not provided')
+  if (!d.description?.trim()) w('Description', 'info', 'Not provided')
+  else if (d.description.trim().length < 30) w('Description', 'info', 'Very short — add more detail for better discovery')
+
+  // Operations
+  if (!d.opening_time) w('Opening Time', 'warning', 'Not set')
+  if (!d.closing_time) w('Closing Time', 'warning', 'Not set')
+
+  return warnings
 }
 
 export default function AdminRestaurantManagement() {
@@ -189,6 +284,18 @@ export default function AdminRestaurantManagement() {
   const { call: bulkDeleteOnboarding } = useFrappePostCall(
     'flamezo_backend.flamezo.api.onboarding.bulk_delete_onboarding_requests'
   )
+  const { call: fetchOnboardingDetail } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.onboarding.get_onboarding_by_name'
+  )
+  const { call: syncOnboarding } = useFrappePostCall(
+    'flamezo_backend.flamezo.api.onboarding.sync_onboarding_to_restaurant'
+  )
+
+  // Review modal state
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [reviewDetail, setReviewDetail] = useState<OnboardingDetail | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [syncingName, setSyncingName] = useState<string | null>(null)
 
   const { data: rawPlatformSettings, mutate: loadPlatformSettings } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.admin.get_platform_settings',
@@ -366,6 +473,45 @@ export default function AdminRestaurantManagement() {
       toast.error('Failed to sync platform settings')
     } finally {
       setUpdating(null)
+    }
+  }
+
+  const handleReviewOnboarding = async (name: string) => {
+    setReviewLoading(true)
+    setReviewDetail(null)
+    setIsReviewModalOpen(true)
+    try {
+      const result = await fetchOnboardingDetail({ name }) as any
+      if (result?.message?.success) {
+        setReviewDetail(result.message.data)
+      } else {
+        toast.error(result?.message?.error || 'Failed to load details')
+        setIsReviewModalOpen(false)
+      }
+    } catch {
+      toast.error('Failed to load onboarding details')
+      setIsReviewModalOpen(false)
+    } finally {
+      setReviewLoading(false)
+    }
+  }
+
+  const handleSyncOnboarding = async (name: string) => {
+    setSyncingName(name)
+    try {
+      const result = await syncOnboarding({ name }) as any
+      if (result?.message?.success) {
+        toast.success(result.message.message || 'Synced successfully')
+        loadOnboarding()
+        setIsReviewModalOpen(false)
+        setReviewDetail(null)
+      } else {
+        toast.error(result?.message?.error || 'Sync failed')
+      }
+    } catch {
+      toast.error('Sync failed')
+    } finally {
+      setSyncingName(null)
     }
   }
 
@@ -1112,7 +1258,34 @@ export default function AdminRestaurantManagement() {
                         {formatDate(req.creation)}
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1.5">
+                          {req.status === 'Client Submitted' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 px-3 text-xs font-bold hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 transition-all rounded-lg"
+                              onClick={() => handleReviewOnboarding(req.name)}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1.5" />
+                              Review
+                            </Button>
+                          )}
+
+                          {req.status === 'Client Submitted' && req.linked_restaurant && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 px-3 text-xs font-bold hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-500/10 dark:hover:text-green-400 transition-all rounded-lg"
+                              onClick={() => handleSyncOnboarding(req.name)}
+                              disabled={syncingName === req.name}
+                            >
+                              {syncingName === req.name
+                                ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                : <RefreshCcw className="h-3.5 w-3.5 mr-1.5" />}
+                              Sync
+                            </Button>
+                          )}
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1205,6 +1378,160 @@ export default function AdminRestaurantManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Onboarding Review Dialog */}
+      <Dialog open={isReviewModalOpen} onOpenChange={(open) => { setIsReviewModalOpen(open); if (!open) setReviewDetail(null) }}>
+        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+          <div className="p-6 bg-gradient-to-br from-violet-50 via-background to-background dark:from-violet-950/20 border-b">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-violet-100 dark:bg-violet-900/40 rounded-xl">
+                  <Eye className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-black">
+                    {reviewDetail ? reviewDetail.restaurant_name : 'Loading…'}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs font-medium">
+                    Submitted data review — verify before syncing
+                  </DialogDescription>
+                </div>
+              </div>
+              {reviewDetail && (() => {
+                const warnings = validateOnboardingData(reviewDetail)
+                const errors = warnings.filter(w => w.severity === 'error').length
+                const warns = warnings.filter(w => w.severity === 'warning').length
+                const infos = warnings.filter(w => w.severity === 'info').length
+                return (
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {errors > 0 && <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 gap-1"><XCircle className="h-3 w-3" />{errors} error{errors > 1 ? 's' : ''}</Badge>}
+                    {warns > 0 && <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 gap-1"><AlertTriangle className="h-3 w-3" />{warns} warning{warns > 1 ? 's' : ''}</Badge>}
+                    {infos > 0 && <Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 gap-1"><Info className="h-3 w-3" />{infos} missing</Badge>}
+                    {errors === 0 && warns === 0 && <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 gap-1"><CheckCircle2 className="h-3 w-3" />All checks passed</Badge>}
+                  </div>
+                )
+              })()}
+            </DialogHeader>
+          </div>
+
+          <div className="max-h-[55vh] overflow-y-auto p-6 space-y-5">
+            {reviewLoading && (
+              <div className="flex items-center justify-center py-16">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {reviewDetail && (() => {
+              const warnings = validateOnboardingData(reviewDetail)
+              const warnMap = Object.fromEntries(warnings.map(w => [w.field, w]))
+
+              const renderField = (label: string, value: string | number | null | undefined, warnKey?: string) => {
+                const warn = warnKey ? warnMap[warnKey] : undefined
+                const hasValue = value !== null && value !== undefined && value !== ''
+                return (
+                  <div className="flex items-start gap-3 py-1.5">
+                    <div className="mt-0.5 flex-shrink-0">
+                      {warn ? (
+                        warn.severity === 'error' ? <XCircle className="h-4 w-4 text-red-500" /> :
+                        warn.severity === 'warning' ? <AlertTriangle className="h-4 w-4 text-amber-500" /> :
+                        <Info className="h-4 w-4 text-blue-400" />
+                      ) : hasValue ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <div className="h-4 w-4 rounded-full border border-muted-foreground/20" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+                        {warn && <span className={cn("text-[10px] font-bold rounded-full px-2 py-0.5",
+                          warn.severity === 'error' ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+                          warn.severity === 'warning' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" :
+                          "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                        )}>{warn.message}</span>}
+                      </div>
+                      <p className={cn("text-sm mt-0.5 truncate", !hasValue && "text-muted-foreground/50 italic")}>{hasValue ? String(value) : '—'}</p>
+                    </div>
+                  </div>
+                )
+              }
+
+              const sections: { title: string; fields: [string, string | number | null | undefined, string?][] }[] = [
+                { title: 'Contact', fields: [
+                  ['Owner Name', reviewDetail.owner_name, 'Owner Name'],
+                  ['Owner Email', reviewDetail.owner_email, 'Owner Email'],
+                  ['Owner Phone', reviewDetail.owner_phone, 'Owner Phone'],
+                  ['WhatsApp', reviewDetail.whatsapp_number, 'WhatsApp Number'],
+                ]},
+                { title: 'Legal & Banking', fields: [
+                  ['Legal Name', reviewDetail.legal_name, 'Legal Name'],
+                  ['Business Type', reviewDetail.business_type],
+                  ['FSSAI', reviewDetail.fssai_number, 'FSSAI Number'],
+                  ['GST Number', reviewDetail.gst_number, 'GST Number'],
+                  ['PAN Number', reviewDetail.pan_number, 'PAN Number'],
+                  ['Tax Rate', reviewDetail.tax_rate !== undefined ? `${reviewDetail.tax_rate}%` : null, 'Tax Rate'],
+                  ['Bank Account', reviewDetail.bank_account_number, 'Bank Account'],
+                  ['IFSC Code', reviewDetail.bank_ifsc, 'IFSC Code'],
+                  ['Account Holder', reviewDetail.bank_holder_name],
+                ]},
+                { title: 'Location', fields: [
+                  ['Address', reviewDetail.address, 'Address'],
+                  ['City', reviewDetail.city, 'City'],
+                  ['State', reviewDetail.state, 'State'],
+                  ['PIN Code', reviewDetail.zip_code, 'PIN Code'],
+                  ['Google Maps', reviewDetail.google_map_url, 'Google Maps Link'],
+                ]},
+                { title: 'Branding & Social', fields: [
+                  ['Logo', reviewDetail.logo ? '✓ Uploaded' : null, 'Logo'],
+                  ['Tagline', reviewDetail.tagline, 'Tagline'],
+                  ['Description', reviewDetail.description, 'Description'],
+                  ['Instagram', reviewDetail.instagram_link],
+                  ['Facebook', reviewDetail.facebook_link],
+                  ['Website', reviewDetail.website_link],
+                  ['Google Review', reviewDetail.google_review_link],
+                ]},
+                { title: 'Operations', fields: [
+                  ['Opening Time', reviewDetail.opening_time, 'Opening Time'],
+                  ['Closing Time', reviewDetail.closing_time, 'Closing Time'],
+                  ['Tables', reviewDetail.tables],
+                  ['Menu Layout', reviewDetail.menu_layout],
+                  ['Default Theme', reviewDetail.default_theme],
+                  ['Menu Photos', reviewDetail.menu_photos?.length ? `${reviewDetail.menu_photos.length} uploaded` : null],
+                ]},
+              ]
+
+              return sections.map(section => (
+                <div key={section.title}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2 pb-1 border-b">{section.title}</p>
+                  <div className="divide-y divide-border/40">
+                    {section.fields.map(([label, value, warnKey]) => renderField(label, value as any, warnKey))}
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+
+          <div className="p-4 bg-muted/30 border-t flex justify-between items-center gap-3">
+            <Button variant="ghost" className="rounded-xl px-5 font-semibold text-sm" onClick={() => { setIsReviewModalOpen(false); setReviewDetail(null) }}>
+              Close
+            </Button>
+            {reviewDetail && reviewDetail.linked_restaurant && (
+              <Button
+                className="rounded-xl px-6 font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20"
+                onClick={() => handleSyncOnboarding(reviewDetail.name)}
+                disabled={syncingName === reviewDetail.name}
+              >
+                {syncingName === reviewDetail.name
+                  ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Syncing…</>
+                  : <><RefreshCcw className="h-4 w-4 mr-2" />Sync to Restaurant</>}
+              </Button>
+            )}
+            {reviewDetail && !reviewDetail.linked_restaurant && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">No linked restaurant — cannot sync</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Platform Settings Modal */}
       <Dialog open={isPlatformSettingsModalOpen} onOpenChange={setIsPlatformSettingsModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">

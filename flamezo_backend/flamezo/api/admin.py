@@ -1328,32 +1328,45 @@ def admin_generate_bulk_food_photos(restaurant_id):
 
 def process_bulk_food_photos(restaurant_id):
     try:
-        # Find products without media
         products = frappe.get_all('Menu Product', filters={'restaurant': restaurant_id}, pluck='name')
         for product_name in products:
             product = frappe.get_doc('Menu Product', product_name)
-            if not product.product_media:
-                # Bypass coin billing for admin generated bulk photos
-                doc = frappe.get_doc({
-                    "doctype": "AI Image Generation",
-                    "restaurant": restaurant_id,
-                    "owner_doctype": "Menu Product",
-                    "owner_name": product_name,
-                    "original_image_url": "",
-                    "status": "Pending_Upload"
-                })
-                doc.insert(ignore_permissions=True)
-                frappe.db.commit()
 
-                # Enqueue the actual generation job
-                frappe.enqueue(
-                    "flamezo_backend.flamezo.api.ai_media.process_ai_image_enhancement",
-                    queue="default",
-                    timeout=300,
-                    generation_name=doc.name,
-                    mode="generate",
-                    include_branding=False,
-                    coins_to_refund=0 # Bypass billing refund
-                )
+            # Skip: product already has at least one media item
+            if product.product_media:
+                continue
+
+            # Skip: an active (non-failed) job already exists for this product.
+            # Prevents duplicate jobs when the button is clicked twice or after a
+            # partial run leaves pending/processing/completed records behind.
+            active_job = frappe.db.exists("AI Image Generation", {
+                "restaurant": restaurant_id,
+                "owner_doctype": "Menu Product",
+                "owner_name": product_name,
+                "status": ["in", ["Pending_Upload", "Processing", "Completed"]],
+            })
+            if active_job:
+                continue
+
+            doc = frappe.get_doc({
+                "doctype": "AI Image Generation",
+                "restaurant": restaurant_id,
+                "owner_doctype": "Menu Product",
+                "owner_name": product_name,
+                "original_image_url": "",
+                "status": "Pending_Upload"
+            })
+            doc.insert(ignore_permissions=True)
+            frappe.db.commit()
+
+            frappe.enqueue(
+                "flamezo_backend.flamezo.api.ai_media.process_ai_image_enhancement",
+                queue="default",
+                timeout=300,
+                generation_name=doc.name,
+                mode="generate",
+                include_branding=False,
+                coins_to_refund=0,
+            )
     except Exception as e:
         frappe.log_error("Bulk Photo Gen Background Error", str(e))

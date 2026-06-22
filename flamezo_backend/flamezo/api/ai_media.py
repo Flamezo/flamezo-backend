@@ -685,10 +685,19 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         frappe.db.set_value("AI Image Generation", generation_name, "status", "Completed")
         frappe.db.commit()
 
-        # 7. Auto-apply to product to prevent wasted coins
+        # 7. Auto-apply to product (generate mode only).
+        # Re-check media count at apply time — the product may have received a
+        # manually-uploaded or separately-generated image while this job was queued.
+        # Appending blindly would create duplicate media entries.
         if mode == "generate" and doc.owner_doctype == "Menu Product":
             try:
-                apply_to_product(generation_name)
+                current_media = frappe.get_all(
+                    "Product Media",
+                    filters={"parent": doc.owner_name},
+                    limit=1,
+                )
+                if not current_media:
+                    apply_to_product(generation_name)
             except Exception as apply_err:
                 frappe.log_error("Auto-Apply Failed", str(apply_err))
 

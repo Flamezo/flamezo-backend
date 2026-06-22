@@ -8,7 +8,7 @@ All endpoints require restaurant_id for SaaS multi-tenancy
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, today, now_datetime, get_datetime
+from frappe.utils import flt, getdate, today, now_datetime, get_datetime, add_to_date
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api, get_restaurant_from_id
 from flamezo_backend.flamezo.utils.feature_gate import require_plan
 from flamezo_backend.flamezo.utils.customer_helpers import (
@@ -1003,21 +1003,22 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		if not coupon:
 			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Offer not found or inactive"}}
 
-		# Server-side dedup: one claim per customer per restaurant per calendar day.
-		today_start = frappe.utils.get_datetime(frappe.utils.today())
-		existing_today = frappe.db.exists(
+		# Server-side dedup: one claim per customer per restaurant within a 4-hour rolling window.
+		four_hours_ago = add_to_date(now_datetime(), hours=-4)
+		existing_lock = frappe.db.exists(
 			"Offer Claim",
 			{
 				"restaurant": restaurant,
 				"customer": customer_id,
-				"claimed_at": [">=", today_start],
+				"claimed_at": [">=", four_hours_ago],
 				"is_paid": 0,
 			},
 		)
-		if existing_today:
-			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant today"}}
+		if existing_lock:
+			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant in the last 4 hours"}}
 
 		# Record the claim with full customer attribution
+		claim_time = now_datetime()
 		claim = frappe.get_doc({
 			"doctype": "Offer Claim",
 			"restaurant": restaurant,
@@ -1025,7 +1026,8 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 			"coupon_code": coupon.code,
 			"customer": customer_id,
 			"customer_phone": customer_phone,
-			"claimed_at": now_datetime(),
+			"claimed_at": claim_time,
+			"locked_until": add_to_date(claim_time, hours=4),
 			"is_paid": 0,
 		})
 		claim.insert(ignore_permissions=True)

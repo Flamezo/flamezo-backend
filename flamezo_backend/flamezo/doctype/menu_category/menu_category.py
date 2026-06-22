@@ -63,6 +63,19 @@ class MenuCategory(Document):
 			visited.add(current)
 			current = frappe.db.get_value("Menu Category", current, "parent_category")
 
+	def on_update(self):
+		# Push the updated category_name down to all linked products so that the
+		# denormalized field stays in sync. Frappe's fetch_from does NOT auto-propagate
+		# to existing records when a parent document is saved.
+		if self.category_name:
+			frappe.db.set_value(
+				"Menu Product",
+				{"category": self.name},
+				"category_name",
+				self.category_name,
+				update_modified=False,
+			)
+
 	def on_trash(self):
 		"""
 		Cascade delete:

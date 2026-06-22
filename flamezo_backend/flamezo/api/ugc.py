@@ -52,7 +52,8 @@ ALLOWED_PROOF_MIME = {
 MAX_PROOF_BYTES = 20 * 1024 * 1024  # 20 MB — fits a 10-15 s screen recording at any phone quality
 # UGC cashback is outlet-locked and redeemable ONLY at the outlet it was earned for,
 # within this window (distinct from the platform-wide wallet expiry).
-UGC_CASHBACK_VALIDITY_DAYS = 45
+UGC_CASHBACK_VALIDITY_DAYS = 90
+UGC_PIN_LOCK_HOURS = 4           # waiter PIN activation is valid for this many hours
 PROOF_OWNER_DOCTYPE = "UGC Story Submission"
 PROOF_MEDIA_ROLE = "ugc_proof_video"
 TEMPLATE_OWNER_DOCTYPE = "UGC Cashback Config"
@@ -67,8 +68,8 @@ PLATFORM_INSTRUCTIONS = (
 )
 PLATFORM_TERMS = (
 	"Cashback = your story's view count in rupees, capped at your bill (max ₹2,000). "
-	"Credited as a restaurant voucher — use 33% off each return visit until fully redeemed. "
-	"Voucher valid for 45 days, redeemable only at this restaurant. Up to 2 claims per "
+	"Credited as a restaurant voucher — pick a free dish worth up to 30% of your next bill on each return visit. "
+	"Voucher valid for 90 days, redeemable only at this restaurant. Up to 2 claims per "
 	"restaurant every 30 days. Stories must stay live for at least 24 hours. Once staff "
 	"verify your story, you have 48 hours to upload a screen recording of your view count. "
 	"Flamezo may reject views that appear edited, inflated, or fraudulent, and repeat "
@@ -86,7 +87,7 @@ PLATFORM_AI_PROVIDER = "Gemini"
 PLATFORM_AI_CONFIDENCE = 0.85
 # Voucher rules — platform-fixed, non-editable by restaurants.
 PLATFORM_VOUCHER_EARNING_CAP = 2000   # ₹ — max voucher any single claim can issue
-PLATFORM_VOUCHER_PER_VISIT_PCT = 33   # % of each visit's bill usable per redemption
+PLATFORM_VOUCHER_PER_VISIT_PCT = 30   # % of each visit's bill = max free-dish budget
 # Privacy + storage: restaurants can view a diner's proof for 7 days; the proof
 # video is deleted from storage 30 days after it was submitted.
 PLATFORM_STAFF_PROOF_DAYS = 7
@@ -196,20 +197,16 @@ def _is_ugc_active(config) -> bool:
 	"""
 	UGC surfaces to diners only when ALL three are true:
 	  1. At least one story template has been uploaded.
-	  2. A flat-discount viewer coupon is set (percent coupons not allowed
-	     because they can run at an unexpected loss).
+	  2. A viewer coupon code is set in the inline coupon fields.
 	  3. The composited story preview is ready (story_preview_url set).
 	     This ensures diners always get the final branded media instantly —
 	     the offer is hidden while the background generation job is still running.
 	"""
-	has_template = bool(config.template_assets)
-	if not has_template:
+	if not bool(config.template_assets):
 		return False
-	viewer_coupon = config.coupon_for_viewers
-	if not viewer_coupon:
+	if not (config.viewer_coupon_code or "").strip():
 		return False
-	discount_type = frappe.db.get_value("Coupon", viewer_coupon, "discount_type")
-	if discount_type != "flat":
+	if not flt(config.viewer_discount_value) > 0:
 		return False
 	return bool(config.story_preview_url)
 
@@ -263,7 +260,7 @@ def _enqueue_config_preview(config):
 	Clears any stale preview URL first so the diner never sees an outdated composite.
 	"""
 	raw_url, _ = _raw_template_url(config)
-	if not raw_url or not config.coupon_for_viewers:
+	if not raw_url or not (config.viewer_coupon_code or "").strip():
 		return
 	frappe.db.set_value("UGC Cashback Config", config.name, "story_preview_url", None)
 	frappe.db.commit()
@@ -288,7 +285,7 @@ def _generate_config_preview(config_name):
 			bool(_re.search(r"\.(mp4|webm|mov|m4v|ogg)(\?|$)", raw_url, _re.I))
 		) else "image"
 
-		coupon = _coupon_brief(config.coupon_for_viewers)
+		coupon = _inline_coupon_brief(config)
 		restaurant_name = frappe.db.get_value("Restaurant", config.restaurant, "restaurant_name") or ""
 
 		from flamezo_backend.flamezo.api.story_generator import _run_job, _get_cache
@@ -333,6 +330,20 @@ def _coupon_brief(coupon_name):
 	if not c:
 		return None
 	return {"code": c.code, "discount_type": c.discount_type, "discount_value": c.discount_value}
+
+
+def _inline_coupon_brief(config):
+	"""Build a coupon brief dict from inline ugc_cashback_config fields."""
+	code = (config.viewer_coupon_code or "").strip()
+	if not code:
+		return None
+	return {
+		"code": code.upper(),
+		"discount_type": config.viewer_discount_type or "flat",
+		"discount_value": flt(config.viewer_discount_value or 0),
+		"discount_cap": flt(config.viewer_discount_cap or 0),
+		"description": config.viewer_coupon_description or "",
+	}
 
 
 def _load_owned_order(restaurant, order_id, customer):
@@ -416,7 +427,7 @@ def get_ugc_eligibility(restaurant_id, order_id):
 			"instructions": PLATFORM_INSTRUCTIONS,
 			"terms": PLATFORM_TERMS,
 			"templates": templates,
-			"viewer_coupon": _coupon_brief(config.coupon_for_viewers),
+			"viewer_coupon": _inline_coupon_brief(config),
 		})
 	except frappe.DoesNotExistError:
 		return _err("RESTAURANT_NOT_FOUND")
@@ -995,7 +1006,11 @@ def get_ugc_analytics(restaurant_id, days=None):
 # Only the linked coupons are restaurant-editable now — caps, budget, AI and copy
 # are all platform-fixed constants. (The offer itself is mandatory/always-on.)
 _CONFIG_SCALAR_FIELDS = (
-	"coupon_for_viewers",
+	"viewer_coupon_code",
+	"viewer_discount_type",
+	"viewer_discount_value",
+	"viewer_discount_cap",
+	"viewer_coupon_description",
 )
 
 
@@ -1032,7 +1047,7 @@ def _config_to_dict(config):
 		"restaurant": config.restaurant,
 		"coins_issued_this_month": cint(config.coins_issued_this_month),
 		"templates": templates,
-		"viewer_coupon": _coupon_brief(config.coupon_for_viewers),
+		"viewer_coupon": _inline_coupon_brief(config),
 		"story_preview_url": config.story_preview_url or None,
 		"ugc_is_active": _is_ugc_active(config),
 	})
@@ -1088,7 +1103,7 @@ def save_ugc_config(restaurant_id, payload):
 		# The job runs in the background so save_ugc_config returns instantly.
 		# It also clears any stale story_preview_url so the diner never sees an
 		# outdated composite while the new one is being generated.
-		if config.template_assets and config.coupon_for_viewers:
+		if config.template_assets and (config.viewer_coupon_code or "").strip():
 			_enqueue_config_preview(config)
 
 		return _ok(_config_to_dict(config))
@@ -1296,11 +1311,15 @@ def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
 
 
 @frappe.whitelist(allow_guest=True)
-def apply_ugc_voucher(restaurant_id, voucher_code, order_id, bill_amount):
+def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 	"""
-	Apply a UGC voucher to an order. Draws down min(balance, bill * 33%) from the voucher.
-	Returns the discount applied and the new balance.
-	Idempotent: re-applying the same voucher+order returns the existing redemption.
+	Waiter enters the 4-digit PIN on the customer's phone to activate a UGC voucher
+	for redemption at this restaurant. Activation is valid for UGC_PIN_LOCK_HOURS hours.
+
+	Guards:
+	- Customer must not have an active regular offer claim at this restaurant in the last 4h
+	  (UGC redemption cannot be stacked with other offers).
+	- Voucher must be active, unexpired, and belong to this restaurant.
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
@@ -1308,10 +1327,14 @@ def apply_ugc_voucher(restaurant_id, voucher_code, order_id, bill_amount):
 		if not customer:
 			return _err("SESSION_REQUIRED")
 
-		bill = flt(bill_amount)
-		if bill <= 0:
-			return _err("INVALID_AMOUNT", "Bill amount must be positive.")
+		# Validate PIN
+		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		if not stored_pin:
+			return _err("PIN_NOT_SET", "This restaurant has not set up offer verification.")
+		if str(pin).strip() != stored_pin:
+			return _err("INVALID_PIN", "Incorrect PIN — please ask your waiter.")
 
+		# Fetch and validate voucher
 		voucher = frappe.db.get_value(
 			"UGC Voucher",
 			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
@@ -1327,28 +1350,211 @@ def apply_ugc_voucher(restaurant_id, voucher_code, order_id, bill_amount):
 			frappe.db.commit()
 			return _err("VOUCHER_EXPIRED", "This voucher has expired.")
 
-		# Idempotency: if this order already has a redemption against this voucher, return it.
+		# UGC cannot be combined with a regular offer claim active in the last 4 hours
+		four_hours_ago = add_to_date(now_datetime(), hours=-UGC_PIN_LOCK_HOURS)
+		has_active_claim = frappe.db.exists(
+			"Offer Claim",
+			{
+				"restaurant": restaurant,
+				"customer": customer,
+				"claimed_at": [">=", four_hours_ago],
+				"is_paid": 0,
+			},
+		)
+		if has_active_claim:
+			return _err(
+				"OFFER_CONFLICT",
+				"You have an active offer at this restaurant. UGC cashback cannot be combined with other offers.",
+			)
+
+		# Stamp the activation on the voucher
+		lock_until = add_to_date(now_datetime(), hours=UGC_PIN_LOCK_HOURS)
+		frappe.db.set_value("UGC Voucher", voucher.name, {
+			"pin_activated_at": now_datetime(),
+			"pin_activated_restaurant": restaurant,
+		})
+		frappe.db.commit()
+
+		return _ok({
+			"voucherCode": voucher_code,
+			"balance": int(flt(voucher.balance)),
+			"lockedUntil": str(lock_until),
+			"message": "Cashback activated! Pick your free dish.",
+		})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"activate_ugc_with_pin: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
+	"""
+	Returns menu products marked is_ugc_redeemable=1 for this restaurant whose price
+	fits within min(bill * 30%, voucher_balance). Requires the voucher to have been
+	PIN-activated within the last UGC_PIN_LOCK_HOURS hours.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED")
+
+		bill = flt(bill_amount)
+		if bill <= 0:
+			return _err("INVALID_AMOUNT", "Bill amount must be positive.")
+
+		voucher = frappe.db.get_value(
+			"UGC Voucher",
+			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
+			["name", "balance", "status", "expires_at", "pin_activated_at", "pin_activated_restaurant"],
+			as_dict=True,
+		)
+		if not voucher:
+			return _err("VOUCHER_NOT_FOUND")
+		if voucher.status != "active":
+			return _err("VOUCHER_INACTIVE")
+		if get_datetime(voucher.expires_at) < now_datetime():
+			frappe.db.set_value("UGC Voucher", voucher.name, "status", "expired")
+			frappe.db.commit()
+			return _err("VOUCHER_EXPIRED")
+
+		# Require PIN activation within the lock window and at this restaurant
+		if not voucher.pin_activated_at or not voucher.pin_activated_restaurant:
+			return _err("PIN_REQUIRED", "Please ask your waiter to enter the PIN first.")
+		activation_age = now_datetime() - get_datetime(voucher.pin_activated_at)
+		if activation_age.total_seconds() > UGC_PIN_LOCK_HOURS * 3600:
+			return _err("PIN_EXPIRED", "Your cashback session has expired. Please ask the waiter to re-activate.")
+		if voucher.pin_activated_restaurant != restaurant:
+			return _err("WRONG_RESTAURANT", "This cashback was activated at a different restaurant.")
+
+		# Compute dish budget
+		max_budget = int(min(bill * PLATFORM_VOUCHER_PER_VISIT_PCT / 100.0, flt(voucher.balance)))
+
+		dishes = frappe.get_all(
+			"Menu Product",
+			filters={
+				"restaurant": restaurant,
+				"is_active": 1,
+				"price": ["<=", max_budget],
+			},
+			fields=["name", "product_name", "price", "original_price", "description",
+					"is_vegetarian", "category_name", "main_category"],
+			order_by="price desc",
+		)
+
+		# Attach media URL for each dish
+		dish_list = []
+		for d in dishes:
+			media = frappe.db.get_value(
+				"Product Media",
+				{"parent": d.name, "idx": 1},
+				"media_asset",
+			)
+			media_url = None
+			if media:
+				media_url = frappe.db.get_value("Media Asset", media, "primary_url")
+			dish_list.append({
+				"id": d.name,
+				"name": d.product_name,
+				"price": int(flt(d.price)),
+				"originalPrice": int(flt(d.original_price or d.price)),
+				"description": d.description or "",
+				"isVeg": bool(d.is_vegetarian),
+				"category": d.category_name or d.main_category or "",
+				"imageUrl": media_url,
+			})
+
+		return _ok({
+			"dishes": dish_list,
+			"dishBudget": max_budget,
+			"voucherBalance": int(flt(voucher.balance)),
+			"perVisitPct": PLATFORM_VOUCHER_PER_VISIT_PCT,
+		})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"get_ugc_redeemable_dishes: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def apply_ugc_dish_redemption(restaurant_id, voucher_code, dish_id, bill_amount):
+	"""
+	Final step: customer has selected a free dish. Deducts the dish price from the
+	voucher balance and records the redemption. Requires prior PIN activation.
+
+	Idempotent on (voucher, dish_id) within the same PIN session.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED")
+
+		bill = flt(bill_amount)
+
+		# Validate voucher + PIN activation
+		voucher = frappe.db.get_value(
+			"UGC Voucher",
+			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
+			["name", "balance", "status", "expires_at", "pin_activated_at", "pin_activated_restaurant"],
+			as_dict=True,
+		)
+		if not voucher:
+			return _err("VOUCHER_NOT_FOUND")
+		if voucher.status != "active":
+			return _err("VOUCHER_INACTIVE")
+		if get_datetime(voucher.expires_at) < now_datetime():
+			frappe.db.set_value("UGC Voucher", voucher.name, "status", "expired")
+			frappe.db.commit()
+			return _err("VOUCHER_EXPIRED")
+		if not voucher.pin_activated_at:
+			return _err("PIN_REQUIRED", "PIN activation is required before redeeming.")
+		activation_age = now_datetime() - get_datetime(voucher.pin_activated_at)
+		if activation_age.total_seconds() > UGC_PIN_LOCK_HOURS * 3600:
+			return _err("PIN_EXPIRED", "Your cashback session has expired.")
+		if voucher.pin_activated_restaurant != restaurant:
+			return _err("WRONG_RESTAURANT")
+
+		# Validate dish
+		dish = frappe.db.get_value(
+			"Menu Product",
+			{"name": dish_id, "restaurant": restaurant, "is_active": 1},
+			["name", "product_name", "price"],
+			as_dict=True,
+		)
+		if not dish:
+			return _err("DISH_NOT_FOUND", "This dish is not available.")
+
+		dish_price = int(flt(dish.price))
+		max_budget = int(min(bill * PLATFORM_VOUCHER_PER_VISIT_PCT / 100.0, flt(voucher.balance)))
+		if dish_price > max_budget:
+			return _err("DISH_TOO_EXPENSIVE", f"This dish exceeds your free-dish budget of ₹{max_budget}.")
+
+		# Idempotency: if same dish was already redeemed in this PIN session, return existing
+		pin_session_start = get_datetime(voucher.pin_activated_at)
 		existing = frappe.db.get_value(
 			"UGC Voucher Redemption",
-			{"voucher": voucher.name, "order": order_id},
+			{
+				"voucher": voucher.name,
+				"redeemed_dish": dish_id,
+				"redeemed_at": [">=", pin_session_start],
+			},
 			["name", "amount_used", "balance_after"],
 			as_dict=True,
 		)
 		if existing:
 			return _ok({
-				"amountApplied": flt(existing.amount_used),
-				"newBalance": flt(existing.balance_after),
+				"dishName": dish.product_name,
+				"dishPrice": dish_price,
+				"newBalance": int(flt(existing.balance_after)),
 				"voucherCode": voucher_code,
 			})
 
-		# 33% of bill, capped at remaining balance.
-		max_this_visit = int(bill * PLATFORM_VOUCHER_PER_VISIT_PCT / 100.0)
-		amount_applied = min(max_this_visit, int(flt(voucher.balance)))
-		if amount_applied <= 0:
-			return _err("NOTHING_TO_APPLY", "No voucher balance usable on this bill.")
-
 		balance_before = flt(voucher.balance)
-		balance_after = balance_before - amount_applied
+		balance_after = balance_before - dish_price
 		new_status = "exhausted" if balance_after <= 0 else "active"
 
 		frappe.get_doc({
@@ -1356,12 +1562,14 @@ def apply_ugc_voucher(restaurant_id, voucher_code, order_id, bill_amount):
 			"voucher": voucher.name,
 			"customer": customer,
 			"restaurant": restaurant,
-			"order": order_id or None,
 			"bill_amount": int(bill),
-			"amount_used": amount_applied,
+			"amount_used": dish_price,
 			"balance_before": int(balance_before),
 			"balance_after": int(balance_after),
 			"redeemed_at": now_datetime(),
+			"redeemed_dish": dish_id,
+			"dish_name": dish.product_name,
+			"dish_price": dish_price,
 		}).insert(ignore_permissions=True)
 
 		frappe.db.set_value("UGC Voucher", voucher.name, {
@@ -1371,14 +1579,15 @@ def apply_ugc_voucher(restaurant_id, voucher_code, order_id, bill_amount):
 		frappe.db.commit()
 
 		return _ok({
-			"amountApplied": amount_applied,
+			"dishName": dish.product_name,
+			"dishPrice": dish_price,
 			"newBalance": int(balance_after),
 			"voucherCode": voucher_code,
 		})
 	except frappe.DoesNotExistError:
 		return _err("RESTAURANT_NOT_FOUND")
 	except Exception as e:
-		frappe.log_error(f"apply_ugc_voucher: {e}", "UGC")
+		frappe.log_error(f"apply_ugc_dish_redemption: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
@@ -1635,6 +1844,7 @@ def _composite_video(video_path: str, overlay_path: str, output_path: str):
 	if result.returncode != 0:
 		frappe.log_error(result.stderr.decode(), "Story video composite failed")
 		frappe.throw("Video compositing failed. Please try again.")
+
 
 
 def _composite_image(image_path: str, overlay_path: str, output_path: str):
