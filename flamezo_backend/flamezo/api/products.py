@@ -236,24 +236,33 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 			filters["is_active"] = 1
 		
 		if category:
-			# If the requested category is a parent, also include products from its sub-categories.
-			# Resolve sub-category names so we can do a single IN query.
-			sub_category_names = frappe.get_all(
+			# Resolve category param (display name or category_id slug) to stable Frappe docnames.
+			# Filtering by the `category` Link field (docname) is immune to renames because
+			# the docname is a hash that never changes — unlike `category_name` (fetch_from)
+			# which Frappe does NOT auto-propagate to existing product records on rename.
+			cat_docnames = frappe.get_all(
 				"Menu Category",
-				filters={"parent_category": ["in",
-					frappe.get_all("Menu Category",
-						filters={"restaurant": restaurant, "category_name": category},
-						pluck="name"
-					)
-				]},
-				pluck="category_name",
+				filters={"restaurant": restaurant, "category_name": category},
+				pluck="name"
 			)
-			if sub_category_names:
-				# Parent has subcategories: filter by parent name OR any sub name
-				all_category_names = [category] + sub_category_names
-				filters["category_name"] = ["in", all_category_names]
+			if not cat_docnames:
+				# Fallback: match by category_id slug (frontend may send either)
+				cat_docnames = frappe.get_all(
+					"Menu Category",
+					filters={"restaurant": restaurant, "category_id": category},
+					pluck="name"
+				)
+			if cat_docnames:
+				# Include sub-categories so parent selection returns all nested products
+				sub_docnames = frappe.get_all(
+					"Menu Category",
+					filters={"parent_category": ["in", cat_docnames]},
+					pluck="name"
+				)
+				all_docnames = cat_docnames + sub_docnames
+				filters["category"] = ["in", all_docnames]
 			else:
-				filters["category_name"] = category
+				filters["category"] = "__no_match__"
 		
 		if type:
 			filters["product_type"] = type
@@ -311,15 +320,15 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 			params = [restaurant]
 			if not cint(include_inactive):
 				where_parts.append("`tabMenu Product`.is_active = 1")
-			if filters.get("category_name"):
-				cn = filters["category_name"]
-				if isinstance(cn, list) and cn[0] == "in":
-					placeholders = ",".join(["%s"] * len(cn[1]))
-					where_parts.append(f"`tabMenu Product`.category_name IN ({placeholders})")
-					params.extend(cn[1])
+			if filters.get("category"):
+				cat = filters["category"]
+				if isinstance(cat, list) and cat[0] == "in":
+					placeholders = ",".join(["%s"] * len(cat[1]))
+					where_parts.append(f"`tabMenu Product`.category IN ({placeholders})")
+					params.extend(cat[1])
 				else:
-					where_parts.append("`tabMenu Product`.category_name = %s")
-					params.append(cn)
+					where_parts.append("`tabMenu Product`.category = %s")
+					params.append(cat)
 			if type:
 				where_parts.append("`tabMenu Product`.product_type = %s")
 				params.append(type)

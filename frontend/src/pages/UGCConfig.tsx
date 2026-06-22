@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import StoryTemplateFrame from '@/components/StoryTemplateFrame'
 import { useRestaurant } from '@/contexts/RestaurantContext'
-import { useFrappeGetCall, useFrappePostCall, useFrappeGetDocList } from '@/lib/frappe'
+import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
@@ -22,7 +23,15 @@ export default function UGCConfig() {
   const { selectedRestaurant, restaurants } = useRestaurant()
   const [configName, setConfigName] = useState<string>('')
   const [templates, setTemplates] = useState<TemplateRow[]>([])
-  const [viewerCoupon, setViewerCoupon] = useState<string>('')
+
+  // Inline viewer coupon state
+  const [viewerCouponCode, setViewerCouponCode] = useState<string>('')
+  const [viewerDiscountType, setViewerDiscountType] = useState<'flat' | 'percent'>('flat')
+  const [viewerDiscountValue, setViewerDiscountValue] = useState<string>('')
+  const [viewerDiscountCap, setViewerDiscountCap] = useState<string>('')
+  const [viewerCouponDesc, setViewerCouponDesc] = useState<string>('')
+  const [savingCoupon, setSavingCoupon] = useState(false)
+
   const [ugcIsActive, setUgcIsActive] = useState<boolean>(false)
   const [uploading, setUploading] = useState(false)
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
@@ -31,7 +40,7 @@ export default function UGCConfig() {
   const fileRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
-  const { data: configRes, mutate } = useFrappeGetCall(
+const { data: configRes, mutate } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_config',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `ugc-config-${selectedRestaurant}` : undefined,
@@ -44,31 +53,55 @@ export default function UGCConfig() {
   )
   const { call: saveConfig } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.save_ugc_config')
   const { call: deleteTemplate } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.delete_ugc_template')
-
-  const { data: coupons } = useFrappeGetDocList('Coupon', {
-    fields: ['name', 'code', 'discount_type', 'discount_value', 'description', 'valid_until'],
-    filters: selectedRestaurant ? [['restaurant', '=', selectedRestaurant]] : [],
-    limit: 200,
-  } as any, selectedRestaurant ? `ugc-coupons-${selectedRestaurant}` : null)
-
-  useEffect(() => {
+useEffect(() => {
     const body: any = (configRes as any)?.message || configRes
     if (body?.success && body.data) {
       setConfigName(body.data.name || '')
       setTemplates(body.data.templates || [])
-      setViewerCoupon(body.data.coupon_for_viewers || '')
       setUgcIsActive(!!body.data.ugc_is_active)
+
+      // Hydrate inline coupon fields from server
+      const vc = body.data.viewer_coupon
+      if (vc) {
+        setViewerCouponCode(vc.code || '')
+        setViewerDiscountType((vc.discount_type as 'flat' | 'percent') || 'flat')
+        setViewerDiscountValue(vc.discount_value != null ? String(vc.discount_value) : '')
+        setViewerDiscountCap(vc.discount_cap != null ? String(vc.discount_cap) : '')
+        setViewerCouponDesc(vc.description || '')
+      } else {
+        // Check scalar fields directly (returned from _CONFIG_SCALAR_FIELDS)
+        setViewerCouponCode(body.data.viewer_coupon_code || '')
+        setViewerDiscountType(body.data.viewer_discount_type || 'flat')
+        setViewerDiscountValue(body.data.viewer_discount_value != null ? String(body.data.viewer_discount_value) : '')
+        setViewerDiscountCap(body.data.viewer_discount_cap != null ? String(body.data.viewer_discount_cap) : '')
+        setViewerCouponDesc(body.data.viewer_coupon_description || '')
+      }
     }
   }, [configRes])
 
-  const saveCoupons = async (patch: { coupon_for_viewers?: string }) => {
+  const saveCoupon = async () => {
     if (!selectedRestaurant) return
+    if (!viewerCouponCode.trim()) { toast.error('Coupon code is required'); return }
+    if (!viewerDiscountValue || parseFloat(viewerDiscountValue) <= 0) { toast.error('Discount value must be greater than 0'); return }
+    if (viewerDiscountType === 'percent') {
+      if (parseFloat(viewerDiscountValue) > 100) { toast.error('Percent discount cannot exceed 100%'); return }
+      if (!viewerDiscountCap || parseFloat(viewerDiscountCap) <= 0) { toast.error('Max Discount Cap is required for percent discounts'); return }
+    }
+    setSavingCoupon(true)
     try {
+      const patch = {
+        viewer_coupon_code: viewerCouponCode.trim().toUpperCase(),
+        viewer_discount_type: viewerDiscountType,
+        viewer_discount_value: parseFloat(viewerDiscountValue),
+        viewer_discount_cap: viewerDiscountType === 'percent' ? parseFloat(viewerDiscountCap) : 0,
+        viewer_coupon_description: viewerCouponDesc.trim(),
+      }
       const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: patch })
       const body = res?.message || res
-      if (body?.success) { toast.success('Coupons updated'); await mutate() }
+      if (body?.success) { toast.success('Viewer coupon saved'); await mutate() }
       else throw new Error(body?.message || 'Save failed')
     } catch (e: any) { toast.error(e.message || 'Failed to save') }
+    finally { setSavingCoupon(false) }
   }
 
   const persistTemplates = async (next: TemplateRow[]) => {
@@ -121,10 +154,6 @@ export default function UGCConfig() {
       const csrf = (window as any).frappe?.csrf_token || ''
       const mediaType = isVideo(tpl) ? 'video' : 'image'
 
-      // 1. Enqueue background job on the server — returns immediately with job_id.
-      //    Server generates overlay at native resolution + composites via ffmpeg/Pillow
-      //    + uploads to R2. No Frappe worker is blocked; 100 concurrent downloads
-      //    just queue up.
       const startRes = await fetch(
         '/api/method/flamezo_backend.flamezo.api.story_generator.start_story_download',
         {
@@ -134,11 +163,11 @@ export default function UGCConfig() {
             template_url:      tpl.url,
             media_type:        mediaType,
             restaurant_name:   restaurantName,
-            coupon_code:       selectedCoupon?.code        ?? null,
-            discount_type:     selectedCoupon?.discount_type  ?? null,
-            discount_value:    selectedCoupon?.discount_value  ?? null,
-            offer_description: selectedCoupon?.description  ?? null,
-            valid_until:       selectedCoupon?.valid_until  ?? null,
+            coupon_code:       viewerCouponCode || null,
+            discount_type:     viewerDiscountType || null,
+            discount_value:    viewerDiscountValue ? parseFloat(viewerDiscountValue) : null,
+            offer_description: viewerCouponDesc || null,
+            valid_until:       null,
           }),
         },
       )
@@ -146,7 +175,6 @@ export default function UGCConfig() {
       const jobId: string = startJson.message?.job_id
       if (!jobId) throw new Error('Failed to start download job')
 
-      // 2. Poll status every 2 s until done or error (60 s timeout).
       const deadline = Date.now() + 60_000
       let cdnUrl: string | null = null
 
@@ -167,12 +195,10 @@ export default function UGCConfig() {
         if (status === 'error') {
           throw new Error(pollJson.message?.error || 'Generation failed')
         }
-        // 'pending' | 'processing' → keep polling
       }
 
       if (!cdnUrl) throw new Error('Timed out waiting for download')
 
-      // 3. Download directly from CDN — fast, no Frappe bandwidth used.
       const ext  = mediaType === 'video' ? 'mp4' : 'jpg'
       const a    = document.createElement('a')
       a.href     = cdnUrl
@@ -197,7 +223,8 @@ export default function UGCConfig() {
   const restaurantName = (restaurants as any[]).find(
     r => r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant
   )?.restaurant_name || ''
-  const selectedCoupon = (coupons as any[] | undefined)?.find((c: any) => c.name === viewerCoupon)
+
+  const couponIsSet = !!viewerCouponCode.trim() && parseFloat(viewerDiscountValue) > 0
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -234,8 +261,7 @@ export default function UGCConfig() {
           <p className="text-sm">
             UGC cashback is <strong>inactive</strong>. To activate it:
             {templates.length === 0 && <span className="block mt-1">① Upload your <strong>story template</strong> below.</span>}
-            {!viewerCoupon && <span className="block mt-1">{templates.length === 0 ? '②' : '①'} Set a <strong>flat-discount coupon for story viewers</strong> in the Story Coupons section below.</span>}
-            {viewerCoupon && templates.length > 0 && <span className="block mt-1"> Viewer coupon must use <strong>flat discount</strong> (not percent).</span>}
+            {!couponIsSet && <span className="block mt-1">{templates.length === 0 ? '②' : '①'} Set up a <strong>viewer coupon</strong> in the Story Viewer Coupon section below and save it.</span>}
           </p>
         </div>
       )}
@@ -318,7 +344,7 @@ export default function UGCConfig() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Story Preview</CardTitle>
-              <CardDescription>Live preview — updates as you change the coupon selection below.</CardDescription>
+              <CardDescription>Live preview — updates as you configure the coupon below.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
               <div ref={previewRef} className="rounded-[1.6rem] overflow-hidden shadow-xl border-4 border-gray-900 bg-black">
@@ -326,11 +352,10 @@ export default function UGCConfig() {
                   mediaUrl={tpl?.url || ''}
                   mediaType={tpl && isVideo(tpl) ? 'video' : 'image'}
                   width={210}
-                  couponCode={selectedCoupon?.code}
-                  discountType={selectedCoupon?.discount_type}
-                  discountValue={selectedCoupon?.discount_value}
-                  validUntil={selectedCoupon?.valid_until}
-                  offerDescription={selectedCoupon?.description}
+                  couponCode={viewerCouponCode || undefined}
+                  discountType={viewerDiscountType || undefined}
+                  discountValue={viewerDiscountValue ? parseFloat(viewerDiscountValue) : undefined}
+                  offerDescription={viewerCouponDesc || undefined}
                   restaurantName={restaurantName}
                 />
               </div>
@@ -366,44 +391,116 @@ export default function UGCConfig() {
               mediaUrl={tpl?.url || ''}
               mediaType={tpl && isVideo(tpl) ? 'video' : 'image'}
               width={360}
-              couponCode={selectedCoupon?.code}
-              discountType={selectedCoupon?.discount_type}
-              discountValue={selectedCoupon?.discount_value}
-              validUntil={selectedCoupon?.valid_until}
-              offerDescription={selectedCoupon?.description}
+              couponCode={viewerCouponCode || undefined}
+              discountType={viewerDiscountType || undefined}
+              discountValue={viewerDiscountValue ? parseFloat(viewerDiscountValue) : undefined}
+              offerDescription={viewerCouponDesc || undefined}
               restaurantName={restaurantName}
             />
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Coupons — the one restaurant-managed control */}
+      {/* Story Viewer Coupon — inline form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" />Story Coupons</CardTitle>
-          <CardDescription>Set the coupon shown to friends who view the story. Required to activate UGC — must be a flat (₹) discount.</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" />Story Viewer Coupon</CardTitle>
+          <CardDescription>
+            Exclusive coupon shown to friends who view the story. <strong>Required to activate UGC.</strong> Supports flat (₹) or percent (%) discount.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm">Coupon for story viewers <span className="text-red-500">*</span></Label>
-            <Select value={viewerCoupon || 'none'} onValueChange={v => { const val = v === 'none' ? '' : v; setViewerCoupon(val); saveCoupons({ coupon_for_viewers: val }) }}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {(coupons || []).filter((c: any) => c.discount_type === 'flat').map((c: any) => (
-                  <SelectItem key={c.name} value={c.name}>{c.code}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">Required for UGC activation — must be a flat (₹) discount. Shown to friends who see the story.</p>
-            {!(coupons || []).some((c: any) => c.discount_type === 'flat') && (coupons || []).length > 0 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">No flat-discount coupons found. Go to Coupons and create one with a fixed ₹ amount.</p>
-            )}
-          </div>
-          <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
-            <p className="text-sm font-medium">What the poster earns (platform-fixed)</p>
-            <p className="text-sm text-muted-foreground">Flamezo automatically issues the poster a <strong className="text-foreground">Story Cashback Voucher = min(story views, bill, ₹2,000)</strong>. They get <strong className="text-foreground">33% off each return visit</strong> until the balance is fully redeemed.</p>
-            <p className="text-[11px] text-muted-foreground">Voucher valid 45 days · redeemable only at this restaurant · max ₹2,000 per claim · managed by Flamezo.</p>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Left — form */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="vc-code">Coupon Code <span className="text-red-500">*</span></Label>
+                <Input
+                  id="vc-code"
+                  placeholder="e.g. RASNA99"
+                  value={viewerCouponCode}
+                  onChange={e => setViewerCouponCode(e.target.value.toUpperCase())}
+                  className="font-mono uppercase"
+                />
+                <p className="text-[11px] text-muted-foreground">Shown on the story overlay and used at checkout by friends.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Discount Type <span className="text-red-500">*</span></Label>
+                <Select value={viewerDiscountType} onValueChange={(v: 'flat' | 'percent') => setViewerDiscountType(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flat">Flat (₹ off)</SelectItem>
+                    <SelectItem value="percent">Percent (% off)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="vc-value">
+                  {viewerDiscountType === 'flat' ? 'Amount (₹)' : 'Percent (%)'} <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="vc-value"
+                  type="number"
+                  placeholder={viewerDiscountType === 'flat' ? '99' : '15'}
+                  value={viewerDiscountValue}
+                  onChange={e => setViewerDiscountValue(e.target.value)}
+                  min={1}
+                  max={viewerDiscountType === 'percent' ? 100 : undefined}
+                />
+              </div>
+
+              {viewerDiscountType === 'percent' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="vc-cap">Max Discount Cap (₹) <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="vc-cap"
+                    type="number"
+                    placeholder="e.g. 150"
+                    value={viewerDiscountCap}
+                    onChange={e => setViewerDiscountCap(e.target.value)}
+                    min={1}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Maximum ₹ discount regardless of bill size.</p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="vc-desc">Offer Label <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  id="vc-desc"
+                  placeholder={viewerDiscountType === 'flat'
+                    ? `₹${viewerDiscountValue || 'XX'} off your next visit`
+                    : `${viewerDiscountValue || 'XX'}% off (up to ₹${viewerDiscountCap || 'XXX'})`}
+                  value={viewerCouponDesc}
+                  onChange={e => setViewerCouponDesc(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">Short text shown on the story overlay. Auto-generated if left blank.</p>
+              </div>
+
+              <Button onClick={saveCoupon} disabled={savingCoupon} className="w-full">
+                {savingCoupon ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Save Viewer Coupon'}
+              </Button>
+            </div>
+
+            {/* Right — info box */}
+            <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+              <p className="text-sm font-medium">What the story poster earns (platform-fixed)</p>
+              <p className="text-sm text-muted-foreground">
+                Flamezo automatically issues the poster a <strong className="text-foreground">Story Cashback Voucher = min(story views, bill, ₹2,000)</strong>.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                They redeem this by picking a <strong className="text-foreground">Free Dish (up to 30% of their bill)</strong> on return visits. Because it's a free dish, you only pay the <strong className="text-foreground">Food Cost (33%)</strong> instead of losing 100% in a cash discount, protecting your profit margins!
+              </p>
+              <p className="text-[11px] text-muted-foreground">Voucher valid 90 days · redeemable only at this restaurant · max ₹2,000 per claim · managed by Flamezo.</p>
+              <hr className="border-border" />
+              <p className="text-sm font-medium">About the viewer coupon</p>
+              <p className="text-sm text-muted-foreground">
+                The viewer coupon is exclusive to UGC — it won't appear in general coupon management.
+                Flamezo creates and manages the underlying coupon doc automatically when you save.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -418,7 +515,8 @@ export default function UGCConfig() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1.5">
           <p>• <strong className="text-foreground">"Keep a story, get up to 100% cashback"</strong> — cashback = story views in ₹, capped at the bill (max ₹2,000).</p>
-          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — 33% off each return visit until fully redeemed. Valid 45 days.</p>
+          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — customer picks a free dish worth up to 30% of each return visit's bill until fully redeemed. Valid 90 days.</p>
+          <p>• <strong className="text-foreground">Zero Revenue Cannibalization</strong> — Customers pay their full bill in cash. The reward costs you only the raw ingredient cost (33%) of the free dish, making UGC practically painless to fund.</p>
           <p>• Your staff verify the diner's story at the table; the next day the diner uploads their view count and AI reads it.</p>
           <p>• Up to 2 claims per restaurant per 30 days · stories must stay live 24h · fraud is auto-screened.</p>
         </CardContent>
@@ -428,4 +526,3 @@ export default function UGCConfig() {
     </div>
   )
 }
-

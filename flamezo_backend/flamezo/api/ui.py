@@ -133,6 +133,13 @@ def get_user_restaurants():
 			order_by="creation desc",
 			ignore_permissions=True
 		)
+
+		# Backfill logo from Restaurant Config if missing in Restaurant
+		for r in restaurants:
+			if not r.logo:
+				config_logo = frappe.db.get_value("Restaurant Config", {"restaurant": r.name}, "logo")
+				if config_logo:
+					r.logo = config_logo
 		
 		return {
 			'restaurants': restaurants

@@ -16,7 +16,11 @@
   "bill_amount",
   "amount_used",
   "balance_before",
-  "balance_after"
+  "balance_after",
+  "section_break_dish",
+  "redeemed_dish",
+  "dish_name",
+  "dish_price"
  ],
  "fields": [
   {
@@ -93,6 +97,30 @@
    "fieldtype": "Currency",
    "label": "Balance After",
    "precision": "0"
+  },
+  {
+   "fieldname": "section_break_dish",
+   "fieldtype": "Section Break",
+   "label": "Free Dish"
+  },
+  {
+   "fieldname": "redeemed_dish",
+   "fieldtype": "Link",
+   "label": "Redeemed Dish",
+   "options": "Menu Product"
+  },
+  {
+   "fieldname": "dish_name",
+   "fieldtype": "Data",
+   "label": "Dish Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dish_price",
+   "fieldtype": "Currency",
+   "label": "Dish Price",
+   "precision": "0",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,

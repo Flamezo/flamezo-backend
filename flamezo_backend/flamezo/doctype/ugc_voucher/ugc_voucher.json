@@ -17,7 +17,10 @@
   "balance",
   "column_break_amounts",
   "issued_at",
-  "expires_at"
+  "expires_at",
+  "section_break_pin",
+  "pin_activated_at",
+  "pin_activated_restaurant"
  ],
  "fields": [
   {
@@ -105,6 +108,25 @@
    "fieldtype": "Datetime",
    "label": "Expires At",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pin",
+   "fieldtype": "Section Break",
+   "label": "PIN Activation"
+  },
+  {
+   "fieldname": "pin_activated_at",
+   "fieldtype": "Datetime",
+   "label": "PIN Activated At",
+   "read_only": 1,
+   "description": "Set when a waiter enters the PIN to activate this voucher for a session. Valid for 4 hours."
+  },
+  {
+   "fieldname": "pin_activated_restaurant",
+   "fieldtype": "Link",
+   "label": "PIN Activated At Restaurant",
+   "options": "Restaurant",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,

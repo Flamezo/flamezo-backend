@@ -121,7 +121,11 @@ def get_onboarding_details(token):
         }
         
         data_dict['menu_photos'] = [p.file for p in doc.menu_photos] if hasattr(doc, 'menu_photos') else []
-        
+        data_dict['google_maps_api_key'] = (
+            frappe.conf.get('google_maps_api_key') or
+            frappe.db.get_single_value('Flamezo Settings', 'google_maps_api_key') or ''
+        )
+
         return {
             'success': True,
             'data': data_dict
@@ -202,7 +206,7 @@ def get_all_onboarding_requests():
         requests = frappe.get_all(
             'Restaurant Onboarding',
             filters={'status': ['!=', 'Completed']},
-            fields=['name', 'restaurant_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation'],
+            fields=['name', 'restaurant_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation', 'linked_restaurant'],
             order_by='creation desc'
         )
 
@@ -264,6 +268,178 @@ def bulk_delete_onboarding_requests(names):
         return {'success': True, 'message': f'Successfully deleted {len(names)} requests'}
     except Exception as e:
         frappe.log_error("Bulk Delete Onboarding Error", str(e))
+
+@frappe.whitelist()
+def get_onboarding_by_name(name):
+    """
+    Fetch full onboarding doc details for admin review panel.
+    Admin only.
+    """
+    try:
+        from flamezo_backend.flamezo.api.admin import check_admin_access
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        doc = frappe.get_doc('Restaurant Onboarding', name)
+
+        data = {
+            'name': doc.name,
+            'restaurant_name': doc.restaurant_name,
+            'linked_restaurant': getattr(doc, 'linked_restaurant', None),
+            'status': doc.status,
+            'owner_name': getattr(doc, 'owner_name', None),
+            'owner_email': getattr(doc, 'owner_email', None),
+            'owner_phone': getattr(doc, 'owner_phone', None),
+            'whatsapp_number': getattr(doc, 'whatsapp_number', None),
+            'fssai_number': getattr(doc, 'fssai_number', None),
+            'gst_number': getattr(doc, 'gst_number', None),
+            'tax_rate': getattr(doc, 'tax_rate', None),
+            'pan_number': getattr(doc, 'pan_number', None),
+            'legal_name': getattr(doc, 'legal_name', None),
+            'business_type': getattr(doc, 'business_type', None),
+            'bank_account_number': getattr(doc, 'bank_account_number', None),
+            'bank_ifsc': getattr(doc, 'bank_ifsc', None),
+            'bank_holder_name': getattr(doc, 'bank_holder_name', None),
+            'opening_time': str(doc.opening_time) if getattr(doc, 'opening_time', None) else None,
+            'closing_time': str(doc.closing_time) if getattr(doc, 'closing_time', None) else None,
+            'subtitle': getattr(doc, 'subtitle', None),
+            'description': getattr(doc, 'description', None),
+            'default_theme': getattr(doc, 'default_theme', None),
+            'menu_layout': getattr(doc, 'menu_layout', None),
+            'enable_table_booking': getattr(doc, 'enable_table_booking', None),
+            'enable_banquet_booking': getattr(doc, 'enable_banquet_booking', None),
+            'tables': getattr(doc, 'tables', None),
+            'address': getattr(doc, 'address', None),
+            'city': getattr(doc, 'city', None),
+            'state': getattr(doc, 'state', None),
+            'zip_code': getattr(doc, 'zip_code', None),
+            'google_map_url': getattr(doc, 'google_map_url', None),
+            'tagline': getattr(doc, 'tagline', None),
+            'instagram_link': getattr(doc, 'instagram_link', None),
+            'facebook_link': getattr(doc, 'facebook_link', None),
+            'website_link': getattr(doc, 'website_link', None),
+            'google_review_link': getattr(doc, 'google_review_link', None),
+            'menu_link': getattr(doc, 'menu_link', None),
+            'logo': getattr(doc, 'logo', None),
+            'hero_image': getattr(doc, 'hero_image', None),
+            'menu_photos': [p.file for p in doc.menu_photos] if hasattr(doc, 'menu_photos') else [],
+        }
+
+        return {'success': True, 'data': data}
+    except Exception as e:
+        frappe.log_error('Get Onboarding By Name Error', str(e))
+        return {'success': False, 'error': str(e)}
+
+
+@frappe.whitelist()
+def sync_onboarding_to_restaurant(name):
+    """
+    Syncs onboarding submission data to the linked Restaurant doc and its Restaurant Config.
+    Marks the onboarding as Completed and records who finalized it.
+    Admin only.
+    """
+    try:
+        from flamezo_backend.flamezo.api.admin import check_admin_access
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        doc = frappe.get_doc('Restaurant Onboarding', name)
+
+        if not doc.linked_restaurant:
+            return {
+                'success': False,
+                'error': 'No linked restaurant found. This onboarding must be linked to an existing restaurant before syncing.'
+            }
+
+        restaurant = doc.linked_restaurant
+
+        # ── Sync to Restaurant ──────────────────────────────────────────────
+        res_doc = frappe.get_doc('Restaurant', restaurant)
+
+        restaurant_field_map = {
+            'owner_name': 'owner_name',
+            'owner_email': 'owner_email',
+            'owner_phone': 'owner_phone',
+            'address': 'address',
+            'city': 'city',
+            'state': 'state',
+            'zip_code': 'zip_code',
+            'google_map_url': 'google_map_url',
+            'legal_name': 'legal_name',
+            'business_type': 'business_type',
+            'gst_number': 'gst_number',
+            'pan_number': 'pan_number',
+            'bank_account_number': 'bank_account_number',
+            'bank_ifsc': 'bank_ifsc',
+            'bank_holder_name': 'bank_holder_name',
+            'tax_rate': 'tax_rate',
+            'tables': 'tables',
+            'logo': 'logo',
+            'description': 'description',
+        }
+
+        for onboard_field, res_field in restaurant_field_map.items():
+            value = getattr(doc, onboard_field, None)
+            if value is not None and value != '':
+                setattr(res_doc, res_field, value)
+
+        res_doc.save(ignore_permissions=True)
+
+        # ── Sync to Restaurant Config ───────────────────────────────────────
+        config_name = frappe.db.get_value('Restaurant Config', {'restaurant': restaurant}, 'name')
+        if config_name:
+            config_doc = frappe.get_doc('Restaurant Config', config_name)
+
+            config_field_map = {
+                'tagline': 'tagline',
+                'subtitle': 'subtitle',
+                'description': 'description',
+                'default_theme': 'default_theme',
+                'logo': 'logo',
+                'menu_layout': 'menu_layout',
+                'enable_table_booking': 'enable_table_booking',
+                'enable_banquet_booking': 'enable_banquet_booking',
+                'google_review_link': 'google_review_link',
+            }
+            # Fields with different names between onboarding and config
+            config_field_remap = {
+                'instagram_link': 'instagram_profile_link',
+                'facebook_link': 'facebook_profile_link',
+                'whatsapp_number': 'whatsapp_phone_number',
+            }
+
+            for onboard_field, config_field in config_field_map.items():
+                value = getattr(doc, onboard_field, None)
+                if value is not None and value != '':
+                    setattr(config_doc, config_field, value)
+
+            for onboard_field, config_field in config_field_remap.items():
+                value = getattr(doc, onboard_field, None)
+                if value is not None and value != '':
+                    setattr(config_doc, config_field, value)
+
+            config_doc.save(ignore_permissions=True)
+
+        # ── Mark onboarding complete ────────────────────────────────────────
+        doc.status = 'Completed'
+        doc.created_restaurant = restaurant
+        doc.finalized_by = frappe.session.user
+        doc.finalized_on = now_datetime()
+        doc.save(ignore_permissions=True)
+
+        frappe.db.commit()
+
+        return {
+            'success': True,
+            'message': f'Synced to {res_doc.restaurant_name} successfully',
+            'data': {'restaurant': restaurant}
+        }
+    except Exception as e:
+        frappe.log_error('Sync Onboarding Error', str(e))
+        return {'success': False, 'error': str(e)}
+
 
 @frappe.whitelist(allow_guest=True)
 def upload_onboarding_media(token):

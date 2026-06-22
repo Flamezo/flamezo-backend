@@ -38,20 +38,23 @@ export default function UGCGrowthSimulatorModal({ isOpen, onClose }: UGCGrowthSi
   const maxDiscountPerVisit = Math.floor(aov * 0.33)
   const numberOfReturns = Math.ceil(voucherValuePerCustomer / maxDiscountPerVisit)
   
-  // Calculate total discount given
-  let discountPerCustomer = 0
+  // Calculate total reward given
+  let rewardPerCustomer = 0
   let remainingVoucher = voucherValuePerCustomer
   for (let i = 0; i < numberOfReturns; i++) {
-    const discount = Math.min(remainingVoucher, Math.floor(aov * 0.33))
-    discountPerCustomer += discount
-    remainingVoucher -= discount
+    const reward = Math.min(remainingVoucher, Math.floor(aov * 0.33))
+    rewardPerCustomer += reward
+    remainingVoucher -= reward
   }
 
-  // Calculate totals
-  const totalDiscount = discountPerCustomer * customers
+  // Calculate totals for Free Dish model
+  const totalRewardValue = rewardPerCustomer * customers
+  // Real cost is only 33% (Food Cost) of the dish value
+  const totalRealCost = Math.floor(totalRewardValue * 0.33) 
+  
   const initialRevenue = aov * customers
   const newCustomerRevenue = aov * 2 * customers // 2 new customers
-  const repeatVisitsRevenue = ((aov * numberOfReturns) - discountPerCustomer) * customers
+  const repeatVisitsRevenue = (aov * numberOfReturns) * customers
   const totalRevenueGenerated = initialRevenue + newCustomerRevenue + repeatVisitsRevenue
   
   // 1 initial visit + 2 new friends + X repeat visits = total visits
@@ -258,21 +261,21 @@ export default function UGCGrowthSimulatorModal({ isOpen, onClose }: UGCGrowthSi
                       <p className="text-sm font-bold uppercase tracking-wider text-blue-600">Guaranteed Loyalty</p>
                       <p className="font-bold text-xl mt-1">Forced Repeat Visits</p>
                       <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                        Voucher is capped at 33% per visit. They <strong>must</strong> return {numberOfReturns} times to use it.
+                        They get a Free Dish (up to 30% of bill). They pay full price, and you only pay 33% Food Cost!
                       </p>
 
                       <div className="mt-4 space-y-2">
                         {/* Visit 1 */}
                         <div className="flex justify-between text-sm py-2 border-b border-gray-100 dark:border-gray-700">
                           <span className="font-medium">Return Visit 1 (x{customers})</span>
-                          <span className="text-green-600 font-semibold">+ ₹{(aov - Math.floor(aov*0.33)) * customers}</span>
+                          <span className="text-green-600 font-semibold">+ ₹{aov * customers}</span>
                         </div>
                         
                         {/* Visit 2 */}
                         {step >= 4 && (
                           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between text-sm py-2 border-b border-gray-100 dark:border-gray-700">
                             <span className="font-medium">Return Visit 2 (x{customers})</span>
-                            <span className="text-green-600 font-semibold">+ ₹{(aov - Math.floor(aov*0.33)) * customers}</span>
+                            <span className="text-green-600 font-semibold">+ ₹{aov * customers}</span>
                           </motion.div>
                         )}
 
@@ -280,7 +283,7 @@ export default function UGCGrowthSimulatorModal({ isOpen, onClose }: UGCGrowthSi
                         {step >= 5 && numberOfReturns >= 3 && (
                           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between text-sm py-2">
                             <span className="font-medium">Return Visit 3 (x{customers})</span>
-                            <span className="text-green-600 font-semibold">+ ₹{(aov - (voucherValuePerCustomer - (Math.floor(aov*0.33)*2))) * customers}</span>
+                            <span className="text-green-600 font-semibold">+ ₹{aov * customers}</span>
                           </motion.div>
                         )}
                       </div>
@@ -311,12 +314,16 @@ export default function UGCGrowthSimulatorModal({ isOpen, onClose }: UGCGrowthSi
                   </p>
                 </div>
                 
-                <div className="flex gap-8">
-                  <div>
-                    <p className="text-gray-400 text-xs uppercase mb-1">Total Discount</p>
-                    <p className="text-2xl font-bold text-red-400">- ₹{totalDiscount}</p>
+                <div className="flex gap-6 md:gap-8 overflow-x-auto">
+                  <div className="shrink-0">
+                    <p className="text-gray-400 text-xs uppercase mb-1">Face Value</p>
+                    <p className="text-2xl font-bold text-gray-300">₹{totalRewardValue}</p>
                   </div>
-                  <div>
+                  <div className="shrink-0">
+                    <p className="text-gray-400 text-xs uppercase mb-1">Actual Food Cost (33%)</p>
+                    <p className="text-2xl font-bold text-red-400">- ₹{totalRealCost}</p>
+                  </div>
+                  <div className="shrink-0">
                     <p className="text-gray-400 text-xs uppercase mb-1">Total Revenue</p>
                     <p className="text-2xl font-bold text-green-400">+ ₹{totalRevenueGenerated}</p>
                   </div>
