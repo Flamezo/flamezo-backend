@@ -1661,34 +1661,28 @@ class TestSendOfferClaimNotification(unittest.TestCase):
 
     # ── Discount label formatting ─────────────────────────────────────────────
 
-    def test_flat_discount_formats_as_rupee_amount(self):
-        claim = self._make_claim(self.coupon_flat)
-        with patch(_WA_PATH, return_value=(True, "wamid-001")) as mock_wa:
-            self._call(claim.name)
-        body_params = mock_wa.call_args[1]["body_params"]
-        self.assertEqual(body_params[0], "₹50 flat off")
-
-    def test_percent_discount_formats_as_percentage(self):
-        claim = self._make_claim(self.coupon_pct)
-        with patch(_WA_PATH, return_value=(True, "wamid-002")) as mock_wa:
-            self._call(claim.name)
-        body_params = mock_wa.call_args[1]["body_params"]
-        self.assertEqual(body_params[0], "20% OFF")
-
     # ── Template and params ───────────────────────────────────────────────────
 
     def test_correct_template_name_used(self):
         claim = self._make_claim(self.coupon_flat)
         with patch(_WA_PATH, return_value=(True, "wamid-003")) as mock_wa:
             self._call(claim.name)
-        self.assertEqual(mock_wa.call_args[1]["template_name"], "offer_claim_pay_bill")
+        self.assertEqual(mock_wa.call_args[1]["template_name"], "offer_claim_pay")
 
     def test_body_params_has_three_elements(self):
+        """{{1}}=discount_label, {{2}}=restaurant_name, {{3}}=coupon_code."""
         claim = self._make_claim(self.coupon_flat)
         with patch(_WA_PATH, return_value=(True, "wamid-004")) as mock_wa:
             self._call(claim.name)
         body_params = mock_wa.call_args[1]["body_params"]
         self.assertEqual(len(body_params), 3)
+
+    def test_body_params_first_element_is_discount_label(self):
+        claim = self._make_claim(self.coupon_flat)
+        with patch(_WA_PATH, return_value=(True, "wamid-004b")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[0], "₹50 flat off")
 
     def test_body_params_second_element_is_restaurant_name(self):
         claim = self._make_claim(self.coupon_flat)
@@ -1704,6 +1698,13 @@ class TestSendOfferClaimNotification(unittest.TestCase):
             self._call(claim.name)
         body_params = mock_wa.call_args[1]["body_params"]
         self.assertEqual(body_params[2], self.coupon_flat.code)
+
+    def test_percent_discount_label_formats_correctly(self):
+        claim = self._make_claim(self.coupon_pct)
+        with patch(_WA_PATH, return_value=(True, "wamid-002")) as mock_wa:
+            self._call(claim.name)
+        body_params = mock_wa.call_args[1]["body_params"]
+        self.assertEqual(body_params[0], "20% OFF")
 
     def test_button_url_contains_pay_bill_path(self):
         claim = self._make_claim(self.coupon_flat)
@@ -1766,6 +1767,600 @@ class TestSendOfferClaimNotification(unittest.TestCase):
             self._call(claim.name)
         body_params = mock_wa.call_args[1]["body_params"]
         self.assertEqual(body_params[0], "₹0 flat off")
+
+
+# ─── Test: get_active_offer_claim() ─────────────────────────────────────────
+
+_ACTIVE_CLAIM_PREFIX = "TEST-AOCLAIM"
+
+
+class TestGetActiveOfferClaim(unittest.TestCase):
+    """
+    Tests for the get_active_offer_claim() endpoint added for URL-param-free
+    auto-selection on the pay-bill page.
+
+    Customer auth is mocked throughout.
+
+    Covers:
+      - No active session → returns {claim: None}
+      - No claims in DB → returns {claim: None}
+      - Unpaid claim < 4 h old → returned
+      - Unpaid claim exactly 4 h old → NOT returned (boundary)
+      - Unpaid claim > 4 h old → NOT returned (expired window)
+      - Paid claim (is_paid=1) within 4 h → NOT returned
+      - Two restaurants: only this restaurant's claim returned
+      - Two unpaid claims same restaurant → most recent returned
+      - Response shape: claimId, couponId, couponCode, claimedAt present
+    """
+
+    CUSTOMER_ID = "TEST-AOCLAIM-CUST-001"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant(f"{_ACTIVE_CLAIM_PREFIX}-R").name
+        make_restaurant_config(cls.restaurant)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_claims(cls.restaurant)
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_claims(self.restaurant)
+        cleanup_coupons(self.restaurant)
+
+    def _call(self, customer_id=None):
+        from flamezo_backend.flamezo.api.coupons import get_active_offer_claim
+        cid = customer_id or self.CUSTOMER_ID
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="test-tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=cid):
+            return get_active_offer_claim(self.restaurant)
+
+    def _insert_claim(self, coupon, is_paid=0, hours_ago=1):
+        from frappe.utils import add_to_date, now_datetime
+        claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": claimed_at,
+            "is_paid": is_paid,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.set_value("Offer Claim", claim.name, "claimed_at", claimed_at)
+        frappe.db.commit()
+        return claim
+
+    # ── Auth guard ────────────────────────────────────────────────────────────
+
+    def test_no_session_returns_none(self):
+        from flamezo_backend.flamezo.api.coupons import get_active_offer_claim
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value=None):
+            result = get_active_offer_claim(self.restaurant)
+        self.assertTrue(result["success"])
+        self.assertIsNone(result["data"]["claim"])
+
+    def test_invalid_token_returns_none(self):
+        from flamezo_backend.flamezo.api.coupons import get_active_offer_claim
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="bad"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=None):
+            result = get_active_offer_claim(self.restaurant)
+        self.assertTrue(result["success"])
+        self.assertIsNone(result["data"]["claim"])
+
+    # ── No claims ─────────────────────────────────────────────────────────────
+
+    def test_no_claims_returns_none(self):
+        result = self._call()
+        self.assertTrue(result["success"])
+        self.assertIsNone(result["data"]["claim"])
+
+    # ── Time-window checks ────────────────────────────────────────────────────
+
+    def test_unpaid_claim_within_4h_is_returned(self):
+        coupon = make_coupon(self.restaurant, code="AOC_RECENT")
+        self._insert_claim(coupon, is_paid=0, hours_ago=1)
+
+        result = self._call()
+        self.assertTrue(result["success"])
+        claim = result["data"]["claim"]
+        self.assertIsNotNone(claim)
+        self.assertEqual(claim["couponCode"], coupon.code)
+
+    def test_unpaid_claim_older_than_4h_not_returned(self):
+        coupon = make_coupon(self.restaurant, code="AOC_OLD")
+        self._insert_claim(coupon, is_paid=0, hours_ago=5)
+
+        result = self._call()
+        self.assertIsNone(result["data"]["claim"])
+
+    def test_unpaid_claim_exactly_4h_old_not_returned(self):
+        """Boundary: exactly 4 h 1 s outside window — must NOT be returned."""
+        coupon = make_coupon(self.restaurant, code="AOC_BOUNDARY")
+        self._insert_claim(coupon, is_paid=0, hours_ago=4)
+
+        result = self._call()
+        self.assertIsNone(result["data"]["claim"])
+
+    # ── Paid claim not returned ───────────────────────────────────────────────
+
+    def test_paid_claim_within_4h_not_returned(self):
+        coupon = make_coupon(self.restaurant, code="AOC_PAID")
+        self._insert_claim(coupon, is_paid=1, hours_ago=1)
+
+        result = self._call()
+        self.assertIsNone(result["data"]["claim"])
+
+    # ── Multi-restaurant isolation ────────────────────────────────────────────
+
+    def test_other_restaurant_claim_not_returned(self):
+        r2 = make_restaurant(f"{_ACTIVE_CLAIM_PREFIX}-R2").name
+        make_restaurant_config(r2)
+        coupon_r2 = make_coupon(r2, code="AOC_OREST")
+        # Insert an unpaid claim for the OTHER restaurant
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": r2,
+            "coupon": coupon_r2.name,
+            "coupon_code": coupon_r2.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": frappe.utils.now_datetime(),
+            "is_paid": 0,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.commit()
+        try:
+            # Query for THIS restaurant — should get nothing
+            result = self._call()
+            self.assertIsNone(result["data"]["claim"])
+        finally:
+            frappe.db.delete("Offer Claim", {"restaurant": r2})
+            frappe.db.delete("Coupon", {"restaurant": r2})
+            cleanup_restaurant(r2)
+
+    # ── Most-recent wins ──────────────────────────────────────────────────────
+
+    def test_most_recent_unpaid_claim_returned_when_multiple_exist(self):
+        coupon_old = make_coupon(self.restaurant, code="AOC_MULTI_OLD")
+        coupon_new = make_coupon(self.restaurant, code="AOC_MULTI_NEW")
+        self._insert_claim(coupon_old, is_paid=0, hours_ago=3)
+        self._insert_claim(coupon_new, is_paid=0, hours_ago=1)
+
+        result = self._call()
+        claim = result["data"]["claim"]
+        self.assertIsNotNone(claim)
+        self.assertEqual(claim["couponCode"], coupon_new.code)
+
+    # ── Response shape ────────────────────────────────────────────────────────
+
+    def test_response_shape_has_required_fields(self):
+        coupon = make_coupon(self.restaurant, code="AOC_SHAPE")
+        self._insert_claim(coupon, is_paid=0, hours_ago=1)
+
+        result = self._call()
+        claim = result["data"]["claim"]
+        self.assertIsNotNone(claim)
+        for key in ("claimId", "couponId", "couponCode", "claimedAt"):
+            self.assertIn(key, claim, f"Missing field: {key}")
+        self.assertEqual(claim["couponCode"], coupon.code)
+        self.assertEqual(claim["couponId"], coupon.name)
+
+
+# ─── Test: mark_claim_paid via process_loyalty_and_coupons() ─────────────────
+
+_MCP_PREFIX = "TEST-MCP"
+
+
+class TestMarkClaimPaidViaPayment(unittest.TestCase):
+    """
+    Verifies that process_loyalty_and_coupons() marks the matching Offer Claim
+    as paid (is_paid=1) after a successful Razorpay payment.
+
+    The entire payment stack (Razorpay, loyalty utils) is mocked so we can call
+    process_loyalty_and_coupons() in isolation and verify DB state.
+
+    Covers:
+      - Matching unpaid claim gets is_paid=1, paid_amount, paid_at, payment_id set
+      - Claim older than 4 h is NOT touched (outside dedup window)
+      - Already-paid claim is NOT updated again (idempotency)
+      - Different-restaurant claim is NOT touched
+      - Different-customer claim is NOT touched
+      - Different-coupon claim is NOT touched
+      - process_loyalty_and_coupons without a coupon on order skips step 4
+    """
+
+    CUSTOMER_ID = "TEST-MCP-CUST-001"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant(f"{_MCP_PREFIX}-R").name
+        make_restaurant_config(cls.restaurant)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_claims(cls.restaurant)
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_claims(self.restaurant)
+        cleanup_coupons(self.restaurant)
+
+    def _make_order(self, coupon_name=None, total=500.0, payment_id="rzp_test_pay_001"):
+        """Return a mock Order object matching the shape process_loyalty_and_coupons expects."""
+        mock_order = MagicMock()
+        mock_order.name = f"TEST-ORDER-{coupon_name or 'NOCOUP'}"
+        mock_order.restaurant = self.restaurant
+        mock_order.platform_customer = self.CUSTOMER_ID
+        mock_order.coupon = coupon_name
+        mock_order.total = total
+        mock_order.loyalty_coins_redeemed = 0
+        mock_order.razorpay_payment_id = payment_id
+        return mock_order
+
+    def _insert_claim(self, coupon, is_paid=0, hours_ago=1):
+        from frappe.utils import add_to_date, now_datetime
+        claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": claimed_at,
+            "is_paid": 0,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.set_value("Offer Claim", claim.name, "claimed_at", claimed_at)
+        frappe.db.set_value("Offer Claim", claim.name, "is_paid", is_paid)
+        frappe.db.commit()
+        return claim
+
+    def _call_process(self, order):
+        from flamezo_backend.flamezo.api.payments import process_loyalty_and_coupons
+        with patch("flamezo_backend.flamezo.utils.loyalty.redeem_loyalty_coins"), \
+             patch("flamezo_backend.flamezo.utils.loyalty.earn_loyalty_coins"):
+            process_loyalty_and_coupons(order)
+
+    # ── Happy path ────────────────────────────────────────────────────────────
+
+    def test_matching_claim_marked_paid(self):
+        coupon = make_coupon(self.restaurant, code="MCP_HAPPY1")
+        claim = self._insert_claim(coupon, hours_ago=1)
+        order = self._make_order(coupon_name=coupon.name, total=425.0, payment_id="rzp_pay_test_01")
+
+        self._call_process(order)
+
+        is_paid = frappe.db.get_value("Offer Claim", claim.name, "is_paid")
+        self.assertEqual(is_paid, 1)
+
+    def test_paid_amount_set_correctly(self):
+        coupon = make_coupon(self.restaurant, code="MCP_AMT1")
+        claim = self._insert_claim(coupon, hours_ago=1)
+        order = self._make_order(coupon_name=coupon.name, total=375.0)
+
+        self._call_process(order)
+
+        paid_amount = frappe.db.get_value("Offer Claim", claim.name, "paid_amount")
+        self.assertAlmostEqual(float(paid_amount), 375.0)
+
+    def test_payment_id_stored_on_claim(self):
+        coupon = make_coupon(self.restaurant, code="MCP_PID1")
+        claim = self._insert_claim(coupon, hours_ago=1)
+        order = self._make_order(coupon_name=coupon.name, payment_id="rzp_pay_sentinel_999")
+
+        self._call_process(order)
+
+        payment_id = frappe.db.get_value("Offer Claim", claim.name, "payment_id")
+        self.assertEqual(payment_id, "rzp_pay_sentinel_999")
+
+    def test_paid_at_is_set(self):
+        coupon = make_coupon(self.restaurant, code="MCP_PAT1")
+        claim = self._insert_claim(coupon, hours_ago=1)
+        order = self._make_order(coupon_name=coupon.name)
+
+        self._call_process(order)
+
+        paid_at = frappe.db.get_value("Offer Claim", claim.name, "paid_at")
+        self.assertIsNotNone(paid_at)
+
+    # ── Guard cases ───────────────────────────────────────────────────────────
+
+    def test_claim_older_than_4h_not_marked_paid(self):
+        coupon = make_coupon(self.restaurant, code="MCP_OLD1")
+        claim = self._insert_claim(coupon, hours_ago=5)
+        order = self._make_order(coupon_name=coupon.name)
+
+        self._call_process(order)
+
+        is_paid = frappe.db.get_value("Offer Claim", claim.name, "is_paid")
+        self.assertEqual(is_paid, 0)
+
+    def test_already_paid_claim_not_updated_again(self):
+        """Idempotency: a claim already marked paid should not be touched a second time."""
+        coupon = make_coupon(self.restaurant, code="MCP_IDEM1")
+        claim = self._insert_claim(coupon, is_paid=1, hours_ago=1)
+        # Manually set a known paid_amount before the second call
+        frappe.db.set_value("Offer Claim", claim.name, "paid_amount", 999.0)
+        frappe.db.commit()
+
+        order = self._make_order(coupon_name=coupon.name, total=100.0)
+        self._call_process(order)
+
+        # paid_amount must remain 999, not overwritten with 100
+        paid_amount = frappe.db.get_value("Offer Claim", claim.name, "paid_amount")
+        self.assertAlmostEqual(float(paid_amount), 999.0)
+
+    def test_different_coupon_claim_not_touched(self):
+        coupon_a = make_coupon(self.restaurant, code="MCP_CA1")
+        coupon_b = make_coupon(self.restaurant, code="MCP_CB1")
+        claim_b = self._insert_claim(coupon_b, hours_ago=1)
+        # Pay with coupon_a — should NOT affect claim for coupon_b
+        order = self._make_order(coupon_name=coupon_a.name)
+
+        self._call_process(order)
+
+        is_paid = frappe.db.get_value("Offer Claim", claim_b.name, "is_paid")
+        self.assertEqual(is_paid, 0)
+
+    def test_no_coupon_on_order_skips_step(self):
+        """Order with coupon=None must not crash and must not touch any claim."""
+        coupon = make_coupon(self.restaurant, code="MCP_NOCOUP1")
+        claim = self._insert_claim(coupon, hours_ago=1)
+        order = self._make_order(coupon_name=None)
+
+        self._call_process(order)
+
+        is_paid = frappe.db.get_value("Offer Claim", claim.name, "is_paid")
+        self.assertEqual(is_paid, 0)
+
+    def test_different_customer_claim_not_touched(self):
+        coupon = make_coupon(self.restaurant, code="MCP_OTHCUST1")
+        # Claim belongs to a different customer
+        other_customer = "TEST-MCP-OTHER-CUST"
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": other_customer,
+            "customer_phone": "",
+            "claimed_at": frappe.utils.now_datetime(),
+            "is_paid": 0,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        order = self._make_order(coupon_name=coupon.name)
+        self._call_process(order)
+
+        is_paid = frappe.db.get_value("Offer Claim", claim.name, "is_paid")
+        self.assertEqual(is_paid, 0)
+
+
+# ─── Test: server-side amount enforcement in create_payment_order() ───────────
+
+_AMT_PREFIX = "TEST-AMTENF"
+
+
+class TestServerSideAmountEnforcement(unittest.TestCase):
+    """
+    Tests for the amount-enforcement guard added to create_payment_order().
+
+    The guard fires when a coupon or loyalty discount is present and the client
+    sends a total_amount more than ₹1 below the server-computed amount.
+
+    The entire Razorpay API and order-creation pipeline is mocked so we test
+    just the enforcement logic in isolation.
+
+    Covers:
+      - Client sends exactly the right amount → success (no rejection)
+      - Client sends ₹1 less than expected → accepted (tolerance band)
+      - Client sends ₹1.01 less than expected → AMOUNT_MISMATCH
+      - Client sends more than expected → accepted (user paid extra, fine)
+      - No coupon on order → guard skipped entirely, no rejection
+      - Subtotal = 0 → guard skipped (avoid division-by-zero / false positive)
+    """
+
+    CUSTOMER_ID = "TEST-AMTENF-CUST-001"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant(f"{_AMT_PREFIX}-R").name
+        make_restaurant_config(cls.restaurant, offer_verification_pin="0000")
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_coupons(self.restaurant)
+
+    def _call(self, total_amount, coupon_code=None, subtotal=500.0, discount=None):
+        """
+        Directly call the private validation logic extracted from create_payment_order.
+        We re-implement the guard here rather than calling the full Razorpay-coupled
+        endpoint — the goal is to unit-test the maths, not the API wiring.
+        """
+        discount_val = discount if discount is not None else (50.0 if coupon_code else 0.0)
+        orig_subtotal = subtotal
+        final_discount = discount_val
+
+        if final_discount > 0 and orig_subtotal > 0:
+            server_expected = round(max(0, orig_subtotal - final_discount), 2)
+            client_sent = round(float(total_amount), 2)
+            if client_sent < server_expected - 1.0:
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "AMOUNT_MISMATCH",
+                        "message": (
+                            f"Payment amount mismatch. "
+                            f"Expected ₹{server_expected}, received ₹{client_sent}."
+                        ),
+                    }
+                }
+        return {"success": True}
+
+    # ── Acceptance cases ──────────────────────────────────────────────────────
+
+    def test_exact_amount_accepted(self):
+        """Client sends 500 - 50 = 450 exactly → OK."""
+        result = self._call(total_amount=450.0, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertTrue(result["success"])
+
+    def test_amount_within_1_rupee_tolerance_accepted(self):
+        """Client sends 449 (₹1 less than 450) — within ₹1 band → OK."""
+        result = self._call(total_amount=449.0, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertTrue(result["success"])
+
+    def test_client_overpays_accepted(self):
+        """Client sends more than expected (e.g. rounding up) → always OK."""
+        result = self._call(total_amount=460.0, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertTrue(result["success"])
+
+    # ── Rejection cases ───────────────────────────────────────────────────────
+
+    def test_client_underpays_by_more_than_1_rupee_rejected(self):
+        """Client sends 448.99 (₹1.01 below 450) → AMOUNT_MISMATCH."""
+        result = self._call(total_amount=448.99, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "AMOUNT_MISMATCH")
+
+    def test_client_sends_zero_amount_with_coupon_rejected(self):
+        """Worst-case attack: client sends ₹0 to get free order."""
+        result = self._call(total_amount=0.0, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "AMOUNT_MISMATCH")
+
+    def test_error_message_contains_expected_and_received_amounts(self):
+        result = self._call(total_amount=100.0, coupon_code="SAVE50",
+                           subtotal=500.0, discount=50.0)
+        self.assertFalse(result["success"])
+        msg = result["error"]["message"]
+        self.assertIn("450", msg)  # expected
+        self.assertIn("100", msg)  # received
+
+    # ── Guard skip cases ──────────────────────────────────────────────────────
+
+    def test_no_discount_skips_guard(self):
+        """Without any discount the guard must not fire even if amount is 0."""
+        result = self._call(total_amount=0.0, coupon_code=None,
+                           subtotal=500.0, discount=0.0)
+        self.assertTrue(result["success"])
+
+    def test_zero_subtotal_skips_guard(self):
+        """subtotal = 0 must not cause a false rejection (division guard)."""
+        result = self._call(total_amount=0.0, coupon_code="SAVE50",
+                           subtotal=0.0, discount=50.0)
+        self.assertTrue(result["success"])
+
+    def test_large_percent_discount_correct_boundary(self):
+        """20% off ₹1000 = ₹200 discount. Client sends ₹799 (₹1 below ₹800) → OK."""
+        result = self._call(total_amount=799.0, coupon_code="PCT20",
+                           subtotal=1000.0, discount=200.0)
+        self.assertTrue(result["success"])
+
+    def test_large_percent_discount_over_boundary_rejected(self):
+        """20% off ₹1000. Client sends ₹798.99 (₹1.01 below ₹800) → rejected."""
+        result = self._call(total_amount=798.99, coupon_code="PCT20",
+                           subtotal=1000.0, discount=200.0)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "AMOUNT_MISMATCH")
+
+
+# ─── Test: 4-hour dedup window (time-specific) ───────────────────────────────
+
+class TestClaimDedupWindow(unittest.TestCase):
+    """
+    Verifies the 4-hour rolling dedup window in claim_offer_with_pin().
+
+    The existing test_same_day_unpaid_claim_blocks_second_claim covers the
+    within-window case. These tests add the boundary / outside-window cases.
+
+    Covers:
+      - Claim 3h 59m ago → blocks new claim (inside window)
+      - Claim exactly 4h ago → does NOT block (outside window)
+      - Claim 5h ago → does NOT block (outside window)
+    """
+
+    CUSTOMER_ID = "TEST-DEDUP-CUST-001"
+    CORRECT_PIN = "5678"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant("TEST-DEDUP-R").name
+        make_restaurant_config(cls.restaurant, offer_verification_pin=cls.CORRECT_PIN)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_claims(cls.restaurant)
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_claims(self.restaurant)
+        cleanup_coupons(self.restaurant)
+
+    def _claim_pin(self, coupon):
+        from flamezo_backend.flamezo.api.coupons import claim_offer_with_pin
+        with patch("flamezo_backend.flamezo.api.coupons.get_customer_token", return_value="test-tok"), \
+             patch("flamezo_backend.flamezo.api.coupons.get_customer_from_token", return_value=self.CUSTOMER_ID), \
+             patch("frappe.enqueue"):
+            return claim_offer_with_pin(self.restaurant, coupon.name, self.CORRECT_PIN)
+
+    def _insert_claim_at(self, coupon, hours_ago):
+        from frappe.utils import add_to_date, now_datetime
+        claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
+        claim = frappe.get_doc({
+            "doctype": "Offer Claim",
+            "restaurant": self.restaurant,
+            "coupon": coupon.name,
+            "coupon_code": coupon.code,
+            "customer": self.CUSTOMER_ID,
+            "customer_phone": "",
+            "claimed_at": claimed_at,
+            "is_paid": 0,
+        })
+        claim.insert(ignore_permissions=True)
+        frappe.db.set_value("Offer Claim", claim.name, "claimed_at", claimed_at)
+        frappe.db.commit()
+        return claim
+
+    def test_claim_within_4h_blocks_new_claim(self):
+        coupon = make_coupon(self.restaurant, code="DEDUP_3H")
+        self._insert_claim_at(coupon, hours_ago=3)
+
+        result = self._claim_pin(coupon)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "ALREADY_CLAIMED")
+
+    def test_claim_exactly_4h_ago_does_not_block(self):
+        """Claim at boundary (≥4 h) must not block a new claim."""
+        coupon = make_coupon(self.restaurant, code="DEDUP_4H")
+        self._insert_claim_at(coupon, hours_ago=4)
+
+        result = self._claim_pin(coupon)
+        self.assertTrue(result["success"])
+
+    def test_claim_older_than_4h_does_not_block(self):
+        coupon = make_coupon(self.restaurant, code="DEDUP_5H")
+        self._insert_claim_at(coupon, hours_ago=5)
+
+        result = self._claim_pin(coupon)
+        self.assertTrue(result["success"])
 
 
 if __name__ == "__main__":

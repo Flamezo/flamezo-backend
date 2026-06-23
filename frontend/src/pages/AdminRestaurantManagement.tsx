@@ -183,6 +183,7 @@ export default function AdminRestaurantManagement() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false)
   const [selectedOnboarding, setSelectedOnboarding] = useState<string[]>([])
+  const [showCompleted, setShowCompleted] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedOnboardingResId, setSelectedOnboardingResId] = useState('')
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
@@ -421,7 +422,7 @@ export default function AdminRestaurantManagement() {
   }
 
   const toggleSelectAll = () => {
-    const all = (onboardingData?.message?.data || []).map((r: any) => r.name)
+    const all = visibleOnboarding.map((r: any) => r.name)
     if (selectedOnboarding.length === all.length) {
       setSelectedOnboarding([])
     } else {
@@ -515,7 +516,10 @@ export default function AdminRestaurantManagement() {
     }
   }
 
-  const pendingCount = (onboardingData?.message?.data || []).filter((r: any) => r.status === 'Client Submitted').length
+  const allOnboarding: any[] = onboardingData?.message?.data || []
+  const pendingCount = allOnboarding.filter((r: any) => r.status === 'Client Submitted').length
+  const completedCount = allOnboarding.filter((r: any) => r.status === 'Completed').length
+  const visibleOnboarding = showCompleted ? allOnboarding : allOnboarding.filter((r: any) => r.status !== 'Completed')
 
   if (!isAdmin) {
     return (
@@ -1132,7 +1136,7 @@ export default function AdminRestaurantManagement() {
 
       {/* Onboarding Inbox Modal */}
       <Dialog open={isOnboardingModalOpen} onOpenChange={setIsOnboardingModalOpen}>
-        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+        <DialogContent className="sm:max-w-5xl w-[95vw] p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
           <div className="p-8 bg-gradient-to-br from-primary/10 via-background to-background border-b relative overflow-hidden">
             <div className="absolute -top-10 -right-10 opacity-[0.03] rotate-12">
               <Inbox className="h-40 w-40" />
@@ -1198,129 +1202,160 @@ export default function AdminRestaurantManagement() {
                   Generate Link
                 </Button>
               </div>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setShowCompleted(v => !v)}
+                  className={cn(
+                    'flex items-center gap-2 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all',
+                    showCompleted
+                      ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
+                      : 'bg-muted/40 border-muted text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <div className={cn('h-1.5 w-1.5 rounded-full', showCompleted ? 'bg-green-500' : 'bg-muted-foreground')} />
+                  {showCompleted ? 'Hiding completed' : `Show completed`}
+                  {completedCount > 0 && (
+                    <span className={cn('ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black', showCompleted ? 'bg-green-100 text-green-700 dark:bg-green-900/40' : 'bg-muted text-muted-foreground')}>
+                      {completedCount}
+                    </span>
+                  )}
+                </button>
+                <span className="text-[11px] text-muted-foreground">
+                  {visibleOnboarding.length} {showCompleted ? 'total' : 'active'}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="p-0 max-h-[45vh] overflow-y-auto">
-            {!onboardingData?.message?.data?.length ? (
+          <div className="p-0 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+            {!visibleOnboarding.length ? (
               <div className="py-20 text-center">
                 <div className="mx-auto w-12 h-12 bg-muted/20 rounded-full flex items-center justify-center mb-4">
                   <Mail className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground font-medium">No pending onboarding requests found</p>
+                <p className="text-muted-foreground font-medium">
+                  {allOnboarding.length ? 'No active requests — toggle "Show completed" to see all.' : 'No onboarding requests found'}
+                </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/5">
-                    <TableHead className="w-12 pl-6">
+              <table className="w-full table-fixed">
+                <colgroup>
+                  <col className="w-10" />
+                  <col className="w-[28%]" />
+                  <col className="w-[32%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[26%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-muted/5 border-b">
+                    <th className="pl-4 py-3 w-10">
                       <Checkbox
-                        checked={selectedOnboarding.length > 0 && selectedOnboarding.length === onboardingData?.message?.data?.length}
+                        checked={selectedOnboarding.length > 0 && selectedOnboarding.length === visibleOnboarding.length}
                         onCheckedChange={toggleSelectAll}
                         className="rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
-                    </TableHead>
-                    <TableHead>Restaurant Name</TableHead>
-                    <TableHead>Owner / Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right pr-6">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(onboardingData?.message?.data || []).map((req: any) => (
-                    <TableRow key={req.name} className={cn(
-                      "hover:bg-muted/5 transition-colors",
-                      selectedOnboarding.includes(req.name) && "bg-primary/5 hover:bg-primary/5"
+                    </th>
+                    <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Restaurant Name</th>
+                    <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Owner / Status</th>
+                    <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Created</th>
+                    <th className="py-3 pr-4 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleOnboarding.map((req: any) => (
+                    <tr key={req.name} className={cn(
+                      "border-b hover:bg-muted/5 transition-colors",
+                      selectedOnboarding.includes(req.name) && "bg-primary/5 hover:bg-primary/5",
+                      req.status === 'Completed' && "opacity-50"
                     )}>
-                      <TableCell className="pl-6">
+                      <td className="pl-4 py-3">
                         <Checkbox
                           checked={selectedOnboarding.includes(req.name)}
                           onCheckedChange={() => toggleSelectRow(req.name)}
                           className="rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
-                      </TableCell>
-                      <TableCell className="font-bold">{req.restaurant_name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-medium">{req.owner_email || 'No email provided'}</span>
-                          <div className="flex items-center mt-1">
+                      </td>
+                      <td className="py-3 pr-2 font-bold text-sm truncate max-w-0">
+                        <span className="block truncate" title={req.restaurant_name}>{req.restaurant_name}</span>
+                      </td>
+                      <td className="py-3 pr-2 min-w-0">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-medium truncate" title={req.owner_email || 'No email provided'}>{req.owner_email || 'No email provided'}</span>
+                          <div className="flex items-center mt-0.5">
                             <div className={cn(
-                              "h-1.5 w-1.5 rounded-full mr-2",
-                              req.status === 'Client Submitted' ? "bg-green-500" : "bg-amber-400"
+                              "h-1.5 w-1.5 rounded-full mr-1.5 shrink-0",
+                              req.status === 'Client Submitted' ? "bg-green-500" : req.status === 'Completed' ? "bg-blue-400" : "bg-amber-400"
                             )} />
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
                               {req.status}
                             </span>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      </td>
+                      <td className="py-3 pr-2 text-xs text-muted-foreground whitespace-nowrap">
                         {formatDate(req.creation)}
-                      </TableCell>
-                      <TableCell className="text-right pr-6">
-                        <div className="flex justify-end gap-1.5">
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="flex justify-end items-center gap-1">
                           {req.status === 'Client Submitted' && (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-9 px-3 text-xs font-bold hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 transition-all rounded-lg"
+                              size="icon"
+                              title="Review"
+                              className="h-8 w-8 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 rounded-lg"
                               onClick={() => handleReviewOnboarding(req.name)}
                             >
-                              <Eye className="h-3.5 w-3.5 mr-1.5" />
-                              Review
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
                           )}
-
                           {req.status === 'Client Submitted' && req.linked_restaurant && (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-9 px-3 text-xs font-bold hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-500/10 dark:hover:text-green-400 transition-all rounded-lg"
+                              size="icon"
+                              title="Sync to restaurant"
+                              className="h-8 w-8 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-500/10 dark:hover:text-green-400 rounded-lg"
                               onClick={() => handleSyncOnboarding(req.name)}
                               disabled={syncingName === req.name}
                             >
                               {syncingName === req.name
-                                ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                : <RefreshCcw className="h-3.5 w-3.5 mr-1.5" />}
-                              Sync
+                                ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                : <RefreshCcw className="h-3.5 w-3.5" />}
                             </Button>
                           )}
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 px-3 text-xs font-bold hover:bg-primary/10 hover:text-primary transition-all rounded-lg"
-                            onClick={() => window.open(req.onboarding_link, '_blank')}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                            Launch
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 px-3 text-xs font-bold hover:bg-muted transition-all rounded-lg"
-                            onClick={() => handleCopyOnboardingLink(req.onboarding_link)}
-                          >
-                            <ClipboardCopy className="h-3.5 w-3.5 mr-1.5" />
-                            Copy
-                          </Button>
-
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all rounded-lg"
+                            title="Open onboarding link"
+                            className="h-8 w-8 hover:bg-primary/10 hover:text-primary rounded-lg"
+                            onClick={() => window.open(req.onboarding_link, '_blank')}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Copy link"
+                            className="h-8 w-8 hover:bg-muted rounded-lg"
+                            onClick={() => handleCopyOnboardingLink(req.onboarding_link)}
+                          >
+                            <ClipboardCopy className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete"
+                            className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
                             onClick={() => handleDeleteOnboarding(req.name)}
                             disabled={updating === req.name}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             )}
           </div>
 

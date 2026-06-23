@@ -262,6 +262,21 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		calculated_total_discount = loyalty_discount + coupon_discount_value
 		final_discount = max(total_discount_frontend, calculated_total_discount)
 
+		# Server-side amount enforcement: when a coupon or loyalty discount was
+		# validated, re-derive the expected payable and reject if the client
+		# sent an amount more than ₹1 lower than what we calculated.
+		if final_discount > 0 and orig_subtotal > 0:
+			server_expected = round(max(0, orig_subtotal - final_discount), 2)
+			client_sent = round(float(total_amount), 2)
+			if client_sent < server_expected - 1.0:
+				return {
+					"success": False,
+					"error": {
+						"code": "AMOUNT_MISMATCH",
+						"message": f"Payment amount mismatch. Expected ₹{server_expected}, received ₹{client_sent}.",
+					}
+				}
+
 		# Update totals and discount fields
 		order_doc.update({
 			"coupon": applied_coupon,
@@ -580,6 +595,36 @@ def process_loyalty_and_coupons(order):
 				frappe.db.commit()
 		except Exception as e:
 			frappe.log_error(f"Coupon tracking failed: {str(e)}"[:140], "Coupon Tracking Error")
+
+	# ── 4. Mark Offer Claim as Paid ─────────────────────────────────────────────
+	# Finds the open Offer Claim for this customer+restaurant+coupon created in
+	# the last 4 hours and stamps it as paid, closing the dedup window cleanly.
+	if order.coupon:
+		try:
+			from frappe.utils import add_to_date, now_datetime
+			four_hours_ago = add_to_date(now_datetime(), hours=-4)
+			claim_name = frappe.db.get_value(
+				"Offer Claim",
+				{
+					"restaurant": restaurant_id,
+					"customer": platform_customer,
+					"coupon": order.coupon,
+					"is_paid": 0,
+					"claimed_at": [">=", four_hours_ago],
+				},
+				"name",
+				order_by="claimed_at desc",
+			)
+			if claim_name:
+				frappe.db.set_value("Offer Claim", claim_name, {
+					"is_paid": 1,
+					"paid_amount": order.total,
+					"paid_at": now_datetime(),
+					"payment_id": order.razorpay_payment_id or order.name,
+				})
+				frappe.db.commit()
+		except Exception as e:
+			frappe.log_error(f"mark_claim_paid failed for order {order.name}: {str(e)}", "Coupon")
 
 
 
