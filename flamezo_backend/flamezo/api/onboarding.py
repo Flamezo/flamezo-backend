@@ -194,8 +194,8 @@ def submit_onboarding_data(token, data):
 @frappe.whitelist()
 def get_all_onboarding_requests():
     """
-    Returns all non-finalized onboarding requests.
-    Admin only.
+    Returns all onboarding requests (including Completed).
+    Frontend filters by status. Admin only.
     """
     try:
         from flamezo_backend.flamezo.api.admin import check_admin_access
@@ -205,9 +205,9 @@ def get_all_onboarding_requests():
 
         requests = frappe.get_all(
             'Restaurant Onboarding',
-            filters={'status': ['!=', 'Completed']},
             fields=['name', 'restaurant_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation', 'linked_restaurant'],
-            order_by='creation desc'
+            order_by='creation desc',
+            limit=0,
         )
 
         # Ensure onboarding_link is populated even if it was created before the field was added

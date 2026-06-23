@@ -85,7 +85,7 @@ def send_offer_claim_notification(claim_id):
 
     phone = claim.customer_phone or ""
     if not phone:
-        phone = frappe.db.get_value("Customer Data", claim.customer, "phone") or ""
+        phone = frappe.db.get_value("Customer", claim.customer, "phone") or ""
     if not phone:
         return
 
@@ -116,7 +116,7 @@ def send_offer_claim_notification(claim_id):
     try:
         success, result = send_whatsapp_cloud_message(
             to_phone=phone,
-            template_name="offer_claim_pay_bill",
+            template_name="offer_claim_pay",
             body_params=[discount_label, restaurant_name, claim.coupon_code],
             button_url_param=button_url_suffix,
         )

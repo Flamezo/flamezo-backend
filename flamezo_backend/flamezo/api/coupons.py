@@ -640,6 +640,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 		
 		for offer in offers:
 			is_eligible = True
+			is_truly_ineligible = False
 			ineligibility_reasons = []
 
 			# Skip if not within validity dates
@@ -656,6 +657,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 						valid_days_lower = [d.lower() for d in valid_days]
 						if current_day not in valid_days_lower:
 							is_eligible = False
+							is_truly_ineligible = True
 							days_display = ", ".join([d.capitalize() for d in valid_days])
 							ineligibility_reasons.append({
 								"code": "INVALID_DAY",
@@ -672,6 +674,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					start_time = datetime.strptime(str(offer.valid_time_start).split(".")[0], "%H:%M:%S").time()
 					if current_time < start_time:
 						is_eligible = False
+						is_truly_ineligible = True
 						ineligibility_reasons.append({
 							"code": "TOO_EARLY",
 							"message": f"Available from {offer.valid_time_start}",
@@ -685,6 +688,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					end_time = datetime.strptime(str(offer.valid_time_end).split(".")[0], "%H:%M:%S").time()
 					if current_time > end_time:
 						is_eligible = False
+						is_truly_ineligible = True
 						ineligibility_reasons.append({
 							"code": "TOO_LATE",
 							"message": f"Available until {offer.valid_time_end}",
@@ -711,6 +715,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			# Check max uses
 			if offer.max_uses and offer.usage_count and offer.usage_count >= offer.max_uses:
 				is_eligible = False
+				is_truly_ineligible = True
 				ineligibility_reasons.append({
 					"code": "LIMIT_REACHED",
 					"message": "Offer limit reached",
@@ -725,6 +730,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				)
 				if customer_usage >= offer.max_uses_per_user:
 					is_eligible = False
+					is_truly_ineligible = True
 					ineligibility_reasons.append({
 						"code": "CUSTOMER_LIMIT_REACHED",
 						"message": f"You've already used this offer {customer_usage} time(s)",
@@ -886,10 +892,10 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 
 			
 			# Add to appropriate list
-			if is_eligible:
-				eligible_offers.append(offer_data)
-			else:
+			if is_truly_ineligible:
 				ineligible_offers.append(offer_data)
+			else:
+				eligible_offers.append(offer_data)
 		
 		# Find best eligible offer (highest discount)
 		best_offer = None
@@ -983,7 +989,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Session expired — please log in again"}}
 
 		# Fetch customer phone
-		customer_phone = frappe.db.get_value("Customer Data", customer_id, "phone") or ""
+		customer_phone = frappe.db.get_value("Customer", customer_id, "phone") or ""
 
 		# Validate PIN
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
@@ -1059,6 +1065,55 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 	except Exception as e:
 		frappe.log_error(f"Error in claim_offer_with_pin: {str(e)}")
 		return {"success": False, "error": {"code": "CLAIM_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_active_offer_claim(restaurant_id):
+	"""
+	Returns the customer's active (unpaid) Offer Claim for this restaurant
+	within the last 4 hours, if any. Used by the pay-bill page to auto-select
+	the claimed offer without depending on URL params or localStorage.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		token = get_customer_token()
+		if not token:
+			return {"success": True, "data": {"claim": None}}
+		customer_id = get_customer_from_token(token)
+		if not customer_id:
+			return {"success": True, "data": {"claim": None}}
+
+		four_hours_ago = add_to_date(now_datetime(), hours=-4)
+		claim = frappe.db.get_value(
+			"Offer Claim",
+			{
+				"restaurant": restaurant,
+				"customer": customer_id,
+				"is_paid": 0,
+				"claimed_at": [">=", four_hours_ago],
+			},
+			["name", "coupon", "coupon_code", "claimed_at", "locked_until"],
+			as_dict=True,
+			order_by="claimed_at desc",
+		)
+		if not claim:
+			return {"success": True, "data": {"claim": None}}
+
+		return {
+			"success": True,
+			"data": {
+				"claim": {
+					"claimId": claim.name,
+					"couponId": claim.coupon,
+					"couponCode": claim.coupon_code,
+					"claimedAt": str(claim.claimed_at),
+					"lockedUntil": str(claim.locked_until) if claim.locked_until else None,
+				}
+			}
+		}
+	except Exception as e:
+		frappe.log_error(f"get_active_offer_claim: {str(e)}", "Coupon")
+		return {"success": True, "data": {"claim": None}}  # fail-open — page still works
 
 
 @frappe.whitelist()
