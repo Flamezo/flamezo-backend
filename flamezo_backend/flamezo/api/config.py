@@ -401,9 +401,24 @@ def get_restaurant_config(restaurant_id):
 
 				# Savings calculation
 				combo_price = flt(c.get("combo_price") or 0)
-				# pyrefly: ignore [no-matching-overload]
-				original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
-				savings = max(0, original_price - combo_price) if combo_price and original_price else 0
+				items_to_select = int(c.get("items_to_select") or 2)
+
+				if combo_type == "bogo":
+					# BOGO: user picks N items from pool, cheapest is free.
+					# Display price = sum of top-N prices - cheapest of those N.
+					pool_prices = sorted(
+						[flt(i["price"]) for i in item_pool_detail if flt(i["price"]) > 0],
+						reverse=True,
+					)
+					top_n = pool_prices[:items_to_select]
+					original_price = sum(top_n)
+					# Pay for the most expensive; cheapest of the selected N is free
+					combo_price = sum(top_n) - (top_n[-1] if top_n else 0)
+					savings = top_n[-1] if top_n else 0
+				else:
+					# pyrefly: ignore [no-matching-overload]
+					original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
+					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
 
 				combo_deals.append({
 					"id": str(c.name),

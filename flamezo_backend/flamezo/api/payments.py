@@ -644,23 +644,7 @@ def get_restaurant_payment_stats(restaurant_id):
 				return value[:2] + "****" + value[-2:]
 			return value[:prefix_len] + "********" + value[-4:]
 		
-		# Get current month stats
-		from datetime import datetime
-		current_month = datetime.now().strftime("%Y-%m")
-		
-		# Get total orders and revenue for current month
-		orders = frappe.db.sql("""
-			SELECT 
-				COUNT(*) as total_orders,
-				COALESCE(SUM(total), 0) as total_revenue,
-				COALESCE(SUM(platform_fee_amount), 0) as total_platform_fee
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s 
-			AND payment_status = 'completed'
-			AND DATE_FORMAT(creation, '%%Y-%%m') = %s
-		""", (restaurant_id, current_month), as_dict=True)
-		
-		stats = orders[0] if (orders and orders[0]) else {
+		stats = {
 			"total_orders": 0,
 			"total_revenue": 0,
 			"total_platform_fee": 0
@@ -671,11 +655,15 @@ def get_restaurant_payment_stats(restaurant_id):
 		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else default_floor)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
 		minimum_due = max(0, monthly_minimum - platform_fee_collected)
-		
+
+		from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+		rzp_cfg = get_razorpay_config()
+		merchant_key_configured = bool(rzp_cfg.get("key_id") and rzp_cfg.get("key_secret"))
+
 		return {
 			"success": True,
 			"data": {
-				"current_month": current_month,
+				"merchant_key_configured": merchant_key_configured,
 				"total_orders": stats["total_orders"],
 				"total_revenue": stats["total_revenue"],
 				"platform_fee_collected": platform_fee_collected,

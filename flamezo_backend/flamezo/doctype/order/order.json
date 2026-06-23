@@ -1,0 +1,343 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2025-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "order_id",
+  "order_number",
+  "restaurant",
+  "status",
+  "payment_status",
+  "payment_method",
+  "order_type",
+  "acquisition_source",
+  "idempotency_key",
+  "section_customer",
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+  "platform_customer",
+  "table_number",
+  "section_amounts",
+  "subtotal",
+  "discount",
+  "loyalty_discount",
+  "loyalty_coins_redeemed",
+  "coupon",
+  "packaging_fee",
+  "delivery_fee",
+  "tax",
+  "cgst",
+  "sgst",
+  "tax_percent",
+  "total",
+  "section_payment",
+  "razorpay_order_id",
+  "razorpay_payment_id",
+  "settlement_mode",
+  "platform_fee_amount",
+  "cash_netoff_applied_paise",
+  "restaurant_transfer_amount",
+  "section_delivery",
+  "delivery_address",
+  "delivery_landmark",
+  "delivery_city",
+  "delivery_state",
+  "delivery_zip_code",
+  "delivery_instructions",
+  "pickup_time",
+  "section_items",
+  "order_items"
+ ],
+ "fields": [
+  {
+   "fieldname": "order_id",
+   "fieldtype": "Data",
+   "label": "Order ID",
+   "unique": 1
+  },
+  {
+   "fieldname": "order_number",
+   "fieldtype": "Data",
+   "label": "Order Number"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "draft\nconfirmed\ncompleted\ncancelled",
+   "default": "draft"
+  },
+  {
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "label": "Payment Status",
+   "options": "pending\ncompleted\nfailed\nrefunded",
+   "default": "pending"
+  },
+  {
+   "fieldname": "payment_method",
+   "fieldtype": "Select",
+   "label": "Payment Method",
+   "options": "online\ncash\npay_online"
+  },
+  {
+   "fieldname": "order_type",
+   "fieldtype": "Select",
+   "label": "Order Type",
+   "options": "dine_in\ntakeaway\ndelivery"
+  },
+  {
+   "fieldname": "acquisition_source",
+   "fieldtype": "Data",
+   "label": "Acquisition Source"
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotency Key",
+   "unique": 0
+  },
+  {
+   "fieldname": "section_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name"
+  },
+  {
+   "fieldname": "customer_email",
+   "fieldtype": "Data",
+   "label": "Customer Email"
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone"
+  },
+  {
+   "fieldname": "platform_customer",
+   "fieldtype": "Link",
+   "label": "Platform Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "table_number",
+   "fieldtype": "Data",
+   "label": "Table Number"
+  },
+  {
+   "fieldname": "section_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "subtotal",
+   "fieldtype": "Currency",
+   "label": "Subtotal",
+   "default": "0"
+  },
+  {
+   "fieldname": "discount",
+   "fieldtype": "Currency",
+   "label": "Discount",
+   "default": "0"
+  },
+  {
+   "fieldname": "loyalty_discount",
+   "fieldtype": "Currency",
+   "label": "Loyalty Discount",
+   "default": "0"
+  },
+  {
+   "fieldname": "loyalty_coins_redeemed",
+   "fieldtype": "Int",
+   "label": "Loyalty Coins Redeemed",
+   "default": "0"
+  },
+  {
+   "fieldname": "coupon",
+   "fieldtype": "Link",
+   "label": "Coupon",
+   "options": "Coupon"
+  },
+  {
+   "fieldname": "packaging_fee",
+   "fieldtype": "Currency",
+   "label": "Packaging Fee",
+   "default": "0"
+  },
+  {
+   "fieldname": "delivery_fee",
+   "fieldtype": "Currency",
+   "label": "Delivery Fee",
+   "default": "0"
+  },
+  {
+   "fieldname": "tax",
+   "fieldtype": "Currency",
+   "label": "Tax",
+   "default": "0"
+  },
+  {
+   "fieldname": "cgst",
+   "fieldtype": "Currency",
+   "label": "CGST",
+   "default": "0"
+  },
+  {
+   "fieldname": "sgst",
+   "fieldtype": "Currency",
+   "label": "SGST",
+   "default": "0"
+  },
+  {
+   "fieldname": "tax_percent",
+   "fieldtype": "Float",
+   "label": "Tax Percent",
+   "default": "0"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Total",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_payment",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "razorpay_order_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Order ID"
+  },
+  {
+   "fieldname": "razorpay_payment_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Payment ID"
+  },
+  {
+   "fieldname": "settlement_mode",
+   "fieldtype": "Data",
+   "label": "Settlement Mode"
+  },
+  {
+   "fieldname": "platform_fee_amount",
+   "fieldtype": "Int",
+   "label": "Platform Fee Amount (paise)",
+   "default": "0"
+  },
+  {
+   "fieldname": "cash_netoff_applied_paise",
+   "fieldtype": "Int",
+   "label": "Cash Net-off Applied (paise)",
+   "default": "0"
+  },
+  {
+   "fieldname": "restaurant_transfer_amount",
+   "fieldtype": "Int",
+   "label": "Restaurant Transfer Amount (paise)",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_delivery",
+   "fieldtype": "Section Break",
+   "label": "Delivery Info"
+  },
+  {
+   "fieldname": "delivery_address",
+   "fieldtype": "Text",
+   "label": "Delivery Address"
+  },
+  {
+   "fieldname": "delivery_landmark",
+   "fieldtype": "Data",
+   "label": "Delivery Landmark"
+  },
+  {
+   "fieldname": "delivery_city",
+   "fieldtype": "Data",
+   "label": "Delivery City"
+  },
+  {
+   "fieldname": "delivery_state",
+   "fieldtype": "Data",
+   "label": "Delivery State"
+  },
+  {
+   "fieldname": "delivery_zip_code",
+   "fieldtype": "Data",
+   "label": "Delivery ZIP Code"
+  },
+  {
+   "fieldname": "delivery_instructions",
+   "fieldtype": "Text",
+   "label": "Delivery Instructions"
+  },
+  {
+   "fieldname": "pickup_time",
+   "fieldtype": "Datetime",
+   "label": "Pickup Time"
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Order Items"
+  },
+  {
+   "fieldname": "order_items",
+   "fieldtype": "Table",
+   "label": "Order Items",
+   "options": "Order Item"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2025-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Order",
+ "naming_rule": "By \"autoname\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Guest",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

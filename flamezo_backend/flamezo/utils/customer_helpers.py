@@ -87,6 +87,7 @@ def get_or_create_customer(phone: str, name: str = None, email: str = None):
 			"doctype": "Customer",
 			"phone": normalized,
 			"customer_name": name or f"Customer {normalized}",
+			"customer_group": "Individual",
 			"email": email or ""
 		}).insert(ignore_permissions=True)
 	except (frappe.DuplicateEntryError, frappe.UniqueValidationError):
@@ -116,9 +117,43 @@ def is_phone_verified(phone: str) -> bool:
 
 def _session_doctype_exists() -> bool:
 	try:
-		return bool(frappe.db.table_exists(f"tab{_SESSION_DOCTYPE}"))
+		return bool(frappe.db.table_exists(_SESSION_DOCTYPE))
 	except Exception:
 		return False
+
+
+def _get_device_info() -> str:
+	"""Extract a short human-readable device label from the request User-Agent."""
+	try:
+		ua = frappe.request.headers.get("User-Agent", "") if frappe.request else ""
+		if not ua:
+			return "Unknown device"
+		ua_lower = ua.lower()
+		if "iphone" in ua_lower:
+			device = "iPhone"
+		elif "ipad" in ua_lower:
+			device = "iPad"
+		elif "android" in ua_lower:
+			device = "Android"
+		elif "mac" in ua_lower:
+			device = "Mac"
+		elif "windows" in ua_lower:
+			device = "Windows"
+		else:
+			device = "Browser"
+		if "chrome" in ua_lower and "chromium" not in ua_lower and "edg" not in ua_lower:
+			browser = "Chrome"
+		elif "safari" in ua_lower and "chrome" not in ua_lower:
+			browser = "Safari"
+		elif "firefox" in ua_lower:
+			browser = "Firefox"
+		elif "edg" in ua_lower:
+			browser = "Edge"
+		else:
+			browser = ""
+		return f"{device} · {browser}".rstrip(" ·")
+	except Exception:
+		return "Unknown device"
 
 
 def create_customer_session(phone: str, customer_id: str, session_token: str = None) -> str:
@@ -139,6 +174,10 @@ def create_customer_session(phone: str, customer_id: str, session_token: str = N
 	if _session_doctype_exists():
 		try:
 			expires_at = frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=SESSION_TTL_SECONDS)
+			try:
+				ip = frappe.request.remote_addr if frappe.request else ""
+			except Exception:
+				ip = ""
 			frappe.get_doc({
 				"doctype": _SESSION_DOCTYPE,
 				"session_token": session_token,
@@ -147,6 +186,8 @@ def create_customer_session(phone: str, customer_id: str, session_token: str = N
 				"revoked": 0,
 				"expires_at": expires_at,
 				"last_used_at": frappe.utils.now_datetime(),
+				"device_info": _get_device_info(),
+				"ip_address": ip,
 			}).insert(ignore_permissions=True)
 			frappe.db.commit()
 		except Exception as e:
@@ -212,14 +253,19 @@ def validate_customer_session(phone: str, session_token: str | None, slide_expir
 					f"customer_session:{session_token}", session,
 					expires_in_sec=SESSION_TTL_SECONDS
 				)
-				# Skip DB update for now to avoid performance bottlenecks
-				# if _session_doctype_exists():
-				# 	new_exp = frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=SESSION_TTL_SECONDS)
-				# 	frappe.db.set_value(
-				# 		_SESSION_DOCTYPE, {"session_token": session_token},
-				# 		{"expires_at": new_exp, "last_used_at": frappe.utils.now_datetime()}
-				# 	)
-				# 	frappe.db.commit()
+				# Slide DB expiry — throttled via a Redis flag so we hit the DB
+				# at most once per 5 minutes per session, not on every API call.
+				throttle_key = f"session_db_slide:{session_token}"
+				if not frappe.cache().get_value(throttle_key):
+					frappe.cache().set_value(throttle_key, 1, expires_in_sec=300)
+					if _session_doctype_exists():
+						new_exp = frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=SESSION_TTL_SECONDS)
+						frappe.db.set_value(
+							_SESSION_DOCTYPE, {"session_token": session_token},
+							{"expires_at": new_exp, "last_used_at": frappe.utils.now_datetime()},
+							update_modified=False,
+						)
+						frappe.db.commit()
 			except Exception:
 				pass
 		return True
