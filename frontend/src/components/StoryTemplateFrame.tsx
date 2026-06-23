@@ -18,7 +18,7 @@ export interface StoryTemplateFrameProps {
   className?: string
   // Offer / coupon data
   couponCode?: string
-  discountType?: 'flat' | 'percentage' | string
+  discountType?: 'flat' | 'percent' | 'percentage' | string
   discountValue?: number
   offerDescription?: string
   validUntil?: string   // ISO date string e.g. "2025-06-11"
@@ -71,8 +71,9 @@ export default function StoryTemplateFrame({
   const fs = (ratio: number) => Math.max(7, Math.round(dims.w * ratio))
 
   // Discount display — always produce a headline so the strip is never empty
+  const isPercent = discountType === 'percent' || discountType === 'percentage'
   const discountLine = discountValue
-    ? discountType === 'percentage'
+    ? isPercent
       ? `${discountValue}% OFF`
       : `₹${discountValue} OFF`
     : couponCode
@@ -261,16 +262,14 @@ export default function StoryTemplateFrame({
             {offerDescription || 'on dine-in'}
           </p>
 
-          {/* Row 4: validity (own line) */}
-          {validityLabel && (
-            <p style={{
-              color: 'rgba(183,65,14,1)', fontSize: fs(0.021),
-              margin: 0, fontWeight: 600,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-              {validityLabel} · T&C apply
-            </p>
-          )}
+          {/* Row 4: validity + T&C — always shown */}
+          <p style={{
+            color: 'rgba(183,65,14,1)', fontSize: fs(0.021),
+            margin: 0, fontWeight: 600,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {validityLabel ? `${validityLabel} · T&C apply` : 'T&C apply'}
+          </p>
 
           {/* Row 5: CTA (wraps if needed) */}
           <p style={{

@@ -152,11 +152,17 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 		# Generate session token using specialized helper (ensures DB persistence)
 		session_token = create_customer_session(phone=normalized, customer_id=customer.name)
 
+		# Treat auto-generated placeholder names as "no name yet" so the
+		# frontend shows the name/DOB collection step for new users.
+		display_name = customer.customer_name or ""
+		if display_name == f"Customer {normalized}":
+			display_name = ""
+
 		return {
 			"success": True,
 			"verified": True,
 			"customer_id": customer.name,
-			"customer_name": customer.customer_name,
+			"customer_name": display_name,
 			"session_token": session_token
 		}
 	except Exception as e:
@@ -282,11 +288,15 @@ def verify_flamezo_otp(phone, otp, token, name=None, email=None):
 		# Generate unified session token
 		session_token = create_customer_session(phone=normalized, customer_id=customer.name)
 
+		display_name = customer.customer_name or ""
+		if display_name == f"Customer {normalized}":
+			display_name = ""
+
 		return {
 			"success": True,
 			"verified": True,
 			"customer_id": customer.name,
-			"customer_name": customer.customer_name,
+			"customer_name": display_name,
 			"session_token": session_token
 		}
 	except Exception as e:
@@ -298,14 +308,16 @@ def verify_flamezo_otp(phone, otp, token, name=None, email=None):
 def logout_customer(session_token):
 	"""
 	Invalidate a customer session token.
-	Deletes the token from Redis cache so the session is immediately invalid.
+	Deletes from Redis AND marks revoked=1 in DB so the session cannot be
+	resurrected via the DB fallback after a cache flush.
 	Returns: { success: true }
 	"""
 	try:
 		if not session_token:
 			return {"success": False, "error": "MISSING_TOKEN", "message": "session_token is required"}
 
-		frappe.cache().delete_value(f"customer_session:{session_token}")
+		from flamezo_backend.flamezo.utils.customer_helpers import _hard_revoke
+		_hard_revoke(session_token)
 		return {"success": True}
 	except Exception as e:
 		frappe.log_error(f"logout_customer error: {e}", "OTP_Logout_Error")
@@ -340,15 +352,35 @@ def check_session(session_token):
 			frappe.cache().delete_value(f"customer_session:{session_token}")
 			return {"success": True, "verified": False}
 
-		# Fetch customer name
-		customer_name = frappe.db.get_value("Customer", customer_id, "customer_name")
+		# Fetch customer name — strip auto-generated placeholder so frontend
+		# shows the profile completion step for users who haven't set their name.
+		customer_name = frappe.db.get_value("Customer", customer_id, "customer_name") or ""
+		phone_normalized = session.get("phone") or ""
+		if customer_name == f"Customer {phone_normalized}":
+			customer_name = ""
+
+		# Token rotation: issue a new token every time, invalidate the old one.
+		# If a token was leaked/stolen, it becomes dead the next time the real
+		# user opens the app. No refresh-token architecture needed.
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			create_customer_session, _hard_revoke
+		)
+		try:
+			new_token = create_customer_session(
+				phone=phone_normalized,
+				customer_id=customer_id,
+			)
+			_hard_revoke(session_token)
+		except Exception:
+			new_token = session_token  # Rotation failed — keep old token, don't fail the check
 
 		return {
 			"success": True,
-			"verified": True, 
+			"verified": True,
 			"customer_id": customer_id,
 			"customer_name": customer_name,
-			"phone": session.get("phone")
+			"phone": phone_normalized,
+			"new_token": new_token,
 		}
 	except Exception as e:
 		frappe.log_error(f"check_session error: {e}", "OTP_Check_Error")
@@ -356,9 +388,73 @@ def check_session(session_token):
 
 
 @frappe.whitelist(allow_guest=True)
+def list_customer_sessions(session_token):
+	"""
+	Return all active sessions for the customer who owns session_token.
+	Used by the customer profile to show/revoke devices.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			_SESSION_DOCTYPE, _session_doctype_exists, get_customer_from_token
+		)
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": "UNAUTHORIZED"}
+		if not _session_doctype_exists():
+			return {"success": True, "sessions": []}
+		sessions = frappe.get_all(
+			_SESSION_DOCTYPE,
+			filters={"customer": customer_id, "revoked": 0},
+			fields=["name", "session_token", "device_info", "ip_address", "last_used_at", "creation"],
+			order_by="last_used_at desc",
+			limit=20,
+		)
+		# Mask the token — expose only last 8 chars for display
+		for s in sessions:
+			raw = s.get("session_token") or ""
+			s["token_hint"] = f"...{raw[-8:]}" if len(raw) >= 8 else raw
+			s["is_current"] = raw == session_token
+			del s["session_token"]
+		return {"success": True, "sessions": sessions}
+	except Exception as e:
+		frappe.log_error(f"list_customer_sessions error: {e}", "OTP_Sessions")
+		return {"success": False, "error": "INTERNAL_ERROR"}
+
+
+@frappe.whitelist(allow_guest=True)
+def revoke_customer_session_by_hint(session_token, target_session_name):
+	"""
+	Revoke a specific session (by its doc name) for the authenticated customer.
+	Prevents one user from revoking another user's sessions.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			_SESSION_DOCTYPE, _session_doctype_exists, get_customer_from_token, _hard_revoke
+		)
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": "UNAUTHORIZED"}
+		if not _session_doctype_exists():
+			return {"success": False, "error": "NOT_SUPPORTED"}
+		rec = frappe.db.get_value(
+			_SESSION_DOCTYPE,
+			{"name": target_session_name, "customer": customer_id, "revoked": 0},
+			["session_token"],
+			as_dict=True,
+		)
+		if not rec:
+			return {"success": False, "error": "SESSION_NOT_FOUND"}
+		_hard_revoke(rec.session_token)
+		return {"success": True}
+	except Exception as e:
+		frappe.log_error(f"revoke_customer_session_by_hint error: {e}", "OTP_Sessions")
+		return {"success": False, "error": "INTERNAL_ERROR"}
+
+
+@frappe.whitelist(allow_guest=True)
 def check_verified(phone):
 	"""
-	Check if phone number exists in DB. 
+	Check if phone number exists in DB.
 	NOTE: This no longer suffices for login/ordering; use check_session instead.
 	"""
 	try:
