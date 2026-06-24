@@ -126,10 +126,10 @@ export default function RouteKycPage() {
         if (data?.success && data?.data) {
           setForm(prev => ({
             ...prev,
-            legal_name: data.data.legal_business_name || prev.legal_name,
-            bank_account_number: data.data.account_number || prev.bank_account_number,
-            bank_ifsc: data.data.ifsc_code || prev.bank_ifsc,
-            bank_holder_name: data.data.legal_business_name || prev.bank_holder_name
+            legal_name: (data.data.legal_business_name || prev.legal_name).trim(),
+            bank_account_number: (data.data.account_number || prev.bank_account_number).replace(/\D/g, ''),
+            bank_ifsc: (data.data.ifsc_code || prev.bank_ifsc).trim().toUpperCase(),
+            bank_holder_name: (data.data.legal_business_name || prev.bank_holder_name).trim()
           }))
           toast.success("Bank details extracted successfully!")
         } else {
@@ -149,12 +149,12 @@ export default function RouteKycPage() {
   useEffect(() => {
     if (!restaurantDoc) return
     setForm({
-      legal_name: restaurantDoc.legal_name || restaurantDoc.restaurant_name || '',
+      legal_name: (restaurantDoc.legal_name || restaurantDoc.restaurant_name || '').trim(),
       business_type: restaurantDoc.business_type || '',
-      pan_number: restaurantDoc.pan_number || '',
-      bank_account_number: restaurantDoc.bank_account_number || '',
-      bank_ifsc: restaurantDoc.bank_ifsc || '',
-      bank_holder_name: restaurantDoc.bank_holder_name || '',
+      pan_number: (restaurantDoc.pan_number || '').trim().toUpperCase(),
+      bank_account_number: (restaurantDoc.bank_account_number || '').replace(/\D/g, ''),
+      bank_ifsc: (restaurantDoc.bank_ifsc || '').trim().toUpperCase(),
+      bank_holder_name: (restaurantDoc.bank_holder_name || '').trim(),
     })
   }, [restaurantDoc])
 
@@ -562,7 +562,7 @@ export default function RouteKycPage() {
                 placeholder="HDFC0001234"
                 maxLength={11}
                 value={form.bank_ifsc}
-                onChange={(e) => setForm({ ...form, bank_ifsc: e.target.value.toUpperCase() })}
+                onChange={(e) => setForm({ ...form, bank_ifsc: e.target.value.toUpperCase().trim() })}
                 className="h-11 rounded-xl font-mono tracking-widest uppercase"
                 disabled={docLoading}
               />

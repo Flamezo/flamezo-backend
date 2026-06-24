@@ -301,6 +301,7 @@ scheduler_events = {
 		# (worker restart / transient failures) and re-aggregate or mark Failed.
 		"*/5 * * * *": [
 			"flamezo_backend.flamezo.tasks.extraction_recovery.recover_stuck_extractions",
+			"flamezo_backend.flamezo.tasks.ugc_tasks.dispatch_ugc_cashback_nudges",
 		],
 		# Cash commission engine — Tier 2 weekly autopay sweep: Mondays
 		# 03:45 IST charges any leftover balance via mandate.

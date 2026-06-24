@@ -33,6 +33,120 @@ def _claim_link(sub):
 	return f"\n\n{base.rstrip('/')}/ugc-claim?r={slug}&bill={getattr(sub, 'order', '')}"
 
 
+def send_ugc_cashback_nudge(order_name):
+	"""
+	Enqueued 3 minutes after payment success (via frappe.enqueue eta).
+	Sends a personalized WhatsApp nudge only if the customer hasn't already
+	started a UGC submission for this order.
+
+	Meta template: ugc_cashback_nudge
+	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
+	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
+	"""
+	try:
+		order = frappe.get_doc("Order", order_name)
+	except frappe.DoesNotExistError:
+		return
+
+	# Skip if customer already started the UGC claim
+	already_started = frappe.db.exists(
+		"UGC Story Submission",
+		{"order": order_name, "status": ["not in", ("rejected", "expired")]},
+	)
+	if already_started:
+		return
+
+	phone = order.customer_phone or ""
+	if not phone and order.platform_customer:
+		phone = frappe.db.get_value("Platform Customer", order.platform_customer, "phone") or ""
+	if not phone:
+		return
+
+	# Customer first name
+	full_name = ""
+	if order.platform_customer:
+		full_name = frappe.db.get_value("Platform Customer", order.platform_customer, "full_name") or ""
+	if not full_name:
+		full_name = order.customer_name or ""
+	first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
+
+	restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
+	restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
+	amount = int(order.total or 0)
+
+	from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
+	wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
+	token_suffix = f"&wt={wa_token}" if wa_token else ""
+	button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
+
+	from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
+	try:
+		success, result = send_whatsapp_cloud_message(
+			to_phone=phone,
+			template_name="ugc_cashback_nudge",
+			body_params=[first_name, str(amount), restaurant_name],
+			button_url_param=button_url_suffix,
+		)
+		if not success:
+			frappe.log_error(f"send_ugc_cashback_nudge({order_name}): {result}", "UGC")
+	except Exception as e:
+		frappe.log_error(f"send_ugc_cashback_nudge({order_name}): {e}", "UGC")
+
+
+def dispatch_ugc_cashback_nudges():
+	"""
+	Every 5 min cron: send WhatsApp cashback nudge to customers whose payment
+	was marked eligible by verify_payment, and at least 3 minutes have passed.
+
+	Flow:
+	  verify_payment → sets Redis key ugc_nudge_eligible:{order}  (TTL 10 min)
+	  5-min cron     → finds eligible keys, sends nudge, sets ugc_nudge_sent key
+	                    to prevent double-send across parallel cron runs.
+
+	The 3-min delay is approximated: the eligible key is set at payment time,
+	and this cron runs every 5 min, so the effective delay is 3–8 min.
+	"""
+	from frappe.utils import now_datetime, add_to_date
+
+	now = now_datetime()
+	# Scan orders paid in the last 3–10 min window that are marked eligible
+	window_start = add_to_date(now, minutes=-10)
+	window_end = add_to_date(now, minutes=-3)
+
+	# Find recently completed orders whose restaurants have UGC active
+	orders = frappe.get_all(
+		"Order",
+		filters={
+			"payment_status": "completed",
+			"modified": ["between", [window_start, window_end]],
+			"platform_customer": ["is", "set"],
+		},
+		fields=["name", "restaurant"],
+		limit_page_length=200,
+	)
+
+	for row in orders:
+		order_name = row.name
+		eligible_key = f"ugc_nudge_eligible:{order_name}"
+		sent_key = f"ugc_nudge_sent:{order_name}"
+
+		# Only process orders flagged eligible by verify_payment
+		if not frappe.cache().get_value(eligible_key):
+			continue
+		# Skip if already sent (guard against parallel cron runs)
+		if frappe.cache().get_value(sent_key):
+			continue
+
+		# Mark sent immediately before the API call to prevent double-send
+		frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
+		frappe.cache().delete_value(eligible_key)
+
+		try:
+			send_ugc_cashback_nudge(order_name)
+		except Exception as e:
+			frappe.log_error(f"dispatch_ugc_cashback_nudges({order_name}): {e}", "UGC")
+
+
 def send_ugc_whatsapp(submission_name, kind):
 	"""Send a single transactional WhatsApp message for a submission event."""
 	try:
