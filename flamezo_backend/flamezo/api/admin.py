@@ -1283,16 +1283,51 @@ def admin_delete_customer(customer_id):
     if not frappe.db.exists("Customer", customer_id):
         frappe.throw("Customer not found")
 
-    for doctype in ["Restaurant Loyalty Entry", "Referral Link", "Referral Visit",
-                    "Customer Referral", "UGC Story Submission"]:
+    phone = frappe.db.get_value("Customer", customer_id, "phone") or ""
+
+    # Delete every custom doctype that links to Customer before calling
+    # frappe.delete_doc, so Frappe's link-check doesn't block the delete.
+    _customer_linked_doctypes = [
+        # (doctype, filter_field)
+        ("Customer Session",          "customer"),
+        ("Restaurant Loyalty Entry",  "customer"),
+        ("Order",                     "customer"),
+        ("Table Booking",             "customer"),
+        ("Banquet Booking",           "customer"),
+        ("Coupon Usage",              "customer"),
+        ("Offer Claim",               "customer"),
+        ("UGC Story Submission",      "customer"),
+        ("UGC Voucher",               "customer"),
+        ("UGC Voucher Redemption",    "customer"),
+        ("UGC Fraud Flag",            "customer"),
+        ("Customer Data Unlock",      "customer"),
+        ("Customer Referral",         "customer"),
+        ("Referral Link",             "customer"),
+    ]
+
+    for doctype, field in _customer_linked_doctypes:
         try:
-            frappe.db.delete(doctype, {"customer": customer_id})
+            if frappe.db.table_exists(doctype):
+                frappe.db.delete(doctype, {field: customer_id})
+        except Exception as e:
+            frappe.log_error(f"admin_delete_customer: could not delete {doctype}: {e}", "CustomerDelete")
+
+    # Customer Session also links by phone (not customer id) in some setups
+    if phone:
+        try:
+            if frappe.db.table_exists("Customer Session"):
+                frappe.db.delete("Customer Session", {"phone": phone})
         except Exception:
-            try:
-                frappe.db.delete(doctype, {"referee": customer_id})
-                frappe.db.delete(doctype, {"referrer": customer_id})
-            except Exception:
-                pass
+            pass
+
+    # Customer Referral has referee/referrer fields too
+    try:
+        frappe.db.delete("Customer Referral", {"referee": customer_id})
+        frappe.db.delete("Customer Referral", {"referrer": customer_id})
+    except Exception:
+        pass
+
+    frappe.db.commit()
 
     frappe.delete_doc("Customer", customer_id, force=True, ignore_permissions=True)
     frappe.db.commit()

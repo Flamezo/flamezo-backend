@@ -491,7 +491,7 @@ useEffect(() => {
                 Flamezo automatically issues the poster a <strong className="text-foreground">Story Cashback Voucher = min(story views, bill, ₹2,000)</strong>.
               </p>
               <p className="text-sm text-muted-foreground">
-                They redeem this by picking a <strong className="text-foreground">Free Dish (up to 30% of their bill)</strong> on return visits. Because it's a free dish, you only pay the <strong className="text-foreground">Food Cost (33%)</strong> instead of losing 100% in a cash discount, protecting your profit margins!
+                They redeem this by picking a <strong className="text-foreground">Free Dish (up to 33% of their bill)</strong> on return visits. Because it's a free dish, you only pay the <strong className="text-foreground">Food Cost (33%)</strong> instead of losing 100% in a cash discount, protecting your profit margins!
               </p>
               <p className="text-[11px] text-muted-foreground">Voucher valid 90 days · redeemable only at this restaurant · max ₹2,000 per claim · managed by Flamezo.</p>
               <hr className="border-border" />
@@ -515,7 +515,7 @@ useEffect(() => {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1.5">
           <p>• <strong className="text-foreground">"Keep a story, get up to 100% cashback"</strong> — cashback = story views in ₹, capped at the bill (max ₹2,000).</p>
-          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — customer picks a free dish worth up to 30% of each return visit's bill until fully redeemed. Valid 90 days.</p>
+          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — customer picks a free dish worth up to 33% of each return visit's bill until fully redeemed. Valid 90 days.</p>
           <p>• <strong className="text-foreground">Zero Revenue Cannibalization</strong> — Customers pay their full bill in cash. The reward costs you only the raw ingredient cost (33%) of the free dish, making UGC practically painless to fund.</p>
           <p>• Your staff verify the diner's story at the table; the next day the diner uploads their view count and AI reads it.</p>
           <p>• Up to 2 claims per restaurant per 30 days · stories must stay live 24h · fraud is auto-screened.</p>

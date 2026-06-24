@@ -40,6 +40,7 @@
   "section_break_limits",
   "max_uses",
   "usage_count",
+  "daily_limit",
   "column_break_limits",
   "max_uses_per_user"
  ],
@@ -259,6 +260,13 @@
    "label": "Usage Count",
    "read_only": 1,
    "default": "0"
+  },
+  {
+   "fieldname": "daily_limit",
+   "fieldtype": "Int",
+   "label": "Daily Claim Limit",
+   "default": "30",
+   "description": "Max claims allowed per day across all customers. Default 30."
   },
   {
    "fieldname": "max_uses_per_user",

@@ -18,6 +18,20 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
 )
 import json
+
+DEFAULT_DAILY_CLAIM_LIMIT = 30
+
+
+def _check_daily_limit(coupon_name, daily_limit):
+	"""Return True if the daily claim limit has been reached for this coupon."""
+	limit = int(daily_limit) if daily_limit else DEFAULT_DAILY_CLAIM_LIMIT
+	if limit <= 0:
+		return False
+	count = frappe.db.count(
+		"Offer Claim",
+		filters={"coupon": coupon_name, "claimed_at": [">=", today()]},
+	)
+	return count >= limit
 import csv
 import io
 from datetime import datetime, timedelta
@@ -1003,11 +1017,14 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		coupon = frappe.db.get_value(
 			"Coupon",
 			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
-			["name", "code"],
+			["name", "code", "daily_limit"],
 			as_dict=True,
 		)
 		if not coupon:
 			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Offer not found or inactive"}}
+
+		if _check_daily_limit(coupon.name, coupon.daily_limit):
+			return {"success": False, "error": {"code": "DAILY_LIMIT_REACHED", "message": "This offer has reached its daily claim limit. Try again tomorrow."}}
 
 		# Server-side dedup: one claim per customer per restaurant within a 4-hour rolling window.
 		four_hours_ago = add_to_date(now_datetime(), hours=-4)
@@ -1064,6 +1081,94 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		}
 	except Exception as e:
 		frappe.log_error(f"Error in claim_offer_with_pin: {str(e)}")
+		return {"success": False, "error": {"code": "CLAIM_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist(allow_guest=True)
+def claim_offer(restaurant_id, coupon_id):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.coupons.claim_offer
+
+	Self-serve offer claim — no staff PIN required.
+	Customer taps Claim, offer is locked for the 4-hour visit window.
+	Once claimed, they cannot switch to another offer for the same visit.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		token = get_customer_token()
+		if not token:
+			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Please log in to claim offers"}}
+
+		customer_id = get_customer_from_token(token)
+		if not customer_id:
+			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Session expired — please log in again"}}
+
+		customer_phone = frappe.db.get_value("Customer", customer_id, "phone") or ""
+
+		coupon = frappe.db.get_value(
+			"Coupon",
+			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
+			["name", "code", "daily_limit"],
+			as_dict=True,
+		)
+		if not coupon:
+			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Offer not found or inactive"}}
+
+		if _check_daily_limit(coupon.name, coupon.daily_limit):
+			return {"success": False, "error": {"code": "DAILY_LIMIT_REACHED", "message": "This offer has reached its daily claim limit. Try again tomorrow."}}
+
+		four_hours_ago = add_to_date(now_datetime(), hours=-4)
+		existing_lock = frappe.db.exists(
+			"Offer Claim",
+			{
+				"restaurant": restaurant,
+				"customer": customer_id,
+				"claimed_at": [">=", four_hours_ago],
+				"is_paid": 0,
+			},
+		)
+		if existing_lock:
+			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant. Visit again to claim another."}}
+
+		claim_time = now_datetime()
+		claim = frappe.get_doc({
+			"doctype": "Offer Claim",
+			"restaurant": restaurant,
+			"coupon": coupon.name,
+			"coupon_code": coupon.code,
+			"customer": customer_id,
+			"customer_phone": customer_phone,
+			"claimed_at": claim_time,
+			"locked_until": add_to_date(claim_time, hours=4),
+			"is_paid": 0,
+		})
+		claim.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+		frappe.enqueue(
+			"flamezo_backend.flamezo.tasks.coupon_tasks.send_offer_claim_notification",
+			claim_id=claim.name,
+			queue="short",
+			timeout=60,
+			enqueue_after_commit=True,
+		)
+
+		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
+		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
+
+		return {
+			"success": True,
+			"data": {
+				"claimId": claim.name,
+				"couponCode": coupon.code,
+				"payLink": pay_link,
+				"message": "Offer claimed successfully!",
+			},
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in claim_offer: {str(e)}")
 		return {"success": False, "error": {"code": "CLAIM_ERROR", "message": str(e)}}
 
 

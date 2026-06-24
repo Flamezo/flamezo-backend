@@ -116,6 +116,7 @@ def ensure_linked_account(restaurant) -> dict:
     # Build payload per Razorpay Route 'Accounts' API. The exact attribute
     # names mirror the Razorpay v2 schema — kept here as a single source of
     # truth so changes track upstream API revisions in one place.
+    _state = _normalize_state(res.get("state") or "")
     payload = {
         "email": res.owner_email,
         "phone": _normalize_phone(res.owner_phone),
@@ -129,11 +130,11 @@ def ensure_linked_account(restaurant) -> dict:
             "subcategory": "restaurant",
             "addresses": {
                 "registered": {
-                    "street1": (res.get("address") or "")[:100],
-                    "street2": (res.get("city") or res.get("address") or "")[:100],
-                    "city": res.get("city") or "",
-                    "state": res.get("state") or "",
-                    "postal_code": res.get("zip_code") or "",
+                    "street1": (res.get("address") or "").strip()[:100],
+                    "street2": (res.get("city") or res.get("address") or "").strip()[:100],
+                    "city": (res.get("city") or "").strip(),
+                    "state": _state,
+                    "postal_code": (res.get("zip_code") or "").strip(),
                     "country": "IN",
                 }
             },
@@ -142,8 +143,8 @@ def ensure_linked_account(restaurant) -> dict:
         # Sending it in legal_info.pan causes Razorpay to reject it as a
         # "company PAN" mismatch. Only non-proprietorship types use this field.
         "legal_info": {
-            **({"pan": res.get("pan_number")} if (res.get("business_type") or "proprietorship") != "proprietorship" and res.get("pan_number") else {}),
-            **({"gst": res.get("gst_number")} if res.get("gst_number") else {}),
+            **({"pan": res.get("pan_number", "").strip()} if (res.get("business_type") or "proprietorship") != "proprietorship" and res.get("pan_number") else {}),
+            **({"gst": res.get("gst_number", "").strip()} if res.get("gst_number") else {}),
         },
     }
 
@@ -204,13 +205,13 @@ def _attach_bank_and_stakeholder(client, account_id: str, res):
                 "name": res.get("owner_name") or res.restaurant_name,
                 "email": res.owner_email,
                 "phone": {"primary": _normalize_phone(res.owner_phone)},
-                "kyc": {"pan": res.get("pan_number") or ""},
+                "kyc": {"pan": (res.get("pan_number") or "").strip()},
                 "addresses": {
                     "residential": {
-                        "street": (res.get("address") or "")[:100],
-                        "city": res.get("city") or "",
-                        "state": res.get("state") or "",
-                        "postal_code": res.get("zip_code") or "",
+                        "street": (res.get("address") or "").strip()[:100],
+                        "city": (res.get("city") or "").strip(),
+                        "state": _normalize_state(res.get("state") or ""),
+                        "postal_code": (res.get("zip_code") or "").strip(),
                         "country": "IN",
                     }
                 },
@@ -422,3 +423,56 @@ def _normalize_phone(phone: Optional[str]) -> str:
     if digits.startswith("91") and len(digits) == 12:
         digits = digits[2:]
     return digits[-10:]
+
+
+# Razorpay requires exact Title Case state names (e.g. "Gujarat", not "gujarat " or "GUJARAT").
+# This map also handles common abbreviations restaurants might type.
+_STATE_ALIASES = {
+    "andhra pradesh": "Andhra Pradesh", "ap": "Andhra Pradesh",
+    "arunachal pradesh": "Arunachal Pradesh",
+    "assam": "Assam",
+    "bihar": "Bihar",
+    "chhattisgarh": "Chhattisgarh",
+    "goa": "Goa",
+    "gujarat": "Gujarat", "gj": "Gujarat",
+    "haryana": "Haryana", "hr": "Haryana",
+    "himachal pradesh": "Himachal Pradesh", "hp": "Himachal Pradesh",
+    "jharkhand": "Jharkhand",
+    "karnataka": "Karnataka", "ka": "Karnataka",
+    "kerala": "Kerala", "kl": "Kerala",
+    "madhya pradesh": "Madhya Pradesh", "mp": "Madhya Pradesh",
+    "maharashtra": "Maharashtra", "mh": "Maharashtra",
+    "manipur": "Manipur",
+    "meghalaya": "Meghalaya",
+    "mizoram": "Mizoram",
+    "nagaland": "Nagaland",
+    "odisha": "Odisha", "orissa": "Odisha",
+    "punjab": "Punjab", "pb": "Punjab",
+    "rajasthan": "Rajasthan", "rj": "Rajasthan",
+    "sikkim": "Sikkim",
+    "tamil nadu": "Tamil Nadu", "tn": "Tamil Nadu", "tamilnadu": "Tamil Nadu",
+    "telangana": "Telangana", "ts": "Telangana",
+    "tripura": "Tripura",
+    "uttar pradesh": "Uttar Pradesh", "up": "Uttar Pradesh",
+    "uttarakhand": "Uttarakhand", "uk": "Uttarakhand",
+    "west bengal": "West Bengal", "wb": "West Bengal",
+    "delhi": "Delhi", "new delhi": "Delhi",
+    "jammu and kashmir": "Jammu And Kashmir", "j&k": "Jammu And Kashmir",
+    "ladakh": "Ladakh",
+    "chandigarh": "Chandigarh",
+    "puducherry": "Puducherry", "pondicherry": "Puducherry",
+    "andaman and nicobar islands": "Andaman And Nicobar Islands",
+    "dadra and nagar haveli": "Dadra And Nagar Haveli And Daman And Diu",
+    "daman and diu": "Dadra And Nagar Haveli And Daman And Diu",
+    "lakshadweep": "Lakshadweep",
+}
+
+
+def _normalize_state(state: str) -> str:
+    """Trim whitespace and map to Razorpay-accepted Title Case state name."""
+    cleaned = state.strip()
+    mapped = _STATE_ALIASES.get(cleaned.lower())
+    if mapped:
+        return mapped
+    # Fall back to Title Case of whatever was provided (handles correct-but-wrong-case input)
+    return cleaned.title() if cleaned else ""

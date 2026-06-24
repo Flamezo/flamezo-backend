@@ -261,7 +261,7 @@ export default function UGCGrowthSimulatorModal({ isOpen, onClose }: UGCGrowthSi
                       <p className="text-sm font-bold uppercase tracking-wider text-blue-600">Guaranteed Loyalty</p>
                       <p className="font-bold text-xl mt-1">Forced Repeat Visits</p>
                       <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                        They get a Free Dish (up to 30% of bill). They pay full price, and you only pay 33% Food Cost!
+                        They get a Free Dish (up to 33% of bill). They pay full price, and you only pay 33% Food Cost!
                       </p>
 
                       <div className="mt-4 space-y-2">

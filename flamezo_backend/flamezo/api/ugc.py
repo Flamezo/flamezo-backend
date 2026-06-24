@@ -35,7 +35,7 @@ from frappe import _
 from frappe.utils import now_datetime, today, add_days, add_to_date, flt, cint, get_datetime, date_diff
 
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
-from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
+from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token, normalize_phone, validate_customer_session
 from flamezo_backend.flamezo.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES
 from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 from flamezo_backend.flamezo.media.storage import (
@@ -68,7 +68,7 @@ PLATFORM_INSTRUCTIONS = (
 )
 PLATFORM_TERMS = (
 	"Cashback = your story's view count in rupees, capped at your bill (max ₹2,000). "
-	"Credited as a restaurant voucher — pick a free dish worth up to 30% of your next bill on each return visit. "
+	"Credited as a restaurant voucher — pick a free dish worth up to 33% of your next bill on each return visit. "
 	"Voucher valid for 90 days, redeemable only at this restaurant. Up to 2 claims per "
 	"restaurant every 30 days. Stories must stay live for at least 24 hours. Once staff "
 	"verify your story, you have 48 hours to upload a screen recording of your view count. "
@@ -87,7 +87,7 @@ PLATFORM_AI_PROVIDER = "Gemini"
 PLATFORM_AI_CONFIDENCE = 0.85
 # Voucher rules — platform-fixed, non-editable by restaurants.
 PLATFORM_VOUCHER_EARNING_CAP = 2000   # ₹ — max voucher any single claim can issue
-PLATFORM_VOUCHER_PER_VISIT_PCT = 30   # % of each visit's bill = max free-dish budget
+PLATFORM_VOUCHER_PER_VISIT_PCT = 33   # % of each visit's bill = max free-dish budget
 # Privacy + storage: restaurants can view a diner's proof for 7 days; the proof
 # video is deleted from storage 30 days after it was submitted.
 PLATFORM_STAFF_PROOF_DAYS = 7
@@ -299,7 +299,7 @@ def _generate_config_preview(config_name):
 			coupon_code=coupon.get("code") if coupon else None,
 			discount_type=coupon.get("discount_type") if coupon else None,
 			discount_value=coupon.get("discount_value") if coupon else None,
-			offer_description=None,
+			offer_description=coupon.get("description") if coupon else None,
 			valid_until=None,
 		)
 		result = _get_cache(job_id)
@@ -356,8 +356,13 @@ def _load_owned_order(restaurant, order_id, customer):
 	if order.platform_customer and order.platform_customer != customer:
 		return None
 	if not order.platform_customer:
-		# Cannot attribute cashback without a platform customer on the order.
-		return None
+		# If the order lacks a platform_customer (e.g. POS order) but the phone matches, link it.
+		from flamezo_backend.flamezo.utils.customer_helpers import normalize_phone
+		customer_phone = frappe.db.get_value("Platform Customer", customer, "phone")
+		if normalize_phone(order.customer_phone) == normalize_phone(customer_phone):
+			order.db_set("platform_customer", customer)
+		else:
+			return None
 	return order
 
 
@@ -384,10 +389,12 @@ def get_ugc_eligibility(restaurant_id, order_id):
 
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
+			frappe.log_error(f"ugc_eligibility not_available: config={bool(config)} active={_is_ugc_active(config) if config else False} templates={bool(config.template_assets) if config else None} coupon={getattr(config,'viewer_coupon_code','') if config else None} preview={bool(getattr(config,'story_preview_url','')) if config else None}", "UGC Debug")
 			return _ok({"eligible": False, "reason": "not_available"})
 
 		order = _load_owned_order(restaurant, order_id, customer)
 		if not order:
+			frappe.log_error(f"ugc_eligibility order_not_found: order_id={order_id} customer={customer} restaurant={restaurant}", "UGC Debug")
 			return _ok({"eligible": False, "reason": "order_not_found"})
 
 		# If a submission already exists, surface its state instead of a fresh offer.
@@ -530,6 +537,47 @@ def mark_story_shared(restaurant_id, submission_id, template_media_id=None):
 		return _err("RESTAURANT_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"mark_story_shared: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_story_with_pin(restaurant_id, submission_id, pin):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.ugc.verify_story_with_pin
+
+	Customer shows posted story to staff → staff enters restaurant PIN on customer's phone.
+	Transitions story_shared → story_verified, opening the 48h proof upload window.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED")
+
+		submission = _load_owned_submission(submission_id, restaurant, customer)
+		if not submission:
+			return _err("SUBMISSION_NOT_FOUND")
+
+		if submission.status != "story_shared":
+			return _err("INVALID_STATE", f"Cannot verify from '{submission.status}'.")
+
+		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		if not stored_pin:
+			return _err("PIN_NOT_SET", "This restaurant has not set up a verification PIN.")
+		if str(pin).strip() != stored_pin:
+			return _err("INVALID_PIN", "Incorrect PIN — please try again.")
+
+		submission.status = "story_verified"
+		submission.story_verified_by = "pin"
+		submission.story_verified_at = now_datetime()
+		submission.save(ignore_permissions=True)
+		frappe.db.commit()
+		_notify(submission.name, "story_verified")
+		return _ok({"status": "story_verified"})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"verify_story_with_pin: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
@@ -735,6 +783,81 @@ def get_restaurant_ugc_status(restaurant_id):
 	except Exception as e:
 		frappe.log_error(f"get_restaurant_ugc_status: {e}", "UGC")
 		return _ok({"ugc_active": False})  # fail-safe: hide the feature on error
+
+
+@frappe.whitelist(allow_guest=True)
+def get_claimable_orders(restaurant_id, phone):
+	"""
+	Return the customer's recent completed orders for this restaurant that are
+	eligible for a UGC cashback claim. Mirrors the loyalty API auth pattern:
+	phone + session token are validated together.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		normalized_phone = normalize_phone(phone)
+		if not normalized_phone:
+			return _err("INVALID_PHONE", "Invalid phone number")
+
+		session_token = get_customer_token()
+		if not session_token or not validate_customer_session(normalized_phone, session_token):
+			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
+
+		config = _get_active_config(restaurant)
+		if not config or not _is_ugc_active(config):
+			return _ok({"orders": []})
+
+		# Fetch completed orders within the last 90 days (covers delayed claims)
+		from frappe.utils import add_days, today
+		since = add_days(today(), -90)
+		rows = frappe.db.sql(
+			"""
+			SELECT name, order_number, total, payment_status, status, creation
+			FROM `tabOrder`
+			WHERE restaurant = %s
+			  AND customer_phone = %s
+			  AND payment_status = 'completed'
+			  AND DATE(creation) >= %s
+			  AND order_number LIKE 'FZ-%%'
+			ORDER BY creation DESC
+			LIMIT 10
+			""",
+			(restaurant, phone, since),
+			as_dict=True,
+		)
+
+		# Filter to eligible ones and check for existing submissions
+		items = []
+		for row in rows:
+			order_id = row["name"]
+			# Skip if already has an active submission
+			existing = _active_submission_for_order(order_id)
+			if existing:
+				items.append({
+					"orderId": order_id,
+					"orderNumber": row["order_number"],
+					"amount": flt(row["total"]),
+					"maxCashback": _max_cashback(row["total"]),
+					"alreadyClaimed": True,
+					"submissionId": existing.name,
+					"submissionStatus": existing.status,
+				})
+				continue
+			if flt(row["total"]) < PLATFORM_MIN_ORDER:
+				continue
+			items.append({
+				"orderId": order_id,
+				"orderNumber": row["order_number"],
+				"amount": flt(row["total"]),
+				"maxCashback": _max_cashback(row["total"]),
+				"alreadyClaimed": False,
+			})
+
+		return _ok({"orders": items})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"get_claimable_orders: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
 
 
 def _load_owned_submission(submission_id, restaurant, customer):

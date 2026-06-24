@@ -271,11 +271,10 @@ def _write_overlay_html(path, w, h, restaurant_name, coupon_code,
           {offer_description}
         </p>"""
 
-    validity_html = ""
-    if validity_label:
-        validity_html = f"""
+    tnc_text = f"{validity_label} · T&amp;C apply" if validity_label else "T&amp;C apply"
+    validity_html = f"""
         <p style="color:rgba(183,65,14,1);font-size:{fz(0.021)}px;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          {validity_label} · T&amp;C apply
+          {tnc_text}
         </p>"""
 
     coupon_chip_html = ""

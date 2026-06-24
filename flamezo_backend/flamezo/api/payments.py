@@ -342,6 +342,11 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		platform_keep_paise = platform_fee_paise
 
 		route_decision = route_adapter.decide_route_mode(restaurant)
+		
+		# Gateway Fee Calculation (2% + 18% GST = 2.36%)
+		# This is the cost Razorpay charges Flamezo. We deduct it from the merchant's slice.
+		gateway_fee_paise = int(math.ceil(final_total_paise * 0.0236))
+		
 		if route_decision.mode == "direct_split" and route_decision.linked_account_id:
 			# Tier 1 net-off: pull outstanding cash commission into the
 			# platform's slice of this order so Flamezo recovers it
@@ -349,12 +354,13 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			netoff_paise = commission_engine.compute_netoff_for_online_order(
 				restaurant_id, final_total_paise
 			)
-			platform_keep_paise = platform_fee_paise + netoff_paise
+			# Platform Keep = Flamezo Commission + Cash Net-off + Razorpay Gateway Fee
+			platform_keep_paise = platform_fee_paise + netoff_paise + gateway_fee_paise
 
 			# Safety: ensure merchant slice is non-negative
 			if platform_keep_paise >= final_total_paise:
 				platform_keep_paise = max(0, final_total_paise - 100)  # leave at least ₹1 to merchant
-				netoff_paise = max(0, platform_keep_paise - platform_fee_paise)
+				netoff_paise = max(0, platform_keep_paise - platform_fee_paise - gateway_fee_paise)
 
 			transfer_payload = route_adapter.build_transfer_payload(
 				linked_account_id=route_decision.linked_account_id,
@@ -375,6 +381,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 				"order_id": order_doc.name,
 				"restaurant_id": restaurant_id,
 				"platform_fee": platform_fee_paise,
+				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
 				"settlement_mode": settlement_mode,
 			},
@@ -451,6 +458,24 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 					order.status = "confirmed"
 				order.razorpay_payment_id = razorpay_payment_id
 				order.transaction_id = razorpay_payment_id
+				# Stamp customer info from session so UGC/loyalty can attribute the payment
+				if not order.customer_phone:
+					try:
+						from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
+						from flamezo_backend.flamezo.utils.customer_helpers import validate_customer_session
+						token = get_customer_token()
+						if token:
+							session = frappe.cache().get_value(f"customer_session:{token}")
+							if not session:
+								from flamezo_backend.flamezo.utils.customer_helpers import _restore_session_from_db
+								session = _restore_session_from_db(token)
+							if session and session.get("phone"):
+								order.customer_phone = session["phone"]
+								customer_id = get_customer_from_token(token)
+								if customer_id:
+									order.platform_customer = customer_id
+					except Exception:
+						pass
 				order.save(ignore_permissions=True)
 				
 				# Process Loyalty and Coupons (since payment is now verified)
@@ -471,6 +496,19 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 				try:
 					order_doc = frappe.get_doc("Order", cast(str, order.name))
 					process_loyalty_and_coupons(order_doc)
+				except Exception:
+					pass
+
+				# UGC cashback nudge — dispatched by the 5-min cron in ugc_tasks.py
+				# (dispatch_ugc_cashback_nudges). We just mark this order as eligible
+				# so the cron can find it without a schema change.
+				try:
+					from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
+					ugc_config = _get_active_config(order.restaurant)
+					if ugc_config and _is_ugc_active(ugc_config):
+						frappe.cache().set_value(
+							f"ugc_nudge_eligible:{order.name}", 1, expires_in_sec=600
+						)
 				except Exception:
 					pass
 

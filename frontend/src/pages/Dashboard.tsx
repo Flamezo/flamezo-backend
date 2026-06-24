@@ -23,6 +23,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { cn, copyToClipboard } from '@/lib/utils'
@@ -354,6 +355,11 @@ export default function Dashboard() {
   const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [isSimulated, setIsSimulatedState] = useState(() => localStorage.getItem('demoData') === 'true')
+  const setIsSimulated = (val: boolean) => {
+    localStorage.setItem('demoData', String(val))
+    setIsSimulatedState(val)
+  }
   const { isGold } = useRestaurant()
   const isAtLeastGold = isGold
   const isAdvancedAnalytics = isGold // Growth Intelligence remains Gold-only
@@ -390,13 +396,28 @@ export default function Dashboard() {
 
   const analyticsData = analytics?.message?.success ? analytics.message : (analytics?.success ? analytics : null)
 
+  // Pseudo-random generator for realistic restaurant-specific data
+  const seedStr = selectedRestaurant || 'default';
+  const baseSeed = seedStr.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+  const rand = (min: number, max: number, offset: number = 0) => {
+    const x = Math.sin(baseSeed + offset) * 10000;
+    const r = x - Math.floor(x);
+    return Math.floor(r * (max - min + 1)) + min;
+  };
+
   // Calculations
-  const totalOrders = 0
-  const totalRevenue = 0
+  const totalOrders = isSimulated ? rand(80, 250, 1) : 0
+  const totalRevenue = isSimulated ? totalOrders * rand(450, 950, 2) : 0
+  const conversionRate = isSimulated ? (rand(250, 480, 3) / 10) : (analyticsData?.enhanced?.conversionRate || 0)
+  const avgOrderValue = isSimulated ? Math.floor(totalRevenue / totalOrders) : (analyticsData?.enhanced?.avgOrderValue || 0)
 
   // Today's Stats
-  const todayOrders: any[] = []
-
+  const todayOrders: any[] = isSimulated ? [
+    { name: `ORD-00${rand(1, 9, 4)}`, status: 'Completed', table_number: `${rand(1, 20, 5)}`, creation: new Date().toISOString(), total: rand(450, 1500, 6) },
+    { name: `ORD-00${rand(10, 19, 7)}`, status: 'Completed', table_number: `${rand(1, 20, 8)}`, creation: new Date(Date.now() - 15 * 60000).toISOString(), total: rand(450, 1500, 9) },
+    { name: `ORD-00${rand(20, 29, 10)}`, status: 'Pending', table_number: `${rand(1, 20, 11)}`, creation: new Date(Date.now() - 30 * 60000).toISOString(), total: rand(450, 1500, 12) },
+    { name: `ORD-00${rand(30, 39, 13)}`, status: 'Delivered', table_number: `${rand(1, 20, 14)}`, creation: new Date(Date.now() - 60 * 60000).toISOString(), total: rand(450, 1500, 15) },
+  ] : []
 
   // 7-day Trend for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -406,11 +427,31 @@ export default function Dashboard() {
     return d
   })
 
-  const dailyRevenue = last7Days.map(() => 0)
+  const dailyRevenue = isSimulated ? [
+    rand(10000, 15000, 16), rand(12000, 18000, 17), rand(11000, 16000, 18), 
+    rand(14000, 20000, 19), rand(18000, 25000, 20), rand(25000, 35000, 21), rand(20000, 30000, 22)
+  ] : last7Days.map(() => 0)
+  
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const peakDayStr = isSimulated ? daysOfWeek[rand(0, 6, 23)] : (analyticsData?.traffic?.peakDay || "")
+  const scanEfficiencyOpts = ['High', 'High', 'Medium', 'Medium', 'Low']
+  const scanEfficiency = isSimulated ? scanEfficiencyOpts[rand(0, 4, 24)] : (analyticsData?.enhanced?.scanEfficiency || "—")
+  const churnRiskLabels = ['Low Risk', 'Low Risk', 'Moderate Risk', 'Moderate Risk', 'High Risk']
+  const churnRiskLabel = isSimulated ? churnRiskLabels[rand(0, 4, 25)] : (analyticsData?.enhanced?.churnRiskLabel || "—")
+  const churnRiskColors = ['emerald', 'emerald', 'amber', 'amber', 'rose']
+  const churnRiskColor = isSimulated ? churnRiskColors[rand(0, 4, 25)] : (analyticsData?.enhanced?.churnRiskColor || "")
+  const churnRate = isSimulated ? rand(0, 8, 26) : (analyticsData?.enhanced?.churnRate || 0)
+
+  const simulatedTopProducts = [
+    { name: 'Truffle Mushroom Risotto', count: rand(150, 200, 27), total: rand(400, 600, 28) },
+    { name: 'Spicy Salmon Roll', count: rand(100, 149, 29), total: rand(300, 500, 30) },
+    { name: 'Artisan Burrata', count: rand(80, 99, 31), total: rand(200, 400, 32) },
+    { name: 'Wagyu Burger', count: rand(50, 79, 33), total: rand(150, 300, 34) }
+  ]
 
   // Top Products — real order-count data from analyticsData.topPerformers
-  // Falls back to menu products slice ONLY when no analytics data available
-  const topProducts = (analyticsData?.topPerformers && analyticsData.topPerformers.length > 0)
+  const topProducts = isSimulated ? simulatedTopProducts : (
+    (analyticsData?.topPerformers && analyticsData.topPerformers.length > 0)
     ? analyticsData.topPerformers.map((p: any) => ({
         name: p.item_name || p.name || 'Unknown',
         count: p.order_count ?? p.views ?? 0,
@@ -421,6 +462,24 @@ export default function Dashboard() {
         count: 0,
         total: 0
       })) || [])
+  )
+
+  const simulatedMenuHeatmap = [
+    { item_name: 'Truffle Mushroom Risotto', status: 'Optimal', views: 420, conversion: 28 },
+    { item_name: 'Spicy Salmon Roll', status: 'Optimal', views: 350, conversion: 32 },
+    { item_name: 'Wagyu Burger', status: 'Friction', views: 480, conversion: 8 },
+    { item_name: 'Lobster Bisque', status: 'Friction', views: 220, conversion: 4 }
+  ]
+  const menuHeatmap = isSimulated ? simulatedMenuHeatmap : (analyticsData?.menuHeatmap || [])
+
+  const simulatedQrRoas = [
+    { source: `Table ${rand(10, 15, 41)}`, revenue: rand(10000, 15000, 42), orders: rand(40, 60, 43) },
+    { source: `Table ${rand(2, 8, 44)}`, revenue: rand(8000, 9999, 45), orders: rand(30, 39, 46) },
+    { source: 'Bar Counter', revenue: rand(6000, 7999, 47), orders: rand(20, 29, 48) },
+    { source: `Window Seat ${rand(1, 4, 49)}`, revenue: rand(4000, 5999, 50), orders: rand(10, 19, 51) },
+    { source: 'Patio Area', revenue: rand(2000, 3999, 52), orders: rand(5, 9, 53) }
+  ]
+  const qrRoas = isSimulated ? simulatedQrRoas : (analyticsData?.qrRoas || [])
 
   const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -437,13 +496,40 @@ export default function Dashboard() {
     }
   }
 
+  // Simulated Overrides
+  const totalScans = isSimulated ? rand(300, 600, 35) : (analyticsData?.traffic?.totalViews || 0)
+  const lifetimeScans = isSimulated ? rand(10000, 15000, 36) : (analyticsData?.traffic?.lifetimeScans || 0)
+  const uniqueGuests = isSimulated ? Math.floor(totalScans * 0.75) : (analyticsData?.traffic?.uniqueVisitors || 0)
+  const peakDiscovery = isSimulated ? `${rand(18, 21, 37)}:00` : (analyticsData?.traffic?.peakHour || "00:00")
+  const menuHealth = isSimulated ? `${rand(35, 55, 38)} Items` : `${products?.length || 0} Items`
+  
+  const ugcDailyAverage = isSimulated ? rand(15, 35, 39) : 0
+  const ugcTotalShared = isSimulated ? rand(600, 1200, 40) : 0
+
+  const foodImages = [
+    "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=711&fit=crop",
+    "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400&h=711&fit=crop",
+    "https://images.unsplash.com/photo-1460306855393-0410f61241c7?w=400&h=711&fit=crop",
+    "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400&h=711&fit=crop",
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=711&fit=crop",
+    "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=400&h=711&fit=crop"
+  ]
+
   return (
     <div className="space-y-8 pb-10">
       {/* Top Banner & Strategy */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-full border border-border/50">
+              <Switch 
+                checked={isSimulated}
+                onCheckedChange={setIsSimulated}
+                className="data-[state=checked]:bg-primary"
+              />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Show Data</span>
+            </div>
           </div>
           <p className="text-muted-foreground text-sm flex items-center gap-1.5">
             <Activity className="h-4 w-4 text-primary" />
@@ -489,36 +575,120 @@ export default function Dashboard() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard 
               title="Menu Scans (7D)"
-              value={analyticsData?.traffic?.totalViews || 0}
-              subtext={`Total: ${analyticsData?.traffic?.lifetimeScans || 0} Lifetime`}
+              value={totalScans}
+              subtext={`Total: ${lifetimeScans} Lifetime`}
               icon={QrCode}
-              trend={analyticsData?.traffic?.growth >= 0 ? 'up' : 'down'}
-              trendValue={`${Math.abs(analyticsData?.traffic?.growth || 0)}%`}
+              trend={isSimulated ? 'up' : (analyticsData?.traffic?.growth >= 0 ? 'up' : 'down')}
+              trendValue={isSimulated ? '12%' : `${Math.abs(analyticsData?.traffic?.growth || 0)}%`}
               isGold={false}
             />
             <StatCard 
               title="Unique Guests"
-              value={analyticsData?.traffic?.uniqueVisitors || 0}
+              value={uniqueGuests}
               subtext="Unique brand reach (7D)"
               icon={Users}
               isGold={false}
             />
             <StatCard 
               title="Peak Discovery"
-              value={analyticsData?.traffic?.peakHour || "00:00"}
+              value={peakDiscovery}
               subtext="Busiest time for menu scans"
               icon={Clock}
               isGold={false}
             />
             <StatCard 
               title="Menu Health"
-              value={`${products?.length || 0} Items`}
-              subtext={`${analyticsData?.traffic?.totalViews || 0} impressions served`}
+              value={menuHealth}
+              subtext={`${totalScans} impressions served`}
               icon={Package}
               isGold={false}
             />
           </div>
         </div>
+
+        {/* Layer 1.5: UGC Performance (Shown when simulated) */}
+        {isSimulated && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 mt-8">
+            <div className="flex items-center gap-2 mb-4">
+               <div className="h-1 w-8 bg-pink-500 rounded-full" />
+               <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-pink-500/80">UGC Performance</h2>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+              <StatCard
+                title="Daily UGC Average"
+                value={ugcDailyAverage}
+                subtext="Stories shared per day"
+                icon={Star}
+                trend="up"
+                trendValue="15%"
+                isGold={false}
+              />
+              <StatCard
+                title="Total UGC Shared"
+                value={ugcTotalShared}
+                subtext="Lifetime stories generated"
+                icon={Copy}
+                isGold={false}
+              />
+              <StatCard
+                title="UGC Views"
+                value="45K+"
+                subtext="Est. organic reach (7D)"
+                icon={Activity}
+                trend="up"
+                trendValue="8%"
+                isGold={false}
+              />
+              <StatCard
+                title="Conversion via UGC"
+                value="4.2%"
+                subtext="Scans from story links"
+                icon={TrendingUp}
+                isGold={false}
+              />
+            </div>
+
+            <Card className="shadow-sm border-none bg-card overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Star className="h-5 w-5 text-pink-500" />
+                  Recent Instagram Stories
+                </CardTitle>
+                <CardDescription>How your food looks when diners post it</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {foodImages.map((imgUrl, i) => (
+                    <div key={i} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-muted group cursor-pointer border border-border/50">
+                      <img 
+                        src={imgUrl}
+                        alt="UGC Story Preview" 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://placehold.co/400x711/111827/ffffff?text=Story+${i+1}`
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="h-6 w-6 rounded-full bg-white/20 border border-white/40 flex items-center justify-center backdrop-blur-sm overflow-hidden">
+                            <Users className="h-3 w-3 text-white" />
+                          </div>
+                          <span className="text-[10px] font-bold text-white tracking-wider">@diner_{Math.floor(Math.random() * 900) + 100}</span>
+                        </div>
+                        <p className="text-[9px] text-white/70 line-clamp-2">Amazing food at {currentRestaurant?.restaurant_name || selectedRestaurant}! 🔥</p>
+                      </div>
+                      <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md rounded-full px-2 py-0.5 border border-white/10 flex items-center gap-1">
+                        <Star className="h-2 w-2 text-yellow-400 fill-yellow-400" />
+                        <span className="text-[9px] font-bold text-white">4.9</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Layer 2: Business Performance (Impact - For GOLD) */}
         {isAtLeastGold && (
@@ -549,7 +719,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Scan → Pay Rate"
-                value={`${analyticsData?.enhanced?.conversionRate || 0}%`}
+                value={`${conversionRate}%`}
                 subtext="Scans that paid the bill"
                 icon={Zap}
                 isGold={isGold}
@@ -557,7 +727,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Avg Bill"
-                value={formatAmountNoDecimals(analyticsData?.enhanced?.avgOrderValue || 0)}
+                value={formatAmountNoDecimals(avgOrderValue)}
                 subtext="Spend per visit"
                 icon={Activity}
                 isGold={isGold}
@@ -599,36 +769,36 @@ export default function Dashboard() {
                  <div className="p-3 bg-muted/30 rounded-xl border border-border/40">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Peak Day</p>
                      <p className="text-sm font-bold">
-                       {analyticsData?.traffic?.peakDay || <span className="text-muted-foreground text-xs italic">No data yet</span>}
+                       {peakDayStr || <span className="text-muted-foreground text-xs italic">No data yet</span>}
                      </p>
                   </div>
                  <div className="p-3 bg-muted/30 rounded-xl border border-border/40">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Ticket Size</p>
-                     <p className="text-sm font-bold">{formatAmountNoDecimals(analyticsData?.enhanced?.avgOrderValue || 0)}</p>
+                     <p className="text-sm font-bold">{formatAmountNoDecimals(avgOrderValue)}</p>
                   </div>
                  <div className="p-3 bg-muted/30 rounded-xl border border-border/40">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Scan Efficiency</p>
                      <p className={cn(
                        "text-sm font-bold",
-                       analyticsData?.enhanced?.scanEfficiency === 'High' && 'text-primary',
-                       analyticsData?.enhanced?.scanEfficiency === 'Medium' && 'text-amber-500',
-                       analyticsData?.enhanced?.scanEfficiency === 'Low' && 'text-rose-500',
-                       !analyticsData?.enhanced?.scanEfficiency && 'text-muted-foreground'
+                       scanEfficiency === 'High' && 'text-primary',
+                       scanEfficiency === 'Medium' && 'text-amber-500',
+                       scanEfficiency === 'Low' && 'text-rose-500',
+                       scanEfficiency === '—' && 'text-muted-foreground'
                      )}>
-                       {analyticsData?.enhanced?.scanEfficiency || '—'}
+                       {scanEfficiency}
                      </p>
                   </div>
                   <div className="p-3 bg-muted/30 rounded-xl border border-border/40">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Churn Risk</p>
                      <p className={cn(
                        "text-sm font-bold",
-                       analyticsData?.enhanced?.churnRiskColor === 'emerald' && 'text-emerald-500',
-                       analyticsData?.enhanced?.churnRiskColor === 'amber' && 'text-amber-500',
-                       analyticsData?.enhanced?.churnRiskColor === 'rose' && 'text-rose-500',
-                       !analyticsData?.enhanced?.churnRiskLabel && 'text-muted-foreground'
+                       churnRiskColor === 'emerald' && 'text-emerald-500',
+                       churnRiskColor === 'amber' && 'text-amber-500',
+                       churnRiskColor === 'rose' && 'text-rose-500',
+                       churnRiskLabel === '—' && 'text-muted-foreground'
                      )}>
-                       {analyticsData?.enhanced?.churnRiskLabel
-                         ? `${analyticsData.enhanced.churnRiskLabel} ${analyticsData.enhanced.churnRate > 0 ? `(${analyticsData.enhanced.churnRate}%)` : ''}`
+                       {churnRiskLabel !== '—'
+                         ? `${churnRiskLabel} ${churnRate > 0 ? `(${churnRate}%)` : ''}`
                          : '—'}
                      </p>
                   </div>
@@ -649,11 +819,7 @@ export default function Dashboard() {
               title="Engagement Insights" 
               description="Learn which dishes attract eyes and which ones attract cash."
             >
-              <TopProductsChart products={analyticsData?.topPerformers?.map((p: any) => ({
-                name: p.item_name,
-                count: p.views,
-                total: analyticsData.traffic.totalViews
-              })) || topProducts} />
+              <TopProductsChart products={topProducts} />
               <div className="mt-10 pt-6 border-t border-border flex justify-between items-center">
                  <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
                    <Clock className="h-3 w-3" /> Updated in real-time
@@ -694,9 +860,9 @@ export default function Dashboard() {
                  title="Heatmap Data" 
                  description="Unlock deep-dive metrics on dish friction and pricing sensitivity."
                >
-                 <MenuHeatmapTable heatmap={analyticsData?.menuHeatmap || []} />
+                 <MenuHeatmapTable heatmap={menuHeatmap} />
                  
-                 {analyticsData?.menuHeatmap?.some((h: any) => h.status !== 'Optimal') && (
+                 {menuHeatmap?.some((h: any) => h.status !== 'Optimal') && (
                    <div className="mt-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 flex gap-3 items-start animate-pulse">
                      <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
                      <div className="space-y-1">
@@ -726,7 +892,7 @@ export default function Dashboard() {
                  title="ROAS Intelligence" 
                  description="Track which physical QR stickers are generating the most money for your outlet."
                >
-                 <QRRoasSection roas={analyticsData?.qrRoas || []} />
+                 <QRRoasSection roas={qrRoas} />
                  
                  <div className="mt-8 p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/20">
                     <div className="flex items-center justify-between mb-2">
@@ -734,10 +900,10 @@ export default function Dashboard() {
                        <Crown className="h-3 w-3 text-amber-500" />
                     </div>
                     <p className="text-sm font-bold">
-                       {[...(analyticsData?.qrRoas || [])].sort((a: any, b: any) => b.revenue - a.revenue)[0]?.source || 'Scanning Data...'}
+                       {[...(qrRoas)].sort((a: any, b: any) => b.revenue - a.revenue)[0]?.source || 'Scanning Data...'}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1 italic">
-                       This source contributes to {Math.round(([...(analyticsData?.qrRoas || [])].sort((a: any, b: any) => b.revenue - a.revenue)[0]?.revenue / (totalRevenue || 1)) * 100) || 0}% of your total digital revenue.
+                       This source contributes to {Math.round(([...(qrRoas)].sort((a: any, b: any) => b.revenue - a.revenue)[0]?.revenue / (totalRevenue || 1)) * 100) || 0}% of your total digital revenue.
                     </p>
                  </div>
                </LockedInsight>

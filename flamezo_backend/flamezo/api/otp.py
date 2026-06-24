@@ -467,6 +467,90 @@ def check_verified(phone):
 		return {"success": False, "verified": False}
 
 
+# ─── WhatsApp Auto-Login Magic Tokens ────────────────────────────────────────
+
+_WA_AUTH_TOKEN_TTL = 24 * 60 * 60  # 24-hour window — enough for "grab it before you leave"
+
+
+def generate_whatsapp_auth_token(phone: str, customer_id: str) -> str:
+	"""
+	Generate a one-time-use token for WhatsApp button deep links.
+
+	Stored in Redis for 24 hours. Call from task functions when building
+	the button URL so the user is auto-logged-in when they click from
+	WhatsApp's in-app browser (which has no shared session with Chrome/Safari).
+
+	Returns an empty string on failure so callers can safely append it
+	(a missing ?wt= just means the user will see the normal login prompt).
+	"""
+	import secrets
+	try:
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10 or not customer_id:
+			return ""
+		token = secrets.token_urlsafe(32)
+		frappe.cache().set_value(
+			f"wa_auth:{token}",
+			{"phone": normalized, "customer_id": customer_id},
+			expires_in_sec=_WA_AUTH_TOKEN_TTL,
+		)
+		return token
+	except Exception as e:
+		frappe.log_error(f"generate_whatsapp_auth_token: {e}", "WA_Auth")
+		return ""
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_whatsapp_token(token):
+	"""
+	Validate a WhatsApp auto-login token and return a fresh session.
+
+	One-time use — token is deleted from Redis immediately on first call
+	so it cannot be replayed via bookmarks or link sharing.
+
+	On success returns:
+	  { success: true, session_token, phone, customer_id, customer_name }
+
+	On failure returns:
+	  { success: false, error: TOKEN_EXPIRED | INVALID_TOKEN | CUSTOMER_NOT_FOUND }
+	"""
+	try:
+		if not token or not isinstance(token, str) or len(token) > 200:
+			return {"success": False, "error": "INVALID_TOKEN"}
+
+		payload = frappe.cache().get_value(f"wa_auth:{token}")
+		if not payload:
+			return {"success": False, "error": "TOKEN_EXPIRED"}
+
+		# Delete immediately — one-time use
+		frappe.cache().delete_value(f"wa_auth:{token}")
+
+		phone = payload.get("phone", "")
+		customer_id = payload.get("customer_id", "")
+
+		if not phone or not customer_id:
+			return {"success": False, "error": "INVALID_TOKEN"}
+
+		if not frappe.db.exists("Customer", customer_id):
+			return {"success": False, "error": "CUSTOMER_NOT_FOUND"}
+
+		session_token = create_customer_session(phone=phone, customer_id=customer_id)
+
+		raw_name = frappe.db.get_value("Customer", customer_id, "customer_name") or ""
+		display_name = "" if raw_name == f"Customer {phone}" else raw_name
+
+		return {
+			"success": True,
+			"session_token": session_token,
+			"phone": phone,
+			"customer_id": customer_id,
+			"customer_name": display_name,
+		}
+	except Exception as e:
+		frappe.log_error(f"verify_whatsapp_token: {e}", "WA_Auth")
+		return {"success": False, "error": "INTERNAL_ERROR"}
+
+
 def _create_otp_log(restaurant_id, phone, channel, verified, purpose, error_message):
 	try:
 		frappe.get_doc({

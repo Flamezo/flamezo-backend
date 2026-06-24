@@ -73,10 +73,15 @@ def auto_deactivate_expired_coupons():
 # WhatsApp notification — fires after a successful PIN claim
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def send_offer_claim_notification(claim_id):
     """
-    Short-queue task enqueued (enqueue_after_commit=True) from claim_offer_with_pin.
+    Short-queue task enqueued (enqueue_after_commit=True) from claim_offer.
     Sends a WhatsApp message confirming the offer and including the pay-bill link.
+
+    Meta template: offer_claim_pay
+    Body params: {{1}} discount label, {{2}} restaurant name, {{3}} coupon code
+    Button: dynamic URL suffix → {restaurant_slug}/pay-bill?offer={code}
     """
     try:
         claim = frappe.get_doc("Offer Claim", claim_id)
@@ -96,7 +101,6 @@ def send_offer_claim_notification(claim_id):
         frappe.db.get_value("Restaurant", claim.restaurant, "restaurant_id") or claim.restaurant
     )
 
-    # Resolve discount label from the coupon
     coupon_row = frappe.db.get_value(
         "Coupon",
         claim.coupon,
@@ -110,7 +114,10 @@ def send_offer_claim_notification(claim_id):
     else:
         discount_label = f"₹{int(discount_val)} flat off"
 
-    button_url_suffix = f"{restaurant_slug}/pay-bill?offer={claim.coupon_code}"
+    from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
+    wa_token = generate_whatsapp_auth_token(phone, claim.customer) if claim.customer else ""
+    token_suffix = f"&wt={wa_token}" if wa_token else ""
+    button_url_suffix = f"{restaurant_slug}/pay-bill?offer={claim.coupon_code}{token_suffix}"
 
     from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
     try:
