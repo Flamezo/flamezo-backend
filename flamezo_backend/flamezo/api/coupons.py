@@ -73,10 +73,25 @@ def get_coupons(restaurant_id, active_only=True):
 				"valid_days_of_week",
 				"valid_time_start",
 				"valid_time_end",
+				"daily_limit",
 			],
 			filters=filters,
 			order_by="code asc"
 		)
+
+		# Batch-fetch today's claim counts for all coupons in one query
+		coupon_ids = [c["id"] for c in coupons]
+		claimed_today_map = {}
+		if coupon_ids:
+			rows = frappe.db.sql(
+				f"""SELECT coupon, COUNT(*) as cnt FROM `tabOffer Claim`
+				WHERE coupon IN ({', '.join(['%s'] * len(coupon_ids))})
+				AND claimed_at >= %s
+				GROUP BY coupon""",
+				tuple(coupon_ids) + (today(),),
+				as_dict=True,
+			)
+			claimed_today_map = {r.coupon: r.cnt for r in rows}
 
 		today_date = today()
 		current_dt = now_datetime()
@@ -129,6 +144,10 @@ def get_coupons(restaurant_id, active_only=True):
 				except Exception:
 					pass
 
+			daily_limit = int(coupon.get("daily_limit") or DEFAULT_DAILY_CLAIM_LIMIT)
+			claimed_today = claimed_today_map.get(coupon["id"], 0)
+			slots_remaining = max(0, daily_limit - claimed_today) if daily_limit > 0 else None
+
 			coupon_data = {
 				"id": str(coupon["id"]),
 				"code": coupon["code"],
@@ -138,6 +157,9 @@ def get_coupons(restaurant_id, active_only=True):
 				"offerType": coupon.get("offer_type", "coupon"),
 				"isActive": bool(coupon.get("is_active", False)),
 				"currentlyRedeemable": currently_redeemable,
+				"dailyLimit": daily_limit,
+				"slotsRemaining": slots_remaining,
+				"claimedToday": claimed_today,
 			}
 
 			if ineligibility_hint:
@@ -588,7 +610,7 @@ def get_ai_coupon_quota(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None):
+def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None, order_type=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.get_applicable_offers
 	Get ALL offers (both eligible and ineligible) with detailed reasons
@@ -629,7 +651,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"valid_days_of_week", "valid_time_start", "valid_time_end",
 				"category", "description", "detailed_description",
 				"combo_type", "combo_name", "required_items", "item_pool",
-				"items_to_select", "combo_price", "free_item", "display_on_menu",
+				"items_to_select", "combo_price", "bogo_free_item_value", "free_item", "display_on_menu",
 			],
 			order_by="priority desc, discount_value desc"
 		)
@@ -757,6 +779,10 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			combo_type = offer.get("combo_type") or "fixed_bundle"
 			combo_meta = {}  # extra combo info sent to frontend
 
+			# Dine-in: cart is always empty; validate on bill total only.
+			# Online ordering: validate cart items against pool/required_items.
+			is_dine_in = (order_type == "dine_in") or (not cart_items)
+
 			if offer.offer_type == "combo":
 				# Parse pools / required items
 				required_ids = []
@@ -773,6 +799,8 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				except Exception: pass
 
 				items_needed = int(offer.get("items_to_select") or 2)
+				combo_price_val = flt(offer.combo_price or 0)
+				bogo_value = flt(offer.get("bogo_free_item_value") or 0)
 
 				# Fetch product names for human-readable hints
 				all_pool_ids = list(set(required_ids + item_pool_ids))
@@ -786,68 +814,116 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					product_names = {r.product_id: {"name": r.product_name, "price": flt(r.price)} for r in rows}
 
 				if combo_type == "fixed_bundle":
-					missing = [r for r in required_ids if r not in cart_dish_ids]
-					if missing:
-						is_eligible = False
-						missing_names = [product_names.get(m, {}).get("name", m) for m in missing]
-						ineligibility_reasons.append({
-							"code": "COMBO_ITEMS_MISSING",
-							"message": f"Add {', '.join(missing_names)} to use this combo",
-							"type": "combo",
-							"missingItems": missing,
-							"missingItemNames": missing_names,
-							"requiredItems": required_ids,
-						})
+					if is_dine_in:
+						# Dine-in: bill must reach combo_price
+						if combo_price_val > 0 and cart_total < combo_price_val:
+							is_eligible = False
+							ineligibility_reasons.append({
+								"code": "BILL_TOO_LOW",
+								"message": f"Bill must be at least ₹{int(combo_price_val)} for this combo",
+								"type": "cart_value",
+								"minOrderAmount": combo_price_val,
+								"currentAmount": cart_total,
+								"amountNeeded": max(0, combo_price_val - cart_total),
+							})
+					else:
+						missing = [r for r in required_ids if r not in cart_dish_ids]
+						if missing:
+							is_eligible = False
+							missing_names = [product_names.get(m, {}).get("name", m) for m in missing]
+							ineligibility_reasons.append({
+								"code": "COMBO_ITEMS_MISSING",
+								"message": f"Add {', '.join(missing_names)} to use this combo",
+								"type": "combo",
+								"missingItems": missing,
+								"missingItemNames": missing_names,
+								"requiredItems": required_ids,
+							})
 					combo_meta = {
 						"comboType": "fixed_bundle",
 						"requiredItems": required_ids,
 						"requiredItemNames": [product_names.get(r, {}).get("name", r) for r in required_ids],
-						"comboPrice": flt(offer.combo_price or 0),
+						"comboPrice": combo_price_val,
 						"comboName": offer.get("combo_name") or offer.description or "",
 					}
 
 				elif combo_type == "bogo":
-					matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
-					if len(matching) < items_needed:
-						short = items_needed - len(matching)
-						pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
-						is_eligible = False
-						ineligibility_reasons.append({
-							"code": "COMBO_ITEMS_MISSING",
-							"message": f"Add {short} more item{'s' if short > 1 else ''} from the pool to unlock BOGO",
-							"type": "combo",
-							"missingCount": short,
-							"itemPool": item_pool_ids,
-							"itemPoolNames": pool_names,
-						})
+					if is_dine_in:
+						# Dine-in: bogo_free_item_value must be set and bill >= that value
+						if bogo_value <= 0:
+							is_eligible = False
+							is_truly_ineligible = True
+							ineligibility_reasons.append({
+								"code": "BOGO_NOT_CONFIGURED",
+								"message": "This BOGO offer is not fully configured",
+								"type": "usage",
+							})
+						elif cart_total < bogo_value:
+							is_eligible = False
+							ineligibility_reasons.append({
+								"code": "BILL_TOO_LOW",
+								"message": f"Bill must be at least ₹{int(bogo_value)} for the free item",
+								"type": "cart_value",
+								"minOrderAmount": bogo_value,
+								"currentAmount": cart_total,
+								"amountNeeded": max(0, bogo_value - cart_total),
+							})
+					else:
+						matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
+						if len(matching) < items_needed:
+							short = items_needed - len(matching)
+							pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
+							is_eligible = False
+							ineligibility_reasons.append({
+								"code": "COMBO_ITEMS_MISSING",
+								"message": f"Add {short} more item{'s' if short > 1 else ''} from the pool to unlock BOGO",
+								"type": "combo",
+								"missingCount": short,
+								"itemPool": item_pool_ids,
+								"itemPoolNames": pool_names,
+							})
 					combo_meta = {
 						"comboType": "bogo",
 						"itemPool": item_pool_ids,
 						"itemPoolNames": [product_names.get(p, {}).get("name", p) for p in item_pool_ids],
 						"itemsToSelect": items_needed,
+						"bogoFreeItemValue": bogo_value,
 						"comboName": offer.get("combo_name") or offer.description or "",
 					}
 
 				elif combo_type == "build_your_own":
-					matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
-					if len(matching) < items_needed:
-						short = items_needed - len(matching)
-						pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
-						is_eligible = False
-						ineligibility_reasons.append({
-							"code": "COMBO_ITEMS_MISSING",
-							"message": f"Pick {short} more item{'s' if short > 1 else ''} from the combo pool",
-							"type": "combo",
-							"missingCount": short,
-							"itemPool": item_pool_ids,
-							"itemPoolNames": pool_names,
-						})
+					if is_dine_in:
+						# Dine-in: bill must reach combo_price
+						if combo_price_val > 0 and cart_total < combo_price_val:
+							is_eligible = False
+							ineligibility_reasons.append({
+								"code": "BILL_TOO_LOW",
+								"message": f"Bill must be at least ₹{int(combo_price_val)} for this combo",
+								"type": "cart_value",
+								"minOrderAmount": combo_price_val,
+								"currentAmount": cart_total,
+								"amountNeeded": max(0, combo_price_val - cart_total),
+							})
+					else:
+						matching = [i for i in cart_items if str(i.get("dishId") or "") in item_pool_ids]
+						if len(matching) < items_needed:
+							short = items_needed - len(matching)
+							pool_names = [product_names.get(p, {}).get("name", p) for p in item_pool_ids]
+							is_eligible = False
+							ineligibility_reasons.append({
+								"code": "COMBO_ITEMS_MISSING",
+								"message": f"Pick {short} more item{'s' if short > 1 else ''} from the combo pool",
+								"type": "combo",
+								"missingCount": short,
+								"itemPool": item_pool_ids,
+								"itemPoolNames": pool_names,
+							})
 					combo_meta = {
 						"comboType": "build_your_own",
 						"itemPool": item_pool_ids,
 						"itemPoolNames": [product_names.get(p, {}).get("name", p) for p in item_pool_ids],
 						"itemsToSelect": items_needed,
-						"comboPrice": flt(offer.combo_price or 0),
+						"comboPrice": combo_price_val,
 						"comboName": offer.get("combo_name") or offer.description or "",
 					}
 
@@ -857,18 +933,29 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 
 			if offer.offer_type == "combo":
 				if combo_type == "bogo":
-					# Potential = cheapest item in pool
-					pool = combo_meta.get("itemPool") or required_ids
-					prices = [flt(product_names.get(p, {}).get("price", 0)) for p in pool]
-					potential_discount = min(prices) if prices else discount_amount
-					if is_eligible:
-						matching_prices = sorted([flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool])
-						discount_amount = matching_prices[0] if matching_prices else 0
+					bogo_val = flt(offer.get("bogo_free_item_value") or 0)
+					if is_dine_in:
+						# Fixed value regardless of cart contents
+						potential_discount = bogo_val
+						discount_amount = bogo_val if is_eligible else 0
 					else:
-						discount_amount = 0
-				elif combo_type in ("fixed_bundle", "build_your_own") and offer.combo_price:
-					potential_discount = max(0, flt(cart_total) - flt(offer.combo_price))
-					discount_amount = potential_discount if is_eligible else 0
+						# Online: cheapest matching pool item
+						pool_ids = item_pool_ids if "item_pool_ids" in dir() else []
+						prices = [flt(product_names.get(p, {}).get("price", 0)) for p in pool_ids]
+						potential_discount = min(prices) if prices else bogo_val
+						if is_eligible:
+							pool = combo_meta.get("itemPool") or []
+							matching_prices = sorted([flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool])
+							discount_amount = matching_prices[0] if matching_prices else 0
+						else:
+							discount_amount = 0
+				elif combo_type in ("fixed_bundle", "build_your_own"):
+					cp = flt(offer.combo_price or 0)
+					if cp > 0:
+						potential_discount = max(0, flt(cart_total) - cp)
+						discount_amount = potential_discount if is_eligible else 0
+					else:
+						discount_amount = flt(offer.discount_value) if is_eligible else 0
 				else:
 					discount_amount = flt(offer.discount_value) if is_eligible else 0
 			elif offer.discount_type == "percent":
@@ -905,11 +992,11 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			
 
 			
-			# Add to appropriate list
-			if is_truly_ineligible:
-				ineligible_offers.append(offer_data)
-			else:
+			# Add to appropriate list — eligible_offers only if fully eligible
+			if is_eligible:
 				eligible_offers.append(offer_data)
+			else:
+				ineligible_offers.append(offer_data)
 		
 		# Find best eligible offer (highest discount)
 		best_offer = None

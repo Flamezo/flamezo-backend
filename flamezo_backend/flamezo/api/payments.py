@@ -499,15 +499,19 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 				except Exception:
 					pass
 
-				# UGC cashback nudge — dispatched by the 5-min cron in ugc_tasks.py
-				# (dispatch_ugc_cashback_nudges). We just mark this order as eligible
-				# so the cron can find it without a schema change.
+				# UGC cashback nudge — enqueued exactly 3 minutes after payment.
 				try:
 					from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
 					ugc_config = _get_active_config(order.restaurant)
 					if ugc_config and _is_ugc_active(ugc_config):
-						frappe.cache().set_value(
-							f"ugc_nudge_eligible:{order.name}", 1, expires_in_sec=600
+						frappe.enqueue(
+							"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_cashback_nudge",
+							order_name=order.name,
+							queue="short",
+							timeout=60,
+							enqueue_after_commit=True,
+							at_front=False,
+							eta=180,  # 3 minutes
 						)
 				except Exception:
 					pass

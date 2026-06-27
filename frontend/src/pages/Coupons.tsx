@@ -23,9 +23,9 @@ import {
   Plus, Edit, Trash2, Tag, Percent, Gift, Calendar, Users,
   TrendingUp, AlertCircle, Zap, X, Sparkles, ArrowLeft,
   Clock, Star, ShoppingBag, Flame, RotateCcw, Download,
-  Lock, Unlock, ShieldCheck, BarChart3, CheckCircle2,
+  BarChart3, CheckCircle2,
   XCircle, ChevronDown, ChevronUp, Phone, CreditCard, RefreshCw,
-  Eye, EyeOff
+  ImagePlus, Loader2
 } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
@@ -72,6 +72,7 @@ const BLANK_FORM = {
   valid_from: '',
   valid_until: '',
   combo_price: 0,
+  bogo_free_item_value: 0,
   required_items: '',
   valid_days_of_week: '',
   valid_time_start: '',
@@ -84,6 +85,7 @@ const BLANK_FORM = {
   item_pool: '',
   items_to_select: 2,
   display_on_menu: true,
+  combo_image: '',
 }
 
 interface CouponTemplate {
@@ -541,11 +543,8 @@ export default function Coupons() {
         ))}
       </div>
 
-      {/* PIN Setup + Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PinSetupCard restaurantId={selectedRestaurant} />
-        <ClaimsAnalyticsCard restaurantId={selectedRestaurant} />
-      </div>
+      {/* Analytics */}
+      <ClaimsAnalyticsCard restaurantId={selectedRestaurant} />
 
       {/* List */}
       <Card>
@@ -858,6 +857,9 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
   const [saving, setSaving] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [selectedPoolProducts, setSelectedPoolProducts] = useState<string[]>([])
+  const [generatingImage, setGeneratingImage] = useState(false)
+  const { call: enqueueEnhancement } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.enqueue_enhancement')
+  const { call: getEnhancementStatus } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.get_enhancement_status')
 
   const { data: productsData } = useFrappeGetDocList('Menu Product', {
     fields: ['product_id', 'product_name', 'category_name', 'main_category'],
@@ -890,6 +892,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         valid_from: coupon.valid_from || '',
         valid_until: coupon.valid_until || '',
         combo_price: coupon.combo_price || 0,
+        bogo_free_item_value: coupon.bogo_free_item_value || 0,
         required_items: coupon.required_items || null,
         valid_days_of_week: coupon.valid_days_of_week || '',
         valid_time_start: coupon.valid_time_start || '',
@@ -902,6 +905,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         item_pool: coupon.item_pool || '',
         items_to_select: coupon.items_to_select || 2,
         display_on_menu: coupon.display_on_menu ?? true,
+        combo_image: coupon.combo_image || '',
       })
       if (coupon.required_items) {
         try {
@@ -968,6 +972,38 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
   const isDaySelected = (day: string) => {
     try { return (formData.valid_days_of_week ? JSON.parse(formData.valid_days_of_week) : []).includes(day) }
     catch { return false }
+  }
+
+  const handleGenerateImage = async () => {
+    if (!selectedRestaurant || !coupon?.name) return
+    setGeneratingImage(true)
+    try {
+      const res = await enqueueEnhancement({
+        restaurant: selectedRestaurant,
+        owner_doctype: 'Coupon',
+        owner_name: coupon.name,
+        mode: 'generate',
+      }) as any
+      const generationId = res?.message?.generation_id
+      if (!generationId) throw new Error('No generation ID returned')
+      // Poll until done
+      let attempts = 0
+      while (attempts < 40) {
+        await new Promise(r => setTimeout(r, 3000))
+        const status = await getEnhancementStatus({ generation_id: generationId }) as any
+        const s = status?.message
+        if (s?.status === 'Completed' && s?.enhanced_image_url) {
+          set({ combo_image: s.enhanced_image_url })
+          break
+        }
+        if (s?.status === 'Failed') throw new Error(s?.error_message || 'Generation failed')
+        attempts++
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Image generation failed')
+    } finally {
+      setGeneratingImage(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1174,10 +1210,23 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                 </div>
               )}
 
-              {/* Combo Price — hidden for BOGO (auto-calculated) */}
+              {/* Price — BOGO uses fixed free-item value; others use combo_price */}
               {formData.combo_type === 'bogo' ? (
-                <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  BOGO discount is automatic — the cheapest qualifying item in the cart is made free. No combo price needed.
+                <div className="space-y-1.5">
+                  <Label htmlFor="bogo_free_item_value">
+                    Free Item Value ({currencySymbol}) *
+                    <span className="text-muted-foreground font-normal text-xs ml-1">— the rupee value of the item the customer gets free</span>
+                  </Label>
+                  <NumberInput
+                    id="bogo_free_item_value"
+                    value={formData.bogo_free_item_value}
+                    onChange={(e: any) => set({ bogo_free_item_value: parseFloat(e.target.value) || 0 })}
+                    min="0"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Both you and the customer see this as a fixed discount. E.g. if cheapest qualifying item is ₹199, set ₹199.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -1192,6 +1241,67 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                 </div>
               )}
 
+              {/* Combo card image — mandatory to show on menu */}
+              <div className="space-y-2 rounded-lg border p-3">
+                <Label className="flex items-center gap-1.5">
+                  <ImagePlus className="h-4 w-4 text-purple-500" />
+                  Combo Card Image <span className="text-red-500">*</span>
+                  <span className="text-muted-foreground font-normal text-xs">(required to show on menu)</span>
+                </Label>
+                {formData.combo_image ? (
+                  <div className="relative w-32 h-40 rounded-xl overflow-hidden border">
+                    <img src={formData.combo_image} alt="Combo" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => set({ combo_image: '' })}
+                      className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 text-white hover:bg-black/80"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-32 h-40 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/50">
+                    <ImagePlus className="h-8 w-8" />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={generatingImage || !coupon?.name}
+                    onClick={handleGenerateImage}
+                  >
+                    {generatingImage ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generating…</>
+                    ) : (
+                      <><Sparkles className="h-3.5 w-3.5 text-purple-500" />Generate with AI</>
+                    )}
+                  </Button>
+                  <label className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm" className="gap-1.5 pointer-events-none">
+                      <ImagePlus className="h-3.5 w-3.5" />Upload
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = () => set({ combo_image: reader.result as string })
+                        reader.readAsDataURL(file)
+                      }}
+                    />
+                  </label>
+                </div>
+                {!coupon?.name && (
+                  <p className="text-xs text-muted-foreground">Save the coupon first to enable AI generation.</p>
+                )}
+              </div>
+
               {/* Show on menu card toggle */}
               <div className="flex items-center gap-2 pt-1">
                 <input
@@ -1203,6 +1313,15 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                 />
                 <label htmlFor="display_on_menu" className="text-sm cursor-pointer">
                   Show as a combo card on the menu page
+                  {!formData.combo_image && formData.display_on_menu && (
+                    <span className="ml-2 text-xs text-amber-600">(add an image above first)</span>
+                  )}
+                  {formData.combo_image && formData.display_on_menu && formData.combo_type !== 'bogo' && !formData.combo_price && (
+                    <span className="ml-2 text-xs text-red-600">(set a combo price — ₹0 combos won't appear on menu)</span>
+                  )}
+                  {formData.combo_image && formData.display_on_menu && formData.combo_type === 'bogo' && !formData.bogo_free_item_value && (
+                    <span className="ml-2 text-xs text-red-600">(set the free item value — ₹0 BOGO won't appear on menu)</span>
+                  )}
                 </label>
               </div>
             </div>
@@ -1329,168 +1448,6 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-// ─── PIN Setup Card ───────────────────────────────────────────────────────────
-
-function PinSetupCard({ restaurantId }: { restaurantId: string }) {
-  const [pin, setPin] = useState(['', '', '', ''])
-  const [isSet, setIsSet] = useState<boolean | null>(null)
-  const [currentPin, setCurrentPin] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [showPin, setShowPin] = useState(false)
-  const [showCurrentPin, setShowCurrentPin] = useState(false)
-
-  const { call: setPinCall } = useFrappePostCall(
-    'flamezo_backend.flamezo.api.coupons.set_offer_pin'
-  )
-  const { call: getPinStatus } = useFrappePostCall(
-    'flamezo_backend.flamezo.api.coupons.get_offer_pin_status'
-  )
-
-  useEffect(() => {
-    if (!restaurantId) return
-    getPinStatus({ restaurant_id: restaurantId })
-      .then((res: any) => {
-        const payload = res?.message ?? res
-        setIsSet(!!payload?.data?.is_set)
-        setCurrentPin(payload?.data?.pin || '')
-      })
-      .catch(() => setIsSet(false))
-  }, [restaurantId])
-
-  const handleDigit = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return
-    const next = [...pin]
-    next[index] = value.slice(-1)
-    setPin(next)
-    if (value && index < 3) {
-      const nextInput = document.getElementById(`pin-digit-${index + 1}`) as HTMLInputElement | null
-      nextInput?.focus()
-    }
-  }
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !pin[index] && index > 0) {
-      const prevInput = document.getElementById(`pin-digit-${index - 1}`) as HTMLInputElement | null
-      prevInput?.focus()
-    }
-  }
-
-  const handleSave = async () => {
-    const fullPin = pin.join('')
-    if (fullPin.length !== 4) { toast.error('Enter all 4 digits'); return }
-    setSaving(true)
-    try {
-      const res = await setPinCall({ restaurant_id: restaurantId, pin: fullPin })
-      const payload = (res as any)?.message ?? res
-      if (payload?.success) {
-        toast.success('PIN saved — staff are ready to verify offers')
-        setIsSet(true)
-        setCurrentPin(fullPin)
-        setShowForm(false)
-        setPin(['', '', '', ''])
-        setShowPin(false)
-      } else {
-        toast.error(payload?.error?.message || 'Failed to save PIN')
-      }
-    } catch { toast.error('Failed to save PIN') } finally { setSaving(false) }
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Offer Verification PIN</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Staff enter this on customer's phone to claim an offer
-              </CardDescription>
-            </div>
-          </div>
-          {isSet !== null && (
-            <Badge variant={isSet ? 'default' : 'secondary'} className={isSet ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 border-green-200' : ''}>
-              {isSet ? <><Unlock className="h-3 w-3 mr-1" />PIN Set</> : <><Lock className="h-3 w-3 mr-1" />Not Set</>}
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {!showForm ? (
-          <div className="space-y-4">
-            {isSet && currentPin ? (
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">Current PIN — share with your staff</p>
-                <div className="flex items-center gap-3">
-                  {(showCurrentPin ? currentPin.split('') : ['•','•','•','•']).map((ch, i) => (
-                    <div key={i} className="w-12 h-12 flex items-center justify-center text-xl font-bold rounded-xl border-2 border-border bg-muted/40 select-none">
-                      {ch}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPin(v => !v)}
-                    className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    title={showCurrentPin ? 'Hide PIN' : 'Reveal PIN'}
-                  >
-                    {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Set a 4-digit PIN that staff enter on a customer's phone to verify an offer claim. Every claim is recorded for analytics.
-              </p>
-            )}
-            <Button size="sm" variant={isSet ? 'outline' : 'default'} onClick={() => setShowForm(true)}>
-              {isSet ? 'Change PIN' : 'Set PIN'}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Enter a new 4-digit PIN:</p>
-            <div className="flex items-center gap-3">
-              {pin.map((digit, i) => (
-                <input
-                  key={i}
-                  id={`pin-digit-${i}`}
-                  type={showPin ? 'text' : 'password'}
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleDigit(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="w-12 h-12 text-center text-xl font-bold rounded-xl border-2 bg-background focus:border-primary focus:outline-none transition-colors"
-                />
-              ))}
-              <button
-                type="button"
-                onClick={() => setShowPin(v => !v)}
-                className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title={showPin ? 'Hide PIN' : 'Show PIN'}
-              >
-                {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSave} disabled={saving || pin.join('').length < 4}>
-                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Save PIN
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setPin(['', '', '', '']); setShowPin(false) }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   )
 }
 

@@ -262,70 +262,29 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items):
 	combo_type = _raw_combo_type if isinstance(_raw_combo_type, str) and _raw_combo_type else "fixed_bundle"
 
 	if offer.offer_type == "combo":
-		cart_dish_ids = [str(item.get("dishId") or item.get("dish_id") or "") for item in cart_items]
-
-		if combo_type == "fixed_bundle":
-			# All required items must be present in cart
-			if offer.required_items:
-				try:
-					required = json.loads(offer.required_items) if isinstance(offer.required_items, str) else offer.required_items
-					if any(str(r) not in cart_dish_ids for r in required):
-						return {"success": False}
-				except Exception:
-					pass
-
-		elif combo_type == "bogo":
-			# At least items_to_select qualifying items from item_pool must be in cart
-			pool = []
-			if offer.item_pool:
-				try:
-					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-				except Exception:
-					pass
-			required_count = int(getattr(offer, "items_to_select", 2) or 2)
-			matching = [i for i in cart_items if str(i.get("dishId") or "") in pool]
-			if len(matching) < required_count:
-				return {"success": False}
-
-		elif combo_type == "build_your_own":
-			# At least items_to_select items from item_pool present
-			pool = []
-			if offer.item_pool:
-				try:
-					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-				except Exception:
-					pass
-			required_count = int(getattr(offer, "items_to_select", 2) or 2)
-			matching = [i for i in cart_items if str(i.get("dishId") or "") in pool]
-			if len(matching) < required_count:
-				return {"success": False}
+		# In dine-in the cart is always empty, so validate on bill total only.
+		if combo_type == "bogo":
+			# BOGO requires bill ≥ bogo_free_item_value (no free item if bill can't cover it)
+			bogo_value = flt(getattr(offer, "bogo_free_item_value", 0) or 0)
+			if bogo_value <= 0:
+				return {"success": False, "reason": "BOGO free item value not configured"}
+			if flt(cart_total) < bogo_value:
+				return {"success": False, "reason": f"Bill must be at least ₹{int(bogo_value)} to apply this BOGO"}
+		else:
+			combo_price_set = flt(getattr(offer, "combo_price", 0) or 0)
+			if combo_price_set > 0 and flt(cart_total) < combo_price_set:
+				return {"success": False, "reason": f"Bill must be at least ₹{int(combo_price_set)} for this combo"}
 
 	# Calculate Discount
 	discount_amount = 0
 	if offer.offer_type == "combo":
 		if combo_type == "bogo":
-			# Cheapest qualifying item is free
-			pool = []
-			if offer.item_pool:
-				try:
-					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-				except Exception:
-					pass
-			matching_prices = sorted(
-				[flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool]
-			)
-			discount_amount = matching_prices[0] if matching_prices else 0
+			# Fixed free-item value set by the restaurant — works in dine-in without a digital cart.
+			discount_amount = flt(getattr(offer, "bogo_free_item_value", 0) or 0)
 
 		elif combo_type == "build_your_own" and offer.combo_price is not None:
-			# Sum of qualifying items minus combo_price
-			pool = []
-			if offer.item_pool:
-				try:
-					pool = json.loads(offer.item_pool) if isinstance(offer.item_pool, str) else offer.item_pool
-				except Exception:
-					pass
-			selected_total = sum(flt(i.get("unitPrice", 0)) for i in cart_items if str(i.get("dishId") or "") in pool)
-			discount_amount = max(0, selected_total - flt(offer.combo_price))
+			# In dine-in: discount = bill total minus the bundle price
+			discount_amount = max(0, flt(cart_total) - flt(offer.combo_price))
 
 		elif combo_type == "fixed_bundle" and offer.combo_price is not None:
 			# Discount = full cart total minus the bundle price

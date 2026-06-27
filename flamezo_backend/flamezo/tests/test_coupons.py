@@ -487,10 +487,11 @@ class TestValidateOfferEligibility(unittest.TestCase):
 
     # ── Combo ─────────────────────────────────────────────────────────────────
 
-    def test_combo_missing_required_item(self):
-        offer = self._offer(offer_type="combo", required_items=json.dumps(["dish-X"]))
-        cart_items = [{"dishId": "dish-Y"}]
-        result = self._call(offer, cart_items=cart_items)
+    def test_combo_bill_below_price_fails(self):
+        # Dine-in: required_items not checked (no digital cart). Validation is
+        # bill-total only — bill must be >= combo_price for fixed_bundle.
+        offer = self._offer(offer_type="combo", combo_price=500.0)
+        result = self._call(offer, cart_total=100)
         self.assertFalse(result["success"])
 
     def test_combo_all_items_present(self):
@@ -736,21 +737,18 @@ class TestComboAndBOGO(unittest.TestCase):
         from flamezo_backend.flamezo.utils.pricing import validate_offer_eligibility
         return validate_offer_eligibility(offer, cart_total, None, cart_items or [])
 
-    def test_combo_discount_is_zero_when_combo_price_exceeds_cart(self):
-        """combo_price higher than cart_total should yield discount=0, not negative."""
-        offer = self._offer(
-            required_items=json.dumps(["dish-A"]),
-            combo_price=500.0,
-        )
-        result = self._call(offer, cart_total=300, cart_items=[{"dishId": "dish-A"}])
-        self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 0.0)
-
-    def test_combo_partial_match_fails(self):
-        """Only one of two required items present → ineligible."""
-        offer = self._offer(required_items=json.dumps(["dish-A", "dish-B"]))
-        result = self._call(offer, cart_items=[{"dishId": "dish-A"}])
+    def test_combo_price_exceeds_bill_is_ineligible(self):
+        """combo_price > bill → ineligible (can't apply a bundle that costs more than the bill)."""
+        offer = self._offer(combo_price=500.0)
+        result = self._call(offer, cart_total=300)
         self.assertFalse(result["success"])
+
+    def test_combo_bill_above_price_discount_correct(self):
+        """Bill ₹350 with combo_price ₹200 → discount = ₹150."""
+        offer = self._offer(combo_price=200.0)
+        result = self._call(offer, cart_total=350)
+        self.assertTrue(result["success"])
+        self.assertAlmostEqual(result["discount_amount"], 150.0)
 
     def test_combo_exact_match_succeeds(self):
         offer = self._offer(
@@ -1002,22 +1000,21 @@ class TestCouponExportImport(unittest.TestCase):
 
 class TestComboTypeEligibility(unittest.TestCase):
     """
-    Tests for the new combo_type-aware logic in validate_offer_eligibility().
+    Tests for combo_type-aware logic in validate_offer_eligibility().
 
-    Covers:
-      fixed_bundle — all required_items must be in cart; discount = cart_total - combo_price
-      bogo         — ≥ items_to_select items from item_pool in cart; cheapest one free
-      build_your_own — ≥ items_to_select from item_pool; discount = sum(pool items) - combo_price
+    Dine-in model (June 2026): cart is always empty at pay-bill.
+    Validation is entirely bill-total based:
+
+      fixed_bundle  — bill >= combo_price → eligible; discount = bill - combo_price
+      bogo          — bogo_free_item_value > 0 AND bill >= that value → eligible;
+                      discount = bogo_free_item_value (fixed, set by restaurant)
+      build_your_own — bill >= combo_price → eligible; discount = bill - combo_price
 
     Edge cases:
-      - Missing required items (fixed_bundle) → ineligible
-      - BOGO with fewer pool items than items_to_select → ineligible
-      - BOGO: discount is the CHEAPEST matching item, not the most expensive
-      - BYO: discount is sum − combo_price, never negative
-      - combo_price = 0 on fixed_bundle → discount = cart_total
-      - Malformed JSON in item_pool/required_items → treated as empty (no crash)
-      - items_to_select = 1 (single-item BOGO)
-      - Extra cart items that aren't in pool don't count toward BOGO requirement
+      - combo_price = 0 on fixed_bundle → no minimum, discount = bill (full cart)
+      - combo_price > bill → ineligible (can't apply combo that costs more than bill)
+      - bogo_free_item_value = 0 → unconfigured, always ineligible
+      - combo_price = None on BYO → 0 discount (no crash)
     """
 
     def _offer(self, **kwargs):
@@ -1044,6 +1041,7 @@ class TestComboTypeEligibility(unittest.TestCase):
             item_pool=None,
             items_to_select=2,
             combo_price=None,
+            bogo_free_item_value=0,
             can_stack=0,
         )
         defaults.update(kwargs)
@@ -1058,309 +1056,128 @@ class TestComboTypeEligibility(unittest.TestCase):
 
     # ── fixed_bundle ────────────────────────────────────────────────────────
 
-    def test_fixed_bundle_all_items_present_succeeds(self):
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=json.dumps(["pizza", "coke"]),
-            combo_price=150.0,
-        )
-        result = self._call(offer, cart_total=250, cart_items=[
-            {"dishId": "pizza", "unitPrice": 180},
-            {"dishId": "coke", "unitPrice": 70},
-        ])
+    def test_fixed_bundle_bill_above_price_succeeds(self):
+        """Bill of ₹250 with combo_price ₹150 → eligible, discount = ₹100."""
+        offer = self._offer(combo_type="fixed_bundle", combo_price=150.0)
+        result = self._call(offer, cart_total=250)
         self.assertTrue(result["success"])
-        # discount = cart_total(250) - combo_price(150) = 100
         self.assertAlmostEqual(result["discount_amount"], 100.0)
 
-    def test_fixed_bundle_missing_one_item_fails(self):
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=json.dumps(["pizza", "coke"]),
-            combo_price=150.0,
-        )
-        result = self._call(offer, cart_total=180, cart_items=[
-            {"dishId": "pizza", "unitPrice": 180},
-        ])
+    def test_fixed_bundle_bill_below_price_fails(self):
+        """Bill of ₹100 cannot claim a ₹150 bundle."""
+        offer = self._offer(combo_type="fixed_bundle", combo_price=150.0)
+        result = self._call(offer, cart_total=100)
         self.assertFalse(result["success"])
 
-    def test_fixed_bundle_extra_cart_items_still_qualifies(self):
-        """Cart has required items + extras — should still succeed."""
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=json.dumps(["pizza"]),
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=400, cart_items=[
-            {"dishId": "pizza", "unitPrice": 180},
-            {"dishId": "burger", "unitPrice": 120},
-            {"dishId": "fries", "unitPrice": 100},
-        ])
+    def test_fixed_bundle_bill_equals_price_eligible(self):
+        """Bill exactly equal to combo_price → eligible, discount = 0."""
+        offer = self._offer(combo_type="fixed_bundle", combo_price=200.0)
+        result = self._call(offer, cart_total=200)
         self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 300.0)  # 400 - 100
+        self.assertAlmostEqual(result["discount_amount"], 0.0)
 
-    def test_fixed_bundle_combo_price_zero_gives_full_cart_discount(self):
-        """combo_price=0 → full cart is free (edge case)."""
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=json.dumps(["pizza"]),
-            combo_price=0.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "pizza", "unitPrice": 200}])
+    def test_fixed_bundle_combo_price_zero_gives_full_bill_discount(self):
+        """combo_price=0 → no minimum, discount = full bill."""
+        offer = self._offer(combo_type="fixed_bundle", combo_price=0.0)
+        result = self._call(offer, cart_total=200)
         self.assertTrue(result["success"])
         self.assertAlmostEqual(result["discount_amount"], 200.0)
 
-    def test_fixed_bundle_combo_price_exceeds_cart_discount_is_zero(self):
-        """combo_price > cart_total → discount should be 0, never negative."""
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=json.dumps(["pizza"]),
-            combo_price=999.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "pizza", "unitPrice": 200}])
+    def test_fixed_bundle_none_price_gives_zero_discount(self):
+        """combo_price=None → no combo price configured, discount = 0 (no crash)."""
+        offer = self._offer(combo_type="fixed_bundle", combo_price=None)
+        result = self._call(offer, cart_total=200)
         self.assertTrue(result["success"])
         self.assertAlmostEqual(result["discount_amount"], 0.0)
-
-    def test_fixed_bundle_malformed_required_items_json_treated_as_empty(self):
-        """Malformed JSON in required_items → no crash, treated as no requirements."""
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items="{not valid json]",
-            combo_price=100.0,
-        )
-        # Should not raise; with empty requirements, combo qualifies
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "any-dish", "unitPrice": 200}])
-        # Must not crash; success or failure both acceptable, but no exception
-        self.assertIn("success", result)
-
-    def test_fixed_bundle_none_required_items_qualifies(self):
-        """required_items=None → no restriction, always eligible."""
-        offer = self._offer(
-            combo_type="fixed_bundle",
-            required_items=None,
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "any", "unitPrice": 200}])
-        self.assertTrue(result["success"])
 
     # ── bogo ────────────────────────────────────────────────────────────────
 
-    def test_bogo_enough_pool_items_succeeds(self):
-        """2 items from pool in cart, items_to_select=2 → eligible, cheapest is free."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["burger", "wrap"]),
-            items_to_select=2,
-        )
-        result = self._call(offer, cart_total=350, cart_items=[
-            {"dishId": "burger", "unitPrice": 200},
-            {"dishId": "wrap", "unitPrice": 150},
-        ])
+    def test_bogo_bill_above_free_item_value_succeeds(self):
+        """Bill ₹500 >= free_item_value ₹199 → eligible, discount = ₹199."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=199.0)
+        result = self._call(offer, cart_total=500)
         self.assertTrue(result["success"])
-        # cheapest = 150 (wrap)
-        self.assertAlmostEqual(result["discount_amount"], 150.0)
+        self.assertAlmostEqual(result["discount_amount"], 199.0)
 
-    def test_bogo_discount_is_cheapest_not_most_expensive(self):
-        """BOGO must free the cheapest item, not the most expensive."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["pizza", "soup", "juice"]),
-            items_to_select=2,
-        )
+    def test_bogo_bill_below_free_item_value_fails(self):
+        """Bill ₹100 cannot claim a ₹199 BOGO."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=199.0)
+        result = self._call(offer, cart_total=100)
+        self.assertFalse(result["success"])
+
+    def test_bogo_bill_exactly_equals_value_eligible(self):
+        """Bill exactly equal to bogo_free_item_value → eligible (boundary)."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=199.0)
+        result = self._call(offer, cart_total=199)
+        self.assertTrue(result["success"])
+        self.assertAlmostEqual(result["discount_amount"], 199.0)
+
+    def test_bogo_zero_free_item_value_always_ineligible(self):
+        """bogo_free_item_value=0 means unconfigured → always ineligible."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=0)
+        result = self._call(offer, cart_total=500)
+        self.assertFalse(result["success"])
+
+    def test_bogo_discount_is_fixed_value_not_cheapest_cart_item(self):
+        """Discount is the pre-set free_item_value regardless of what's in the cart."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=80.0)
+        # Cart items are ignored in dine-in BOGO — discount is always 80
         result = self._call(offer, cart_total=500, cart_items=[
-            {"dishId": "pizza", "unitPrice": 300},  # most expensive
-            {"dishId": "soup", "unitPrice": 80},    # cheapest — should be free
-            {"dishId": "juice", "unitPrice": 120},
+            {"dishId": "pizza", "unitPrice": 300},
+            {"dishId": "soup", "unitPrice": 200},
         ])
         self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 80.0)  # soup price
+        self.assertAlmostEqual(result["discount_amount"], 80.0)
 
-    def test_bogo_insufficient_pool_items_fails(self):
-        """Only 1 pool item in cart, items_to_select=2 → ineligible."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["burger", "wrap"]),
-            items_to_select=2,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[
-            {"dishId": "burger", "unitPrice": 200},
-        ])
-        self.assertFalse(result["success"])
-
-    def test_bogo_non_pool_items_dont_count(self):
-        """Cart has 3 items but none from pool → ineligible."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["burger", "wrap"]),
-            items_to_select=2,
-        )
-        result = self._call(offer, cart_total=400, cart_items=[
-            {"dishId": "pizza", "unitPrice": 200},
-            {"dishId": "pasta", "unitPrice": 200},
-        ])
-        self.assertFalse(result["success"])
-
-    def test_bogo_single_item_select(self):
-        """items_to_select=1: buy 1 from pool, get it free."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["tea"]),
-            items_to_select=1,
-        )
-        result = self._call(offer, cart_total=50, cart_items=[
-            {"dishId": "tea", "unitPrice": 50},
-        ])
+    def test_bogo_large_bill_still_discounts_only_free_item_value(self):
+        """Discount is capped at bogo_free_item_value even for large bills."""
+        offer = self._offer(combo_type="bogo", bogo_free_item_value=150.0)
+        result = self._call(offer, cart_total=10000)
         self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 50.0)
-
-    def test_bogo_empty_pool_fails(self):
-        """Empty item_pool → no items can qualify → ineligible."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps([]),
-            items_to_select=2,
-        )
-        result = self._call(offer, cart_total=300, cart_items=[
-            {"dishId": "burger", "unitPrice": 200},
-            {"dishId": "wrap", "unitPrice": 100},
-        ])
-        self.assertFalse(result["success"])
-
-    def test_bogo_malformed_item_pool_treated_as_empty(self):
-        """Malformed JSON in item_pool → treated as no pool → ineligible."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool="[invalid",
-            items_to_select=1,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[
-            {"dishId": "burger", "unitPrice": 200},
-        ])
-        # Should not crash; with empty pool and items_to_select≥1 → ineligible
-        self.assertFalse(result["success"])
-
-    def test_bogo_exactly_meets_threshold(self):
-        """Exactly items_to_select items in pool → should qualify."""
-        offer = self._offer(
-            combo_type="bogo",
-            item_pool=json.dumps(["a", "b", "c"]),
-            items_to_select=3,
-        )
-        result = self._call(offer, cart_total=600, cart_items=[
-            {"dishId": "a", "unitPrice": 300},
-            {"dishId": "b", "unitPrice": 200},
-            {"dishId": "c", "unitPrice": 100},  # cheapest = free
-        ])
-        self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 100.0)
+        self.assertAlmostEqual(result["discount_amount"], 150.0)
 
     # ── build_your_own ──────────────────────────────────────────────────────
 
-    def test_byo_enough_items_succeeds(self):
-        """Pick 2 from pool, combo_price=200, sum=350 → discount=150."""
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps(["steak", "salad"]),
-            items_to_select=2,
-            combo_price=200.0,
-        )
-        result = self._call(offer, cart_total=350, cart_items=[
-            {"dishId": "steak", "unitPrice": 250},
-            {"dishId": "salad", "unitPrice": 100},
-        ])
+    def test_byo_bill_above_price_succeeds(self):
+        """Bill ₹350 with combo_price ₹200 → eligible, discount = ₹150."""
+        offer = self._offer(combo_type="build_your_own", combo_price=200.0)
+        result = self._call(offer, cart_total=350)
         self.assertTrue(result["success"])
-        # sum of pool items = 350, combo_price = 200 → discount = 150
         self.assertAlmostEqual(result["discount_amount"], 150.0)
 
-    def test_byo_discount_never_negative(self):
-        """sum of selected items < combo_price → discount = 0."""
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps(["tea", "biscuit"]),
-            items_to_select=2,
-            combo_price=500.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[
-            {"dishId": "tea", "unitPrice": 80},
-            {"dishId": "biscuit", "unitPrice": 40},
-        ])
-        self.assertTrue(result["success"])
-        self.assertAlmostEqual(result["discount_amount"], 0.0)
-
-    def test_byo_insufficient_pool_items_fails(self):
-        """Only 1 of required 2 pool items in cart → ineligible."""
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps(["steak", "salad"]),
-            items_to_select=2,
-            combo_price=200.0,
-        )
-        result = self._call(offer, cart_total=250, cart_items=[
-            {"dishId": "steak", "unitPrice": 250},
-        ])
+    def test_byo_bill_below_price_fails(self):
+        """Bill ₹150 cannot claim a ₹200 build-your-own bundle."""
+        offer = self._offer(combo_type="build_your_own", combo_price=200.0)
+        result = self._call(offer, cart_total=150)
         self.assertFalse(result["success"])
 
-    def test_byo_non_pool_items_excluded_from_discount_calculation(self):
-        """Items not in pool shouldn't add to the discount sum."""
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps(["steak"]),
-            items_to_select=1,
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=600, cart_items=[
-            {"dishId": "steak", "unitPrice": 200},    # in pool
-            {"dishId": "wine", "unitPrice": 400},     # NOT in pool
-        ])
+    def test_byo_bill_equals_price_discount_zero(self):
+        """Bill exactly equal to combo_price → eligible with ₹0 discount."""
+        offer = self._offer(combo_type="build_your_own", combo_price=300.0)
+        result = self._call(offer, cart_total=300)
         self.assertTrue(result["success"])
-        # Only steak(200) counts: discount = 200 - 100 = 100
-        self.assertAlmostEqual(result["discount_amount"], 100.0)
+        self.assertAlmostEqual(result["discount_amount"], 0.0)
 
     def test_byo_missing_combo_price_gives_zero_discount(self):
-        """combo_price=None on BYO → discount falls through to 0 (no crash)."""
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps(["steak"]),
-            items_to_select=1,
-            combo_price=None,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[
-            {"dishId": "steak", "unitPrice": 200},
-        ])
+        """combo_price=None on BYO → ₹0 discount (no crash)."""
+        offer = self._offer(combo_type="build_your_own", combo_price=None)
+        result = self._call(offer, cart_total=200)
         self.assertTrue(result["success"])
         self.assertAlmostEqual(result["discount_amount"], 0.0)
-
-    def test_byo_empty_pool_fails(self):
-        offer = self._offer(
-            combo_type="build_your_own",
-            item_pool=json.dumps([]),
-            items_to_select=1,
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=300, cart_items=[
-            {"dishId": "steak", "unitPrice": 300},
-        ])
-        self.assertFalse(result["success"])
 
     # ── combo_type defaults to fixed_bundle when unset ──────────────────────
 
     def test_no_combo_type_defaults_to_fixed_bundle_behavior(self):
-        """offer with combo_type=None should behave like fixed_bundle."""
-        offer = self._offer(
-            combo_type=None,
-            required_items=json.dumps(["dish-X"]),
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "dish-X", "unitPrice": 200}])
+        """combo_type=None should behave like fixed_bundle (bill >= combo_price)."""
+        offer = self._offer(combo_type=None, combo_price=100.0)
+        result = self._call(offer, cart_total=200)
         self.assertTrue(result["success"])
         self.assertAlmostEqual(result["discount_amount"], 100.0)
 
-    def test_no_combo_type_missing_item_fails(self):
-        offer = self._offer(
-            combo_type=None,
-            required_items=json.dumps(["dish-X", "dish-Y"]),
-            combo_price=100.0,
-        )
-        result = self._call(offer, cart_total=200, cart_items=[{"dishId": "dish-X", "unitPrice": 200}])
+    def test_no_combo_type_bill_below_price_fails(self):
+        """combo_type=None (→ fixed_bundle): bill < combo_price → ineligible."""
+        offer = self._offer(combo_type=None, combo_price=300.0)
+        result = self._call(offer, cart_total=200)
         self.assertFalse(result["success"])
 
 
@@ -2361,6 +2178,519 @@ class TestClaimDedupWindow(unittest.TestCase):
 
         result = self._claim_pin(coupon)
         self.assertTrue(result["success"])
+
+
+# ─── Test: Combo card image — config response + apply_to_coupon ──────────────
+
+class TestComboImage(unittest.TestCase):
+    """
+    Tests for the combo_image feature introduced in June 2026.
+
+    Covers:
+      - combo with combo_image + display_on_menu=1 → appears in comboDeals with comboImage key
+      - combo with display_on_menu=1 but NO combo_image → excluded from comboDeals
+      - combo with display_on_menu=0 → excluded regardless of image
+      - comboImage value in response matches what was saved on the Coupon
+      - apply_to_coupon() saves enhanced_image_url to Coupon.combo_image
+      - apply_to_coupon() raises when generation is not Completed
+      - apply_to_coupon() raises when owner_doctype is not Coupon
+      - process_ai_image_enhancement resolves combo name from Coupon doc (unit test, mocked)
+    """
+
+    FAKE_IMAGE = "https://cdn.example.com/fake-combo-image.jpg"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant("TEST-COMBIMG").name
+        make_restaurant_config(cls.restaurant)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_coupons(self.restaurant)
+
+    def _make_combo(self, code, display_on_menu=1, combo_image=None, **kwargs):
+        doc = frappe.get_doc({
+            "doctype": "Coupon",
+            "restaurant": self.restaurant,
+            "code": code,
+            "offer_type": "combo",
+            "combo_type": "fixed_bundle",
+            "combo_name": f"Test Combo {code}",
+            "combo_price": 199.0,
+            "description": f"A test combo deal for {code}",
+            "display_on_menu": display_on_menu,
+            "is_active": 1,
+            **kwargs,
+        })
+        doc.insert(ignore_permissions=True)
+        if combo_image:
+            frappe.db.set_value("Coupon", doc.name, "combo_image", combo_image)
+        frappe.db.commit()
+        return frappe.get_doc("Coupon", doc.name)
+
+    def _get_combo_deals(self):
+        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        result = get_restaurant_config(self.restaurant)
+        # Response is {"success": True, "data": {"settings": {"comboDeals": [...]}}}
+        return result.get("data", {}).get("settings", {}).get("comboDeals", [])
+
+    # ── Config response: inclusion ────────────────────────────────────────────
+
+    def test_combo_with_image_appears_in_config(self):
+        """A combo with combo_image + display_on_menu=1 must appear in comboDeals."""
+        self._make_combo("IMGYES", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        combos = self._get_combo_deals()
+        codes = [c["code"] for c in combos]
+        self.assertIn("IMGYES", codes)
+
+    def test_combo_without_image_excluded_from_config(self):
+        """display_on_menu=1 but no combo_image → must NOT appear in comboDeals."""
+        self._make_combo("IMGNO", display_on_menu=1, combo_image=None)
+        combos = self._get_combo_deals()
+        codes = [c["code"] for c in combos]
+        self.assertNotIn("IMGNO", codes)
+
+    def test_combo_display_off_excluded_regardless_of_image(self):
+        """display_on_menu=0 → excluded even if image is set."""
+        self._make_combo("IMGOFF", display_on_menu=0, combo_image=self.FAKE_IMAGE)
+        combos = self._get_combo_deals()
+        codes = [c["code"] for c in combos]
+        self.assertNotIn("IMGOFF", codes)
+
+    # ── comboImage value ──────────────────────────────────────────────────────
+
+    def test_combo_image_value_in_response(self):
+        """comboImage in response must match what was saved on the Coupon."""
+        self._make_combo("IMGVAL", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        combos = self._get_combo_deals()
+        combo = next((c for c in combos if c["code"] == "IMGVAL"), None)
+        self.assertIsNotNone(combo, "IMGVAL combo missing from response")
+        self.assertEqual(combo.get("comboImage"), self.FAKE_IMAGE)
+
+    def test_combo_response_has_combo_image_key(self):
+        """Every combo in comboDeals must contain the comboImage key."""
+        self._make_combo("IMGKEY", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        combos = self._get_combo_deals()
+        for c in combos:
+            self.assertIn("comboImage", c, f"comboImage key missing on combo {c.get('code')}")
+
+    def test_combo_image_none_when_not_set_but_shown(self):
+        """If somehow a combo reaches the response without an image, comboImage is None.
+        (Normally such combos are filtered out, but test the key shape defensively.)"""
+        # Manually insert with image then clear it to simulate the edge case
+        combo = self._make_combo("IMGNULL", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        frappe.db.set_value("Coupon", combo.name, "combo_image", "")
+        frappe.db.commit()
+        # With image cleared, the combo is excluded (mandatory enforcement)
+        combos = self._get_combo_deals()
+        codes = [c["code"] for c in combos]
+        self.assertNotIn("IMGNULL", codes)
+
+    # ── Multiple combos: only those with images shown ─────────────────────────
+
+    def test_mixed_combos_only_imaged_appear(self):
+        """With 3 combos — 2 with images, 1 without — only 2 appear."""
+        self._make_combo("MIX_A", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        self._make_combo("MIX_B", display_on_menu=1, combo_image=self.FAKE_IMAGE)
+        self._make_combo("MIX_C", display_on_menu=1, combo_image=None)
+        combos = self._get_combo_deals()
+        codes = [c["code"] for c in combos]
+        self.assertIn("MIX_A", codes)
+        self.assertIn("MIX_B", codes)
+        self.assertNotIn("MIX_C", codes)
+
+    # ── apply_to_coupon() ─────────────────────────────────────────────────────
+
+    def _make_ai_generation(self, coupon_name, status="Completed", image_url=None):
+        doc = frappe.get_doc({
+            "doctype": "AI Image Generation",
+            "restaurant": self.restaurant,
+            "owner_doctype": "Coupon",
+            "owner_name": coupon_name,
+            "original_image_url": "",
+            "status": status,
+            "enhanced_image_url": image_url or self.FAKE_IMAGE,
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return doc
+
+    def test_apply_to_coupon_saves_image(self):
+        """apply_to_coupon() must write enhanced_image_url to Coupon.combo_image."""
+        combo = self._make_combo("APPLY1", display_on_menu=1)
+        gen = self._make_ai_generation(combo.name, status="Completed", image_url=self.FAKE_IMAGE)
+        try:
+            from flamezo_backend.flamezo.api.ai_media import apply_to_coupon
+            result = apply_to_coupon(gen.name)
+            self.assertTrue(result["success"])
+            saved = frappe.db.get_value("Coupon", combo.name, "combo_image")
+            self.assertEqual(saved, self.FAKE_IMAGE)
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+    def test_apply_to_coupon_returns_image_url(self):
+        """apply_to_coupon() must return the combo_image URL in the response."""
+        combo = self._make_combo("APPLY2", display_on_menu=1)
+        gen = self._make_ai_generation(combo.name, status="Completed", image_url=self.FAKE_IMAGE)
+        try:
+            from flamezo_backend.flamezo.api.ai_media import apply_to_coupon
+            result = apply_to_coupon(gen.name)
+            self.assertEqual(result.get("combo_image"), self.FAKE_IMAGE)
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+    def test_apply_to_coupon_rejects_incomplete_generation(self):
+        """apply_to_coupon() must raise when status != Completed."""
+        combo = self._make_combo("APPLY3", display_on_menu=1)
+        gen = self._make_ai_generation(combo.name, status="Processing")
+        try:
+            from flamezo_backend.flamezo.api.ai_media import apply_to_coupon
+            with self.assertRaises(frappe.ValidationError):
+                apply_to_coupon(gen.name)
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+    def test_apply_to_coupon_rejects_wrong_owner_doctype(self):
+        """apply_to_coupon() must raise when the generation is linked to a non-Coupon doc."""
+        # Create a generation linked to Menu Product instead.
+        # Use ignore_links so the non-existent owner_name doesn't trigger a LinkValidationError
+        # during the insert — we only care that apply_to_coupon() rejects the wrong owner_doctype.
+        gen = frappe.get_doc({
+            "doctype": "AI Image Generation",
+            "restaurant": self.restaurant,
+            "owner_doctype": "Menu Product",
+            "owner_name": "some-nonexistent-product",
+            "original_image_url": "",
+            "status": "Completed",
+            "enhanced_image_url": self.FAKE_IMAGE,
+        })
+        gen.flags.ignore_links = True
+        gen.insert(ignore_permissions=True)
+        frappe.db.commit()
+        try:
+            from flamezo_backend.flamezo.api.ai_media import apply_to_coupon
+            with self.assertRaises(frappe.ValidationError):
+                apply_to_coupon(gen.name)
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+    def test_apply_to_coupon_config_response_updated(self):
+        """After apply_to_coupon(), the combo must appear in get_restaurant_config."""
+        combo = self._make_combo("APPLY4", display_on_menu=1, combo_image=None)
+        # Confirm it's excluded before applying
+        combos_before = self._get_combo_deals()
+        self.assertNotIn("APPLY4", [c["code"] for c in combos_before])
+
+        gen = self._make_ai_generation(combo.name, status="Completed", image_url=self.FAKE_IMAGE)
+        try:
+            from flamezo_backend.flamezo.api.ai_media import apply_to_coupon
+            apply_to_coupon(gen.name)
+
+            combos_after = self._get_combo_deals()
+            codes = [c["code"] for c in combos_after]
+            self.assertIn("APPLY4", codes)
+            combo_data = next(c for c in combos_after if c["code"] == "APPLY4")
+            self.assertEqual(combo_data["comboImage"], self.FAKE_IMAGE)
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+    # ── process_ai_image_enhancement: Coupon branch (unit test, no fal.ai) ───
+
+    def test_enhancement_resolves_combo_name_from_coupon(self):
+        """When owner_doctype=Coupon, process_ai_image_enhancement must use combo_name
+        as the dish_name passed to the image generator (not fall through to default 'Dish')."""
+        combo = self._make_combo("ENAME1", display_on_menu=1,
+                                 combo_image=None)
+        # Patch the actual generator and R2 upload so nothing real runs
+        gen = self._make_ai_generation(combo.name, status="Pending_Upload")
+        frappe.db.set_value("AI Image Generation", gen.name, "status", "Pending_Upload")
+        frappe.db.commit()
+
+        captured = {}
+
+        def fake_generate(dish_name, dish_description, dish_category=None,
+                          include_branding=False, restaurant_name=None):
+            captured["dish_name"] = dish_name
+            captured["dish_description"] = dish_description
+            captured["dish_category"] = dish_category
+            return "/tmp/fake_output.jpg"
+
+        import os
+        with patch("flamezo_backend.flamezo.api.ai_media.generate_image_fal_ai_generate", fake_generate), \
+             patch("flamezo_backend.flamezo.api.ai_media.upload_object", return_value=self.FAKE_IMAGE), \
+             patch("os.path.exists", return_value=False):
+            from flamezo_backend.flamezo.api.ai_media import process_ai_image_enhancement
+            process_ai_image_enhancement(gen.name, mode="generate")
+
+        try:
+            self.assertIn("dish_name", captured,
+                          "fake_generate was never called — Coupon branch not reached")
+            self.assertEqual(captured["dish_name"], combo.combo_name,
+                             "dish_name must be the combo's combo_name field")
+            self.assertEqual(captured["dish_category"], "combo deal")
+        finally:
+            frappe.db.delete("AI Image Generation", {"name": gen.name})
+            frappe.db.commit()
+
+
+# ─── Test: BOGO fixed free-item value — pricing, config, API contract ─────────
+
+class TestBOGOFreeItemValue(unittest.TestCase):
+    """
+    Full coverage for the BOGO dine-in model introduced June 2025.
+
+    Design: bogo_free_item_value is a fixed rupee value set by the restaurant.
+    The discount at pay-bill = bogo_free_item_value (flat), no cart items needed.
+
+    Covers:
+      Pricing (pricing.py / validate_and_apply_coupon):
+        1. BOGO discount = bogo_free_item_value exactly
+        2. Bill < bogo_free_item_value → ineligible
+        3. Bill = bogo_free_item_value exactly → eligible (boundary)
+        4. Bill > bogo_free_item_value → eligible
+        5. bogo_free_item_value not set (0) → ineligible
+        6. bogo_free_item_value not set (None) → ineligible
+
+      Config response (config.py / get_restaurant_config):
+        7.  BOGO with value → appears in comboDeals, savings = value, bogoFreeItemValue = value
+        8.  BOGO with value=0 → excluded from comboDeals (₹0 guard)
+        9.  BOGO bogoFreeItemValue key always present on BOGO combos
+        10. Fixed bundle combo_price > 0 → appears, bogoFreeItemValue = 0
+        11. Fixed bundle combo_price = 0 → excluded
+
+      Pricing for fixed_bundle and build_your_own:
+        12. Fixed bundle: discount = bill - combo_price
+        13. Fixed bundle: bill < combo_price → ineligible
+        14. Build your own: discount = bill - combo_price
+        15. Build your own: bill < combo_price → ineligible
+    """
+
+    FAKE_IMAGE = "https://cdn.example.com/bogo-test.jpg"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.restaurant = make_restaurant("TEST-BOGO").name
+        make_restaurant_config(cls.restaurant)
+
+    @classmethod
+    def tearDownClass(cls):
+        cleanup_coupons(cls.restaurant)
+        cleanup_restaurant(cls.restaurant)
+
+    def tearDown(self):
+        cleanup_coupons(self.restaurant)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _make_bogo(self, code, bogo_value, **kwargs):
+        doc = frappe.get_doc({
+            "doctype": "Coupon",
+            "restaurant": self.restaurant,
+            "code": code,
+            "offer_type": "combo",
+            "combo_type": "bogo",
+            "combo_name": f"BOGO {code}",
+            "combo_price": 0,
+            "bogo_free_item_value": bogo_value,
+            "display_on_menu": 1,
+            "combo_image": self.FAKE_IMAGE,
+            "is_active": 1,
+            **kwargs,
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return doc
+
+    def _make_fixed_bundle(self, code, combo_price, **kwargs):
+        doc = frappe.get_doc({
+            "doctype": "Coupon",
+            "restaurant": self.restaurant,
+            "code": code,
+            "offer_type": "combo",
+            "combo_type": "fixed_bundle",
+            "combo_name": f"Bundle {code}",
+            "combo_price": combo_price,
+            "bogo_free_item_value": 0,
+            "display_on_menu": 1,
+            "combo_image": self.FAKE_IMAGE,
+            "is_active": 1,
+            **kwargs,
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return doc
+
+    def _make_byo(self, code, combo_price, **kwargs):
+        doc = frappe.get_doc({
+            "doctype": "Coupon",
+            "restaurant": self.restaurant,
+            "code": code,
+            "offer_type": "combo",
+            "combo_type": "build_your_own",
+            "combo_name": f"BYO {code}",
+            "combo_price": combo_price,
+            "bogo_free_item_value": 0,
+            "display_on_menu": 1,
+            "combo_image": self.FAKE_IMAGE,
+            "is_active": 1,
+            **kwargs,
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return doc
+
+    def _apply(self, code, bill):
+        """Call validate_offer_eligibility with an empty dine-in cart."""
+        from flamezo_backend.flamezo.utils.pricing import validate_offer_eligibility
+        offer = frappe.get_doc("Coupon", {"code": code, "restaurant": self.restaurant})
+        return validate_offer_eligibility(
+            offer=offer,
+            cart_total=bill,
+            customer_id=None,
+            cart_items=[],   # dine-in: no digital cart
+        )
+
+    def _get_combo_deals(self):
+        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        result = get_restaurant_config(self.restaurant)
+        return result.get("data", {}).get("settings", {}).get("comboDeals", [])
+
+    # ── 1. BOGO discount = bogo_free_item_value ───────────────────────────────
+
+    def test_bogo_discount_equals_free_item_value(self):
+        """Discount applied must equal bogo_free_item_value exactly."""
+        self._make_bogo("B1", bogo_value=199)
+        result = self._apply("B1", bill=500)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["discount_amount"], 199)
+
+    # ── 2. Bill < bogo_free_item_value → ineligible ───────────────────────────
+
+    def test_bogo_ineligible_when_bill_below_value(self):
+        """Bill of ₹100 cannot claim a ₹199 BOGO — should fail."""
+        self._make_bogo("B2", bogo_value=199)
+        result = self._apply("B2", bill=100)
+        self.assertFalse(result["success"])
+
+    # ── 3. Bill = bogo_free_item_value → eligible (boundary) ─────────────────
+
+    def test_bogo_eligible_at_exact_boundary(self):
+        """Bill exactly equal to bogo_free_item_value must be eligible."""
+        self._make_bogo("B3", bogo_value=199)
+        result = self._apply("B3", bill=199)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["discount_amount"], 199)
+
+    # ── 4. Bill > bogo_free_item_value → eligible ─────────────────────────────
+
+    def test_bogo_eligible_when_bill_above_value(self):
+        """Higher bill must also be eligible."""
+        self._make_bogo("B4", bogo_value=199)
+        result = self._apply("B4", bill=1000)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["discount_amount"], 199)
+
+    # ── 5. bogo_free_item_value = 0 → ineligible ─────────────────────────────
+
+    def test_bogo_ineligible_when_value_is_zero(self):
+        """A BOGO with free_item_value=0 is unconfigured — must be rejected."""
+        self._make_bogo("B5", bogo_value=0)
+        result = self._apply("B5", bill=500)
+        self.assertFalse(result["success"])
+
+    # ── 7. Config: BOGO with value → appears with correct shape ──────────────
+
+    def test_bogo_appears_in_config_with_correct_savings(self):
+        """BOGO with bogo_free_item_value=250 must appear with savings=250."""
+        self._make_bogo("B7", bogo_value=250)
+        deals = self._get_combo_deals()
+        match = next((d for d in deals if d["code"] == "B7"), None)
+        self.assertIsNotNone(match, "B7 BOGO missing from comboDeals")
+        self.assertEqual(match["savings"], 250)
+        self.assertEqual(match["bogoFreeItemValue"], 250)
+
+    # ── 8. Config: BOGO with value=0 → excluded ──────────────────────────────
+
+    def test_bogo_excluded_from_config_when_value_zero(self):
+        """Unconfigured BOGO (value=0) must be hidden from the menu."""
+        self._make_bogo("B8", bogo_value=0)
+        deals = self._get_combo_deals()
+        codes = [d["code"] for d in deals]
+        self.assertNotIn("B8", codes)
+
+    # ── 9. Config: bogoFreeItemValue key present on BOGO combos ──────────────
+
+    def test_bogo_config_has_bogo_free_item_value_key(self):
+        """Every BOGO in comboDeals must have the bogoFreeItemValue key."""
+        self._make_bogo("B9", bogo_value=150)
+        deals = self._get_combo_deals()
+        bogo_deals = [d for d in deals if d["comboType"] == "bogo"]
+        self.assertTrue(len(bogo_deals) > 0, "No BOGO deals in response")
+        for d in bogo_deals:
+            self.assertIn("bogoFreeItemValue", d,
+                          f"bogoFreeItemValue key missing on {d['code']}")
+
+    # ── 10. Config: fixed_bundle → bogoFreeItemValue = 0 ─────────────────────
+
+    def test_fixed_bundle_has_zero_bogo_value_in_config(self):
+        """Fixed bundle combos must have bogoFreeItemValue=0 in the response."""
+        self._make_fixed_bundle("B10", combo_price=399)
+        deals = self._get_combo_deals()
+        match = next((d for d in deals if d["code"] == "B10"), None)
+        self.assertIsNotNone(match, "B10 fixed bundle missing from comboDeals")
+        self.assertEqual(match.get("bogoFreeItemValue", -1), 0)
+
+    # ── 11. Config: fixed_bundle with combo_price=0 → excluded ───────────────
+
+    def test_fixed_bundle_excluded_when_price_zero(self):
+        """Fixed bundle with combo_price=0 must be excluded from the menu."""
+        self._make_fixed_bundle("B11", combo_price=0)
+        deals = self._get_combo_deals()
+        codes = [d["code"] for d in deals]
+        self.assertNotIn("B11", codes)
+
+    # ── 12. Fixed bundle: discount = bill - combo_price ───────────────────────
+
+    def test_fixed_bundle_discount_is_bill_minus_combo_price(self):
+        """Fixed bundle: discount = bill_total - combo_price."""
+        self._make_fixed_bundle("B12", combo_price=299)
+        result = self._apply("B12", bill=450)
+        self.assertTrue(result["success"])
+        self.assertAlmostEqual(result["discount_amount"], 450 - 299, places=2)
+
+    # ── 13. Fixed bundle: bill < combo_price → ineligible ────────────────────
+
+    def test_fixed_bundle_ineligible_when_bill_below_price(self):
+        """Fixed bundle bill of ₹200 cannot claim ₹299 bundle."""
+        self._make_fixed_bundle("B13", combo_price=299)
+        result = self._apply("B13", bill=200)
+        self.assertFalse(result["success"])
+
+    # ── 14. Build your own: discount = bill - combo_price ────────────────────
+
+    def test_byo_discount_is_bill_minus_combo_price(self):
+        """Build-your-own: discount = bill_total - combo_price."""
+        self._make_byo("B14", combo_price=349)
+        result = self._apply("B14", bill=500)
+        self.assertTrue(result["success"])
+        self.assertAlmostEqual(result["discount_amount"], 500 - 349, places=2)
+
+    # ── 15. Build your own: bill < combo_price → ineligible ──────────────────
+
+    def test_byo_ineligible_when_bill_below_price(self):
+        """Build-your-own with bill ₹300 cannot claim ₹349 bundle."""
+        self._make_byo("B15", combo_price=349)
+        result = self._apply("B15", bill=300)
+        self.assertFalse(result["success"])
 
 
 if __name__ == "__main__":
