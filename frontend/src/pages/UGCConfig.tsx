@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, CheckCircle2, XCircle, Wallet, PlayCircle, Expand, Download } from 'lucide-react'
+import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, CheckCircle2, XCircle, Wallet, PlayCircle, Expand, Download, ShieldCheck, Lock, Unlock, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 import UGCGrowthSimulatorModal from '@/components/UGCGrowthSimulatorModal'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,8 @@ export default function UGCConfig() {
   const [savingCoupon, setSavingCoupon] = useState(false)
 
   const [ugcIsActive, setUgcIsActive] = useState<boolean>(false)
+  const [ugcEnabled, setUgcEnabled] = useState<boolean>(true)
+  const [togglingUgc, setTogglingUgc] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -59,6 +61,7 @@ useEffect(() => {
       setConfigName(body.data.name || '')
       setTemplates(body.data.templates || [])
       setUgcIsActive(!!body.data.ugc_is_active)
+      setUgcEnabled(body.data.is_active !== 0)
 
       // Hydrate inline coupon fields from server
       const vc = body.data.viewer_coupon
@@ -78,6 +81,21 @@ useEffect(() => {
       }
     }
   }, [configRes])
+
+  const toggleUgc = async () => {
+    if (!selectedRestaurant || togglingUgc) return
+    setTogglingUgc(true)
+    const next = !ugcEnabled
+    try {
+      const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: { is_active: next ? 1 : 0 } })
+      const body = res?.message || res
+      if (body?.success) {
+        setUgcEnabled(next)
+        setUgcIsActive(!!body.data?.ugc_is_active)
+        toast.success(next ? 'UGC cashback enabled' : 'UGC cashback paused')
+      } else throw new Error(body?.message || 'Save failed')
+    } catch (e: any) { toast.error(e.message) } finally { setTogglingUgc(false) }
+  }
 
   const saveCoupon = async () => {
     if (!selectedRestaurant) return
@@ -244,6 +262,25 @@ useEffect(() => {
                 <XCircle className="w-3.5 h-3.5" /> Setup incomplete
               </span>
             )}
+            {/* Manual on/off toggle — only shown once setup is complete */}
+            {(templates.length > 0 && couponIsSet) && (
+              <button
+                onClick={toggleUgc}
+                disabled={togglingUgc}
+                className="flex items-center gap-2 text-xs font-medium border rounded-full px-3 py-1 transition-colors hover:bg-muted disabled:opacity-60"
+                title={ugcEnabled ? 'Pause UGC cashback' : 'Enable UGC cashback'}
+              >
+                {togglingUgc
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : (
+                    <span className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors ${ugcEnabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`}>
+                      <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ${ugcEnabled ? 'translate-x-3' : 'translate-x-0'}`} />
+                    </span>
+                  )
+                }
+                {ugcEnabled ? 'Enabled' : 'Paused'}
+              </button>
+            )}
           </div>
           <Button onClick={() => setIsSimulatorOpen(true)} className="gap-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-md rounded-full px-5 w-full sm:w-auto">
             <PlayCircle className="w-4 h-4" />
@@ -256,12 +293,25 @@ useEffect(() => {
       </div>
 
       {!ugcIsActive && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/20 dark:text-amber-400">
+        <div className={`border rounded-lg p-4 flex gap-3 ${
+          templates.length > 0 && couponIsSet
+            ? 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/10 dark:border-blue-900/20 dark:text-blue-400'
+            : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/20 dark:text-amber-400'
+        }`}>
           <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <p className="text-sm">
-            UGC cashback is <strong>inactive</strong>. To activate it:
-            {templates.length === 0 && <span className="block mt-1">① Upload your <strong>story template</strong> below.</span>}
-            {!couponIsSet && <span className="block mt-1">{templates.length === 0 ? '②' : '①'} Set up a <strong>viewer coupon</strong> in the Story Viewer Coupon section below and save it.</span>}
+            {templates.length > 0 && couponIsSet ? (
+              <>
+                <strong>Story preview is generating…</strong>
+                <span className="block mt-1">Your template and coupon are set. UGC will activate automatically once the branded story preview is ready (usually under a minute).</span>
+              </>
+            ) : (
+              <>
+                UGC cashback is <strong>inactive</strong>. To activate it:
+                {templates.length === 0 && <span className="block mt-1">① Upload your <strong>story template</strong> below.</span>}
+                {!couponIsSet && <span className="block mt-1">{templates.length === 0 ? '②' : '①'} Set up a <strong>viewer coupon</strong> in the Story Viewer Coupon section below and save it.</span>}
+              </>
+            )}
           </p>
         </div>
       )}
@@ -505,6 +555,9 @@ useEffect(() => {
         </CardContent>
       </Card>
 
+      {/* Staff Verification PIN */}
+      <UGCPinSetupCard restaurantId={selectedRestaurant} />
+
       {/* Platform-managed rules — read-only guidelines */}
       <Card className="bg-muted/30 border-dashed">
         <CardHeader>
@@ -524,5 +577,161 @@ useEffect(() => {
 
       <UGCGrowthSimulatorModal isOpen={isSimulatorOpen} onClose={() => setIsSimulatorOpen(false)} />
     </div>
+  )
+}
+
+// ─── Staff Verification PIN ───────────────────────────────────────────────────
+
+function UGCPinSetupCard({ restaurantId }: { restaurantId: string }) {
+  const [pin, setPin] = useState(['', '', '', ''])
+  const [isSet, setIsSet] = useState<boolean | null>(null)
+  const [currentPin, setCurrentPin] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [showPin, setShowPin] = useState(false)
+  const [showCurrentPin, setShowCurrentPin] = useState(false)
+
+  const { call: setPinCall } = useFrappePostCall('flamezo_backend.flamezo.api.coupons.set_offer_pin')
+  const { call: getPinStatus } = useFrappePostCall('flamezo_backend.flamezo.api.coupons.get_offer_pin_status')
+
+  useEffect(() => {
+    if (!restaurantId) return
+    getPinStatus({ restaurant_id: restaurantId })
+      .then((res: any) => {
+        const payload = res?.message ?? res
+        setIsSet(!!payload?.data?.is_set)
+        setCurrentPin(payload?.data?.pin || '')
+      })
+      .catch(() => setIsSet(false))
+  }, [restaurantId])
+
+  const handleDigit = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return
+    const next = [...pin]
+    next[index] = value.slice(-1)
+    setPin(next)
+    if (value && index < 3) {
+      const nextInput = document.getElementById(`ugc-pin-digit-${index + 1}`) as HTMLInputElement | null
+      nextInput?.focus()
+    }
+  }
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !pin[index] && index > 0) {
+      const prevInput = document.getElementById(`ugc-pin-digit-${index - 1}`) as HTMLInputElement | null
+      prevInput?.focus()
+    }
+  }
+
+  const handleSave = async () => {
+    const fullPin = pin.join('')
+    if (fullPin.length !== 4) { toast.error('Enter all 4 digits'); return }
+    setSaving(true)
+    try {
+      const res = await setPinCall({ restaurant_id: restaurantId, pin: fullPin })
+      const payload = (res as any)?.message ?? res
+      if (payload?.success) {
+        toast.success('PIN saved — staff can now verify UGC stories at the table')
+        setIsSet(true)
+        setCurrentPin(fullPin)
+        setShowForm(false)
+        setPin(['', '', '', ''])
+        setShowPin(false)
+      } else {
+        toast.error(payload?.error?.message || 'Failed to save PIN')
+      }
+    } catch { toast.error('Failed to save PIN') } finally { setSaving(false) }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Staff Verification PIN</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Staff enter this on the customer's phone after they post their story
+              </CardDescription>
+            </div>
+          </div>
+          {isSet !== null && (
+            <Badge variant={isSet ? 'default' : 'secondary'} className={isSet ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 border-green-200' : ''}>
+              {isSet ? <><Unlock className="h-3 w-3 mr-1" />PIN Set</> : <><Lock className="h-3 w-3 mr-1" />Not Set</>}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!showForm ? (
+          <div className="space-y-4">
+            {isSet && currentPin ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Current PIN — share with your staff</p>
+                <div className="flex items-center gap-3">
+                  {(showCurrentPin ? currentPin.split('') : ['•', '•', '•', '•']).map((ch, i) => (
+                    <div key={i} className="w-12 h-12 flex items-center justify-center text-xl font-bold rounded-xl border-2 border-border bg-muted/40 select-none">
+                      {ch}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPin(v => !v)}
+                    className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Set a 4-digit PIN that staff enter on a customer's phone to confirm they posted a UGC story. Once the PIN is entered, cashback is unlocked immediately — no admin approval needed.
+              </p>
+            )}
+            <Button size="sm" variant={isSet ? 'outline' : 'default'} onClick={() => setShowForm(true)}>
+              {isSet ? 'Change PIN' : 'Set PIN'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Enter a new 4-digit PIN:</p>
+            <div className="flex items-center gap-3">
+              {pin.map((digit, i) => (
+                <input
+                  key={i}
+                  id={`ugc-pin-digit-${i}`}
+                  type={showPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigit(i, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(i, e)}
+                  className="w-12 h-12 text-center text-xl font-bold rounded-xl border-2 bg-background focus:border-primary focus:outline-none transition-colors"
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowPin(v => !v)}
+                className="ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSave} disabled={saving || pin.join('').length < 4}>
+                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                Save PIN
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setPin(['', '', '', '']); setShowPin(false) }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

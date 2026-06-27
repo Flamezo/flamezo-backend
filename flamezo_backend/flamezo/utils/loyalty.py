@@ -162,13 +162,13 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
 	min_order    = get_min_order_to_earn()     # ₹100
 	max_cap      = get_max_coins_per_order()   # 700
-	expiry_days  = get_expiry_days()           # 30
+	expiry_days  = get_expiry_days()           # 30 days (see platform_config)
 
 	# ── Minimum Order Check ───────────────────────────────────────────────────
 	if min_order > 0 and flt(amount_paid) < min_order:
 		return 0  # Order doesn't qualify
 
-	# ── Coin Calculation (7% earn rate) ───────────────────────────────────────
+	# ── Coin Calculation (9% earn rate) ───────────────────────────────────────
 	rate = get_earn_percentage() / 100
 	coins_earned = int(flt(amount_paid) * rate)
 	coins_earned = min(coins_earned, max_cap)  # Hard cap

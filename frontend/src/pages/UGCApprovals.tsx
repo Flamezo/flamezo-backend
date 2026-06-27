@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -10,9 +10,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { CheckCircle2, XCircle, PlayCircle, Loader2, Inbox } from 'lucide-react'
+import { XCircle, PlayCircle, Loader2, Inbox, ShieldCheck, TrendingUp, Users, ImagePlay, CheckCircle2, AlertTriangle, Timer } from 'lucide-react'
+import { useFrappeGetCall } from '@/lib/frappe'
 
-type Tab = 'verify' | 'flagged'
+type Tab = 'verify' | 'flagged' | 'analytics'
 
 const mockVerifyData = [
   {
@@ -182,6 +183,12 @@ export default function UGCApprovals() {
   const [viewCount, setViewCount] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // PIN verification state for story approval
+  const [pinTarget, setPinTarget] = useState<any | null>(null)
+  const [pin, setPin] = useState('')
+  const [pinError, setPinError] = useState('')
+  const pinInputRef = useRef<HTMLInputElement>(null)
+
   const params = selectedRestaurant ? { restaurant_id: selectedRestaurant } : {}
 
   const verifyQ = useDataTable({
@@ -195,12 +202,55 @@ export default function UGCApprovals() {
     debugId: `ugc-flagged-${selectedRestaurant}`,
   })
 
+  const { data: funnelRes } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.ugc.get_ugc_funnel',
+    selectedRestaurant ? { restaurant_id: selectedRestaurant, days: 30 } : undefined,
+    selectedRestaurant ? `ugc-funnel-${selectedRestaurant}` : undefined,
+  )
+
   const { call: verifyStory } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.verify_ugc_story')
+  const { call: verifyStoryWithPin } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.verify_ugc_story_with_pin')
   const { call: reviewUgc } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.review_ugc')
 
   const active = tab === 'verify'
     ? (demoMode ? { data: mockVerifyData, totalCount: mockVerifyData.length, isLoading: false, mutate: () => {} } : verifyQ)
     : (demoMode ? { data: mockFlaggedData, totalCount: mockFlaggedData.length, isLoading: false, mutate: () => {} } : flaggedQ)
+
+  const openPinDialog = (sub: any) => {
+    setPinTarget(sub)
+    setPin('')
+    setPinError('')
+    setTimeout(() => pinInputRef.current?.focus(), 80)
+  }
+
+  const doPinVerify = async () => {
+    if (!pinTarget || pin.length !== 4 || busy) return
+    if (demoMode) {
+      toast.success('Story verified (Simulated)')
+      setPinTarget(null)
+      return
+    }
+    setBusy(true)
+    setPinError('')
+    try {
+      const res: any = await verifyStoryWithPin({ restaurant_id: selectedRestaurant, submission_id: pinTarget.name, pin })
+      const body = res?.message || res
+      if (body?.success) {
+        toast.success('Story verified — diner can now upload their view count')
+        verifyQ.mutate()
+        setPinTarget(null)
+      } else {
+        const code = body?.error?.code || ''
+        if (code === 'INVALID_PIN') setPinError('Wrong PIN. Try again.')
+        else if (code === 'PIN_NOT_SET') setPinError('No PIN set. Go to Setup & Config to add one.')
+        else setPinError(body?.message || 'Verification failed')
+      }
+    } catch (e: any) {
+      setPinError(e.message || 'Something went wrong')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const doVerify = async (sub: any, action: 'approve' | 'reject') => {
     if (demoMode) {
@@ -284,12 +334,17 @@ export default function UGCApprovals() {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <TabBtn active={tab === 'verify'} onClick={() => setTab('verify')} label="Story Verification" count={demoMode ? mockVerifyData.length : verifyQ.totalCount} />
         <TabBtn active={tab === 'flagged'} onClick={() => setTab('flagged')} label="Flagged View-Counts" count={demoMode ? mockFlaggedData.length : flaggedQ.totalCount} />
+        <TabBtn active={tab === 'analytics'} onClick={() => setTab('analytics')} label="Analytics" count={0} />
       </div>
 
-      <Card>
+      {tab === 'analytics' ? (
+        <AnalyticsTab funnelRes={funnelRes} />
+      ) : null}
+
+      <Card className={tab === 'analytics' ? 'hidden' : ''}>
         <CardContent className="p-0">
           {active.isLoading && !demoMode ? (
             <div className="p-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
@@ -314,8 +369,8 @@ export default function UGCApprovals() {
                     <Button size="sm" variant="outline" onClick={() => doVerify(s, 'reject')} disabled={busy}>
                       <XCircle className="w-4 h-4 mr-1" />Reject
                     </Button>
-                    <Button size="sm" onClick={() => doVerify(s, 'approve')} disabled={busy}>
-                      <CheckCircle2 className="w-4 h-4 mr-1" />Verify
+                    <Button size="sm" onClick={() => openPinDialog(s)} disabled={busy}>
+                      <ShieldCheck className="w-4 h-4 mr-1" />Verify
                     </Button>
                   </div>
                 </div>
@@ -344,40 +399,238 @@ export default function UGCApprovals() {
         </CardContent>
       </Card>
 
-      {/* Flagged review dialog */}
-      <Dialog open={!!reviewing} onOpenChange={o => { if (!o) { setReviewing(null); setViewCount('') } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Review View-Count Proof</DialogTitle></DialogHeader>
-          {reviewing && (
-            <div className="space-y-4">
-              {reviewing.proof_video_url ? (
-                <video src={reviewing.proof_video_url} controls playsInline className="w-full rounded-lg max-h-[50vh] bg-black" />
-              ) : reviewing.proof_hidden ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  <strong>Video hidden — retention window elapsed.</strong> The proof video is no longer
-                  accessible for staff review (7-day visibility limit). Approve only if you have
-                  independent confirmation of the view count (e.g. a screenshot sent by the diner).
+      {/* PIN verification dialog */}
+      <Dialog open={!!pinTarget} onOpenChange={o => { if (!o) { setPinTarget(null); setPin(''); setPinError('') } }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Enter Verification PIN
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Ask the customer to show their story, then enter your 4-digit restaurant PIN to approve.
+            </p>
+            {pinTarget && (
+              <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                <p className="font-medium">{pinTarget.customer_name}</p>
+                <p className="text-muted-foreground text-xs mt-0.5">{pinTarget.customer_phone} · Order ₹{pinTarget.order_amount}</p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-center">
+              {[0, 1, 2, 3].map(i => (
+                <div
+                  key={i}
+                  className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-black transition-all"
+                  style={{ borderColor: pinError ? '#ef4444' : pin.length > i ? 'hsl(var(--primary))' : 'hsl(var(--border))' }}
+                >
+                  {pin[i] ? '•' : ''}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No video uploaded for this submission.</p>
-              )}
-              <div className="text-sm text-muted-foreground">
-                Order amount: <strong>₹{reviewing.order_amount}</strong>. Cashback = min(views, order).
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">View count (from the video)</label>
-                <Input type="number" min="0" value={viewCount} onChange={e => setViewCount(e.target.value)} placeholder="e.g. 250" />
-              </div>
+              ))}
             </div>
-          )}
+            <Input
+              ref={pinInputRef}
+              type="number"
+              inputMode="numeric"
+              maxLength={4}
+              value={pin}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                setPin(v)
+                setPinError('')
+                if (v.length === 4) setTimeout(() => doPinVerify(), 120)
+              }}
+              className="text-center text-lg tracking-[0.5em] font-bold opacity-0 h-0 p-0 border-0"
+              autoFocus
+            />
+            {pinError && <p className="text-center text-sm text-red-500 font-medium">{pinError}</p>}
+            <p className="text-center text-xs text-muted-foreground">Tap any digit box above, then type on your keyboard</p>
+          </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => doReview('reject')} disabled={busy}>Reject</Button>
-            <Button onClick={() => doReview('approve')} disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Approve & Credit
+            <Button variant="outline" onClick={() => { setPinTarget(null); setPin(''); setPinError('') }}>Cancel</Button>
+            <Button onClick={doPinVerify} disabled={pin.length !== 4 || busy}>
+              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              Approve Story
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Flagged review dialog */}
+      <Dialog open={!!reviewing} onOpenChange={o => { if (!o) { setReviewing(null); setViewCount('') } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review View-Count Proof</DialogTitle>
+            {reviewing && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {reviewing.customer_name} · Order ₹{reviewing.order_amount}
+              </p>
+            )}
+          </DialogHeader>
+          {reviewing && (
+            <div className="space-y-4">
+              {/* Video player */}
+              {reviewing.proof_video_url ? (
+                <video src={reviewing.proof_video_url} controls playsInline className="w-full rounded-xl max-h-[40vh] bg-black object-contain" />
+              ) : reviewing.proof_hidden ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3 text-sm text-amber-800 dark:text-amber-300">
+                  <strong>Video hidden — retention window elapsed.</strong> The proof video is no longer
+                  accessible (7-day limit). Approve only if you have independent confirmation of the view count.
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground text-center">No video uploaded for this submission.</div>
+              )}
+
+              {/* AI summary row */}
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">AI Analysis</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-black">{reviewing.ai_view_count ?? '—'}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Views read</p>
+                  </div>
+                  <div className="flex-1">
+                    {/* Confidence bar */}
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium">Confidence</span>
+                      <span className={`text-xs font-bold ${(reviewing.ai_confidence || 0) >= 0.85 ? 'text-green-600' : (reviewing.ai_confidence || 0) >= 0.6 ? 'text-amber-600' : 'text-red-500'}`}>
+                        {Math.round((reviewing.ai_confidence || 0) * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.round((reviewing.ai_confidence || 0) * 100)}%`,
+                          background: (reviewing.ai_confidence || 0) >= 0.85 ? '#16a34a' : (reviewing.ai_confidence || 0) >= 0.6 ? '#d97706' : '#ef4444',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tamper signals */}
+                {reviewing.ai_tamper_signals && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Flags detected</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {reviewing.ai_tamper_signals.split(',').map((sig: string) => (
+                        <span key={sig} className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          {sig.trim().replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Cashback preview */}
+              {viewCount && Number(viewCount) > 0 && (
+                <div className="rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-sm">
+                  <p className="font-semibold text-green-800 dark:text-green-300">
+                    Approving will credit ₹{Math.min(Number(viewCount), reviewing.order_amount, 2000)} cashback
+                    <span className="font-normal text-green-700 dark:text-green-400 ml-1">(min of {viewCount} views, ₹{reviewing.order_amount} bill, ₹2,000 cap)</span>
+                  </p>
+                </div>
+              )}
+
+              {/* View count input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">View count (read from the video)</label>
+                <Input
+                  type="number" min="0"
+                  value={viewCount}
+                  onChange={e => setViewCount(e.target.value)}
+                  placeholder={`AI suggested: ${reviewing.ai_view_count ?? 'n/a'}`}
+                />
+                <p className="text-[11px] text-muted-foreground">Override the AI's reading if it's incorrect. Enter what you see in the video.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => doReview('reject')} disabled={busy}>Reject Claim</Button>
+            <Button onClick={() => doReview('approve')} disabled={busy || !viewCount || Number(viewCount) <= 0}>
+              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Approve &amp; Credit ₹{viewCount && Number(viewCount) > 0 && reviewing ? Math.min(Number(viewCount), reviewing.order_amount, 2000) : '—'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function AnalyticsTab({ funnelRes }: { funnelRes: any }) {
+  const body = (funnelRes as any)?.message || funnelRes
+  const data = body?.data
+
+  if (!data) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+          Loading analytics…
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const funnel: { label: string; key: string; count: number }[] = data.funnel || []
+  const max = Math.max(...funnel.map((f: any) => f.count), 1)
+  const outcomes = data.outcomes || {}
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-sm font-semibold mb-1">Submission Funnel <span className="text-xs font-normal text-muted-foreground ml-1">last {data.days} days</span></p>
+          <p className="text-xs text-muted-foreground mb-5">How many diners made it through each step of the UGC cashback flow.</p>
+          <div className="space-y-3">
+            {funnel.map((step: any, i: number) => (
+              <div key={step.key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center font-bold">{i + 1}</span>
+                    {step.label}
+                  </span>
+                  <span className="text-sm font-bold tabular-nums">{step.count}</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.round((step.count / max) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mb-2" />
+            <p className="text-2xl font-black">{outcomes.flagged ?? 0}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Flagged for review</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <XCircle className="w-4 h-4 text-red-500 mb-2" />
+            <p className="text-2xl font-black">{outcomes.rejected ?? 0}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Rejected</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <Timer className="w-4 h-4 text-muted-foreground mb-2" />
+            <p className="text-2xl font-black">{outcomes.expired ?? 0}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Expired</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

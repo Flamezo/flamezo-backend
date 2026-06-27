@@ -306,7 +306,7 @@ def get_restaurant_config(restaurant_id):
 					"description", "offer_type", "free_item", "valid_from", "valid_until",
 					"valid_days_of_week", "valid_time_start", "valid_time_end",
 					"combo_type", "combo_name", "required_items", "item_pool",
-					"items_to_select", "combo_price", "display_on_menu",
+					"items_to_select", "combo_price", "bogo_free_item_value", "display_on_menu", "combo_image",
 				],
 				ignore_permissions=True
 			)
@@ -347,7 +347,9 @@ def get_restaurant_config(restaurant_id):
 				continue
 
 			# ── Combo deals section (display_on_menu) ──────────────────────
-			if c.offer_type == "combo" and c.get("display_on_menu"):
+			# combo_image is mandatory — skip combos without one so the card
+			# never renders with a blank/broken background.
+			if c.offer_type == "combo" and c.get("display_on_menu") and c.get("combo_image"):
 				combo_type = c.get("combo_type") or "fixed_bundle"
 
 				# Resolve product details for required_items / item_pool
@@ -404,21 +406,27 @@ def get_restaurant_config(restaurant_id):
 				items_to_select = int(c.get("items_to_select") or 2)
 
 				if combo_type == "bogo":
-					# BOGO: user picks N items from pool, cheapest is free.
-					# Display price = sum of top-N prices - cheapest of those N.
-					pool_prices = sorted(
-						[flt(i["price"]) for i in item_pool_detail if flt(i["price"]) > 0],
-						reverse=True,
-					)
-					top_n = pool_prices[:items_to_select]
-					original_price = sum(top_n)
-					# Pay for the most expensive; cheapest of the selected N is free
-					combo_price = sum(top_n) - (top_n[-1] if top_n else 0)
-					savings = top_n[-1] if top_n else 0
+					# BOGO: fixed free-item value set by the restaurant.
+					bogo_value = flt(c.get("bogo_free_item_value") or 0)
+					combo_price = 0  # not applicable for BOGO display
+					original_price = 0
+					savings = bogo_value
+				elif combo_type == "build_your_own":
+					# BYO: items_to_select cheapest pool items at full price vs combo_price
+					pool_prices = sorted([i["price"] for i in item_pool_detail if i["price"] > 0])
+					selected_prices = pool_prices[:items_to_select] if pool_prices else []
+					original_price = sum(selected_prices)
+					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
 				else:
+					# fixed_bundle: savings = sum(required items) - combo_price
 					# pyrefly: ignore [no-matching-overload]
 					original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
 					savings = max(0, original_price - combo_price) if combo_price and original_price else 0
+
+				# Skip combos where price is 0 with no savings — unconfigured data,
+				# showing ₹0 on the card is worse than not showing it at all.
+				if combo_price == 0 and savings == 0:
+					continue
 
 				combo_deals.append({
 					"id": str(c.name),
@@ -429,9 +437,11 @@ def get_restaurant_config(restaurant_id):
 					"comboPrice": combo_price,
 					"originalPrice": original_price,
 					"savings": savings,
+					"bogoFreeItemValue": flt(c.get("bogo_free_item_value") or 0),
 					"itemsToSelect": int(c.get("items_to_select") or 2),
 					"requiredItems": required_items_detail,
 					"itemPool": item_pool_detail,
+					"comboImage": c.get("combo_image") or None,
 					# What to show on category badges (dish IDs in this combo)
 					"allDishIds": [i["dishId"] for i in required_items_detail + item_pool_detail],
 				})

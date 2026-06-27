@@ -19,7 +19,10 @@ def get_razorpay_config(restaurant_id=None):
 	# `restaurant_id` is no longer used — kept on the signature for callers.
 	del restaurant_id
 
-	is_live = frappe.conf.get("razorpay_live_mode") or frappe.get_conf().get("razorpay_live_mode")
+	# Use `in (True, 1)` so that an explicit `false` in site_config.json is never
+	# swallowed by the `or` fallback (False or <next> would incorrectly flip to live).
+	_cfg = frappe.conf if "razorpay_live_mode" in frappe.conf else frappe.get_conf()
+	is_live = _cfg.get("razorpay_live_mode") in (True, 1)
 
 	if is_live:
 		return {

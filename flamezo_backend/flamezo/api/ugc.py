@@ -195,13 +195,16 @@ def _max_cashback(order_amount):
 
 def _is_ugc_active(config) -> bool:
 	"""
-	UGC surfaces to diners only when ALL three are true:
-	  1. At least one story template has been uploaded.
-	  2. A viewer coupon code is set in the inline coupon fields.
-	  3. The composited story preview is ready (story_preview_url set).
+	UGC surfaces to diners only when ALL four are true:
+	  1. Merchant has not manually paused the feature (is_active == 1).
+	  2. At least one story template has been uploaded.
+	  3. A viewer coupon code is set in the inline coupon fields.
+	  4. The composited story preview is ready (story_preview_url set).
 	     This ensures diners always get the final branded media instantly —
 	     the offer is hidden while the background generation job is still running.
 	"""
+	if not cint(config.is_active):
+		return False
 	if not bool(config.template_assets):
 		return False
 	if not (config.viewer_coupon_code or "").strip():
@@ -400,6 +403,7 @@ def get_ugc_eligibility(restaurant_id, order_id):
 		# If a submission already exists, surface its state instead of a fresh offer.
 		existing = _active_submission_for_order(order_id)
 		if existing:
+			templates = _resolve_templates(config)
 			return _ok({
 				"eligible": True,
 				"already_started": True,
@@ -407,6 +411,7 @@ def get_ugc_eligibility(restaurant_id, order_id):
 				"status": existing.status,
 				"cashback_coins": cint(existing.cashback_coins),
 				"max_cashback": _max_cashback(existing.order_amount or order.total),
+				"templates": templates,
 			})
 
 		if not _order_is_eligible(order):
@@ -724,6 +729,9 @@ def submit_ugc_proof(restaurant_id, submission_id, upload_id):
 			enqueue_after_commit=True,
 		)
 
+		# Notify customer their proof was received and is under review
+		_notify(submission.name, "proof_received")
+
 		return _ok({"status": "proof_submitted"})
 	except frappe.DoesNotExistError:
 		return _err("RESTAURANT_NOT_FOUND")
@@ -993,6 +1001,116 @@ def verify_ugc_story(restaurant_id, submission_id, action, notes=None):
 
 
 @frappe.whitelist()
+def verify_ugc_story_with_pin(restaurant_id, submission_id, pin):
+	"""
+	Waiter enters the restaurant PIN on the merchant dashboard to approve a story.
+	PIN check replaces the raw Verify button — reject still uses the plain endpoint.
+	"""
+	try:
+		restaurant = _resolve_restaurant(restaurant_id)
+		_assert_staff_or_admin(restaurant)
+
+		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		if not stored_pin:
+			return _err("PIN_NOT_SET", "No verification PIN set for this restaurant. Set it under Setup & Config.")
+		if str(pin).strip() != str(stored_pin).strip():
+			return _err("INVALID_PIN", "Incorrect PIN — please try again.")
+
+		sub = frappe.get_doc("UGC Story Submission", submission_id)
+		if sub.restaurant != restaurant:
+			return _err("NOT_FOUND")
+		if sub.status != "story_shared":
+			return _err("INVALID_STATE", f"Cannot verify from '{sub.status}'.")
+
+		sub.status = "story_verified"
+		sub.story_verified_by = frappe.session.user
+		sub.story_verified_at = now_datetime()
+		sub.save(ignore_permissions=True)
+		frappe.db.commit()
+		_notify(sub.name, "story_verified")
+		return _ok({"status": "story_verified"})
+	except frappe.PermissionError as e:
+		return _err("PERMISSION_DENIED", str(e))
+	except frappe.DoesNotExistError:
+		return _err("NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"verify_ugc_story_with_pin: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def claim_ugc_with_pin(restaurant_id, order_id, pin):
+	"""
+	Customer-facing: waiter enters the restaurant PIN on the customer's phone.
+	Creates the submission and immediately marks it story_verified in one step.
+	No submission exists before this call — the card stays active until PIN is correct.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED")
+
+		# Verify PIN first — fail fast before touching any data
+		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		if not stored_pin:
+			return _err("PIN_NOT_SET", "No verification PIN has been set for this restaurant.")
+		if str(pin).strip() != str(stored_pin).strip():
+			return _err("INVALID_PIN", "Incorrect PIN.")
+
+		config = _get_active_config(restaurant)
+		if not config or not _is_ugc_active(config):
+			return _err("NOT_AVAILABLE")
+
+		order = _load_owned_order(restaurant, order_id, customer)
+		if not order:
+			return _err("ORDER_NOT_FOUND")
+
+		# Idempotent: if a submission already exists, just verify it if possible
+		existing = _active_submission_for_order(order_id)
+		if existing:
+			if existing.status in ("offer_shown", "story_shared"):
+				existing.status = "story_verified"
+				existing.story_verified_at = now_datetime()
+				existing.save(ignore_permissions=True)
+				frappe.db.commit()
+				_notify(existing.name, "story_verified")
+				return _ok({"status": "story_verified", "submission_id": existing.name})
+			return _ok({"status": existing.status, "submission_id": existing.name})
+
+		# Gate checks
+		if not _order_is_eligible(order):
+			return _err("ORDER_NOT_COMPLETED")
+		if flt(order.total) < PLATFORM_MIN_ORDER:
+			return _err("BELOW_MIN_ORDER")
+		if _is_blocked(customer):
+			return _err("NOT_ELIGIBLE")
+		if _claims_last_30d(customer, restaurant) >= PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D:
+			return _err("LIMIT_REACHED")
+
+		# Create submission directly in story_verified state
+		submission = frappe.get_doc({
+			"doctype": "UGC Story Submission",
+			"restaurant": restaurant,
+			"customer": customer,
+			"order": order.name,
+			"order_amount": flt(order.total),
+			"status": "story_verified",
+			"submission_date": now_datetime(),
+			"story_verified_at": now_datetime(),
+		})
+		submission.insert(ignore_permissions=True)
+		frappe.db.commit()
+		_notify(submission.name, "story_verified")
+		return _ok({"status": "story_verified", "submission_id": submission.name})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"claim_ugc_with_pin: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist()
 def list_flagged_ugc(restaurant_id, page=1, page_size=20):
 	"""Day-1 queue: claims the AI couldn't auto-approve, awaiting human review."""
 	try:
@@ -1168,6 +1286,7 @@ def _config_to_dict(config):
 	data.update({
 		"name": config.name,
 		"restaurant": config.restaurant,
+		"is_active": cint(config.is_active),
 		"coins_issued_this_month": cint(config.coins_issued_this_month),
 		"templates": templates,
 		"viewer_coupon": _inline_coupon_brief(config),
@@ -1201,7 +1320,10 @@ def save_ugc_config(restaurant_id, payload):
 		data = frappe.parse_json(payload) if isinstance(payload, str) else (payload or {})
 
 		config = _get_or_create_config(restaurant)
-		config.is_active = 1  # mandatory feature — always on
+		# is_active is handled explicitly (not via _CONFIG_SCALAR_FIELDS) so it's
+		# always coerced to int and never accidentally set by an unrelated field loop.
+		if "is_active" in data:
+			config.is_active = cint(data["is_active"])
 		for f in _CONFIG_SCALAR_FIELDS:
 			if f in data:
 				config.set(f, data.get(f))
@@ -1776,6 +1898,58 @@ def get_voucher_stats(restaurant_id, days=None):
 		frappe.log_error(f"get_voucher_stats: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
+
+
+@frappe.whitelist()
+def get_ugc_funnel(restaurant_id, days=30):
+	"""Submission funnel counts for the UGC analytics tab."""
+	try:
+		restaurant = _resolve_restaurant(restaurant_id)
+		_assert_staff_or_admin(restaurant)
+
+		since = add_to_date(now_datetime(), days=-cint(days))
+		submissions = frappe.get_all(
+			"UGC Story Submission",
+			filters={"restaurant": restaurant, "submission_date": [">=", since]},
+			fields=["status"],
+		)
+
+		counts = {
+			"nudges_sent": 0, "offer_shown": 0, "story_shared": 0,
+			"story_verified": 0, "proof_submitted": 0, "credited": 0,
+			"rejected": 0, "flagged": 0, "expired": 0,
+		}
+		for s in submissions:
+			st = s["status"]
+			if st in counts:
+				counts[st] += 1
+
+		# Nudge count from Redis isn't practical to query; use submission count as proxy
+		counts["nudges_sent"] = len(submissions)
+		total = len(submissions)
+
+		return _ok({
+			"total": total,
+			"days": cint(days),
+			"funnel": [
+				{"label": "Submissions Started", "key": "nudges_sent", "count": counts["nudges_sent"]},
+				{"label": "Offer Shown", "key": "offer_shown", "count": counts["offer_shown"]},
+				{"label": "Story Shared", "key": "story_shared", "count": counts["story_shared"]},
+				{"label": "Staff Verified", "key": "story_verified", "count": counts["story_verified"]},
+				{"label": "Proof Uploaded", "key": "proof_submitted", "count": counts["proof_submitted"]},
+				{"label": "Credited", "key": "credited", "count": counts["credited"]},
+			],
+			"outcomes": {
+				"rejected": counts["rejected"],
+				"flagged": counts["flagged"],
+				"expired": counts["expired"],
+			},
+		})
+	except frappe.PermissionError as e:
+		return _err("PERMISSION_DENIED", str(e))
+	except Exception as e:
+		frappe.log_error(f"get_ugc_funnel: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
 
 
 def _generate_voucher_code():

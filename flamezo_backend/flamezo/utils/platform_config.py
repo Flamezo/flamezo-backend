@@ -17,7 +17,7 @@ PLATFORM_LOYALTY = {
     # ── Earning ───────────────────────────────────────────────────────────────
     "earn_type":                    "Percentage of Bill",
     "earn_percentage":              9.0,   # 9% earn rate (₹1000 order → ₹90 cash)
-    "min_order_to_earn":            100,   # Orders below ₹100 earn nothing
+    "min_order_to_earn":            250,   # Orders below ₹250 earn nothing
     "max_coins_per_order":          900,   # Max cap: 9% of ₹10,000
 
     # ── Redemption ────────────────────────────────────────────────────────────
@@ -31,21 +31,21 @@ PLATFORM_LOYALTY = {
     "coin_value_in_inr":  1,         # 1 Flamezo Cash = ₹1. Always.
 
     # ── Expiry ───────────────────────────────────────────────────────────────
-    "loyalty_expiry_days":          45,    # ALL Cash expires 45 days after earned
+    "loyalty_expiry_days":          30,    # ALL Cash expires 30 days after earned
 
     # ── Growth & Bonuses ──────────────────────────────────────────────────────
     "birthday_bonus_coins":         100,   # ₹100 birthday bonus
-    "welcome_reward_coins":         150,   # Referee gets ₹150 welcome cash on first claim
-    "referral_share_coins":         40,    # Referrer earns ₹40 per unique claim (at claim time)
-    "max_opens_rewarded_per_share": 10,    # Referrer earns on at most 10 unique claims per link
+    "welcome_reward_coins":         50,    # Referee gets ₹50 welcome cash on first claim
+    "referral_share_coins":         20,    # Referrer earns ₹20 per unique claim (at claim time)
+    "max_opens_rewarded_per_share": 5,     # Referrer earns on at most 5 unique claims per link
 
     # ── Referral Cashback (platform-level, order-triggered) ───────────────────
     # Referrer earns: ₹50 flat when referee places first order, then 1% of
-    # each of the next 15 orders, capped at ₹500 total per referred customer.
+    # each of the next 5 orders, capped at ₹200 total per referred customer.
     "referral_flat_first_order":    50,    # ₹50 flat on referee's first order
     "referral_cashback_percent":    1.0,   # 1% of each subsequent order
-    "referral_cashback_orders":     15,    # Number of orders after first that earn cashback
-    "referral_max_cashback":        500,   # Hard cap: max ₹500 earned per referred customer
+    "referral_cashback_orders":     5,     # Number of orders after first that earn cashback
+    "referral_max_cashback":        200,   # Hard cap: max ₹200 earned per referred customer
 
     # ── Platform Tiers (Global, based on lifetime earned cash) ────────────────
     "tier": {

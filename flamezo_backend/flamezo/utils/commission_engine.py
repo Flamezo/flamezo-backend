@@ -610,3 +610,4 @@ def get_outstanding_summary(restaurant: str) -> dict:
         "sweep_failure_count": int(res.get("cash_sweep_failure_count") or 0),
         "by_status": counts,
     }
+

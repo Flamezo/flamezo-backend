@@ -12,7 +12,7 @@ UGC Cashback background tasks
 import frappe
 from frappe.utils import now_datetime, get_datetime, add_to_date, cint
 
-from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_message
+from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
 from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 
 
@@ -24,14 +24,6 @@ def _customer_phone(customer):
 	return frappe.db.get_value("Customer", customer, "phone")
 
 
-def _claim_link(sub):
-	"""Best-effort deep link to the diner's claim page. Empty if no web URL configured."""
-	base = frappe.conf.get("customer_web_url")
-	if not base:
-		return ""
-	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
-	return f"\n\n{base.rstrip('/')}/ugc-claim?r={slug}&bill={getattr(sub, 'order', '')}"
-
 
 def send_ugc_cashback_nudge(order_name):
 	"""
@@ -39,10 +31,16 @@ def send_ugc_cashback_nudge(order_name):
 	Sends a personalized WhatsApp nudge only if the customer hasn't already
 	started a UGC submission for this order.
 
-	Meta template: ugc_cashback_nudge
+	Meta template: flamezo_ugc_earn_invite
 	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
 	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
 	"""
+	# Idempotency guard — prevent double-send if both direct enqueue and cron fire
+	sent_key = f"ugc_nudge_sent:{order_name}"
+	if frappe.cache().get_value(sent_key):
+		return
+	frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
+
 	try:
 		order = frappe.get_doc("Order", order_name)
 	except frappe.DoesNotExistError:
@@ -79,11 +77,10 @@ def send_ugc_cashback_nudge(order_name):
 	token_suffix = f"&wt={wa_token}" if wa_token else ""
 	button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
 
-	from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
 	try:
 		success, result = send_whatsapp_cloud_message(
 			to_phone=phone,
-			template_name="ugc_cashback_nudge",
+			template_name="flamezo_ugc_earn_invite",
 			body_params=[first_name, str(amount), restaurant_name],
 			button_url_param=button_url_suffix,
 		)
@@ -95,25 +92,19 @@ def send_ugc_cashback_nudge(order_name):
 
 def dispatch_ugc_cashback_nudges():
 	"""
-	Every 5 min cron: send WhatsApp cashback nudge to customers whose payment
-	was marked eligible by verify_payment, and at least 3 minutes have passed.
+	Safety-net cron (every 5 min): catch any nudges that the direct enqueue
+	in verify_payment may have missed (worker restart, Redis blip, etc.).
 
-	Flow:
-	  verify_payment → sets Redis key ugc_nudge_eligible:{order}  (TTL 10 min)
-	  5-min cron     → finds eligible keys, sends nudge, sets ugc_nudge_sent key
-	                    to prevent double-send across parallel cron runs.
-
-	The 3-min delay is approximated: the eligible key is set at payment time,
-	and this cron runs every 5 min, so the effective delay is 3–8 min.
+	Primary path: verify_payment enqueues send_ugc_cashback_nudge with eta=180s.
+	This cron only fires for orders in the 4–12 min window that still have the
+	eligible Redis key (meaning the direct enqueue job never ran).
 	"""
 	from frappe.utils import now_datetime, add_to_date
 
 	now = now_datetime()
-	# Scan orders paid in the last 3–10 min window that are marked eligible
-	window_start = add_to_date(now, minutes=-10)
-	window_end = add_to_date(now, minutes=-3)
+	window_start = add_to_date(now, minutes=-12)
+	window_end = add_to_date(now, minutes=-4)
 
-	# Find recently completed orders whose restaurants have UGC active
 	orders = frappe.get_all(
 		"Order",
 		filters={
@@ -130,14 +121,11 @@ def dispatch_ugc_cashback_nudges():
 		eligible_key = f"ugc_nudge_eligible:{order_name}"
 		sent_key = f"ugc_nudge_sent:{order_name}"
 
-		# Only process orders flagged eligible by verify_payment
 		if not frappe.cache().get_value(eligible_key):
 			continue
-		# Skip if already sent (guard against parallel cron runs)
 		if frappe.cache().get_value(sent_key):
 			continue
 
-		# Mark sent immediately before the API call to prevent double-send
 		frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
 		frappe.cache().delete_value(eligible_key)
 
@@ -148,7 +136,19 @@ def dispatch_ugc_cashback_nudges():
 
 
 def send_ugc_whatsapp(submission_name, kind):
-	"""Send a single transactional WhatsApp message for a submission event."""
+	"""
+	Send a transactional WhatsApp message via Meta Cloud API template.
+
+	Template map:
+	  story_verified    → flamezo_story_approved      params: {{1}} restaurant_name
+	  story_rejected    → flamezo_story_not_approved  params: {{1}} restaurant_name
+	  proof_received    → flamezo_proof_acknowledged  params: {{1}} restaurant_name
+	  proof_reminder    → flamezo_upload_reminder     params: {{1}} restaurant_name  + button URL (with auth token)
+	  cashback_credited → flamezo_cashback_added      params: {{1}} amount, {{2}} restaurant_name  + button URL (with auth token)
+	  proof_rejected    → flamezo_proof_not_approved  params: {{1}} restaurant_name
+	  flagged           → flamezo_manual_review       params: {{1}} restaurant_name
+	  expired           → flamezo_window_expired      params: {{1}} restaurant_name
+	"""
 	try:
 		sub = frappe.get_doc("UGC Story Submission", submission_name)
 	except frappe.DoesNotExistError:
@@ -157,53 +157,67 @@ def send_ugc_whatsapp(submission_name, kind):
 	phone = _customer_phone(sub.customer)
 	if not phone:
 		return
-	rname = _restaurant_name(sub.restaurant)
 
-	messages = {
-		"story_verified": (
-			f"✅ Your story for {rname} is verified! You have 48 hours to upload a "
-			f"10–15 second screen recording of your story's view count.\n\n"
-			f"How to record:\n"
-			f'📱 Instagram: Open your story → swipe up → see "Seen by" count → screen record for 10–15 sec.\n'
-			f"📱 Facebook: Open your story → tap the eye icon → screen record for 10–15 sec.\n\n"
-			f"Make sure your phone's clock and battery bar are visible. Max 20 MB."
-			+ _claim_link(sub)
-		),
-		"story_rejected": (
-			f"Your story submission for {rname} couldn't be verified. "
-			f"Please make sure it was posted exactly as shown and try again."
-		),
-		"proof_reminder": (
-			f"⏰ Last reminder! Upload your story views to claim cashback from {rname}.\n\n"
-			f'Instagram: Open story → swipe up → screen record the "Seen by" count (10–15 sec).\n'
-			f"Facebook: Open story → tap eye icon → screen record (10–15 sec).\n\n"
-			f"Keep it under 20 MB. Upload here before your 48-hour window closes:"
-			+ _claim_link(sub)
-		),
-		"cashback_credited": (
-			f"🎉 Your Story Cashback voucher is ready! ₹{cint(sub.cashback_coins)} from {rname} "
-			f"— use 33% off each visit until it's fully redeemed. Valid for 45 days, only at {rname}."
-			+ _claim_link(sub)
-		),
-		"proof_rejected": (
-			f"Your cashback claim at {rname} couldn't be approved. "
-			f"Reach out to the restaurant if you think this was a mistake."
-		),
-		"flagged": (
-			f"Your story cashback at {rname} is under manual review. "
-			f"Our team is checking the view count — we'll update you within 24 hours."
-		),
-		"expired": (
-			f"Your story cashback at {rname} has expired — the 48-hour window to upload "
-			f"your view-count proof has passed. Visit again and share your next story to earn cashback!"
-		),
+	rname = _restaurant_name(sub.restaurant)
+	amount = str(cint(sub.cashback_coins))
+
+	# Build deep-link suffix for templates that include a button.
+	# For customer-facing links (proof_reminder, cashback_credited) include a WhatsApp
+	# auth token so the customer lands directly on the upload page without a login prompt.
+	base = frappe.conf.get("customer_web_url", "")
+	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
+	order = getattr(sub, "order", "") or ""
+	customer = getattr(sub, "customer", "")
+
+	# proof_reminder → back to ugc-claim (upload the screen recording)
+	proof_link_no_auth = f"{slug}/ugc-claim?r={slug}&bill={order}" if base else ""
+	# cashback_credited → to cashback-rewards (view & redeem the voucher)
+	wallet_link_no_auth = "cashback-rewards" if base else ""
+
+	# Attach a WhatsApp auth token to both deep-links so the customer lands
+	# already logged in without an OTP prompt.
+	proof_link = proof_link_no_auth
+	wallet_link = wallet_link_no_auth
+	if customer:
+		try:
+			from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
+			platform_customer = frappe.db.get_value("Customer", customer, "platform_customer")
+			phone = _customer_phone(customer)
+			if platform_customer and phone:
+				wa_token = generate_whatsapp_auth_token(phone, platform_customer)
+				if wa_token:
+					if proof_link_no_auth:
+						proof_link = f"{proof_link_no_auth}&wt={wa_token}"
+					if wallet_link_no_auth:
+						wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
+		except Exception:
+			pass  # fall back to links without auth token
+
+	TEMPLATES = {
+		"story_verified":    ("flamezo_story_approved",     [rname],          None),
+		"story_rejected":    ("flamezo_story_not_approved", [rname],          None),
+		"proof_received":    ("flamezo_proof_acknowledged", [rname],          None),
+		"proof_reminder":    ("flamezo_upload_reminder",    [rname],          proof_link),
+		"cashback_credited": ("flamezo_cashback_added",     [amount, rname],  wallet_link),
+		"proof_rejected":    ("flamezo_proof_not_approved", [rname],          None),
+		"flagged":           ("flamezo_manual_review",      [rname],          None),
+		"expired":           ("flamezo_window_expired",     [rname],          None),
 	}
-	message = messages.get(kind)
-	if not message:
+
+	entry = TEMPLATES.get(kind)
+	if not entry:
 		return
 
+	template_name, body_params, button_url_param = entry
 	try:
-		send_whatsapp_message(phone, message)
+		success, result = send_whatsapp_cloud_message(
+			to_phone=phone,
+			template_name=template_name,
+			body_params=body_params,
+			button_url_param=button_url_param,
+		)
+		if not success:
+			frappe.log_error(f"send_ugc_whatsapp({kind}) for {submission_name}: {result}", "UGC")
 	except Exception as e:
 		frappe.log_error(f"send_ugc_whatsapp({kind}) for {submission_name}: {e}", "UGC")
 

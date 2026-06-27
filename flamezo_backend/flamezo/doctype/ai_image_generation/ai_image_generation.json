@@ -19,7 +19,7 @@
    "fieldname": "owner_doctype",
    "fieldtype": "Select",
    "label": "Owner DocType",
-   "options": "Menu Product\nRestaurant Config"
+   "options": "Menu Product\nRestaurant Config\nCoupon"
   },
   {
    "fieldname": "owner_name",
