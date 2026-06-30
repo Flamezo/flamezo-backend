@@ -873,6 +873,100 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
 
 
 @frappe.whitelist(allow_guest=False)
+def retry_failed_image_generations(restaurant):
+    """
+    Retry all failed AI Image Generation jobs for a restaurant.
+
+    Finds every record with status 'Failed' (or stuck 'Pending_Upload') under
+    this restaurant, resets it back to Pending_Upload, and re-enqueues the
+    background worker — WITHOUT charging any coins, since the merchant already
+    paid for the original attempt.
+
+    Returns a summary dict:
+      {
+        "retried": [...list of generation IDs re-enqueued...],
+        "skipped": [...list of IDs not eligible to retry...],
+      }
+    """
+    if not frappe.has_permission("AI Image Generation", "read"):
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+    # Fetch all Failed generations for this restaurant
+    candidates = frappe.get_all(
+        "AI Image Generation",
+        filters={
+            "restaurant": restaurant,
+            "status": ["in", ["Failed", "Pending_Upload"]],
+        },
+        fields=["name", "status", "owner_doctype", "owner_name", "original_image_url"],
+        order_by="creation asc",
+    )
+
+    retried = []
+    skipped = []
+
+    for gen in candidates:
+        try:
+            # Determine mode from whether original_image_url is present
+            mode = "enhance" if gen.get("original_image_url") else "generate"
+
+            # Enhance mode requires the source image to still be accessible.
+            # If the URL was a /files/ upload and has since been cleaned up,
+            # we cannot re-download it — skip gracefully instead of failing silently.
+            if mode == "enhance":
+                original_url = gen.get("original_image_url") or ""
+                if original_url.startswith("/files/"):
+                    file_exists = frappe.db.exists("File", {"file_url": original_url})
+                    if not file_exists:
+                        skipped.append({
+                            "name": gen["name"],
+                            "reason": "original_file_deleted",
+                        })
+                        continue
+
+            # Reset status so the worker picks it up cleanly
+            frappe.db.set_value(
+                "AI Image Generation",
+                gen["name"],
+                {
+                    "status": "Pending_Upload",
+                    "error_message": "",
+                },
+            )
+            frappe.db.commit()
+
+            # Re-enqueue without coins_to_refund=0 (no further coin deduction or refund)
+            frappe.enqueue(
+                "flamezo_backend.flamezo.api.ai_media.process_ai_image_enhancement",
+                queue="default",
+                timeout=300,
+                generation_name=gen["name"],
+                mode=mode,
+                include_branding=False,
+                coins_to_refund=0,  # Already refunded or not charged on retry
+            )
+
+            retried.append(gen["name"])
+
+        except Exception as err:
+            frappe.log_error(
+                title="ai_media.retry_failed_image_generations",
+                message=f"Retry enqueue failed for {gen['name']}: {err}",
+            )
+            skipped.append({
+                "name": gen["name"],
+                "reason": str(err),
+            })
+
+    return {
+        "retried": retried,
+        "skipped": skipped,
+        "total_retried": len(retried),
+        "total_skipped": len(skipped),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
 def upload_menu_theme_wallpaper(restaurant, filedata, filename, index):
     """
     Directly uploads a wallpaper image to R2 and updates the specific wallpaper slot.

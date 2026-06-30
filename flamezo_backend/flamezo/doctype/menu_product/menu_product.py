@@ -48,12 +48,35 @@ class MenuProduct(Document):
 				if media_item.media_url:
 					self.has_no_media = 0
 					break
-	
+
 	def after_save(self):
 		"""Clear top picks cache for the restaurant"""
 		if self.get('restaurant'):
 			frappe.cache().delete_value(f"top_picks:{self.restaurant}")
-	
+
+	def before_delete(self):
+		"""Clean up attached Files and linked Media Assets before deletion verification runs."""
+		try:
+			# 1. Clean up attached File documents
+			attached_files = frappe.get_all(
+				"File",
+				filters={"attached_to_doctype": "Menu Product", "attached_to_name": self.name},
+				pluck="name"
+			)
+			for file_name in attached_files:
+				frappe.delete_doc("File", file_name, ignore_permissions=True, force=True)
+
+			# 2. Clean up linked Media Asset documents
+			linked_assets = frappe.get_all(
+				"Media Asset", 
+				filters={"owner_doctype": "Menu Product", "owner_name": self.name}, 
+				pluck="name"
+			)
+			for asset_name in linked_assets:
+				frappe.delete_doc("Media Asset", asset_name, ignore_permissions=True, force=True)
+		except Exception as e:
+			frappe.log_error(f"Failed to clean up assets for product {self.name}: {str(e)}", "Menu Product Deletion")
+
 	def on_trash(self):
 		"""Cleanup associated assets and references on deletion"""
 		# 1. Clear top picks cache

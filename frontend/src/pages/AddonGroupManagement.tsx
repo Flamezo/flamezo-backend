@@ -121,7 +121,7 @@ export default function AddonGroupManagement() {
     try {
       const result = await createGroup({
         restaurant_id: restaurantId,
-        group_name: isCustom ? '' : (template?.title || 'New Group'),
+        group_name: isCustom ? 'Custom Group' : (template?.title || 'New Group'),
         group_type: template?.groupType || 'addon',
         is_required: 0,
         min_selections: 0,
