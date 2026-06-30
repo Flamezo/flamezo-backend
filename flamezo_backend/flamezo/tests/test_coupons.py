@@ -159,6 +159,29 @@ class TestCouponValidate(unittest.TestCase):
             cleanup_coupons(r2)
             cleanup_restaurant(r2)
 
+    # ── Discount value validation ─────────────────────────────────────────────
+
+    def test_standard_coupon_invalid_discount_value_rejected(self):
+        """Standard coupons with discount_value <= 0 must be rejected."""
+        with self.assertRaises(frappe.ValidationError):
+            make_coupon(self.restaurant, code="ZEROVAL", discount_value=0)
+        with self.assertRaises(frappe.ValidationError):
+            make_coupon(self.restaurant, code="NEGVAL", discount_value=-5.0)
+
+    def test_combo_coupon_auto_forces_flat_zero_discount(self):
+        """Combo coupons must automatically force discount_value to 0 and discount_type to flat."""
+        # Insert with arbitrary inputs to verify they get overwritten
+        doc = make_coupon(
+            self.restaurant,
+            code="COMBVAL",
+            offer_type="combo",
+            discount_type="percent",
+            discount_value=25.0
+        )
+        self.assertEqual(doc.discount_value, 0.0)
+        self.assertEqual(doc.discount_type, "flat")
+
+
 
 # ─── Test: get_coupon_details() ──────────────────────────────────────────────
 
