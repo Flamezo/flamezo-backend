@@ -320,31 +320,31 @@ def get_restaurant_config(restaurant_id):
 		for c in coupons:
 			v_from = frappe.utils.getdate(c.get("valid_from"))
 			v_until = frappe.utils.getdate(c.get("valid_until"))
-			# pyrefly: ignore [unsupported-operation]
-			if v_from and v_from > today:
-				continue
-			# pyrefly: ignore [unsupported-operation]
-			if v_until and v_until < today:
-				continue
+			# Date, day-of-week, and time-of-day checks are bypassed here so that active offers
+			# are always visible in the customer app. They are enforced at checkout checkout/validation.
+			# if v_from and v_from > today:
+			# 	continue
+			# if v_until and v_until < today:
+			# 	continue
 
 			# Day-of-week filter (JSON array, e.g. ["monday", "wednesday", "friday"])
-			valid_days = c.get("valid_days_of_week")
-			if valid_days:
-				try:
-					allowed_days = json.loads(valid_days) if isinstance(valid_days, str) else valid_days
-				except (json.JSONDecodeError, TypeError):
-					allowed_days = None
-				if allowed_days and isinstance(allowed_days, list):
-					if current_day.lower() not in [d.lower() for d in allowed_days]:
-						continue
+			# valid_days = c.get("valid_days_of_week")
+			# if valid_days:
+			# 	try:
+			# 		allowed_days = json.loads(valid_days) if isinstance(valid_days, str) else valid_days
+			# 	except (json.JSONDecodeError, TypeError):
+			# 		allowed_days = None
+			# 	if allowed_days and isinstance(allowed_days, list):
+			# 		if current_day.lower() not in [d.lower() for d in allowed_days]:
+			# 			continue
 
 			# Time-of-day filter
-			time_start = c.get("valid_time_start")
-			time_end = c.get("valid_time_end")
-			if time_start and current_time < (frappe.utils.get_time(time_start)):
-				continue
-			if time_end and current_time > (frappe.utils.get_time(time_end)):
-				continue
+			# time_start = c.get("valid_time_start")
+			# time_end = c.get("valid_time_end")
+			# if time_start and current_time < (frappe.utils.get_time(time_start)):
+			# 	continue
+			# if time_end and current_time > (frappe.utils.get_time(time_end)):
+			# 	continue
 
 			# ── Combo deals section (display_on_menu) ──────────────────────
 			# combo_image is mandatory — skip combos without one so the card
@@ -402,10 +402,19 @@ def get_restaurant_config(restaurant_id):
 				item_pool_detail = _resolve_items(c.get("item_pool"))
 
 				# Savings calculation
+				discount_value = flt(c.get("discount_value") or 0)
 				combo_price = flt(c.get("combo_price") or 0)
 				items_to_select = int(c.get("items_to_select") or 2)
 
-				if combo_type == "bogo":
+				if discount_value > 0:
+					savings = discount_value
+					if combo_type == "build_your_own":
+						pool_prices = sorted([i["price"] for i in item_pool_detail if i["price"] > 0])
+						selected_prices = pool_prices[:items_to_select] if pool_prices else []
+						original_price = sum(selected_prices)
+					else:
+						original_price = sum(i["price"] for i in required_items_detail) if required_items_detail else 0
+				elif combo_type == "bogo":
 					# BOGO: fixed free-item value set by the restaurant.
 					bogo_value = flt(c.get("bogo_free_item_value") or 0)
 					combo_price = 0  # not applicable for BOGO display

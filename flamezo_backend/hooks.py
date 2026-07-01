@@ -262,7 +262,6 @@ scheduler_events = {
 		# Marketing Studio: dispatch scheduled campaigns every 15 minutes
 		"*/15 * * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
-			"flamezo_backend.flamezo.tasks.coupon_tasks.sync_coupon_activation_by_timelines",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
@@ -292,11 +291,6 @@ scheduler_events = {
 		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)
 		"0 2 * * 0": [
 			"flamezo_backend.flamezo.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
-		],
-		# Coupons: auto-activate scheduled + deactivate expired offers daily at 00:05
-		"5 0 * * *": [
-			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_activate_scheduled_coupons",
-			"flamezo_backend.flamezo.tasks.coupon_tasks.auto_deactivate_expired_coupons",
 		],
 		# Menu extraction self-heal: sweep docs stuck in 'Processing' for >5min
 		# (worker restart / transient failures) and re-aggregate or mark Failed.
