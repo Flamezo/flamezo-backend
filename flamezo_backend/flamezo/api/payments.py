@@ -223,9 +223,12 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		if redeemed_coins > 0 and platform_customer:
 			try:
 				from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, is_loyalty_enabled
-				from flamezo_backend.flamezo.utils.platform_config import get_max_redemption_percent
+				from flamezo_backend.flamezo.utils.platform_config import get_max_redemption_percent, is_cross_restaurant_redemption_enabled
 				if is_loyalty_enabled(_restaurant_name):
-					balance = get_loyalty_balance(platform_customer)  # global wallet
+					if is_cross_restaurant_redemption_enabled():
+						balance = get_loyalty_balance(platform_customer)
+					else:
+						balance = get_loyalty_balance(platform_customer, restaurant=_restaurant_name)
 					if redeemed_coins > balance:
 						redeemed_coins = balance
 

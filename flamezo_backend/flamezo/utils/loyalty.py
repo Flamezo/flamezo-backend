@@ -65,9 +65,13 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	if not is_loyalty_enabled(restaurant):
 		return None
 		
-	# Use global balance for redemption (Universal Wallet)
+	# Respect cross-restaurant flag: own-merchant mode locks redemption to earning restaurant
+	from flamezo_backend.flamezo.utils.platform_config import is_cross_restaurant_redemption_enabled
 	include_pending = reason == "Cancellation Revert"
-	balance = get_loyalty_balance(customer, include_pending=include_pending)
+	if is_cross_restaurant_redemption_enabled():
+		balance = get_loyalty_balance(customer, include_pending=include_pending)
+	else:
+		balance = get_loyalty_balance(customer, restaurant=restaurant, include_pending=include_pending)
 	
 	if coins > balance:
 		frappe.log_error(

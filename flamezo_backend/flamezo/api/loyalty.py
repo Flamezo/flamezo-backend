@@ -64,9 +64,14 @@ def get_loyalty_summary(restaurant_id, phone):
 		)
 		
 		from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
-		# Centralized Balance (Sums all restaurants)
-		balance = get_loyalty_balance(customer.name)
-		pending_balance = get_loyalty_balance(customer.name, include_pending=True) - balance
+		from flamezo_backend.flamezo.utils.platform_config import is_cross_restaurant_redemption_enabled
+		# Balance scope: own-restaurant when cross-redemption is disabled
+		if is_cross_restaurant_redemption_enabled():
+			balance = get_loyalty_balance(customer.name)
+			pending_balance = get_loyalty_balance(customer.name, include_pending=True) - balance
+		else:
+			balance = get_loyalty_balance(customer.name, restaurant=restaurant)
+			pending_balance = get_loyalty_balance(customer.name, restaurant=restaurant, include_pending=True) - balance
 		
 		# Tier is also calculated globally based on total lifetime spend/coins
 		tier = get_loyalty_tier(customer.name)
@@ -85,6 +90,9 @@ def get_loyalty_summary(restaurant_id, phone):
 		
 		lifetime_coins = sum(e.coins for e in entries if e.transaction_type == 'Earn' and e.is_settled == 1)
 		
+		cross_redemption = is_cross_restaurant_redemption_enabled()
+		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant_id
+
 		return {
 			"success": True,
 			"data": {
@@ -93,7 +101,9 @@ def get_loyalty_summary(restaurant_id, phone):
 				"expiring_soon_balance": expiring_soon_balance,
 				"lifetime_coins": lifetime_coins,
 				"tier": tier,
-				"transactions": entries
+				"transactions": entries,
+				"cross_restaurant_redemption_enabled": cross_redemption,
+				"earning_restaurant_name": None if cross_redemption else restaurant_name,
 			}
 		}
 	except Exception as e:
@@ -127,7 +137,7 @@ def get_loyalty_config(restaurant_id):
 		# Platform loyalty config
 		from flamezo_backend.flamezo.utils.platform_config import (
 			get_earn_percentage, get_max_coins_per_order, get_max_redemption_percent,
-			get_expiry_days, get_birthday_bonus_coins,
+			get_expiry_days, get_birthday_bonus_coins, is_cross_restaurant_redemption_enabled,
 		)
 
 		# Build config: platform constants + program metadata
@@ -163,6 +173,11 @@ def get_loyalty_config(restaurant_id):
 		# Add current restaurant's city
 		restaurant_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
 		config["city"] = restaurant_info.city or "Surat"
+		cross_redemption = is_cross_restaurant_redemption_enabled()
+		config["cross_restaurant_redemption_enabled"] = cross_redemption
+		config["earning_restaurant_name"] = None if cross_redemption else (
+			frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant_id
+		)
 
 		# Fetch other outlets (Real + Mock)
 		filters = {"is_active": 1, "enable_loyalty": 1, "name": ["!=", restaurant]}
