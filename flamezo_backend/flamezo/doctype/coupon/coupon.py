@@ -7,12 +7,15 @@ class Coupon(Document):
 		self.code = self.code.upper().strip() if self.code else self.code
 		self._validate_code_unique_per_restaurant()
 		self._sanitize_json_fields()
+		self._validate_discount_values()
 
 	def before_insert(self):
 		self._sanitize_json_fields()
+		self._validate_discount_values()
 
 	def before_save(self):
 		self._sanitize_json_fields()
+		self._validate_discount_values()
 
 	def _sanitize_json_fields(self):
 		"""Ensure JSON fields are None (not empty string) — MariaDB JSON CHECK constraint rejects ''."""
@@ -48,3 +51,16 @@ class Coupon(Document):
 				f"Coupon code <b>{self.code}</b> already exists for this restaurant.",
 				title="Duplicate Coupon Code"
 			)
+
+	def _validate_discount_values(self):
+		from frappe.utils import flt
+		if self.offer_type != "combo":
+			if flt(self.discount_value) <= 0:
+				frappe.throw(
+					frappe._("Discount Value must be greater than zero for flat or percentage discounts."),
+					title=frappe._("Invalid Discount Value")
+				)
+		else:
+			self.discount_value = 0.0
+			self.discount_type = "flat"
+

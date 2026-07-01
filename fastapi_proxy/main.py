@@ -178,7 +178,7 @@ if __name__ == "__main__":
 	logger.info(f"ERPNext Backend: {settings.erpnext_base_url}")
 	
 	uvicorn.run(
-		app,  # Use app directly instead of string
+		"main:app",  # Use import string to support reload
 		host=settings.fastapi_host,
 		port=settings.fastapi_port,
 		reload=settings.fastapi_debug,

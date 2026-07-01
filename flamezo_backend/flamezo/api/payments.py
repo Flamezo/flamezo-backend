@@ -380,6 +380,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			"notes": {
 				"order_id": order_doc.name,
 				"restaurant_id": restaurant_id,
+				"restaurant_name": frappe.db.get_value("Restaurant", restaurant_id, "restaurant_name") or restaurant_id,
 				"platform_fee": platform_fee_paise,
 				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
@@ -1206,7 +1207,7 @@ def charge_monthly_bill(ledger_name):
 		return {"success": False, "error": str(e)}
 @frappe.whitelist()
 def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10, skip=0):
-	"""Fetch transactions directly from Razorpay for a restaurant."""
+	"""Fetch transactions directly from Razorpay filtered for a specific restaurant."""
 	try:
 		validate_restaurant_for_api(restaurant_id)
 		client = get_razorpay_client(restaurant_id)
@@ -1229,6 +1230,26 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 			params["to"] = int(dt.timestamp()) + 86399
 			
 		payments = client.payment.all(params)
+
+		# Cross-reference with Order and Ledger records for strict restaurant privacy
+		order_payment_ids = set(frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, pluck="razorpay_payment_id"))
+		order_ids = set(frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, pluck="razorpay_order_id"))
+		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"restaurant": restaurant_id}, pluck="razorpay_payment_id"))
+		
+		filtered_items = []
+		for item in payments.get("items", []):
+			payment_id = item.get("id")
+			rzp_order_id = item.get("order_id")
+			notes = item.get("notes", {})
+			
+			if (payment_id in order_payment_ids or 
+				payment_id in ledger_payment_ids or 
+				rzp_order_id in order_ids or 
+				notes.get("restaurant") == restaurant_id or 
+				notes.get("restaurant_id") == restaurant_id):
+				filtered_items.append(item)
+				
+		payments["items"] = filtered_items
 		return {
 			"success": True,
 			"data": payments

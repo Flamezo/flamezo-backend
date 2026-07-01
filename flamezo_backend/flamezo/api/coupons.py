@@ -74,6 +74,10 @@ def get_coupons(restaurant_id, active_only=True):
 				"valid_time_start",
 				"valid_time_end",
 				"daily_limit",
+				"combo_type",
+				"combo_name",
+				"combo_price",
+				"bogo_free_item_value",
 			],
 			filters=filters,
 			order_by="code asc"
@@ -160,6 +164,10 @@ def get_coupons(restaurant_id, active_only=True):
 				"dailyLimit": daily_limit,
 				"slotsRemaining": slots_remaining,
 				"claimedToday": claimed_today,
+				"comboType": coupon.get("combo_type"),
+				"comboName": coupon.get("combo_name"),
+				"comboPrice": flt(coupon.get("combo_price")) if coupon.get("combo_price") is not None else None,
+				"bogoFreeItemValue": flt(coupon.get("bogo_free_item_value")) if coupon.get("bogo_free_item_value") is not None else None,
 			}
 
 			if ineligibility_hint:

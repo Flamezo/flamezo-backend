@@ -601,9 +601,19 @@ export default function Coupons() {
                 {coupons.map((coupon: any) => {
                   const isPercent = coupon.discount_type === 'percent'
 
-                  const discountLabel = isPercent
+                  let discountLabel = isPercent
                     ? `${coupon.discount_value}% OFF`
                     : `${formatAmountNoDecimals(coupon.discount_value)} OFF`
+
+                  if (coupon.offer_type === 'combo') {
+                    if (coupon.combo_type === 'bogo') {
+                      discountLabel = 'BUY 1 GET 1'
+                    } else if (coupon.combo_price > 0) {
+                      discountLabel = `₹${formatAmountNoDecimals(coupon.combo_price)} COMBO`
+                    } else {
+                      discountLabel = 'COMBO DEAL'
+                    }
+                  }
 
                   const discountColor = 'text-green-600 dark:text-green-400'
                   const stripeColor   = coupon.offer_type === 'combo'

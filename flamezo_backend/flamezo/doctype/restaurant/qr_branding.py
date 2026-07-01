@@ -811,9 +811,9 @@ def generate_pdf_from_assets(assets, layout="2x2"):
 			if card_buffer:
 				pdf_canvas_obj.drawImage(ImageReader(card_buffer), x, y, width=card_width, height=card_height)
 
-			pdf_canvas_obj.setFont("Helvetica", 8)
-			pdf_canvas_obj.setFillColorRGB(0.5, 0.5, 0.5)
-			pdf_canvas_obj.drawCentredString(page_width / 2, y - 0.22 * inch, asset["qr_data"])
+			# pdf_canvas_obj.setFont("Helvetica", 8)
+			# pdf_canvas_obj.setFillColorRGB(0.5, 0.5, 0.5)
+			# pdf_canvas_obj.drawCentredString(page_width / 2, y - 0.22 * inch, asset["qr_data"])
 
 			if index < len(assets):
 				pdf_canvas_obj.showPage()

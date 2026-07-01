@@ -138,6 +138,11 @@ function getOfferTypeLabel(type: string) {
 }
 
 function formatDiscount(s: AISuggestion): string {
+  if (s.offer_type === 'combo') {
+    if (s.combo_type === 'bogo') return 'BUY 1 GET 1'
+    if (s.combo_price && s.combo_price > 0) return `₹${s.combo_price} COMBO`
+    return 'COMBO DEAL'
+  }
   if (s.discount_type === 'percent') {
     const cap = s.max_discount_cap ? ` (max ₹${s.max_discount_cap})` : ''
     return `${s.discount_value}% OFF${cap}`
