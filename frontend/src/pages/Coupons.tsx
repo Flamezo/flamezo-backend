@@ -625,10 +625,26 @@ export default function Coupons() {
                     : `${formatAmountNoDecimals(coupon.discount_value)} OFF`
 
                   if (coupon.offer_type === 'combo') {
-                    if (coupon.combo_type === 'bogo') {
-                      discountLabel = 'BUY 1 GET 1'
+                    const lowerDesc = (coupon.description || '').toLowerCase()
+                    const lowerCode = (coupon.code || '').toLowerCase()
+                    const isBogo = coupon.combo_type === 'bogo' ||
+                      lowerDesc.includes('bogo') ||
+                      lowerCode.includes('bogo') ||
+                      lowerDesc.includes('buy 1 get 1') ||
+                      lowerDesc.includes('buy one get one') ||
+                      lowerDesc.includes('buy 2 get 1') ||
+                      lowerDesc.includes('free')
+
+                    if (coupon.discount_value > 0) {
+                      // Already set to "₹X OFF" by default
+                    } else if (isBogo) {
+                      if (coupon.bogo_free_item_value > 0) {
+                        discountLabel = `${formatAmountNoDecimals(coupon.bogo_free_item_value)} OFF`
+                      } else {
+                        discountLabel = 'BUY 1 GET 1'
+                      }
                     } else if (coupon.combo_price > 0) {
-                      discountLabel = `₹${formatAmountNoDecimals(coupon.combo_price)} COMBO`
+                      discountLabel = `${formatAmountNoDecimals(coupon.combo_price)} COMBO`
                     } else {
                       discountLabel = 'COMBO DEAL'
                     }

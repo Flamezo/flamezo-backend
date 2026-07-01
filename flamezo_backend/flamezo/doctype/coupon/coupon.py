@@ -61,6 +61,5 @@ class Coupon(Document):
 					title=frappe._("Invalid Discount Value")
 				)
 		else:
-			self.discount_value = 0.0
 			self.discount_type = "flat"
 

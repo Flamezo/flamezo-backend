@@ -278,7 +278,9 @@ def validate_offer_eligibility(offer, cart_total, customer_id, cart_items):
 	# Calculate Discount
 	discount_amount = 0
 	if offer.offer_type == "combo":
-		if combo_type == "bogo":
+		if flt(getattr(offer, "discount_value", 0) or 0) > 0:
+			discount_amount = flt(offer.discount_value)
+		elif combo_type == "bogo":
 			# Fixed free-item value set by the restaurant — works in dine-in without a digital cart.
 			discount_amount = flt(getattr(offer, "bogo_free_item_value", 0) or 0)
 

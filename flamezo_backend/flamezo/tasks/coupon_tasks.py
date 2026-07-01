@@ -54,11 +54,15 @@ def auto_deactivate_expired_coupons():
             "is_active": 1,
             "valid_until": ("<", today_date),
         },
-        fields=["name", "code"],
+        fields=["name", "code", "valid_until"],
     )
 
     deactivated = []
     for coupon in to_deactivate:
+        # Extra safety guard: Do not deactivate if valid_until is null, empty, or zero date
+        val = coupon.get("valid_until")
+        if not val or str(val) in ("0000-00-00", "None", ""):
+            continue
         frappe.db.set_value("Coupon", coupon.name, "is_active", 0)
         deactivated.append(coupon.code)
 
@@ -67,6 +71,88 @@ def auto_deactivate_expired_coupons():
         frappe.logger().info(f"[coupon_tasks] Auto-deactivated {len(deactivated)} expired coupons: {deactivated}")
 
     return deactivated
+
+
+def sync_coupon_activation_by_timelines():
+    """
+    Run periodically (every 15 min) to automatically toggle coupons On/Off
+    based on their day/time/date timeline constraints, if they are set.
+    Coupons with no timelines remain infinitely active (unless manually deactivated).
+    """
+    today_date = today()
+    current_dt = now_datetime()
+    current_day = current_dt.strftime("%A").lower()
+    current_time = current_dt.time()
+
+    import json
+    from datetime import datetime
+
+    coupons = frappe.get_all(
+        "Coupon",
+        fields=[
+            "name", "code", "is_active", "valid_from", "valid_until",
+            "valid_days_of_week", "valid_time_start", "valid_time_end"
+        ]
+    )
+
+    for coupon in coupons:
+        has_timeline = False
+        is_currently_valid = True
+
+        valid_from = coupon.get("valid_from")
+        valid_until = coupon.get("valid_until")
+        valid_days = coupon.get("valid_days_of_week")
+        time_start = coupon.get("valid_time_start")
+        time_end = coupon.get("valid_time_end")
+
+        # 1. Date checks
+        if valid_from and str(valid_from) not in ("0000-00-00", "None", ""):
+            has_timeline = True
+            if getdate(valid_from) > getdate(today_date):
+                is_currently_valid = False
+
+        if valid_until and str(valid_until) not in ("0000-00-00", "None", ""):
+            has_timeline = True
+            if getdate(valid_until) < getdate(today_date):
+                is_currently_valid = False
+
+        # 2. Day of week checks
+        if valid_days and str(valid_days) not in ("[]", "None", ""):
+            has_timeline = True
+            try:
+                days = json.loads(valid_days) if isinstance(valid_days, str) else list(valid_days)
+                days_lower = [d.lower() for d in days]
+                if current_day not in days_lower:
+                    is_currently_valid = False
+            except Exception:
+                pass
+
+        # 3. Time of day checks
+        if time_start or time_end:
+            has_timeline = True
+            try:
+                if time_start:
+                    start = datetime.strptime(str(time_start).split(".")[0], "%H:%M:%S").time()
+                    if current_time < start:
+                        is_currently_valid = False
+                if time_end:
+                    end = datetime.strptime(str(time_end).split(".")[0], "%H:%M:%S").time()
+                    if current_time > end:
+                        is_currently_valid = False
+            except Exception:
+                pass
+
+        # If it has a timeline, sync the active status
+        if has_timeline:
+            new_state = 1 if is_currently_valid else 0
+            if coupon.is_active != new_state:
+                frappe.db.set_value("Coupon", coupon.name, "is_active", new_state)
+                frappe.logger().info(
+                    f"[coupon_tasks] Timed Coupon {coupon.code} toggled {'ON' if new_state else 'OFF'} by timeline scheduler."
+                )
+
+    frappe.db.commit()
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────

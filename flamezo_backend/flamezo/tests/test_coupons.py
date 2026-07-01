@@ -70,13 +70,14 @@ def make_coupon(restaurant, code="SAVE10", **kwargs):
     # explicit time restrictions without fighting the ORM default behaviour.
     time_fields = {f: kwargs.pop(f) for f in ("valid_time_start", "valid_time_end") if f in kwargs}
 
+    offer_type = kwargs.get("offer_type", "coupon")
     defaults = {
         "doctype": "Coupon",
         "restaurant": restaurant,
         "code": code,
         "offer_type": "coupon",
         "discount_type": "flat",
-        "discount_value": 10.0,
+        "discount_value": 0.0 if offer_type == "combo" else 10.0,
         "is_active": 1,
     }
     defaults.update(kwargs)
@@ -169,8 +170,8 @@ class TestCouponValidate(unittest.TestCase):
             make_coupon(self.restaurant, code="NEGVAL", discount_value=-5.0)
 
     def test_combo_coupon_auto_forces_flat_zero_discount(self):
-        """Combo coupons must automatically force discount_value to 0 and discount_type to flat."""
-        # Insert with arbitrary inputs to verify they get overwritten
+        """Combo coupons must automatically force discount_type to flat but keep discount_value."""
+        # Insert with arbitrary inputs to verify they get overwritten/preserved
         doc = make_coupon(
             self.restaurant,
             code="COMBVAL",
@@ -178,7 +179,7 @@ class TestCouponValidate(unittest.TestCase):
             discount_type="percent",
             discount_value=25.0
         )
-        self.assertEqual(doc.discount_value, 0.0)
+        self.assertEqual(doc.discount_value, 25.0)
         self.assertEqual(doc.discount_type, "flat")
 
 
@@ -399,10 +400,11 @@ class TestValidateOfferEligibility(unittest.TestCase):
 
     def _offer(self, **kwargs):
         """Build a minimal mock offer object (SimpleNamespace-style via MagicMock)."""
+        offer_type = kwargs.get("offer_type", "coupon")
         defaults = dict(
             name="TEST-OFFER",
             code="TEST",
-            discount_value=10.0,
+            discount_value=0.0 if offer_type == "combo" else 10.0,
             discount_type="flat",
             offer_type="coupon",
             category="",
@@ -2501,6 +2503,10 @@ class TestBOGOFreeItemValue(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        frappe.reload_doc("flamezo", "doctype", "coupon", force=True)
+        frappe.clear_cache(doctype="Coupon")
+        frappe.db.updatedb("Coupon")
+        frappe.db.commit()
         cls.restaurant = make_restaurant("TEST-BOGO").name
         make_restaurant_config(cls.restaurant)
 

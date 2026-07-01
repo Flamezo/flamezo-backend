@@ -262,6 +262,7 @@ scheduler_events = {
 		# Marketing Studio: dispatch scheduled campaigns every 15 minutes
 		"*/15 * * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
+			"flamezo_backend.flamezo.tasks.coupon_tasks.sync_coupon_activation_by_timelines",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
