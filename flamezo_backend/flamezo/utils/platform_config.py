@@ -47,6 +47,12 @@ PLATFORM_LOYALTY = {
     "referral_cashback_orders":     5,     # Number of orders after first that earn cashback
     "referral_max_cashback":        200,   # Hard cap: max ₹200 earned per referred customer
 
+    # ── Cross-Restaurant Redemption ───────────────────────────────────────────
+    # When True  → customers can spend coins earned at any restaurant anywhere (original model).
+    # When False → coins are locked to the restaurant where they were earned (own-merchant only).
+    # Flip this single flag to switch between modes. Temporary restriction = False.
+    "cross_restaurant_redemption": False,
+
     # ── Platform Tiers (Global, based on lifetime earned cash) ────────────────
     "tier": {
         "silver":   500,    # ₹500+ lifetime earnings → Silver
@@ -111,3 +117,11 @@ def get_referral_share_coins() -> int:
 
 def get_max_opens_rewarded_per_share() -> int:
     return int(PLATFORM_LOYALTY["max_opens_rewarded_per_share"])
+
+def is_cross_restaurant_redemption_enabled() -> bool:
+    """
+    Returns True if coins can be redeemed at any restaurant (cross-network model).
+    Returns False if coins are locked to the restaurant where they were earned.
+    To re-enable cross-restaurant: set "cross_restaurant_redemption": True above.
+    """
+    return bool(PLATFORM_LOYALTY.get("cross_restaurant_redemption", True))

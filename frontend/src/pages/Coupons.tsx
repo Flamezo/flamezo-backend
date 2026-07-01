@@ -262,6 +262,7 @@ export default function Coupons() {
   const [selectedTemplate, setSelectedTemplate] = useState<CouponTemplate | null>(null)
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
   const [aiPrefilledForm, setAiPrefilledForm] = useState<Partial<typeof BLANK_FORM> | null>(null)
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
 
   const initialFilters = useMemo(() => {
     if (!selectedRestaurant) return []
@@ -487,9 +488,18 @@ export default function Coupons() {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Manage Offers & Coupons</h1>
-          <p className="text-muted-foreground mt-1">Create and manage discount coupons, auto-offers, and combo deals</p>
+          <p className="text-muted-foreground mt-1">Coupons, auto-offers and combo deals</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-blue-400/40 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+            onClick={() => setIsAnalyticsOpen(true)}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Show Analytics
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -514,37 +524,42 @@ export default function Coupons() {
             }
             Generate with AI
           </Button>
-          <Button onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Coupon
-          </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Coupons', value: totalCount || 0, icon: <Tag className="h-5 w-5 text-muted-foreground" />, color: '' },
-          { label: 'Active', value: coupons?.filter((c: any) => c.is_active).length || 0, icon: <TrendingUp className="h-5 w-5 text-green-600" />, color: 'text-green-600' },
-          { label: 'Total Usage', value: coupons?.reduce((s: number, c: any) => s + (c.usage_count || 0), 0) || 0, icon: <Users className="h-5 w-5 text-muted-foreground" />, color: '' },
-          { label: 'Combo Offers', value: coupons?.filter((c: any) => c.offer_type === 'combo').length || 0, icon: <Gift className="h-5 w-5 text-purple-600" />, color: 'text-purple-600' },
-        ].map(({ label, value, icon, color }) => (
-          <Card key={label}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground font-medium truncate">{label}</p>
-                  <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+      {/* Analytics Modal */}
+      <Dialog open={isAnalyticsOpen} onOpenChange={setIsAnalyticsOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              Offer Analytics
+            </DialogTitle>
+            <DialogDescription>Stats and claim analytics for your coupons and offers</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Total Coupons', value: totalCount || 0, icon: <Tag className="h-5 w-5 text-muted-foreground" />, color: '' },
+                { label: 'Active', value: coupons?.filter((c: any) => c.is_active).length || 0, icon: <TrendingUp className="h-5 w-5 text-green-600" />, color: 'text-green-600' },
+                { label: 'Total Usage', value: coupons?.reduce((s: number, c: any) => s + (c.usage_count || 0), 0) || 0, icon: <Users className="h-5 w-5 text-muted-foreground" />, color: '' },
+                { label: 'Combo Offers', value: coupons?.filter((c: any) => c.offer_type === 'combo').length || 0, icon: <Gift className="h-5 w-5 text-purple-600" />, color: 'text-purple-600' },
+              ].map(({ label, value, icon, color }) => (
+                <div key={label} className="rounded-xl border bg-card p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium truncate">{label}</p>
+                      <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+                    </div>
+                    <div className="shrink-0 p-2 rounded-lg bg-muted/50">{icon}</div>
+                  </div>
                 </div>
-                <div className="shrink-0 p-2 rounded-lg bg-muted/50">{icon}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Analytics */}
-      <ClaimsAnalyticsCard restaurantId={selectedRestaurant} />
+              ))}
+            </div>
+            <ClaimsAnalyticsCard restaurantId={selectedRestaurant} noCard />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* List */}
       <Card>
@@ -577,6 +592,10 @@ export default function Coupons() {
                   <SelectItem value="combo">Combo Deals</SelectItem>
                 </SelectContent>
               </Select>
+              <Button size="sm" onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create Coupon
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -1463,7 +1482,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
 
 // ─── Claims Analytics Card ────────────────────────────────────────────────────
 
-function ClaimsAnalyticsCard({ restaurantId }: { restaurantId: string }) {
+function ClaimsAnalyticsCard({ restaurantId, noCard }: { restaurantId: string; noCard?: boolean }) {
   const [period, setPeriod] = useState('30d')
   const [showDetails, setShowDetails] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -1489,33 +1508,33 @@ function ClaimsAnalyticsCard({ restaurantId }: { restaurantId: string }) {
   const byCoupon: any[] = analytics?.byCoupon || []
   const recentClaims: any[] = analytics?.recentClaims || []
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Offer Claims</CardTitle>
-              <CardDescription className="text-xs mt-0.5">How many claims converted to Flamezo payments</CardDescription>
-            </div>
-          </div>
-          <Select value={period} onValueChange={(v) => { setPeriod(v); load(v) }}>
-            <SelectTrigger className="w-[90px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">7 days</SelectItem>
-              <SelectItem value="30d">30 days</SelectItem>
-              <SelectItem value="90d">90 days</SelectItem>
-              <SelectItem value="all">All time</SelectItem>
-            </SelectContent>
-          </Select>
+  const header = (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+          <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        <div>
+          <p className="text-sm font-semibold">Offer Claims</p>
+          <p className="text-xs text-muted-foreground mt-0.5">How many claims converted to Flamezo payments</p>
+        </div>
+      </div>
+      <Select value={period} onValueChange={(v) => { setPeriod(v); load(v) }}>
+        <SelectTrigger className="w-[90px] h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="7d">7 days</SelectItem>
+          <SelectItem value="30d">30 days</SelectItem>
+          <SelectItem value="90d">90 days</SelectItem>
+          <SelectItem value="all">All time</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  const body = (
+    <div className="space-y-4">
         {loading && !analytics ? (
           <div className="flex items-center justify-center py-6">
             <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1631,7 +1650,22 @@ function ClaimsAnalyticsCard({ restaurantId }: { restaurantId: string }) {
             )}
           </>
         )}
-      </CardContent>
+    </div>
+  )
+
+  if (noCard) {
+    return (
+      <div className="rounded-xl border bg-card p-4">
+        {header}
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">{header}</CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   )
 }
