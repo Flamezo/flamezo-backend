@@ -614,48 +614,48 @@ export default function QRCodes() {
 
               {/* Tables count */}
               <div className="space-y-2">
-                  <Label htmlFor="tables-input">Number of Tables</Label>
-                  <div className="flex gap-2">
-                    <NumberInput
-                      id="tables-input"
-                      min="1"
-                      max="500"
-                      value={tables}
-                      onChange={(e: { target: { value: string } }) => setTables(parseInt(e.target.value) || 0)}
-                      disabled={isUpdating}
-                      className="flex-1 max-w-[140px]"
-                    />
-                    <Button
-                      onClick={handleUpdateTables}
-                      disabled={isUpdating || tablesMatchSaved || tables <= 0}
-                      variant={tablesMatchSaved ? 'outline' : 'default'}
-                    >
-                      {isUpdating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : 'Save Tables'}
-                    </Button>
-                  </div>
-                  {/* Quick presets */}
-                  <div className="flex gap-2 flex-wrap">
-                    {[5, 10, 15, 20, 25, 30, 50].map((n) => (
-                      <Button
-                        key={n}
-                        type="button"
-                        variant={tables === n ? 'default' : 'outline'}
-                        size="sm"
-                        className="h-7 px-3 text-xs"
-                        onClick={() => setTables(n)}
-                        disabled={isUpdating}
-                      >
-                        {n}
-                      </Button>
-                    ))}
-                  </div>
-                  {!tablesMatchSaved && tables > 0 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      Save table count before generating QR codes
-                    </p>
-                  )}
+                <Label htmlFor="tables-input">Number of Tables</Label>
+                <div className="flex gap-2">
+                  <NumberInput
+                    id="tables-input"
+                    min="1"
+                    max="500"
+                    value={tables}
+                    onChange={(e: { target: { value: string } }) => setTables(parseInt(e.target.value) || 0)}
+                    disabled={isUpdating}
+                    className="flex-1 max-w-[140px]"
+                  />
+                  <Button
+                    onClick={handleUpdateTables}
+                    disabled={isUpdating || tablesMatchSaved || tables <= 0}
+                    variant={tablesMatchSaved ? 'outline' : 'default'}
+                  >
+                    {isUpdating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : 'Save Tables'}
+                  </Button>
                 </div>
+                {/* Quick presets */}
+                <div className="flex gap-2 flex-wrap">
+                  {[5, 10, 15, 20, 25, 30, 50].map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant={tables === n ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-7 px-3 text-xs"
+                      onClick={() => setTables(n)}
+                      disabled={isUpdating}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+                {!tablesMatchSaved && tables > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Save table count before generating QR codes
+                  </p>
+                )}
+              </div>
 
               {/* PDF Layout selector */}
               <div className="space-y-2">
