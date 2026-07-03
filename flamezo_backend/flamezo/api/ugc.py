@@ -43,6 +43,7 @@ from flamezo_backend.flamezo.media.storage import (
 	generate_signed_upload_url,
 	verify_object_exists,
 	get_cdn_url,
+	upload_bytes,
 )
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -652,6 +653,87 @@ def request_ugc_video_upload(restaurant_id, submission_id, filename, content_typ
 		return _err("RESTAURANT_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"request_ugc_video_upload: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
+@frappe.whitelist(allow_guest=True)
+def upload_ugc_video_proxy(restaurant_id, submission_id):
+	"""Backend-proxied proof upload: the diner POSTs the video file here and the
+	server streams it to R2. This avoids the browser→R2 presigned-PUT, which fails
+	when the R2 bucket CORS policy doesn't allow the site origin.
+
+	Expects a multipart/form-data body with fields `restaurant_id`,
+	`submission_id` and a file part named `file`.
+
+	Returns { upload_id } — pass it straight to submit_ugc_proof().
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		customer = _require_customer()
+		if not customer:
+			return _err("SESSION_REQUIRED")
+
+		submission = _load_owned_submission(submission_id, restaurant, customer)
+		if not submission:
+			return _err("SUBMISSION_NOT_FOUND")
+
+		# Same gates as request_ugc_video_upload.
+		if submission.status not in ("story_verified", "proof_submitted"):
+			return _err("STORY_NOT_VERIFIED", "Your story is awaiting staff verification.")
+		if not _proof_window_open(submission):
+			return _err("PROOF_WINDOW_CLOSED", "The 48-hour proof upload window has closed.")
+
+		uploaded = frappe.request.files.get("file") if frappe.request else None
+		if not uploaded:
+			return _err("NO_FILE", "No video file received.")
+
+		content_type = (uploaded.mimetype or "").lower().strip()
+		if content_type not in ALLOWED_PROOF_MIME:
+			return _err("INVALID_FILE_TYPE", "Please upload a screen recording (mp4/mov/webm).")
+
+		data = uploaded.stream.read()
+		size_bytes = len(data or b"")
+		if size_bytes <= 0 or size_bytes > MAX_PROOF_BYTES:
+			return _err("FILE_TOO_LARGE", "Video must be under 20 MB. Keep your recording to 10–15 seconds.")
+
+		media_id = f"med_{uuid.uuid4().hex[:12]}"
+		safe_filename = _sanitize_filename(uploaded.filename or "proof.mp4")
+		object_key = generate_object_key(
+			restaurant_id=restaurant,
+			owner_doctype=PROOF_OWNER_DOCTYPE,
+			owner_name=submission.name,
+			media_role=PROOF_MEDIA_ROLE,
+			media_id=media_id,
+			filename=safe_filename,
+		)
+
+		# Stream to R2 server-side — no browser CORS involved.
+		upload_bytes(object_key, data, content_type)
+
+		frappe.get_doc({
+			"doctype": "Media Upload Session",
+			"upload_id": media_id,
+			"restaurant": restaurant,
+			"owner_doctype": PROOF_OWNER_DOCTYPE,
+			"owner_name": submission.name,
+			"media_role": PROOF_MEDIA_ROLE,
+			"media_kind": "video",
+			"object_key": object_key,
+			"filename": safe_filename,
+			"content_type": content_type,
+			"size_bytes": size_bytes,
+			# Media Upload Session only allows pending/confirmed/expired. The file is
+			# already in R2, but the session stays "pending" until submit_ugc_proof
+			# verifies it and flips it to "confirmed".
+			"status": "pending",
+		}).insert(ignore_permissions=True)
+		frappe.db.commit()
+
+		return _ok({"upload_id": media_id, "object_key": object_key})
+	except frappe.DoesNotExistError:
+		return _err("RESTAURANT_NOT_FOUND")
+	except Exception as e:
+		frappe.log_error(f"upload_ugc_video_proxy: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
