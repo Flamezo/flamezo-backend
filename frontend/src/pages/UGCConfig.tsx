@@ -218,9 +218,11 @@ useEffect(() => {
       if (!cdnUrl) throw new Error('Timed out waiting for download')
 
       const ext  = mediaType === 'video' ? 'mp4' : 'jpg'
+      const filename = `${restaurantName || 'story'}-preview.${ext}`
+      const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(cdnUrl)}&filename=${encodeURIComponent(filename)}`
       const a    = document.createElement('a')
-      a.href     = cdnUrl
-      a.download = `${restaurantName || 'story'}-preview.${ext}`
+      a.href     = proxyUrl
+      a.download = filename
       a.click()
 
       toast.success('Downloaded!', { id: loadingToast })

@@ -70,7 +70,7 @@ def start_story_download(
 
     frappe.enqueue(
         "flamezo_backend.flamezo.api.story_generator._run_job",
-        queue="long",
+        queue="default",
         timeout=300,
         job_id=job_id,
         template_url=template_url,
@@ -318,25 +318,6 @@ body {{ width:{w}px; height:{h}px; background:transparent; overflow:hidden; posi
 <div style="position:absolute;inset:0;pointer-events:none;
             background:linear-gradient(to bottom,rgba(0,0,0,0) 25%,rgba(0,0,0,0.25) 50%,rgba(0,0,0,0.65) 75%,rgba(0,0,0,0.88) 100%);"></div>
 
-<!-- Top-left: Flamezo logo chip -->
-<div style="position:absolute;top:{pad}px;left:{pad}px;display:inline-flex;align-items:center;
-            justify-content:center;padding:{chip_py}px {chip_px}px;background:rgba(255,255,255,0.22);
-            backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6);
-            border-radius:{chip_br}px;border:0.5px solid rgba(255,255,255,0.35);
-            box-shadow:0 2px 10px rgba(0,0,0,0.25);">
-  <img src="{logo_src}" style="width:{logo_w}px;height:auto;object-fit:contain;display:block;">
-</div>
-
-<!-- Top-right: QR + label -->
-<div style="position:absolute;top:{pad}px;right:{pad}px;display:flex;flex-direction:column;
-            align-items:center;gap:{qr_gap}px;">
-  <div style="width:{qr_size}px;height:{qr_size}px;background:#fff;
-              border-radius:{round(w*0.018)}px;padding:{qr_pad}px;box-shadow:0 2px 8px rgba(0,0,0,.45);">
-    <img src="{qr_src}" style="width:100%;height:100%;display:block;object-fit:contain;">
-  </div>
-  <p style="color:rgba(255,255,255,0.7);font-size:{fz(0.024)}px;font-weight:500;text-align:center;
-            line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.8);margin:0;">Scan to join</p>
-</div>
 
 <!-- Coupon strip -->
 <div style="position:absolute;bottom:{strip_bot}px;left:50%;transform:translateX(-50%);
@@ -382,33 +363,7 @@ def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
         alpha = int(min(224, t * t * 224))
         draw.line([(0, y), (w, y)], fill=(0, 0, 0, alpha))
 
-    # Logo chip
-    if os.path.exists(LOGO_PATH):
-        logo = Image.open(LOGO_PATH).convert("RGBA")
-        logo_w = round(w * 0.28)
-        logo_h = round(logo.height * logo_w / logo.width)
-        logo = logo.resize((logo_w, logo_h), Image.LANCZOS)
-        pad = round(w * 0.038)
-        chip_px = round(w * 0.020)
-        chip_py = round(w * 0.014)
-        chip_x, chip_y = pad, pad
-        chip_w = logo_w + 2 * chip_px
-        chip_h = logo_h + 2 * chip_py
-        chip = Image.new("RGBA", (chip_w, chip_h), (255, 255, 255, 56))
-        overlay.paste(chip, (chip_x, chip_y), chip)
-        overlay.paste(logo, (chip_x + chip_px, chip_y + chip_py), logo)
-
-    # QR code
-    qr_img  = qrcode.make(WA_CHANNEL_URL).convert("RGBA")
-    qr_size = round(w * 0.17)
-    qr_img  = qr_img.resize((qr_size, qr_size), Image.LANCZOS)
-    pad     = round(w * 0.038)
-    qr_x    = w - pad - qr_size
-    qr_y    = pad
-    bg_qr   = Image.new("RGBA", (qr_size, qr_size), (255, 255, 255, 255))
-    overlay.paste(bg_qr, (qr_x, qr_y))
-    overlay.paste(qr_img, (qr_x, qr_y), qr_img)
-
+    # Removed Logo chip and QR code to avoid double overlay with frontend
     overlay.save(out_png, "PNG")
 
 

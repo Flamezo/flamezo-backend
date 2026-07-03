@@ -69,6 +69,7 @@ def auto_deactivate_expired_coupons():
     return deactivated
 
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # WhatsApp notification — fires after a successful PIN claim
 # ──────────────────────────────────────────────────────────────────────────────
