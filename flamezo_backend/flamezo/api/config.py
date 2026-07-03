@@ -206,7 +206,7 @@ def get_restaurant_config(restaurant_id):
 				"verifyMyUser": True,
 				"savingsCornerGated": True,
 				"loyaltyRequiresOnlinePayment": True,
-				"enableLoyalty": True,
+				"enableLoyalty": bool(restaurant_doc.get("enable_loyalty")),
 				"defaultDeliveryFee": flt(restaurant_doc.get("default_delivery_fee", 0)),
 				"googleMapsApiKey": frappe.conf.get("google_maps_api_key") or frappe.db.get_single_value("Flamezo Settings", "google_maps_api_key"),
 				"order_settings": {

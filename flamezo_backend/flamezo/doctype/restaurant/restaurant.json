@@ -40,6 +40,7 @@
   "enable_takeaway",
   "enable_delivery",
   "enable_dine_in",
+  "enable_loyalty",
   "order_channel",
   "packaging_fee_type",
   "default_packaging_fee",
@@ -340,6 +341,12 @@
    "fieldtype": "Check",
    "label": "Enable Dine-in",
    "default": "1"
+  },
+  {
+   "fieldname": "enable_loyalty",
+   "fieldtype": "Check",
+   "label": "Enable Loyalty",
+   "default": "0"
   },
   {
    "fieldname": "order_channel",
