@@ -433,6 +433,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 @frappe.whitelist(allow_guest=True)
 def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 	"""Verify payment signature (optional - webhooks are authoritative)"""
+	frappe.log_error(f"verify_payment called for {razorpay_order_id}", "verify_payment_debug")
 	try:
 		# Prefer using the merchant's keys if the order belongs to a restaurant that has merchant credentials.
 		order = None
@@ -503,22 +504,18 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 				except Exception:
 					pass
 
-				# UGC cashback nudge — enqueued exactly 3 minutes after payment.
-				try:
-					from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
-					ugc_config = _get_active_config(order.restaurant)
-					if ugc_config and _is_ugc_active(ugc_config):
-						frappe.enqueue(
-							"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_cashback_nudge",
-							order_name=order.name,
-							queue="short",
-							timeout=60,
-							enqueue_after_commit=True,
-							at_front=False,
-							eta=180,  # 3 minutes
-						)
-				except Exception:
-					pass
+			# UGC cashback nudge — send the WhatsApp message immediately upon payment.
+			try:
+				from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
+				ugc_config = _get_active_config(order.restaurant)
+				if ugc_config and _is_ugc_active(ugc_config):
+					frappe.enqueue(
+						"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_cashback_nudge",
+						order_name=order.name,
+						queue="short"
+					)
+			except Exception:
+				pass
 
 		return {
 			"success": True,
