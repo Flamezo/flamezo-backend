@@ -551,6 +551,52 @@ def verify_whatsapp_token(token):
 		return {"success": False, "error": "INTERNAL_ERROR"}
 
 
+@frappe.whitelist(allow_guest=True)
+def get_my_profile():
+	"""
+	Return the authenticated customer's profile fields.
+	Reads X-Customer-Token / Authorization: Bearer from request headers.
+	Returns: { success, customer_id, customer_name, phone, email, date_of_birth, profile_photo }
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			get_customer_token, get_customer_from_token
+		)
+		token = get_customer_token()
+		if not token:
+			return {"success": False, "error": "AUTH_REQUIRED"}
+
+		customer_id = get_customer_from_token(token)
+		if not customer_id:
+			return {"success": False, "error": "INVALID_SESSION"}
+
+		fields = ["customer_name", "email", "phone", "image"]
+		if frappe.db.has_column("Customer", "date_of_birth"):
+			fields.append("date_of_birth")
+
+		c = frappe.db.get_value("Customer", customer_id, fields, as_dict=True)
+		if not c:
+			return {"success": False, "error": "CUSTOMER_NOT_FOUND"}
+
+		display_name = c.get("customer_name") or ""
+		phone_val = c.get("phone") or ""
+		if display_name == f"Customer {phone_val}":
+			display_name = ""
+
+		return {
+			"success": True,
+			"customer_id": customer_id,
+			"customer_name": display_name,
+			"phone": phone_val,
+			"email": c.get("email") or "",
+			"date_of_birth": str(c.get("date_of_birth")) if c.get("date_of_birth") else None,
+			"profile_photo": c.get("image") or None,
+		}
+	except Exception as e:
+		frappe.log_error(f"get_my_profile error: {e}", "Customer_Profile")
+		return {"success": False, "error": "INTERNAL_ERROR"}
+
+
 def _create_otp_log(restaurant_id, phone, channel, verified, purpose, error_message):
 	try:
 		frappe.get_doc({
