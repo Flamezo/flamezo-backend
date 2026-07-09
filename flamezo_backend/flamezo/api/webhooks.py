@@ -265,6 +265,20 @@ def handle_payment_captured(payload):
 				frappe.db.set_value("Order", order_name, order_update)
 				frappe.db.commit()
 
+				# Webhook fallback for UGC cashback nudge: if the user closed the window before
+				# frontend verify_payment fired, enqueue the WhatsApp message immediately.
+				try:
+					from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
+					ugc_config = _get_active_config(order_row.restaurant)
+					if ugc_config and _is_ugc_active(ugc_config):
+						frappe.enqueue(
+							"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_cashback_nudge",
+							order_name=order_name,
+							queue="short"
+						)
+				except Exception:
+					pass
+
 				# Tier 1 net-off: record settlement against open Commission
 				# Ledger Entries for the portion of the platform-side capture
 				# that was earmarked for cash debt recovery.

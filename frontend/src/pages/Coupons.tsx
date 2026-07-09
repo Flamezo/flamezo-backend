@@ -461,9 +461,10 @@ export default function Coupons() {
 
   const getOfferTypeIcon = (type: string) => {
     switch (type) {
-      case 'combo':    return <Gift className="h-4 w-4" />
-      case 'auto':     return <TrendingUp className="h-4 w-4" />
-      default:         return <Tag className="h-4 w-4" />
+      case 'combo':          return <Gift className="h-4 w-4" />
+      case 'auto':           return <TrendingUp className="h-4 w-4" />
+      case 'google_review':  return <Star className="h-4 w-4" />
+      default:               return <Tag className="h-4 w-4" />
     }
   }
 
@@ -590,6 +591,7 @@ export default function Coupons() {
                   <SelectItem value="coupon">Coupon Codes</SelectItem>
                   <SelectItem value="auto">Auto Offers</SelectItem>
                   <SelectItem value="combo">Combo Deals</SelectItem>
+                  <SelectItem value="google_review">Google Review</SelectItem>
                 </SelectContent>
               </Select>
               <Button size="sm" onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
@@ -650,11 +652,14 @@ export default function Coupons() {
                     }
                   }
 
+                  const isReview      = coupon.offer_type === 'google_review'
                   const discountColor = 'text-green-600 dark:text-green-400'
                   const stripeColor   = coupon.offer_type === 'combo'
                     ? 'bg-purple-500'
                     : coupon.offer_type === 'auto'
                     ? 'bg-orange-500'
+                    : isReview
+                    ? 'bg-blue-500'
                     : 'bg-green-500'
 
                   return (
@@ -670,6 +675,11 @@ export default function Coupons() {
                           <div className="flex items-center gap-2 min-w-0">
                             {getOfferTypeIcon(coupon.offer_type || 'coupon')}
                             <span className="font-bold text-sm tracking-widest uppercase truncate">{coupon.code}</span>
+                            {isReview && (
+                              <Badge variant="secondary" className="shrink-0 gap-1 h-5 px-1.5 text-[10px] font-semibold border-blue-400/30 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                                <Star className="h-2.5 w-2.5" />Google Review
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span className={`text-[11px] font-medium ${coupon.is_active ? 'text-green-500 dark:text-green-400' : 'text-muted-foreground'}`}>

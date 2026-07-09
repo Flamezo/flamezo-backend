@@ -362,7 +362,7 @@ def _load_owned_order(restaurant, order_id, customer):
 	if not order.platform_customer:
 		# If the order lacks a platform_customer (e.g. POS order) but the phone matches, link it.
 		from flamezo_backend.flamezo.utils.customer_helpers import normalize_phone
-		customer_phone = frappe.db.get_value("Platform Customer", customer, "phone")
+		customer_phone = frappe.db.get_value("Customer", customer, "phone")
 		if normalize_phone(order.customer_phone) == normalize_phone(customer_phone):
 			order.db_set("platform_customer", customer)
 		else:
@@ -413,6 +413,7 @@ def get_ugc_eligibility(restaurant_id, order_id):
 				"cashback_coins": cint(existing.cashback_coins),
 				"max_cashback": _max_cashback(existing.order_amount or order.total),
 				"templates": templates,
+				"proof_window_open": _proof_window_open(existing),
 			})
 
 		if not _order_is_eligible(order):
@@ -474,7 +475,8 @@ def start_ugc_offer(restaurant_id, order_id):
 				"max_cashback": _max_cashback(existing.order_amount or order.total),
 				"templates": _resolve_templates(config),
 				"headline": PLATFORM_HEADLINE,
-			"instructions": PLATFORM_INSTRUCTIONS,
+				"instructions": PLATFORM_INSTRUCTIONS,
+				"proof_window_open": _proof_window_open(existing),
 			})
 
 		# Re-run the eligibility gates server-side (never trust the client).
@@ -812,7 +814,8 @@ def submit_ugc_proof(restaurant_id, submission_id, upload_id):
 		)
 
 		# Notify customer their proof was received and is under review
-		_notify(submission.name, "proof_received")
+		# Notification is skipped here so the user only gets the final cashback message.
+		# _notify(submission.name, "proof_received")
 
 		return _ok({"status": "proof_submitted"})
 	except frappe.DoesNotExistError:
@@ -1547,7 +1550,7 @@ def get_my_ugc_vouchers(restaurant_id=None):
 			for m in frappe.get_all(
 				"Restaurant",
 				filters={"name": ["in", restaurant_names]},
-				fields=["name", "restaurant_name", "city", "logo"],
+				fields=["name", "restaurant_id", "restaurant_name", "city", "logo"],
 			):
 				meta[m["name"]] = m
 
@@ -1560,6 +1563,9 @@ def get_my_ugc_vouchers(restaurant_id=None):
 			items.append({
 				"voucherCode": r["voucher_code"],
 				"restaurantId": r["restaurant"],
+				# Public URL slug (the /[restaurant_id] route segment). Falls back to the
+				# doc name so navigation still resolves if the slug field is unset.
+				"restaurantSlug": m.get("restaurant_id") or r["restaurant"],
 				"restaurantName": m.get("restaurant_name") or r["restaurant"],
 				"city": m.get("city") or "",
 				"logo": get_cdn_url(m.get("logo")) if m.get("logo") else None,
@@ -1719,8 +1725,12 @@ def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
 	"""
 	Returns menu products marked is_ugc_redeemable=1 for this restaurant whose price
-	fits within min(bill * 30%, voucher_balance). Requires the voucher to have been
-	PIN-activated within the last UGC_PIN_LOCK_HOURS hours.
+	fits within min(bill * 30%, voucher_balance).
+
+	This is a read-only *preview* of what the diner can claim, so it does NOT require
+	PIN activation — the customer types their bill and immediately sees the dishes that
+	fit their cashback. The PIN gate lives on apply_ugc_dish_redemption, which is what
+	actually deducts the balance.
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
@@ -1747,14 +1757,9 @@ def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
 			frappe.db.commit()
 			return _err("VOUCHER_EXPIRED")
 
-		# Require PIN activation within the lock window and at this restaurant
-		if not voucher.pin_activated_at or not voucher.pin_activated_restaurant:
-			return _err("PIN_REQUIRED", "Please ask your waiter to enter the PIN first.")
-		activation_age = now_datetime() - get_datetime(voucher.pin_activated_at)
-		if activation_age.total_seconds() > UGC_PIN_LOCK_HOURS * 3600:
-			return _err("PIN_EXPIRED", "Your cashback session has expired. Please ask the waiter to re-activate.")
-		if voucher.pin_activated_restaurant != restaurant:
-			return _err("WRONG_RESTAURANT", "This cashback was activated at a different restaurant.")
+		# NOTE: No PIN gate here — this is a preview of claimable dishes shown as soon
+		# as the diner enters their bill. PIN activation is enforced at redemption time
+		# (apply_ugc_dish_redemption), which is what actually spends the balance.
 
 		# Compute dish budget
 		max_budget = int(min(bill * PLATFORM_VOUCHER_PER_VISIT_PCT / 100.0, flt(voucher.balance)))

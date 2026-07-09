@@ -208,6 +208,13 @@ class Restaurant(Document):
 		# Auto-create default Home Features for new restaurants
 		create_default_home_features(self)
 
+		# Auto-create default calm coupons for new restaurants
+		try:
+			from flamezo_backend.flamezo.doctype.restaurant.default_coupons import create_default_coupons
+			create_default_coupons(self.name)
+		except Exception as e:
+			frappe.log_error(f"Failed to auto-create coupons: {str(e)}", "Restaurant Coupon Auto-Creation")
+
 		# Generate QR codes if tables field is set
 		if hasattr(self, "_generate_qr_codes") and self._generate_qr_codes:
 			# pyrefly: ignore [unsupported-operation]
