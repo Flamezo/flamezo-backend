@@ -536,7 +536,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 # ── 5. Register FLAMEZO Member ─────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def register_flamezo_member(phone, full_name=None, city=None):
+def register_flamezo_member(phone, full_name=None, city=None, email=None, date_of_birth=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.flamezo.register_flamezo_member
 
@@ -547,6 +547,8 @@ def register_flamezo_member(phone, full_name=None, city=None):
 	- phone (str, required): Verified phone number
 	- full_name (str, optional): Customer's name
 	- city (str, optional): Home city for discovery personalization
+	- email (str, optional): Customer email address
+	- date_of_birth (str, optional): ISO date YYYY-MM-DD
 	"""
 	try:
 		session_token = get_customer_token()
@@ -568,6 +570,16 @@ def register_flamezo_member(phone, full_name=None, city=None):
 			update_fields["customer_name"] = full_name
 		if city:
 			update_fields["city"] = city
+		if email:
+			update_fields["email"] = email.strip().lower()
+		if date_of_birth:
+			try:
+				from datetime import datetime
+				datetime.strptime(date_of_birth, "%Y-%m-%d")
+				if frappe.db.has_column("Customer", "date_of_birth"):
+					update_fields["date_of_birth"] = date_of_birth
+			except ValueError:
+				pass
 
 		if update_fields:
 			frappe.db.set_value("Customer", customer.name, update_fields)
