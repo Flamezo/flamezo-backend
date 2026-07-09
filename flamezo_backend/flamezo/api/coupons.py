@@ -994,7 +994,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"isEligible": is_eligible,
 				"minOrderAmount": flt(offer.min_order_amount or 0),
 				"category": offer.category or "",
-				"googleReviewLink": offer.google_review_link or restaurant_review_link if offer.offer_type == 'google_review' else "",
+				"googleReviewLink": (offer.google_review_link or restaurant_review_link) if offer.offer_type == 'google_review' else "",
 				**combo_meta,
 			}
 

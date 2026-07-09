@@ -433,7 +433,6 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 @frappe.whitelist(allow_guest=True)
 def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 	"""Verify payment signature (optional - webhooks are authoritative)"""
-	frappe.log_error(f"verify_payment called for {razorpay_order_id}", "verify_payment_debug")
 	try:
 		# Prefer using the merchant's keys if the order belongs to a restaurant that has merchant credentials.
 		order = None

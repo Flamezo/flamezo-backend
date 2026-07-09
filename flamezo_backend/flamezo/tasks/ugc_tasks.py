@@ -35,10 +35,11 @@ def send_ugc_cashback_nudge(order_name):
 	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
 	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
 	"""
-	# Idempotency guard — skip only if a previous run already sent successfully.
-	# (The key is set *after* a successful send below, so a failed attempt retries.)
+	# Optimistic idempotency guard — claim the slot before any async work so two
+	# concurrent jobs (verify_payment + webhook) can't both send the same nudge.
+	# On failure the key is deleted so the next cron run retries.
 	sent_key = f"ugc_nudge_sent:{order_name}"
-	if frappe.cache().get_value(sent_key):
+	if not frappe.cache().set_value(sent_key, 1, expires_in_sec=86400, nx=True):
 		return
 
 	try:
@@ -80,11 +81,10 @@ def send_ugc_cashback_nudge(order_name):
 			button_url_param=button_url_suffix,
 		)
 		if not success:
+			frappe.cache().delete_value(sent_key)
 			frappe.log_error(message=str(result), title=f"UGC Nudge Error: {order_name}")
-		else:
-			# Only set the idempotency key if the message was actually sent successfully!
-			frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
 	except Exception as e:
+		frappe.cache().delete_value(sent_key)
 		frappe.log_error(message=str(e), title=f"UGC Nudge Exception: {order_name}")
 
 
@@ -118,8 +118,6 @@ def dispatch_ugc_cashback_nudges():
 
 	for row in orders:
 		order_name = row.name
-		if not frappe.cache().get_value(f"ugc_nudge_eligible:{order_name}"):
-			continue
 		if frappe.cache().get_value(f"ugc_nudge_sent:{order_name}"):
 			continue
 		# Don't clear the eligible key here: send_ugc_cashback_nudge sets the sent key
