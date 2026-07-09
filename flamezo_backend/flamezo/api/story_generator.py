@@ -48,7 +48,7 @@ LOGO_PATH = os.path.normpath(os.path.join(
 
 # ─── Public API Endpoints ─────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def start_story_download(
     template_url, media_type,
     restaurant_name="",
@@ -58,6 +58,10 @@ def start_story_download(
     """
     Validate inputs, enqueue the generation job, return {job_id} immediately.
     The frontend polls get_story_download_status() until status == 'done'.
+
+    allow_guest: diners in the consumer app (authenticated via X-Customer-Token,
+    so session.user is Guest) download their story with the overlay burned in.
+    Safe because template_url is restricted to allowed CDN domains below.
     """
     if not _cdn_url_allowed(template_url):
         frappe.throw("Media URL is not from an allowed CDN domain.", frappe.PermissionError)
@@ -68,20 +72,33 @@ def start_story_download(
     job_id = str(uuid.uuid4())
     _set_cache(job_id, {"status": "pending"})
 
-    frappe.enqueue(
-        "flamezo_backend.flamezo.api.story_generator._run_job",
-        queue="default",
-        timeout=300,
-        job_id=job_id,
-        template_url=template_url,
-        media_type=media_type,
-        restaurant_name=restaurant_name or "",
-        coupon_code=coupon_code,
-        discount_type=discount_type,
-        discount_value=discount_value,
-        offer_description=offer_description,
-        valid_until=valid_until,
-    )
+    # Run the compositing INLINE (no background-worker dependency). This is an
+    # on-demand download action and a 720p clip composites in a few seconds, so we
+    # do it synchronously and the client's first status poll gets the finished URL.
+    # Running via a worker was unreliable — jobs sat un-consumed on local benches.
+    try:
+        _run_job(
+            job_id=job_id,
+            template_url=template_url,
+            media_type=media_type,
+            restaurant_name=restaurant_name or "",
+            coupon_code=coupon_code,
+            discount_type=discount_type,
+            discount_value=discount_value,
+            offer_description=offer_description,
+            valid_until=valid_until,
+        )
+    except Exception:
+        # Fall back to the async queue if the inline run itself blows up.
+        frappe.log_error(frappe.get_traceback(), "Story inline run failed — using queue")
+        frappe.enqueue(
+            "flamezo_backend.flamezo.api.story_generator._run_job",
+            queue="default", timeout=300, job_id=job_id,
+            template_url=template_url, media_type=media_type,
+            restaurant_name=restaurant_name or "", coupon_code=coupon_code,
+            discount_type=discount_type, discount_value=discount_value,
+            offer_description=offer_description, valid_until=valid_until,
+        )
 
     return {"job_id": job_id}
 
@@ -114,14 +131,42 @@ def _run_job(
 
         with tempfile.TemporaryDirectory() as tmp:
 
-            # 1. Download source media from CDN (server-side — no CORS)
+            # 1. Download source media from CDN (server-side — no CORS).
+            #    If the raw file was cleaned up after processing, the processed
+            #    variant usually survives in the same folder — try it as a fallback.
             src_ext  = "mp4" if media_type == "video" else "jpg"
             src_path = os.path.join(tmp, f"source.{src_ext}")
-            r = _req.get(template_url, timeout=120, stream=True, headers=_CDN_HEADERS)
-            r.raise_for_status()
-            with open(src_path, "wb") as f:
-                for chunk in r.iter_content(65536):
-                    f.write(chunk)
+
+            candidates = [template_url]
+            if "/raw." in template_url:
+                base = template_url.rsplit("/", 1)[0]
+                if media_type == "video":
+                    candidates.append(f"{base}/video_720p.mp4")
+                else:
+                    candidates += [f"{base}/large.webp", f"{base}/medium.webp"]
+
+            downloaded = False
+            last_status = None
+            for cand in candidates:
+                resp = _req.get(cand, timeout=120, stream=True, headers=_CDN_HEADERS)
+                last_status = resp.status_code
+                if resp.status_code == 200:
+                    with open(src_path, "wb") as f:
+                        for chunk in resp.iter_content(65536):
+                            f.write(chunk)
+                    downloaded = True
+                    resp.close()
+                    break
+                resp.close()
+
+            if not downloaded:
+                # Media genuinely missing from the CDN — clear message beats a
+                # generic "generation failed" so the merchant knows to re-upload.
+                _set_cache(job_id, {
+                    "status": "error",
+                    "error": f"Template media not found (HTTP {last_status}). Please re-upload the media.",
+                })
+                return
 
             # 2. Get native dimensions
             if media_type == "video":
@@ -350,20 +395,118 @@ body {{ width:{w}px; height:{h}px; background:transparent; overflow:hidden; posi
 
 def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
                             discount_type, discount_value, offer_description, valid_until):
-    """Pillow fallback overlay — no frosted glass, simpler but reliable."""
+    """Pillow fallback overlay — draws the full FLAMEZO frame (logo + QR + coupon
+    card) burned into the media. Used when headless Chrome is unavailable so the
+    downloaded/shared story still carries the frame."""
     from PIL import Image, ImageDraw, ImageFont
-    import io, qrcode
+    import qrcode
+
+    _F_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    _F_REG  = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
+    def font(size, bold=True):
+        try:
+            return ImageFont.truetype(_F_BOLD if bold else _F_REG, max(8, int(size)))
+        except Exception:
+            return ImageFont.load_default()
 
     overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw    = ImageDraw.Draw(overlay)
 
-    # Bottom vignette gradient
+    # Bottom vignette gradient — keeps the coupon card readable over any media.
     for y in range(h):
-        t = max(0.0, (y / h - 0.25) / 0.75)  # 0 → 1 from 25% to 100%
-        alpha = int(min(224, t * t * 224))
+        t = max(0.0, (y / h - 0.35) / 0.65)
+        alpha = int(min(235, t * t * 235))
         draw.line([(0, y), (w, y)], fill=(0, 0, 0, alpha))
 
-    # Removed Logo chip and QR code to avoid double overlay with frontend
+    pad = int(w * 0.04)
+
+    # ── Logo (top-left) on a frosted chip ──
+    try:
+        if os.path.exists(LOGO_PATH):
+            logo = Image.open(LOGO_PATH).convert("RGBA")
+            lw = int(w * 0.30)
+            lh = max(1, int(lw * logo.height / logo.width))
+            logo = logo.resize((lw, lh), Image.LANCZOS)
+            cp = int(w * 0.02)
+            draw.rounded_rectangle(
+                (pad - cp, pad - cp, pad + lw + cp, pad + lh + cp),
+                radius=int(w * 0.03), fill=(255, 255, 255, 55),
+            )
+            overlay.alpha_composite(logo, (pad, pad))
+    except Exception:
+        pass
+
+    # ── QR (top-right) + caption ──
+    try:
+        qs = int(w * 0.18)
+        qr_img = qrcode.make(WA_CHANNEL_URL).convert("RGBA").resize((qs, qs), Image.NEAREST)
+        qx, qy = w - pad - qs, pad
+        qp = max(2, int(qs * 0.06))
+        draw.rounded_rectangle(
+            (qx - qp, qy - qp, qx + qs + qp, qy + qs + qp),
+            radius=int(w * 0.015), fill=(255, 255, 255, 255),
+        )
+        overlay.alpha_composite(qr_img, (qx, qy))
+        cap, cf = "Scan to join", font(int(w * 0.026), bold=False)
+        cw = draw.textlength(cap, font=cf)
+        draw.text((qx + qs / 2 - cw / 2, qy + qs + qp + int(h * 0.006)),
+                  cap, font=cf, fill=(255, 255, 255, 220))
+    except Exception:
+        pass
+
+    # ── Coupon card (bottom) ──
+    is_percent = (discount_type or "").lower() in ("percent", "percentage")
+    if discount_value:
+        discount_line = f"{int(discount_value)}% OFF" if is_percent else f"₹{int(discount_value)} OFF"
+    elif coupon_code:
+        discount_line = "Exclusive Offer"
+    else:
+        discount_line = ""
+
+    rows = []
+    if restaurant_name:
+        rows.append((restaurant_name.upper(), font(int(w * 0.028)), (255, 255, 255, 150)))
+    if discount_line:
+        rows.append((discount_line, font(int(w * 0.075)), (255, 255, 255, 255)))
+    rows.append((offer_description or "on your next visit", font(int(w * 0.030), bold=False), (255, 255, 255, 175)))
+    rows.append(("T&C apply", font(int(w * 0.026)), (218, 165, 32, 255)))
+    rows.append(("Show at checkout · Take a screenshot now", font(int(w * 0.024), bold=False), (255, 255, 255, 110)))
+
+    gap = int(h * 0.011)
+    heights = [draw.textbbox((0, 0), t, font=f)[3] for t, f, _ in rows]
+    card_w = int(w * 0.86)
+    card_x = int((w - card_w) / 2)
+    card_h = sum(heights) + gap * (len(rows) + 1)
+    card_y = h - int(h * 0.075) - card_h
+    inset  = int(w * 0.045)
+
+    draw.rounded_rectangle(
+        (card_x, card_y, card_x + card_w, card_y + card_h),
+        radius=int(w * 0.035), fill=(10, 10, 12, 185),
+    )
+
+    # Coupon-code chip on the first row (dashed-gold look → solid gold outline)
+    if coupon_code:
+        code_f = font(int(w * 0.026))
+        code_w = draw.textlength(coupon_code, font=code_f)
+        cpx, cpy = int(w * 0.018), int(h * 0.006)
+        ch = draw.textbbox((0, 0), coupon_code, font=code_f)[3]
+        chip_x2 = card_x + card_w - inset
+        chip_x1 = chip_x2 - code_w - cpx * 2
+        chip_y1 = card_y + gap
+        draw.rounded_rectangle(
+            (chip_x1, chip_y1, chip_x2, chip_y1 + ch + cpy * 2),
+            radius=int(w * 0.012), outline=(218, 165, 32, 230), width=2, fill=(218, 165, 32, 45),
+        )
+        draw.text((chip_x1 + cpx, chip_y1 + cpy), coupon_code, font=code_f, fill=(255, 255, 255, 255))
+
+    ty = card_y + gap
+    tx = card_x + inset
+    for (txt, f, color), hgt in zip(rows, heights):
+        draw.text((tx, ty), txt, font=f, fill=color)
+        ty += hgt + gap
+
     overlay.save(out_png, "PNG")
 
 
@@ -387,7 +530,7 @@ def _composite_video(src, overlay, vw, vh, out):
             "-i", src,
             "-i", overlay,
             "-filter_complex", filter_complex,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "0",
             "-c:a", "copy",
             "-movflags", "+faststart",
             out,

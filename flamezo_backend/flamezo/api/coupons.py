@@ -664,6 +664,11 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			order_by="priority desc, discount_value desc"
 		)
 		
+		# Fetch restaurant-level Google review link once (from Restaurant Config)
+		restaurant_review_link = frappe.db.get_value(
+			"Restaurant Config", {"restaurant": restaurant}, "google_review_link"
+		) or ""
+
 		eligible_offers = []
 		ineligible_offers = []
 		
@@ -989,6 +994,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"isEligible": is_eligible,
 				"minOrderAmount": flt(offer.min_order_amount or 0),
 				"category": offer.category or "",
+				"googleReviewLink": (offer.google_review_link or restaurant_review_link) if offer.offer_type == 'google_review' else "",
 				**combo_meta,
 			}
 
@@ -1112,7 +1118,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		coupon = frappe.db.get_value(
 			"Coupon",
 			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
-			["name", "code", "daily_limit"],
+			["name", "code", "daily_limit", "offer_type"],
 			as_dict=True,
 		)
 		if not coupon:
@@ -1134,6 +1140,19 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		)
 		if existing_lock:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant in the last 4 hours"}}
+
+		# Lifetime check for Google Review offers
+		if coupon.offer_type == "google_review":
+			lifetime_claim = frappe.db.exists(
+				"Offer Claim",
+				{
+					"restaurant": restaurant,
+					"customer": customer_id,
+					"coupon": coupon.name
+				}
+			)
+			if lifetime_claim:
+				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already claimed this Google Review offer once."}}
 
 		# Record the claim with full customer attribution
 		claim_time = now_datetime()

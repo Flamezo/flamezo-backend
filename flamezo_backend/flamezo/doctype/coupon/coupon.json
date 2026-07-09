@@ -62,10 +62,10 @@
    "fieldname": "offer_type",
    "fieldtype": "Select",
    "label": "Offer Type",
-   "options": "coupon\nauto\ncombo",
+   "options": "coupon\nauto\ncombo\ngoogle_review",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing"
+   "description": "Coupon: Manual code entry | Auto: Applies automatically | Combo: Bundle pricing | Google Review: Special one-time banner"
   },
   {
    "fieldname": "code",
@@ -74,6 +74,12 @@
    "label": "Coupon Code",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "google_review_link",
+   "fieldtype": "Small Text",
+   "label": "Google Review Link",
+   "depends_on": "eval:doc.offer_type=='google_review'"
   },
   {
    "default": "flat",

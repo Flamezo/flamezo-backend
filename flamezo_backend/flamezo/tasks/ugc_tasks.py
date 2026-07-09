@@ -27,43 +27,39 @@ def _customer_phone(customer):
 
 def send_ugc_cashback_nudge(order_name):
 	"""
-	Enqueued 3 minutes after payment success (via frappe.enqueue eta).
-	Sends a personalized WhatsApp nudge only if the customer hasn't already
-	started a UGC submission for this order.
+	Sent ~3 minutes after payment success by the dispatch_ugc_cashback_nudges cron.
+	Sends a personalized WhatsApp nudge to the diner, regardless of whether they've
+	opened the UGC page / tapped Unlock (the message always goes out once per order).
 
 	Meta template: flamezo_ugc_earn_invite
 	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
 	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
 	"""
-	# Idempotency guard — prevent double-send if both direct enqueue and cron fire
+	# Optimistic idempotency guard — claim the slot before any async work so two
+	# concurrent jobs (verify_payment + webhook) can't both send the same nudge.
+	# On failure the key is deleted so the next cron run retries.
 	sent_key = f"ugc_nudge_sent:{order_name}"
-	if frappe.cache().get_value(sent_key):
+	if not frappe.cache().set_value(sent_key, 1, expires_in_sec=86400, nx=True):
 		return
-	frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
 
 	try:
 		order = frappe.get_doc("Order", order_name)
 	except frappe.DoesNotExistError:
 		return
 
-	# Skip if customer already started the UGC claim
-	already_started = frappe.db.exists(
-		"UGC Story Submission",
-		{"order": order_name, "status": ["not in", ("rejected", "expired")]},
-	)
-	if already_started:
-		return
+	# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
+	# tapped Unlock — there is intentionally no "already started" suppression here.
 
 	phone = order.customer_phone or ""
 	if not phone and order.platform_customer:
-		phone = frappe.db.get_value("Platform Customer", order.platform_customer, "phone") or ""
+		phone = frappe.db.get_value("Customer", order.platform_customer, "phone") or ""
 	if not phone:
 		return
 
 	# Customer first name
 	full_name = ""
 	if order.platform_customer:
-		full_name = frappe.db.get_value("Platform Customer", order.platform_customer, "full_name") or ""
+		full_name = frappe.db.get_value("Customer", order.platform_customer, "customer_name") or ""
 	if not full_name:
 		full_name = order.customer_name or ""
 	first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
@@ -85,25 +81,29 @@ def send_ugc_cashback_nudge(order_name):
 			button_url_param=button_url_suffix,
 		)
 		if not success:
-			frappe.log_error(f"send_ugc_cashback_nudge({order_name}): {result}", "UGC")
+			frappe.cache().delete_value(sent_key)
+			frappe.log_error(message=str(result), title=f"UGC Nudge Error: {order_name}")
 	except Exception as e:
-		frappe.log_error(f"send_ugc_cashback_nudge({order_name}): {e}", "UGC")
+		frappe.cache().delete_value(sent_key)
+		frappe.log_error(message=str(e), title=f"UGC Nudge Exception: {order_name}")
 
 
 def dispatch_ugc_cashback_nudges():
 	"""
-	Safety-net cron (every 5 min): catch any nudges that the direct enqueue
-	in verify_payment may have missed (worker restart, Redis blip, etc.).
+	Cron (every 5 min) — the PRIMARY delivery path for the post-payment UGC nudge.
 
-	Primary path: verify_payment enqueues send_ugc_cashback_nudge with eta=180s.
-	This cron only fires for orders in the 4–12 min window that still have the
-	eligible Redis key (meaning the direct enqueue job never ran).
+	verify_payment marks each paid order eligible (Redis key ugc_nudge_eligible:*);
+	this cron sends the WhatsApp ~3-8 min later, but only if the diner hasn't started
+	a UGC claim in the meantime. Timing lives here because frappe.enqueue (RQ) has no
+	delay/eta support, so a delayed job can't be scheduled directly.
 	"""
 	from frappe.utils import now_datetime, add_to_date
 
 	now = now_datetime()
-	window_start = add_to_date(now, minutes=-12)
-	window_end = add_to_date(now, minutes=-4)
+	# 6-min window (> the 5-min cron interval, so no paid order is skipped), starting
+	# 3 min back to give the diner a short grace period to open the UGC page first.
+	window_start = add_to_date(now, minutes=-9)
+	window_end = add_to_date(now, minutes=-3)
 
 	orders = frappe.get_all(
 		"Order",
@@ -118,17 +118,11 @@ def dispatch_ugc_cashback_nudges():
 
 	for row in orders:
 		order_name = row.name
-		eligible_key = f"ugc_nudge_eligible:{order_name}"
-		sent_key = f"ugc_nudge_sent:{order_name}"
-
-		if not frappe.cache().get_value(eligible_key):
+		if frappe.cache().get_value(f"ugc_nudge_sent:{order_name}"):
 			continue
-		if frappe.cache().get_value(sent_key):
-			continue
-
-		frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
-		frappe.cache().delete_value(eligible_key)
-
+		# Don't clear the eligible key here: send_ugc_cashback_nudge sets the sent key
+		# only on a successful send, so a failed attempt is retried next run and a
+		# successful one is deduped by that sent key.
 		try:
 			send_ugc_cashback_nudge(order_name)
 		except Exception as e:

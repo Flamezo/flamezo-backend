@@ -204,6 +204,39 @@ def upload_object(local_path, object_key, content_type=None, metadata=None):
 		frappe.throw(error_msg)
 
 
+def upload_bytes(object_key, data, content_type=None):
+	"""Upload raw bytes to R2 server-side.
+
+	Used by the upload proxy so the browser never PUTs directly to R2 — this
+	avoids the R2 bucket CORS requirement entirely (the server-to-R2 call is
+	not subject to browser CORS).
+	"""
+	try:
+		client = get_r2_client()
+		config = get_r2_config()
+
+		extra_args = {}
+		if content_type:
+			extra_args['ContentType'] = content_type
+
+		# Public CDN cache headers, same as upload_object
+		cdn_config = get_cdn_config()
+		extra_args['CacheControl'] = cdn_config["cache_control"]
+
+		client.put_object(
+			Bucket=config["bucket_name"],
+			Key=object_key,
+			Body=data,
+			**extra_args
+		)
+
+		return get_cdn_url(object_key)
+	except ClientError as e:
+		error_msg = f"Error uploading bytes: {str(e)}"
+		safe_log_error("R2 Bytes Upload", error_msg)
+		frappe.throw(error_msg)
+
+
 def delete_object(object_key):
 	"""Delete object from R2"""
 	try:
