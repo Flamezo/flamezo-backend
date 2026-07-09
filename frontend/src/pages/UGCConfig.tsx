@@ -169,7 +169,10 @@ useEffect(() => {
     setDownloading(true)
     const loadingToast = toast.loading('Preparing download…')
     try {
-      const csrf = (window as any).frappe?.csrf_token || ''
+      // The app stores the CSRF token at window.csrf_token (see lib/session.ts),
+      // NOT window.frappe.csrf_token — reading the wrong source left it empty, so
+      // the logged-in POST to start_story_download failed CSRF → "Could not download".
+      const csrf = (window as any).csrf_token || ''
       const mediaType = isVideo(tpl) ? 'video' : 'image'
 
       const startRes = await fetch(
@@ -220,10 +223,22 @@ useEffect(() => {
       const ext  = mediaType === 'video' ? 'mp4' : 'jpg'
       const filename = `${restaurantName || 'story'}-preview.${ext}`
       const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(cdnUrl)}&filename=${encodeURIComponent(filename)}`
-      const a    = document.createElement('a')
-      a.href     = proxyUrl
+
+      // Fetch the file as a blob and download via a blob URL. A plain <a href>
+      // navigation here happens AFTER the ~10s compositing await, so the user
+      // gesture is gone and the browser silently drops the download. A blob
+      // download is reliable post-await and shows up in the browser's download bar.
+      const res = await fetch(proxyUrl)
+      if (!res.ok) throw new Error(`Download failed (${res.status})`)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
       a.download = filename
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
 
       toast.success('Downloaded!', { id: loadingToast })
     } catch (err) {

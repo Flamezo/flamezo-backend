@@ -359,20 +359,14 @@ def check_session(session_token):
 		if customer_name == f"Customer {phone_normalized}":
 			customer_name = ""
 
-		# Token rotation: issue a new token every time, invalidate the old one.
-		# If a token was leaked/stolen, it becomes dead the next time the real
-		# user opens the app. No refresh-token architecture needed.
-		from flamezo_backend.flamezo.utils.customer_helpers import (
-			create_customer_session, _hard_revoke
-		)
-		try:
-			new_token = create_customer_session(
-				phone=phone_normalized,
-				customer_id=customer_id,
-			)
-			_hard_revoke(session_token)
-		except Exception:
-			new_token = session_token  # Rotation failed — keep old token, don't fail the check
+		# Token rotation DISABLED: rotating (and hard-revoking) the token on every
+		# check_session raced with concurrent API calls — an in-flight request
+		# (e.g. UGC get_claimable_orders firing at page load) would use the token
+		# that check_session had just revoked, get SESSION_REQUIRED, and force a
+		# spurious re-login. Keep ONE stable token for the whole session so a
+		# single login works across every feature. The token is still revoked on
+		# explicit logout and bounded by its TTL.
+		new_token = session_token
 
 		return {
 			"success": True,
