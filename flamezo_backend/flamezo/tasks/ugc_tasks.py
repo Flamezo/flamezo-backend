@@ -107,12 +107,15 @@ def send_ugc_cashback_nudge(order_name):
 
 def dispatch_ugc_cashback_nudges():
 	"""
-	Cron (every 5 min) — the PRIMARY delivery path for the post-payment UGC nudge.
+	Cron (every 5 min) — the fallback/catch-up delivery path for the post-payment
+	UGC nudge. The instant path is the enqueue in verify_payment (+ the Razorpay
+	webhook); this cron re-sends any paid order whose nudge never went out.
 
-	verify_payment marks each paid order eligible (Redis key ugc_nudge_eligible:*);
-	this cron sends the WhatsApp ~3-8 min later, but only if the diner hasn't started
-	a UGC claim in the meantime. Timing lives here because frappe.enqueue (RQ) has no
-	delay/eta support, so a delayed job can't be scheduled directly.
+	It sweeps recently-modified paid orders and calls send_ugc_cashback_nudge,
+	which dedupes on the durable `ugc_nudge_sent` key so an order already delivered
+	(or in-flight, via the short-lived lock) is skipped. There is no separate
+	"eligible" gate and no "already started a claim" suppression — the nudge is
+	sent once per paid order regardless.
 	"""
 	from frappe.utils import now_datetime, add_to_date
 
@@ -137,9 +140,8 @@ def dispatch_ugc_cashback_nudges():
 		order_name = row.name
 		if frappe.cache().get_value(f"ugc_nudge_sent:{order_name}"):
 			continue
-		# Don't clear the eligible key here: send_ugc_cashback_nudge sets the sent key
-		# only on a successful send, so a failed attempt is retried next run and a
-		# successful one is deduped by that sent key.
+		# send_ugc_cashback_nudge sets the sent key only on a successful send, so a
+		# failed attempt is retried next run and a delivered one stays deduped.
 		try:
 			send_ugc_cashback_nudge(order_name)
 		except Exception as e:
