@@ -172,18 +172,25 @@ def send_ugc_whatsapp(submission_name, kind):
 	rname = _restaurant_name(sub.restaurant)
 	amount = str(cint(sub.cashback_coins))
 
-	# Build deep-link suffix for templates that include a button.
-	# For customer-facing links (proof_reminder, cashback_credited) include a WhatsApp
-	# auth token so the customer lands directly on the upload page without a login prompt.
-	base = frappe.conf.get("customer_web_url", "")
+	# Build the deep-link SUFFIX for templates that include a button. These are
+	# path suffixes substituted into the Meta template's own button base URL
+	# (e.g. https://flamezo.in/{{1}}), so they must ALWAYS be built. Previously
+	# they were gated on `customer_web_url`; when that optional site-config key is
+	# unset in prod the suffix went empty, the button component was dropped, and
+	# Meta rejects a button template with a missing URL param — silently killing
+	# the cashback_credited / proof_reminder messages in live. (The post-payment
+	# nudge is unaffected because it lives in a different function that builds its
+	# suffix unconditionally.)
+	# For customer-facing links a WhatsApp auth token is appended below so the
+	# customer lands directly on the page without an OTP prompt.
 	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
 	order = getattr(sub, "order", "") or ""
 	customer = getattr(sub, "customer", "")
 
 	# proof_reminder → back to ugc-claim (upload the screen recording)
-	proof_link_no_auth = f"{slug}/ugc-claim?r={slug}&bill={order}" if base else ""
+	proof_link_no_auth = f"{slug}/ugc-claim?r={slug}&bill={order}"
 	# cashback_credited → to cashback-rewards (view & redeem the voucher)
-	wallet_link_no_auth = "cashback-rewards" if base else ""
+	wallet_link_no_auth = "cashback-rewards"
 
 	# Attach a WhatsApp auth token to both deep-links so the customer lands
 	# already logged in without an OTP prompt.
@@ -197,10 +204,8 @@ def send_ugc_whatsapp(submission_name, kind):
 			if platform_customer and phone:
 				wa_token = generate_whatsapp_auth_token(phone, platform_customer)
 				if wa_token:
-					if proof_link_no_auth:
-						proof_link = f"{proof_link_no_auth}&wt={wa_token}"
-					if wallet_link_no_auth:
-						wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
+					proof_link = f"{proof_link_no_auth}&wt={wa_token}"
+					wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
 		except Exception:
 			pass  # fall back to links without auth token
 
