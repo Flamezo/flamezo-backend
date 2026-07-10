@@ -46,7 +46,11 @@ def send_ugc_cashback_nudge(order_name):
 
 	if frappe.cache().get_value(sent_key):
 		return  # already delivered
-	if not frappe.cache().set_value(lock_key, 1, expires_in_sec=120, nx=True):
+	# NOTE: use the raw redis client's atomic SET NX EX for the lock. Frappe's
+	# set_value() does NOT accept nx=, so set_value(..., nx=True) raises TypeError
+	# and the whole nudge crashes before sending — which is exactly what silently
+	# broke this in production after 06cc4e2.
+	if not frappe.cache().set(lock_key, "1", ex=120, nx=True):
 		return  # another worker is sending this right now
 
 	def _mark_sent():
@@ -102,7 +106,8 @@ def send_ugc_cashback_nudge(order_name):
 		frappe.log_error(message=str(e), title=f"UGC Nudge Exception: {order_name}")
 	finally:
 		# Release the concurrency lock so a retry isn't blocked for the full TTL.
-		frappe.cache().delete_value(lock_key)
+		# Raw delete to match the raw .set() above (same un-namespaced key).
+		frappe.cache().delete(lock_key)
 
 
 def dispatch_ugc_cashback_nudges():
