@@ -35,57 +35,74 @@ def send_ugc_cashback_nudge(order_name):
 	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
 	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
 	"""
-	# Optimistic idempotency guard — claim the slot before any async work so two
-	# concurrent jobs (verify_payment + webhook) can't both send the same nudge.
-	# On failure the key is deleted so the next cron run retries.
+	# Idempotency + concurrency, split into two keys so a crashed/killed worker
+	# can never permanently suppress the nudge:
+	#   sent_key — durable "delivered" marker, set ONLY after a confirmed send.
+	#   lock_key — short-lived (2 min) lock so the verify_payment enqueue and the
+	#              cron can't send concurrently. It auto-expires, so if this job
+	#              dies mid-send the next cron run simply retries.
 	sent_key = f"ugc_nudge_sent:{order_name}"
-	if not frappe.cache().set_value(sent_key, 1, expires_in_sec=86400, nx=True):
-		return
+	lock_key = f"ugc_nudge_lock:{order_name}"
+
+	if frappe.cache().get_value(sent_key):
+		return  # already delivered
+	if not frappe.cache().set_value(lock_key, 1, expires_in_sec=120, nx=True):
+		return  # another worker is sending this right now
+
+	def _mark_sent():
+		frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
 
 	try:
-		order = frappe.get_doc("Order", order_name)
-	except frappe.DoesNotExistError:
-		return
+		try:
+			order = frappe.get_doc("Order", order_name)
+		except frappe.DoesNotExistError:
+			_mark_sent()  # order gone — no point retrying
+			return
 
-	# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
-	# tapped Unlock — there is intentionally no "already started" suppression here.
+		# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
+		# tapped Unlock — there is intentionally no "already started" suppression here.
 
-	phone = order.customer_phone or ""
-	if not phone and order.platform_customer:
-		phone = frappe.db.get_value("Customer", order.platform_customer, "phone") or ""
-	if not phone:
-		return
+		phone = order.customer_phone or ""
+		if not phone and order.platform_customer:
+			phone = frappe.db.get_value("Customer", order.platform_customer, "phone") or ""
+		if not phone:
+			_mark_sent()  # structurally un-sendable — don't churn the cron on it
+			return
 
-	# Customer first name
-	full_name = ""
-	if order.platform_customer:
-		full_name = frappe.db.get_value("Customer", order.platform_customer, "customer_name") or ""
-	if not full_name:
-		full_name = order.customer_name or ""
-	first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
+		# Customer first name
+		full_name = ""
+		if order.platform_customer:
+			full_name = frappe.db.get_value("Customer", order.platform_customer, "customer_name") or ""
+		if not full_name:
+			full_name = order.customer_name or ""
+		first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
 
-	restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
-	restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
-	amount = int(order.total or 0)
+		restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
+		restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
+		amount = int(order.total or 0)
 
-	from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
-	wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
-	token_suffix = f"&wt={wa_token}" if wa_token else ""
-	button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
+		from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
+		wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
+		token_suffix = f"&wt={wa_token}" if wa_token else ""
+		button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
 
-	try:
 		success, result = send_whatsapp_cloud_message(
 			to_phone=phone,
 			template_name="flamezo_ugc_earn_invite",
 			body_params=[first_name, str(amount), restaurant_name],
 			button_url_param=button_url_suffix,
 		)
-		if not success:
-			frappe.cache().delete_value(sent_key)
+		if success:
+			_mark_sent()  # mark delivered ONLY after a confirmed successful send
+		else:
+			# Leave sent_key unset so the cron retries; log for visibility.
 			frappe.log_error(message=str(result), title=f"UGC Nudge Error: {order_name}")
 	except Exception as e:
-		frappe.cache().delete_value(sent_key)
+		# sent_key stays unset → the cron will retry on its next run.
 		frappe.log_error(message=str(e), title=f"UGC Nudge Exception: {order_name}")
+	finally:
+		# Release the concurrency lock so a retry isn't blocked for the full TTL.
+		frappe.cache().delete_value(lock_key)
 
 
 def dispatch_ugc_cashback_nudges():
