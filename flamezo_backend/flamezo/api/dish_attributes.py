@@ -32,7 +32,7 @@ ATTRIBUTE_GROUPS = [
 		"group_label": "Highlight",
 		"attributes": [
 			{"key": "new", "label": "New", "icon": "Sparkles", "primary": True},
-			{"key": "bestseller", "label": "Bestseller", "icon": "Flame", "primary": True},
+			{"key": "bestseller", "label": "Bestseller", "icon": "Trophy", "primary": True},
 			{"key": "must-try", "label": "Must Try", "icon": "Star", "primary": False},
 			{"key": "recommended", "label": "Recommended", "icon": "ThumbsUp", "primary": False},
 			{"key": "seasonal", "label": "Seasonal", "icon": "Sun", "primary": False},
@@ -55,9 +55,9 @@ ATTRIBUTE_GROUPS = [
 		"group": "spice",
 		"group_label": "Spice Level",
 		"attributes": [
-			{"key": "mild", "label": "Mild", "icon": "Flame", "primary": False},
+			{"key": "mild", "label": "Mild", "icon": "ThermometerSun", "primary": False},
 			{"key": "spicy", "label": "Spicy", "icon": "Flame", "primary": True},
-			{"key": "extra-spicy", "label": "Extra Spicy", "icon": "Flame", "primary": False},
+			{"key": "extra-spicy", "label": "Extra Spicy", "icon": "Bomb", "primary": False},
 		],
 	},
 	{
@@ -65,11 +65,11 @@ ATTRIBUTE_GROUPS = [
 		"group_label": "Health",
 		"attributes": [
 			{"key": "gluten-free", "label": "Gluten-Free", "icon": "WheatOff", "primary": False},
-			{"key": "sugar-free", "label": "Sugar-Free", "icon": "Ban", "primary": False},
+			{"key": "sugar-free", "label": "Sugar-Free", "icon": "Candy", "primary": False},
 			{"key": "keto", "label": "Keto", "icon": "Beef", "primary": False},
 			{"key": "high-protein", "label": "High-Protein", "icon": "Dumbbell", "primary": False},
 			{"key": "low-calorie", "label": "Low-Calorie", "icon": "Feather", "primary": False},
-			{"key": "organic", "label": "Organic", "icon": "Leaf", "primary": False},
+			{"key": "organic", "label": "Organic", "icon": "TreePine", "primary": False},
 		],
 	},
 	{

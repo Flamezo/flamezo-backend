@@ -3,17 +3,20 @@ import { useFrappeGetCall } from '@/lib/frappe'
 import { cn } from '@/lib/utils'
 import {
   Loader2, Check, ChevronDown, Plus,
-  Sparkles, Flame, Star, ThumbsUp, Sun, Leaf, Drumstick, Egg, Sprout,
-  Flower2, Ban, Gem, WheatOff, Beef, Dumbbell, Feather, TriangleAlert, Milk,
+  Sparkles, Trophy, Star, ThumbsUp, Sun, Leaf, Drumstick, Egg, Sprout,
+  Flower2, Ban, Gem, ThermometerSun, Flame, Bomb, WheatOff, Candy, Beef,
+  Dumbbell, Feather, TreePine, TriangleAlert, Milk,
   type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // Maps the backend `icon` name (a Lucide component name) to the component.
-// Shared with MenuProductCard so card + picker draw the same icons.
+// Shared with MenuProductCard so card + picker draw the same icons. Every
+// attribute has a unique icon.
 export const ATTR_ICONS: Record<string, LucideIcon> = {
-  Sparkles, Flame, Star, ThumbsUp, Sun, Leaf, Drumstick, Egg, Sprout,
-  Flower2, Ban, Gem, WheatOff, Beef, Dumbbell, Feather, TriangleAlert, Milk,
+  Sparkles, Trophy, Star, ThumbsUp, Sun, Leaf, Drumstick, Egg, Sprout,
+  Flower2, Ban, Gem, ThermometerSun, Flame, Bomb, WheatOff, Candy, Beef,
+  Dumbbell, Feather, TreePine, TriangleAlert, Milk,
 }
 
 /** Renders a dish-attribute icon by name; nothing if the name is unknown. */
@@ -71,13 +74,30 @@ const KEY_TONE: Record<string, Tone> = {
 const GROUP_TONE: Record<string, Tone> = {
   highlight: 'orange', diet: 'emerald', spice: 'red', health: 'sky', allergen: 'rose',
 }
-const toneFor = (attr: DishAttribute, group: string): Tone =>
-  KEY_TONE[attr.key] || GROUP_TONE[group] || 'orange'
+// Solid fill for the iOS-style icon tile (white glyph on a colour chip).
+const TILE: Record<Tone, string> = {
+  emerald: 'bg-emerald-500', red: 'bg-red-500', amber: 'bg-amber-500',
+  orange: 'bg-orange-500', lime: 'bg-lime-500', violet: 'bg-violet-500',
+  sky: 'bg-sky-500', rose: 'bg-rose-600',
+}
+const toneOf = (key: string, group: string): Tone => KEY_TONE[key] || GROUP_TONE[group] || 'orange'
+const toneFor = (attr: DishAttribute, group: string): Tone => toneOf(attr.key, group)
 
-/** Colour classes for an attribute chip, so cards/peek match the picker. */
+/** Tinted pill classes for an attribute chip, so cards/peek match the picker. */
 export const attrToneClass = (key: string, group: string, selected = false): string => {
-  const tone = TONE[KEY_TONE[key] || GROUP_TONE[group] || 'orange']
+  const tone = TONE[toneOf(key, group)]
   return selected ? tone.on : tone.off
+}
+/** Solid colour-chip class for the iOS-style icon tile. */
+export const attrTileClass = (key: string, group: string): string => TILE[toneOf(key, group)]
+
+/** iOS-style filled icon tile: white glyph on a colour chip. */
+export function AttrTile({ name, tone, className }: { name?: string; tone: string; className?: string }) {
+  return (
+    <span className={cn('inline-flex items-center justify-center rounded-full text-white', tone, className)}>
+      <AttrIcon name={name} className="h-2.5 w-2.5" />
+    </span>
+  )
 }
 
 /** Normalise the stored value into a list of selected attribute keys. */
@@ -149,13 +169,13 @@ export default function DishAttributesPicker({ value, onChange, disabled }: Dish
       <div className="flex flex-wrap items-center gap-2">
         {selectedResolved.length > 0 ? (
           selectedResolved.map(({ attr, group }) => {
-            const tone = TONE[toneFor(attr, group)]
+            const t = toneFor(attr, group)
             return (
               <span
                 key={attr.key}
-                className={cn('badge-shine inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium', tone.off)}
+                className={cn('inline-flex items-center gap-1 rounded-full border pl-0.5 pr-2.5 py-0.5 text-xs font-medium', TONE[t].off)}
               >
-                <AttrIcon name={attr.icon} className="h-3.5 w-3.5" />
+                <AttrTile name={attr.icon} tone={TILE[t]} className="h-4 w-4" />
                 {attr.label}
               </span>
             )
@@ -235,7 +255,7 @@ export default function DishAttributesPicker({ value, onChange, disabled }: Dish
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all',
                         'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        isSelected ? cn(tone.on, 'badge-shine shadow-sm') : cn('bg-transparent', tone.off),
+                        isSelected ? cn(tone.on, 'shadow-sm') : cn('bg-transparent', tone.off),
                         blocked && 'cursor-not-allowed opacity-40 hover:bg-transparent',
                       )}
                     >
