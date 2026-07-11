@@ -18,6 +18,7 @@ from flamezo_backend.flamezo.media.utils import get_media_asset_data, bulk_get_m
 from flamezo_backend.flamezo.utils.currency_helpers import get_restaurant_currency_info
 from flamezo_backend.flamezo.utils.customization_helpers import get_customization_options_map, load_product_customizations
 from flamezo_backend.flamezo.utils.addon_group_helpers import bulk_load_addon_groups, format_addon_groups_for_api
+from flamezo_backend.flamezo.api import dish_attributes as dish_attrs
 import json
 from collections import defaultdict
 
@@ -68,11 +69,12 @@ def get_top_picks(restaurant_id):
 			SELECT 
 				name as docname, product_id as id, product_name as name, price, original_price,
 				category_name as category, product_type as type, description, is_vegetarian,
+				dietary_attributes,
 				calories, estimated_time as estimatedTime, serving_size as servingSize,
 				has_no_media, main_category as mainCategory, display_order, is_active,
 				recommendations
 			FROM `tabMenu Product`
-			WHERE 
+			WHERE
 				restaurant = %s AND is_active = 1 {media_filter}
 			ORDER BY 
 				(CASE WHEN product_type = 'top-picks' THEN 0 ELSE 1 END) ASC,
@@ -149,6 +151,7 @@ def get_chef_special(restaurant_id):
 			SELECT
 				name as docname, product_id as id, product_name as name, price, original_price,
 				category_name as category, product_type as type, description, is_vegetarian,
+				dietary_attributes,
 				calories, estimated_time as estimatedTime, serving_size as servingSize,
 				has_no_media, main_category as mainCategory, display_order, is_active,
 				recommendations
@@ -295,6 +298,7 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 				"product_type as type",
 				"description",
 				"is_vegetarian",
+				"dietary_attributes",
 				"calories",
 				"estimated_time as estimatedTime",
 				"serving_size as servingSize",
@@ -631,6 +635,12 @@ def format_product_from_row_minimal(product_row, media_rows=None, has_customizat
 	if product_row.get("original_price"):
 		product["originalPrice"] = flt(product_row.get("original_price"))
 
+	attrs = dish_attrs.resolve(product_row.get("dietary_attributes"))
+	if attrs:
+		product["dietaryAttributes"] = attrs
+		product["dietaryAttributeKeys"] = [a["key"] for a in attrs]
+		product["cardBadges"] = dish_attrs.card_badges(product_row.get("dietary_attributes"))
+
 	if product_row.get("type"):
 		product["type"] = product_row.get("type")
 
@@ -786,7 +796,15 @@ def format_product(product_doc):
 		"isActive": bool(product_doc.is_active) if hasattr(product_doc, 'is_active') else True,
 		"seo_slug": product_doc.seo_slug
 	}
-	
+
+	# Dietary attributes (badges) — always expose keys so the merchant edit form
+	# knows what's currently selected, even when the list is empty.
+	attr_keys = dish_attrs.parse_keys(product_doc.get("dietary_attributes"))
+	product["dietaryAttributeKeys"] = attr_keys
+	if attr_keys:
+		product["dietaryAttributes"] = dish_attrs.resolve(product_doc.get("dietary_attributes"))
+		product["cardBadges"] = dish_attrs.card_badges(product_doc.get("dietary_attributes"))
+
 	# Optional fields
 	if product_doc.original_price:
 		product["originalPrice"] = flt(product_doc.original_price)

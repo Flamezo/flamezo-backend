@@ -1,6 +1,7 @@
 import { Pencil, Trash2, GripVertical, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { AttrIcon, attrToneClass } from './DishAttributesPicker'
 
 import { Switch } from '@/components/ui/switch'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -147,6 +148,29 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
             <span className="text-xs text-muted-foreground line-through decoration-muted-foreground/40">{formatAmountNoDecimals(originalPrice)}</span>
           )}
         </div>
+
+        {/* Attribute badges — backend already trims to <=3 (all if few, best 3 if many).
+            Long labels collapse to just their icon to keep the card tidy. */}
+        {Array.isArray(product.cardBadges) && product.cardBadges.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {product.cardBadges.map((badge: any) => {
+              const compact = (badge.label?.length ?? 0) > 7
+              return (
+                <span
+                  key={badge.key}
+                  title={badge.label}
+                  className={cn(
+                    'badge-shine inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                    attrToneClass(badge.key, badge.group),
+                  )}
+                >
+                  <AttrIcon name={badge.icon} className="h-3 w-3" />
+                  {!compact && <span>{badge.label}</span>}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 self-stretch sm:self-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/40">
