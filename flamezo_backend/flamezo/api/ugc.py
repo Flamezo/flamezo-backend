@@ -1239,10 +1239,14 @@ def review_ugc(restaurant_id, submission_id, action, view_count=None, notes=None
 			return _err("INVALID_STATE", f"Cannot review from '{sub.status}'.")
 
 		if action == "reject":
-			sub.status = "rejected"
-			sub.rejection_reason = notes or "Proof rejected on review."
-			sub.reviewed_by = frappe.session.user
-			sub.save(ignore_permissions=True)
+			# Use db.set_value (not sub.save) so a stale/invalid link on the
+			# submission — e.g. a legacy customer value that no longer resolves —
+			# can't block staff from rejecting the proof with an INTERNAL_ERROR.
+			frappe.db.set_value("UGC Story Submission", sub.name, {
+				"status": "rejected",
+				"rejection_reason": notes or "Proof rejected on review.",
+				"reviewed_by": frappe.session.user,
+			})
 			frappe.db.commit()
 			_notify(sub.name, "proof_rejected")
 			return _ok({"status": "rejected"})
