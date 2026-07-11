@@ -47,6 +47,7 @@ def create_default_coupons(restaurant_name):
 			"offer_type": "google_review",
 			"discount_type": "flat",
 			"discount_value": 50,
+			"min_order_amount": 200,
 			"description": "Get ₹50 off for leaving a Google Review",
 			"priority": 4,
 			"can_stack": 0,
