@@ -35,67 +35,92 @@ def send_ugc_cashback_nudge(order_name):
 	Body params: {{1}} first name, {{2}} order amount, {{3}} restaurant name
 	Button: dynamic URL suffix → /{restaurant_slug}/ugc-claim?r={slug}&bill={order_name}
 	"""
-	# Optimistic idempotency guard — claim the slot before any async work so two
-	# concurrent jobs (verify_payment + webhook) can't both send the same nudge.
-	# On failure the key is deleted so the next cron run retries.
+	# Idempotency + concurrency, split into two keys so a crashed/killed worker
+	# can never permanently suppress the nudge:
+	#   sent_key — durable "delivered" marker, set ONLY after a confirmed send.
+	#   lock_key — short-lived (2 min) lock so the verify_payment enqueue and the
+	#              cron can't send concurrently. It auto-expires, so if this job
+	#              dies mid-send the next cron run simply retries.
 	sent_key = f"ugc_nudge_sent:{order_name}"
-	if not frappe.cache().set_value(sent_key, 1, expires_in_sec=86400, nx=True):
-		return
+	lock_key = f"ugc_nudge_lock:{order_name}"
+
+	if frappe.cache().get_value(sent_key):
+		return  # already delivered
+	# NOTE: use the raw redis client's atomic SET NX EX for the lock. Frappe's
+	# set_value() does NOT accept nx=, so set_value(..., nx=True) raises TypeError
+	# and the whole nudge crashes before sending — which is exactly what silently
+	# broke this in production after 06cc4e2.
+	if not frappe.cache().set(lock_key, "1", ex=120, nx=True):
+		return  # another worker is sending this right now
+
+	def _mark_sent():
+		frappe.cache().set_value(sent_key, 1, expires_in_sec=86400)
 
 	try:
-		order = frappe.get_doc("Order", order_name)
-	except frappe.DoesNotExistError:
-		return
+		try:
+			order = frappe.get_doc("Order", order_name)
+		except frappe.DoesNotExistError:
+			_mark_sent()  # order gone — no point retrying
+			return
 
-	# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
-	# tapped Unlock — there is intentionally no "already started" suppression here.
+		# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
+		# tapped Unlock — there is intentionally no "already started" suppression here.
 
-	phone = order.customer_phone or ""
-	if not phone and order.platform_customer:
-		phone = frappe.db.get_value("Customer", order.platform_customer, "phone") or ""
-	if not phone:
-		return
+		phone = order.customer_phone or ""
+		if not phone and order.platform_customer:
+			phone = frappe.db.get_value("Customer", order.platform_customer, "phone") or ""
+		if not phone:
+			_mark_sent()  # structurally un-sendable — don't churn the cron on it
+			return
 
-	# Customer first name
-	full_name = ""
-	if order.platform_customer:
-		full_name = frappe.db.get_value("Customer", order.platform_customer, "customer_name") or ""
-	if not full_name:
-		full_name = order.customer_name or ""
-	first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
+		# Customer first name
+		full_name = ""
+		if order.platform_customer:
+			full_name = frappe.db.get_value("Customer", order.platform_customer, "customer_name") or ""
+		if not full_name:
+			full_name = order.customer_name or ""
+		first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
 
-	restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
-	restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
-	amount = int(order.total or 0)
+		restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
+		restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
+		amount = int(order.total or 0)
 
-	from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
-	wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
-	token_suffix = f"&wt={wa_token}" if wa_token else ""
-	button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
+		from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
+		wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
+		token_suffix = f"&wt={wa_token}" if wa_token else ""
+		button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
 
-	try:
 		success, result = send_whatsapp_cloud_message(
 			to_phone=phone,
 			template_name="flamezo_ugc_earn_invite",
 			body_params=[first_name, str(amount), restaurant_name],
 			button_url_param=button_url_suffix,
 		)
-		if not success:
-			frappe.cache().delete_value(sent_key)
+		if success:
+			_mark_sent()  # mark delivered ONLY after a confirmed successful send
+		else:
+			# Leave sent_key unset so the cron retries; log for visibility.
 			frappe.log_error(message=str(result), title=f"UGC Nudge Error: {order_name}")
 	except Exception as e:
-		frappe.cache().delete_value(sent_key)
+		# sent_key stays unset → the cron will retry on its next run.
 		frappe.log_error(message=str(e), title=f"UGC Nudge Exception: {order_name}")
+	finally:
+		# Release the concurrency lock so a retry isn't blocked for the full TTL.
+		# Raw delete to match the raw .set() above (same un-namespaced key).
+		frappe.cache().delete(lock_key)
 
 
 def dispatch_ugc_cashback_nudges():
 	"""
-	Cron (every 5 min) — the PRIMARY delivery path for the post-payment UGC nudge.
+	Cron (every 5 min) — the fallback/catch-up delivery path for the post-payment
+	UGC nudge. The instant path is the enqueue in verify_payment (+ the Razorpay
+	webhook); this cron re-sends any paid order whose nudge never went out.
 
-	verify_payment marks each paid order eligible (Redis key ugc_nudge_eligible:*);
-	this cron sends the WhatsApp ~3-8 min later, but only if the diner hasn't started
-	a UGC claim in the meantime. Timing lives here because frappe.enqueue (RQ) has no
-	delay/eta support, so a delayed job can't be scheduled directly.
+	It sweeps recently-modified paid orders and calls send_ugc_cashback_nudge,
+	which dedupes on the durable `ugc_nudge_sent` key so an order already delivered
+	(or in-flight, via the short-lived lock) is skipped. There is no separate
+	"eligible" gate and no "already started a claim" suppression — the nudge is
+	sent once per paid order regardless.
 	"""
 	from frappe.utils import now_datetime, add_to_date
 
@@ -120,9 +145,8 @@ def dispatch_ugc_cashback_nudges():
 		order_name = row.name
 		if frappe.cache().get_value(f"ugc_nudge_sent:{order_name}"):
 			continue
-		# Don't clear the eligible key here: send_ugc_cashback_nudge sets the sent key
-		# only on a successful send, so a failed attempt is retried next run and a
-		# successful one is deduped by that sent key.
+		# send_ugc_cashback_nudge sets the sent key only on a successful send, so a
+		# failed attempt is retried next run and a delivered one stays deduped.
 		try:
 			send_ugc_cashback_nudge(order_name)
 		except Exception as e:
@@ -155,18 +179,25 @@ def send_ugc_whatsapp(submission_name, kind):
 	rname = _restaurant_name(sub.restaurant)
 	amount = str(cint(sub.cashback_coins))
 
-	# Build deep-link suffix for templates that include a button.
-	# For customer-facing links (proof_reminder, cashback_credited) include a WhatsApp
-	# auth token so the customer lands directly on the upload page without a login prompt.
-	base = frappe.conf.get("customer_web_url", "")
+	# Build the deep-link SUFFIX for templates that include a button. These are
+	# path suffixes substituted into the Meta template's own button base URL
+	# (e.g. https://flamezo.in/{{1}}), so they must ALWAYS be built. Previously
+	# they were gated on `customer_web_url`; when that optional site-config key is
+	# unset in prod the suffix went empty, the button component was dropped, and
+	# Meta rejects a button template with a missing URL param — silently killing
+	# the cashback_credited / proof_reminder messages in live. (The post-payment
+	# nudge is unaffected because it lives in a different function that builds its
+	# suffix unconditionally.)
+	# For customer-facing links a WhatsApp auth token is appended below so the
+	# customer lands directly on the page without an OTP prompt.
 	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
 	order = getattr(sub, "order", "") or ""
 	customer = getattr(sub, "customer", "")
 
 	# proof_reminder → back to ugc-claim (upload the screen recording)
-	proof_link_no_auth = f"{slug}/ugc-claim?r={slug}&bill={order}" if base else ""
+	proof_link_no_auth = f"{slug}/ugc-claim?r={slug}&bill={order}"
 	# cashback_credited → to cashback-rewards (view & redeem the voucher)
-	wallet_link_no_auth = "cashback-rewards" if base else ""
+	wallet_link_no_auth = "cashback-rewards"
 
 	# Attach a WhatsApp auth token to both deep-links so the customer lands
 	# already logged in without an OTP prompt.
@@ -180,10 +211,8 @@ def send_ugc_whatsapp(submission_name, kind):
 			if platform_customer and phone:
 				wa_token = generate_whatsapp_auth_token(phone, platform_customer)
 				if wa_token:
-					if proof_link_no_auth:
-						proof_link = f"{proof_link_no_auth}&wt={wa_token}"
-					if wallet_link_no_auth:
-						wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
+					proof_link = f"{proof_link_no_auth}&wt={wa_token}"
+					wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
 		except Exception:
 			pass  # fall back to links without auth token
 

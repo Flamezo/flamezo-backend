@@ -196,13 +196,16 @@ def _max_cashback(order_amount):
 
 def _is_ugc_active(config) -> bool:
 	"""
-	UGC surfaces to diners only when ALL four are true:
+	UGC surfaces to diners only when ALL are true:
 	  1. Merchant has not manually paused the feature (is_active == 1).
 	  2. At least one story template has been uploaded.
 	  3. A viewer coupon code is set in the inline coupon fields.
-	  4. The composited story preview is ready (story_preview_url set).
-	     This ensures diners always get the final branded media instantly —
-	     the offer is hidden while the background generation job is still running.
+	  4. A positive viewer discount value is set.
+
+	NOTE: we no longer require story_preview_url. The diner app renders the frame
+	as a DOM overlay on the raw media, so the preview is ready the moment a
+	template is uploaded — no need to wait for (or depend on) the composited
+	preview, which expires from R2's temp prefix after 24h.
 	"""
 	if not cint(config.is_active):
 		return False
@@ -212,17 +215,19 @@ def _is_ugc_active(config) -> bool:
 		return False
 	if not flt(config.viewer_discount_value) > 0:
 		return False
-	return bool(config.story_preview_url)
+	return True
 
 
 def _resolve_templates(config):
 	"""Return the list of shareable templates.
 
-	`url` is the pre-generated composited preview (logo + QR + coupon overlay)
-	when available; falls back to the raw CDN media so the flow always works
-	even while the background generation job is still running.
+	`url` is the RAW CDN media. The diner app draws the Flamezo frame
+	(logo + QR + coupon) as a DOM overlay on top of this for the preview, and
+	composites the frame server-side only on download/share. We deliberately do
+	NOT serve config.story_preview_url here: it is a composited temp object that
+	R2 auto-deletes after 24h (→ black/broken media once expired), and layering
+	the DOM frame on an already-composited preview would double the coupon.
 	"""
-	preview_url = config.story_preview_url or None
 	out = []
 	for row in (config.template_assets or []):
 		if not row.media_asset:
@@ -235,7 +240,7 @@ def _resolve_templates(config):
 			continue
 		out.append({
 			"media_id": asset.name,
-			"url": preview_url or asset.primary_url,
+			"url": asset.primary_url,
 			"kind": asset.media_kind,
 			"label": row.label,
 			"is_default": cint(row.is_default),
@@ -1234,10 +1239,14 @@ def review_ugc(restaurant_id, submission_id, action, view_count=None, notes=None
 			return _err("INVALID_STATE", f"Cannot review from '{sub.status}'.")
 
 		if action == "reject":
-			sub.status = "rejected"
-			sub.rejection_reason = notes or "Proof rejected on review."
-			sub.reviewed_by = frappe.session.user
-			sub.save(ignore_permissions=True)
+			# Use db.set_value (not sub.save) so a stale/invalid link on the
+			# submission — e.g. a legacy customer value that no longer resolves —
+			# can't block staff from rejecting the proof with an INTERNAL_ERROR.
+			frappe.db.set_value("UGC Story Submission", sub.name, {
+				"status": "rejected",
+				"rejection_reason": notes or "Proof rejected on review.",
+				"reviewed_by": frappe.session.user,
+			})
 			frappe.db.commit()
 			_notify(sub.name, "proof_rejected")
 			return _ok({"status": "rejected"})
