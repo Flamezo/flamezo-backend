@@ -149,10 +149,11 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
           )}
         </div>
 
-        {/* Attribute badges — merchant card shows ALL selected pills with names. */}
-        {Array.isArray(product.dietaryAttributes) && product.dietaryAttributes.length > 0 && (
+        {/* Attribute badges — all selected pills with names, minus veg/non-veg
+            (already shown by the veg dot above). */}
+        {Array.isArray(product.dietaryAttributes) && product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {product.dietaryAttributes.map((badge: any) => (
+            {product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').map((badge: any) => (
               <span
                 key={badge.key}
                 title={badge.label}
