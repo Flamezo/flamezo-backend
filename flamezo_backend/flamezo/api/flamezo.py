@@ -14,6 +14,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_or_create_customer,
 	get_customer_token,
 	validate_customer_session,
+	get_customer_from_token,
 )
 from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
 import json
@@ -536,7 +537,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 # ── 5. Register FLAMEZO Member ─────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def register_flamezo_member(phone, full_name=None, city=None, email=None, date_of_birth=None):
+def register_flamezo_member(phone, full_name=None, city=None, email=None, date_of_birth=None, interests=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.flamezo.register_flamezo_member
 
@@ -549,6 +550,7 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 	- city (str, optional): Home city for discovery personalization
 	- email (str, optional): Customer email address
 	- date_of_birth (str, optional): ISO date YYYY-MM-DD
+	- interests (str, optional): Comma-separated lifestyle interest tags
 	"""
 	try:
 		session_token = get_customer_token()
@@ -580,6 +582,9 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 					update_fields["date_of_birth"] = date_of_birth
 			except ValueError:
 				pass
+		if interests is not None:
+			if frappe.db.has_column("Customer", "interests"):
+				update_fields["interests"] = interests.strip()[:500]
 
 		if update_fields:
 			frappe.db.set_value("Customer", customer.name, update_fields)
@@ -684,3 +689,59 @@ def get_restaurant_summary(restaurant_id):
 	except Exception as e:
 		frappe.log_error(f"Error in flamezo.get_restaurant_summary: {str(e)}")
 		return {"success": False, "error": {"code": "SUMMARY_FETCH_ERROR", "message": str(e)}}
+
+
+# ── 7. Customer Profile Photo Upload ─────────────────────────────────────────
+
+@frappe.whitelist()
+def upload_customer_photo():
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.flamezo.upload_customer_photo
+
+	Multipart upload. Accepts a single file field named 'file'.
+	Validates the session token from X-Customer-Token header, saves the
+	image to the Customer doctype, and returns the public file URL.
+	"""
+	try:
+		session_token = get_customer_token()
+		if not session_token:
+			return {"success": False, "error": {"code": "UNAUTHORIZED", "message": "Authentication required"}}
+
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Invalid or expired session"}}
+
+		if "file" not in frappe.request.files:
+			return {"success": False, "error": {"code": "NO_FILE", "message": "No file provided"}}
+
+		file = frappe.request.files["file"]
+		content_type = file.content_type or ""
+
+		allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+		if content_type not in allowed_types:
+			return {"success": False, "error": {"code": "INVALID_TYPE", "message": "Only JPEG, PNG and WebP images are supported"}}
+
+		content = file.read()
+		if len(content) > 5 * 1024 * 1024:
+			return {"success": False, "error": {"code": "FILE_TOO_LARGE", "message": "Image must be under 5MB"}}
+
+		from frappe.utils.file_manager import save_file
+
+		file_doc = save_file(
+			fname=file.filename or f"avatar_{customer_id}.jpg",
+			content=content,
+			dt="Customer",
+			dn=customer_id,
+			decode=False,
+			is_private=0,
+			folder="Home/Attachments",
+		)
+
+		frappe.db.set_value("Customer", customer_id, "image", file_doc.file_url)
+		frappe.db.commit()
+
+		return {"success": True, "file_url": file_doc.file_url}
+
+	except Exception as e:
+		frappe.log_error(f"Error in flamezo.upload_customer_photo: {str(e)}")
+		return {"success": False, "error": {"code": "UPLOAD_ERROR", "message": str(e)}}
