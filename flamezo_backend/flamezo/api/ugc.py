@@ -2118,12 +2118,14 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 
 
 def _notify(submission_name, kind):
-	"""Fire a WhatsApp notification in the background (safe if WA not configured)."""
-	frappe.enqueue(
-		"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_whatsapp",
-		submission_name=submission_name, kind=kind,
-		queue="short", timeout=60, enqueue_after_commit=True,
-	)
+	"""Send the WhatsApp notification immediately (direct, not queued).
+
+	Callers commit before calling this, so the submission state is already
+	persisted. send_ugc_whatsapp swallows its own errors, so a send failure can
+	never break the caller's request.
+	"""
+	from flamezo_backend.flamezo.tasks.ugc_tasks import send_ugc_whatsapp
+	send_ugc_whatsapp(submission_name, kind)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

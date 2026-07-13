@@ -63,6 +63,13 @@ def send_ugc_cashback_nudge(order_name):
 			_mark_sent()  # order gone — no point retrying
 			return
 
+		# Only invite orders that qualify for a claim (>= platform min ₹250) — a
+		# sub-min order can't be claimed, so an earn-invite would be misleading.
+		from flamezo_backend.flamezo.api.ugc import PLATFORM_MIN_ORDER
+		if float(order.total or 0) < PLATFORM_MIN_ORDER:
+			_mark_sent()  # never claimable — don't churn the cron on it
+			return
+
 		# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
 		# tapped Unlock — there is intentionally no "already started" suppression here.
 
@@ -167,6 +174,13 @@ def send_ugc_whatsapp(submission_name, kind):
 	  flagged           → flamezo_manual_review       params: {{1}} restaurant_name
 	  expired           → flamezo_window_expired      params: {{1}} restaurant_name
 	"""
+	# Temporarily disabled message kinds to save WhatsApp cost — re-enable a
+	# message by removing its key from this set.
+	#   story_verified  → waiter PIN-verifies the story ("story approved")
+	#   proof_received  → "got your recording" before the result
+	#   flagged         → "your claim is under review"
+	if kind in {"story_verified", "proof_received", "flagged"}:
+		return
 	try:
 		sub = frappe.get_doc("UGC Story Submission", submission_name)
 	except frappe.DoesNotExistError:
