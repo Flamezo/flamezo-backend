@@ -116,7 +116,9 @@ def send_offer_claim_notification(claim_id):
         discount_label = f"₹{int(discount_val)} flat off"
 
     from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
-    wa_token = generate_whatsapp_auth_token(phone, claim.customer) if claim.customer else ""
+    # claim.customer may be empty; generate_whatsapp_auth_token resolves the
+    # Customer by phone as a fallback so the auto-login token is still issued.
+    wa_token = generate_whatsapp_auth_token(phone, claim.customer or "")
     token_suffix = f"&wt={wa_token}" if wa_token else ""
     button_url_suffix = f"{restaurant_slug}/pay-bill?offer={claim.coupon_code}{token_suffix}"
 

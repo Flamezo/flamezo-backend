@@ -13,7 +13,8 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
 	get_or_create_customer,
 	is_phone_verified,
-	create_customer_session
+	create_customer_session,
+	_find_customer_by_normalized_phone,
 )
 from flamezo_backend.flamezo.utils.otp_service import (
 	send_otp_via_whatsapp,
@@ -480,7 +481,18 @@ def generate_whatsapp_auth_token(phone: str, customer_id: str) -> str:
 	import secrets
 	try:
 		normalized = normalize_phone(phone)
-		if not normalized or len(normalized) != 10 or not customer_id:
+		if not normalized or len(normalized) != 10:
+			return ""
+		# Orders placed at pay-bill sometimes have no platform_customer linked, but
+		# the payer is (or becomes) a known customer. Resolve — or create — the
+		# Customer by phone so the auto-login token is still issued (otherwise
+		# "Check My Offer" would fall back to a manual login prompt).
+		if not customer_id:
+			customer_id = _find_customer_by_normalized_phone(normalized) or ""
+		if not customer_id:
+			cust = get_or_create_customer(phone=normalized)
+			customer_id = cust.name if cust else ""
+		if not customer_id:
 			return ""
 		import time
 		token = secrets.token_urlsafe(32)

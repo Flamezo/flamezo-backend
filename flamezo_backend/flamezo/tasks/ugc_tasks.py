@@ -93,7 +93,9 @@ def send_ugc_cashback_nudge(order_name):
 		amount = int(order.total or 0)
 
 		from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
-		wa_token = generate_whatsapp_auth_token(phone, order.platform_customer) if order.platform_customer else ""
+		# Pass platform_customer when present; otherwise generate_whatsapp_auth_token
+		# resolves the Customer by phone (pay-bill orders often have no linked customer).
+		wa_token = generate_whatsapp_auth_token(phone, order.platform_customer or "")
 		token_suffix = f"&wt={wa_token}" if wa_token else ""
 		button_url_suffix = f"ugc-claim?r={restaurant_slug}&bill={order_name}{token_suffix}"
 
@@ -222,8 +224,10 @@ def send_ugc_whatsapp(submission_name, kind):
 			from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
 			platform_customer = frappe.db.get_value("Customer", customer, "platform_customer")
 			phone = _customer_phone(customer)
-			if platform_customer and phone:
-				wa_token = generate_whatsapp_auth_token(phone, platform_customer)
+			if phone:
+				# platform_customer may be empty; generate_whatsapp_auth_token
+				# falls back to resolving the Customer by phone.
+				wa_token = generate_whatsapp_auth_token(phone, platform_customer or "")
 				if wa_token:
 					proof_link = f"{proof_link_no_auth}&wt={wa_token}"
 					wallet_link = f"{wallet_link_no_auth}?wt={wa_token}"
