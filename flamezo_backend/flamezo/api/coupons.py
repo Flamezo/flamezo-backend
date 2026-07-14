@@ -49,9 +49,15 @@ def get_coupons(restaurant_id, active_only=True):
 		
 		# Build filters
 		filters = {"restaurant": restaurant}
-		
+
 		if active_only:
 			filters["is_active"] = 1
+
+		# Restaurant-level Google review link (from setup / Restaurant Config) — used
+		# for every google_review offer so merchants don't set it per offer.
+		restaurant_review_link = frappe.db.get_value(
+			"Restaurant Config", {"restaurant": restaurant}, "google_review_link"
+		) or ""
 		
 		# Get coupons — always fetch active ones; day/time-gated are returned with
 		# currentlyRedeemable=False so the customer-facing UI can tease future offers.
@@ -78,6 +84,8 @@ def get_coupons(restaurant_id, active_only=True):
 				"combo_name",
 				"combo_price",
 				"bogo_free_item_value",
+				"google_review_link",
+				"review_reward_type",
 			],
 			filters=filters,
 			order_by="code asc"
@@ -168,6 +176,8 @@ def get_coupons(restaurant_id, active_only=True):
 				"comboName": coupon.get("combo_name"),
 				"comboPrice": flt(coupon.get("combo_price")) if coupon.get("combo_price") is not None else None,
 				"bogoFreeItemValue": flt(coupon.get("bogo_free_item_value")) if coupon.get("bogo_free_item_value") is not None else None,
+				"googleReviewLink": (coupon.get("google_review_link") or restaurant_review_link) if coupon.get("offer_type") == "google_review" else "",
+				"reviewRewardType": (coupon.get("review_reward_type") or "cashback") if coupon.get("offer_type") == "google_review" else "",
 			}
 
 			if ineligibility_hint:
@@ -660,6 +670,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"category", "description", "detailed_description",
 				"combo_type", "combo_name", "required_items", "item_pool",
 				"items_to_select", "combo_price", "bogo_free_item_value", "free_item", "display_on_menu",
+				"google_review_link", "review_reward_type",
 			],
 			order_by="priority desc, discount_value desc"
 		)
@@ -978,6 +989,12 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 					discount_amount = flt(offer.max_discount_cap)
 				potential_discount = discount_amount
 
+			# Free-dish review reward is served physically by staff — it does NOT
+			# reduce the bill (cost = the dish's food cost, not its menu price).
+			if offer.offer_type == 'google_review' and (offer.review_reward_type or 'cashback') == 'free_dish':
+				discount_amount = 0
+				potential_discount = 0
+
 			# Build offer data
 			offer_data = {
 				"id": str(offer.name),
@@ -995,6 +1012,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				"minOrderAmount": flt(offer.min_order_amount or 0),
 				"category": offer.category or "",
 				"googleReviewLink": (offer.google_review_link or restaurant_review_link) if offer.offer_type == 'google_review' else "",
+				"reviewRewardType": (offer.review_reward_type or "cashback") if offer.offer_type == 'google_review' else "",
 				**combo_meta,
 			}
 

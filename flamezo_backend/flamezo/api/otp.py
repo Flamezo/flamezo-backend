@@ -482,11 +482,16 @@ def generate_whatsapp_auth_token(phone: str, customer_id: str) -> str:
 		normalized = normalize_phone(phone)
 		if not normalized or len(normalized) != 10 or not customer_id:
 			return ""
+		import time
 		token = secrets.token_urlsafe(32)
+		# NOTE: set_value(..., expires_in_sec=...) is unreliable on this Frappe
+		# build (it silently drops the key in some contexts — same class of bug
+		# as the RQ set_value nx= issue). Store WITHOUT a TTL and enforce expiry
+		# via an embedded timestamp that verify_whatsapp_token checks.
 		frappe.cache().set_value(
 			f"wa_auth:{token}",
-			{"phone": normalized, "customer_id": customer_id},
-			expires_in_sec=_WA_AUTH_TOKEN_TTL,
+			{"phone": normalized, "customer_id": customer_id,
+			 "exp": int(time.time()) + _WA_AUTH_TOKEN_TTL},
 		)
 		return token
 	except Exception as e:
@@ -518,6 +523,12 @@ def verify_whatsapp_token(token):
 
 		# Delete immediately — one-time use
 		frappe.cache().delete_value(f"wa_auth:{token}")
+
+		# Expiry is enforced in-value (see generate_whatsapp_auth_token — the TTL
+		# is embedded because set_value's expires_in_sec is unreliable here).
+		import time
+		if int(payload.get("exp", 0) or 0) < int(time.time()):
+			return {"success": False, "error": "TOKEN_EXPIRED"}
 
 		phone = payload.get("phone", "")
 		customer_id = payload.get("customer_id", "")

@@ -17,6 +17,12 @@ class Coupon(Document):
 		self._sanitize_json_fields()
 		self._validate_discount_values()
 
+	def on_trash(self):
+		"""Offer Claim.coupon is a required Link, so any claim on this coupon blocks
+		deletion. Remove the claim records first so a merchant can delete the offer.
+		Runs before Frappe's link-integrity check, so the delete then succeeds."""
+		frappe.db.delete("Offer Claim", {"coupon": self.name})
+
 	def _sanitize_json_fields(self):
 		"""Ensure JSON fields are None (not empty string) — MariaDB JSON CHECK constraint rejects ''."""
 		for field in ("required_items", "valid_days_of_week", "item_pool"):
@@ -54,8 +60,11 @@ class Coupon(Document):
 
 	def _validate_discount_values(self):
 		from frappe.utils import flt
+		# A google-review free-dish is served physically (no ₹ off the bill), so it
+		# legitimately has a zero discount value — skip the > 0 requirement for it.
+		is_free_dish = self.offer_type == "google_review" and (self.review_reward_type or "cashback") == "free_dish"
 		if self.offer_type != "combo":
-			if flt(self.discount_value) <= 0:
+			if not is_free_dish and flt(self.discount_value) <= 0:
 				frappe.throw(
 					frappe._("Discount Value must be greater than zero for flat or percentage discounts."),
 					title=frappe._("Invalid Discount Value")
