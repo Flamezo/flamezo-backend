@@ -25,6 +25,7 @@ import ExtractedDishesTable from './ExtractedDishesTable'
 import ProductMediaTable from './ProductMediaTable'
 import ProductAddonGroupLinker from './ProductAddonGroupLinker'
 import ProductRecommendationsTable from './ProductRecommendationsTable'
+import DishAttributesPicker from './DishAttributesPicker'
 import { uploadToR2 } from '@/lib/r2Upload'
 import {
   FileText,
@@ -714,6 +715,27 @@ export default function DynamicForm({
     // Always make the Restaurant Link field read-only in forms (we manage restaurant change via the header dropdown only)
     if (field.fieldtype === 'Link' && field.options === 'Restaurant') {
       isReadOnly = true
+    }
+
+    // Dietary attributes — compact "peek": show selected badges + a button that
+    // opens a popover with the pill grid, so the form layout stays unchanged.
+    if (field.fieldname === 'dietary_attributes') {
+      return (
+        <div key={field.fieldname} className="space-y-2 min-w-0">
+          <Label htmlFor={field.fieldname}>
+            {field.label}
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <DishAttributesPicker
+            value={value}
+            onChange={(val) => handleFieldChange(field.fieldname, val)}
+            disabled={isReadOnly}
+          />
+          {field.description && (
+            <p className="text-xs text-muted-foreground">Shown to customers as badges on the dish.</p>
+          )}
+        </div>
+      )
     }
 
     switch (field.fieldtype) {
@@ -1714,7 +1736,10 @@ export default function DynamicForm({
                 <AccordionContent className="px-0 pt-4 pb-8">
                   <div className={cn(
                     "grid gap-6 sm:gap-8",
-                    // For table fields (like customization_questions, product_media), use full width
+                    // Menu Product (Edit Item) renders in a narrow drawer where the
+                    // viewport-based 2-col layout collapses — keep it single-column.
+                    // Also use full width for table fields (product_media, recommendations).
+                    doctype === 'Menu Product' ||
                     section.fields.some(f => f.fieldtype === 'Table' || f.fieldname === 'recommendations')
                       ? "grid-cols-1"
                       : "grid-cols-1 sm:grid-cols-2"

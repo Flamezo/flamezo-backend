@@ -80,6 +80,7 @@ PLATFORM_TERMS = (
 # ── Platform-fixed rules (same for every Flamezo restaurant; not editable in the
 #    merchant dashboard — only the story template + linked coupons are). ──────────
 PLATFORM_MIN_ORDER = 250            # ₹ — min final paid amount to qualify
+CLAIM_WINDOW_DAYS = 90              # days after the order that a claim stays open
 PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D = 2   # rolling 30-day cap per restaurant (unlimited across different restaurants)
 PLATFORM_CASHBACK_PERCENT_CAP = 100  # % of the final paid amount
 PLATFORM_ABSOLUTE_CAP = 0          # 0 = no extra ₹ ceiling beyond the bill
@@ -904,9 +905,9 @@ def get_claimable_orders(restaurant_id, phone):
 		if not config or not _is_ugc_active(config):
 			return _ok({"orders": []})
 
-		# Fetch completed orders within the last 90 days (covers delayed claims)
+		# Fetch completed orders within the claim window (covers delayed claims)
 		from frappe.utils import add_days, today
-		since = add_days(today(), -90)
+		since = add_days(today(), -CLAIM_WINDOW_DAYS)
 		rows = frappe.db.sql(
 			"""
 			SELECT name, order_number, total, payment_status, status, creation
@@ -927,6 +928,8 @@ def get_claimable_orders(restaurant_id, phone):
 		items = []
 		for row in rows:
 			order_id = row["name"]
+			# Last date this order can still be claimed.
+			expires_on = add_days(row["creation"], CLAIM_WINDOW_DAYS)
 			# Skip if already has an active submission
 			existing = _active_submission_for_order(order_id)
 			if existing:
@@ -935,6 +938,7 @@ def get_claimable_orders(restaurant_id, phone):
 					"orderNumber": row["order_number"],
 					"amount": flt(row["total"]),
 					"maxCashback": _max_cashback(row["total"]),
+					"expiresOn": expires_on,
 					"alreadyClaimed": True,
 					"submissionId": existing.name,
 					"submissionStatus": existing.status,
@@ -947,6 +951,7 @@ def get_claimable_orders(restaurant_id, phone):
 				"orderNumber": row["order_number"],
 				"amount": flt(row["total"]),
 				"maxCashback": _max_cashback(row["total"]),
+				"expiresOn": expires_on,
 				"alreadyClaimed": False,
 			})
 
@@ -2118,12 +2123,14 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 
 
 def _notify(submission_name, kind):
-	"""Fire a WhatsApp notification in the background (safe if WA not configured)."""
-	frappe.enqueue(
-		"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_whatsapp",
-		submission_name=submission_name, kind=kind,
-		queue="short", timeout=60, enqueue_after_commit=True,
-	)
+	"""Send the WhatsApp notification immediately (direct, not queued).
+
+	Callers commit before calling this, so the submission state is already
+	persisted. send_ugc_whatsapp swallows its own errors, so a send failure can
+	never break the caller's request.
+	"""
+	from flamezo_backend.flamezo.tasks.ugc_tasks import send_ugc_whatsapp
+	send_ugc_whatsapp(submission_name, kind)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

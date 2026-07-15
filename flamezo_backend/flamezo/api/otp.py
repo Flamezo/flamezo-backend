@@ -13,7 +13,8 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
 	get_or_create_customer,
 	is_phone_verified,
-	create_customer_session
+	create_customer_session,
+	_find_customer_by_normalized_phone,
 )
 from flamezo_backend.flamezo.utils.otp_service import (
 	send_otp_via_whatsapp,
@@ -480,13 +481,29 @@ def generate_whatsapp_auth_token(phone: str, customer_id: str) -> str:
 	import secrets
 	try:
 		normalized = normalize_phone(phone)
-		if not normalized or len(normalized) != 10 or not customer_id:
+		if not normalized or len(normalized) != 10:
 			return ""
+		# Orders placed at pay-bill sometimes have no platform_customer linked, but
+		# the payer is (or becomes) a known customer. Resolve — or create — the
+		# Customer by phone so the auto-login token is still issued (otherwise
+		# "Check My Offer" would fall back to a manual login prompt).
+		if not customer_id:
+			customer_id = _find_customer_by_normalized_phone(normalized) or ""
+		if not customer_id:
+			cust = get_or_create_customer(phone=normalized)
+			customer_id = cust.name if cust else ""
+		if not customer_id:
+			return ""
+		import time
 		token = secrets.token_urlsafe(32)
+		# NOTE: set_value(..., expires_in_sec=...) is unreliable on this Frappe
+		# build (it silently drops the key in some contexts — same class of bug
+		# as the RQ set_value nx= issue). Store WITHOUT a TTL and enforce expiry
+		# via an embedded timestamp that verify_whatsapp_token checks.
 		frappe.cache().set_value(
 			f"wa_auth:{token}",
-			{"phone": normalized, "customer_id": customer_id},
-			expires_in_sec=_WA_AUTH_TOKEN_TTL,
+			{"phone": normalized, "customer_id": customer_id,
+			 "exp": int(time.time()) + _WA_AUTH_TOKEN_TTL},
 		)
 		return token
 	except Exception as e:
@@ -518,6 +535,12 @@ def verify_whatsapp_token(token):
 
 		# Delete immediately — one-time use
 		frappe.cache().delete_value(f"wa_auth:{token}")
+
+		# Expiry is enforced in-value (see generate_whatsapp_auth_token — the TTL
+		# is embedded because set_value's expires_in_sec is unreliable here).
+		import time
+		if int(payload.get("exp", 0) or 0) < int(time.time()):
+			return {"success": False, "error": "TOKEN_EXPIRED"}
 
 		phone = payload.get("phone", "")
 		customer_id = payload.get("customer_id", "")

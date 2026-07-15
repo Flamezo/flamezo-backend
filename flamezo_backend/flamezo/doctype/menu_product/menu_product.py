@@ -22,6 +22,29 @@ class MenuProduct(Document):
 		if self.restaurant:
 			self.resolve_duplicate_slugs()
 
+		self.validate_dietary_attributes()
+
+	def validate_dietary_attributes(self):
+		"""Normalise dietary_attributes to a clean JSON array of known keys,
+		capped at the per-dish maximum. Keeps stored data valid no matter how
+		it was submitted (UI, API, or import)."""
+		import json
+		from flamezo_backend.flamezo.api import dish_attributes as dish_attrs
+
+		if not self.get("dietary_attributes"):
+			self.dietary_attributes = None
+			return
+
+		keys = dish_attrs.parse_keys(self.dietary_attributes)  # drops unknown/dupes
+		if len(keys) > dish_attrs.MAX_DISH_ATTRIBUTES:
+			frappe.throw(
+				_("A dish can have at most {0} attributes ({1} selected).").format(
+					dish_attrs.MAX_DISH_ATTRIBUTES, len(keys)
+				),
+				title=_("Too Many Attributes"),
+			)
+		self.dietary_attributes = json.dumps(keys) if keys else None
+
 	def resolve_duplicate_slugs(self):
 		# check product_id
 		if self.product_id:

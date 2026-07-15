@@ -86,6 +86,9 @@ const BLANK_FORM = {
   items_to_select: 2,
   display_on_menu: true,
   combo_image: '',
+  // Google Review offer
+  google_review_link: '',
+  review_reward_type: 'cashback' as string,
 }
 
 interface CouponTemplate {
@@ -293,7 +296,7 @@ export default function Coupons() {
       'max_uses', 'max_uses_per_user', 'usage_count', 'offer_type',
       'max_discount_cap', 'priority', 'restaurant', 'valid_days_of_week',
       'valid_time_start', 'valid_time_end', 'can_stack', 'free_item',
-      'required_items', 'combo_price', 'category',
+      'required_items', 'combo_price', 'category', 'google_review_link', 'review_reward_type',
     ],
     initialFilters,
     orderBy: { field: 'creation', order: 'desc' },
@@ -626,7 +629,10 @@ export default function Coupons() {
                     ? `${coupon.discount_value}% OFF`
                     : `${formatAmountNoDecimals(coupon.discount_value)} OFF`
 
-                  if (coupon.offer_type === 'combo') {
+                  // Free-dish review offer — no ₹ amount; the dish is served free.
+                  if (coupon.offer_type === 'google_review' && coupon.review_reward_type === 'free_dish') {
+                    discountLabel = 'FREE DISH'
+                  } else if (coupon.offer_type === 'combo') {
                     const lowerDesc = (coupon.description || '').toLowerCase()
                     const lowerCode = (coupon.code || '').toLowerCase()
                     const isBogo = coupon.combo_type === 'bogo' ||
@@ -924,6 +930,12 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
   })
 
   const products: { product_id: string; product_name: string }[] = (productsData as any) || []
+  // A description is "auto" (safe to overwrite) if it's empty, the "Get a free"
+  // starter, or one we generated — never overwrite a merchant's custom wording.
+  const isAutoReviewDesc = (d: string) => {
+    const t = (d || '').trim()
+    return !t || t.toLowerCase() === 'get a free' || /5-star google review/i.test(t)
+  }
 
   const [formData, setFormData] = useState<any>({ ...BLANK_FORM })
 
@@ -937,7 +949,11 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         description: coupon.description || '',
         discount_type: coupon.discount_type || 'percent',
         discount_value: coupon.discount_value || 0,
-        min_order_amount: coupon.min_order_amount || 0,
+        // For Google-review offers, ensure the min bill is at least the safe 4× the
+        // reward on load (older offers saved with 0 would otherwise show a stale 0).
+        min_order_amount: coupon.offer_type === 'google_review'
+          ? Math.max(coupon.min_order_amount || 0, (coupon.discount_value || 0) * 4)
+          : (coupon.min_order_amount || 0),
         max_discount_cap: coupon.max_discount_cap || 0,
         is_active: coupon.is_active ?? true,
         offer_type: coupon.offer_type || 'coupon',
@@ -961,6 +977,8 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
         items_to_select: coupon.items_to_select || 2,
         display_on_menu: coupon.display_on_menu ?? true,
         combo_image: coupon.combo_image || '',
+        google_review_link: coupon.google_review_link || '',
+        review_reward_type: coupon.review_reward_type || 'cashback',
       })
       if (coupon.required_items) {
         try {
@@ -1086,6 +1104,26 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
       if (!s.max_uses_per_user || s.max_uses_per_user === 0) s.max_uses_per_user = null
       if (!s.max_discount_cap || s.max_discount_cap === 0) s.max_discount_cap = null
       if (!s.min_order_amount || s.min_order_amount === 0) s.min_order_amount = null
+      // Free-dish just needs a description naming the dish (no ₹, no menu pick).
+      if (s.offer_type === 'google_review' && s.review_reward_type === 'free_dish') {
+        const d = String(s.description || '').trim()
+        if (!d || d.toLowerCase() === 'get a free') {
+          toast.error('Type the free dish in the description (e.g. "Get a free brownie")')
+          return
+        }
+      }
+      // Cashback loss guard: reward must stay ≤ ~1/3 of the minimum bill.
+      if (s.offer_type === 'google_review' && s.review_reward_type !== 'free_dish') {
+        const reward = Number(s.discount_value) || 0
+        const minOrder = Number(s.min_order_amount) || 0
+        if (reward > 0 && minOrder < reward * 3) {
+          toast.error(`Set a minimum bill of at least ${currencySymbol}${reward * 3} — the reward can't be more than a third of the bill.`)
+          return
+        }
+      }
+      // The Google-review link is taken from restaurant setup (Restaurant Config),
+      // never stored per-offer — so always clear it.
+      s.google_review_link = null
       await onSave(s)
     } finally {
       setSaving(false)
@@ -1125,7 +1163,8 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                 value={formData.offer_type}
                 onValueChange={(v) => {
                   const patch: any = { offer_type: v }
-                  if (v === 'combo') { patch.category = 'best'; patch.discount_type = 'flat' }
+                  // Combo and Google-review are always flat-amount offers.
+                  if (v === 'combo' || v === 'google_review') { patch.category = 'best'; patch.discount_type = 'flat' }
                   else { patch.category = 'best' }
                   set(patch)
                 }}
@@ -1135,10 +1174,94 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                   <SelectItem value="coupon">Coupon Code</SelectItem>
                   <SelectItem value="auto">Auto-Applied</SelectItem>
                   <SelectItem value="combo">Combo Deal</SelectItem>
+                  <SelectItem value="google_review">Google Review</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* ── Google Review reward type — Cashback or Free Dish ── */}
+          {formData.offer_type === 'google_review' && (
+            <div className="space-y-4 rounded-2xl border bg-card/50 p-4">
+              <Label>What does the customer get?</Label>
+              {/* iOS-style segmented control with a sliding pill */}
+              <div className="relative grid grid-cols-2 rounded-xl bg-muted/70 p-1">
+                <div
+                  className="pointer-events-none absolute top-1 bottom-1 rounded-lg bg-background shadow-sm ring-1 ring-black/5 transition-all duration-300 ease-out"
+                  style={{ width: 'calc(50% - 4px)', left: formData.review_reward_type === 'free_dish' ? '50%' : '4px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const amt = Number(formData.discount_value) > 0 ? Number(formData.discount_value) : 50
+                    set({
+                      review_reward_type: 'cashback',
+                      free_item: '',
+                      discount_value: amt,
+                      min_order_amount: amt * 4,
+                      description: `Leave us a 5-Star Google Review & get ${currencySymbol}${amt} off your bill!`,
+                    })
+                  }}
+                  className={`relative z-10 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors ${formData.review_reward_type === 'cashback' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}
+                >
+                  💸 Cashback
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set({
+                    review_reward_type: 'free_dish',
+                    free_item: '',
+                    discount_value: 0,
+                    max_discount_cap: 0,
+                    min_order_amount: (Number(formData.min_order_amount) || 0) > 0 ? formData.min_order_amount : 200,
+                    // Leave the description blank so the merchant types the dish (the field shows a placeholder hint).
+                    ...(isAutoReviewDesc(formData.description) ? { description: '' } : {}),
+                  })}
+                  className={`relative z-10 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors ${formData.review_reward_type === 'free_dish' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}
+                >
+                  🍽️ Free Dish
+                </button>
+              </div>
+
+              {formData.review_reward_type === 'free_dish' ? (
+                <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  Just type the free dish in the <b>Description</b> below — e.g. &ldquo;Get a free brownie&rdquo;. The customer sees <b>FREE DISH</b>, your staff serve it, and it&rsquo;s <b>not</b> deducted from the bill. Set the minimum bill in Conditions.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Preset cashback tiers */}
+                  <div className="flex flex-wrap gap-2">
+                    {[50, 70, 100].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => set({ discount_value: amt, min_order_amount: amt * 4, description: `Leave us a 5-Star Google Review & get ${currencySymbol}${amt} off your bill!` })}
+                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-all active:scale-95 ${Number(formData.discount_value) === amt ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
+                      >
+                        {currencySymbol}{amt} off
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Cashback ({currencySymbol}) <span className="text-muted-foreground font-normal text-xs">custom</span></Label>
+                      <NumberInput value={formData.discount_value}
+                        onChange={(e: any) => { const v = parseFloat(e.target.value) || 0; set({ discount_value: v, min_order_amount: v * 4, ...(v > 0 ? { description: `Leave us a 5-Star Google Review & get ${currencySymbol}${v} off your bill!` } : {}) }) }} min="0" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Max Cap ({currencySymbol}) <span className="text-muted-foreground font-normal text-xs">optional</span></Label>
+                      <NumberInput value={formData.max_discount_cap}
+                        onChange={(e: any) => set({ max_discount_cap: parseFloat(e.target.value) || 0 })} min="0" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                The Google review link is taken from your restaurant setup automatically. We keep a safe minimum bill in Conditions so you don&rsquo;t lose on small orders.
+              </p>
+            </div>
+          )}
 
           {/* ── Description ── */}
           <div className="space-y-1.5">
@@ -1150,7 +1273,9 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               placeholder={
                 formData.offer_type === 'combo' ? 'Get 2 Pizzas + 1 Drink at a special combo price' :
                 formData.offer_type === 'auto'  ? 'Weekend special — 25% off all bills' :
-                                                  'Get 20% off on bills above ₹299'
+                formData.offer_type === 'google_review'
+                  ? (formData.review_reward_type === 'free_dish' ? 'e.g. Get a free brownie' : 'e.g. Leave us a 5-Star Google Review & get ₹50 off your bill!')
+                  : 'Get 20% off on bills above ₹299'
               }
             />
           </div>
@@ -1381,7 +1506,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               </div>
             </div>
 
-          ) : (
+          ) : formData.offer_type === 'google_review' ? null : (
             <div className="space-y-4 rounded-xl border p-4">
               <p className="text-sm font-semibold flex items-center gap-2"><Tag className="h-4 w-4 text-green-600" />Discount</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
