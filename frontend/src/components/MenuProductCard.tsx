@@ -1,6 +1,7 @@
 import { Pencil, Trash2, GripVertical, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { AttrTile, attrToneClass, attrTileClass } from './DishAttributesPicker'
 
 import { Switch } from '@/components/ui/switch'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -147,6 +148,26 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
             <span className="text-xs text-muted-foreground line-through decoration-muted-foreground/40">{formatAmountNoDecimals(originalPrice)}</span>
           )}
         </div>
+
+        {/* Attribute badges — all selected pills with names, minus veg/non-veg
+            (already shown by the veg dot above). */}
+        {Array.isArray(product.dietaryAttributes) && product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').map((badge: any) => (
+              <span
+                key={badge.key}
+                title={badge.label}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border pl-0.5 pr-2 py-0.5 text-[11px] font-medium',
+                  attrToneClass(badge.key, badge.group),
+                )}
+              >
+                <AttrTile name={badge.icon} tone={attrTileClass(badge.key, badge.group)} className="h-4 w-4" />
+                <span>{badge.label}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 self-stretch sm:self-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/40">

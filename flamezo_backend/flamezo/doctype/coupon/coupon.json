@@ -9,6 +9,7 @@
  "field_order": [
   "restaurant",
   "offer_type",
+  "review_reward_type",
   "code",
   "discount_type",
   "discount_value",
@@ -79,6 +80,14 @@
    "fieldname": "google_review_link",
    "fieldtype": "Small Text",
    "label": "Google Review Link",
+   "depends_on": "eval:doc.offer_type=='google_review'"
+  },
+  {
+   "fieldname": "review_reward_type",
+   "fieldtype": "Select",
+   "label": "Review Reward Type",
+   "options": "cashback\nfree_dish",
+   "default": "cashback",
    "depends_on": "eval:doc.offer_type=='google_review'"
   },
   {

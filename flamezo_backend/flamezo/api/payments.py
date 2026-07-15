@@ -503,16 +503,14 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 				except Exception:
 					pass
 
-			# UGC cashback nudge — send the WhatsApp message immediately upon payment.
+			# UGC cashback nudge — send the WhatsApp message directly upon payment
+			# (no queue / no delay). send_ugc_cashback_nudge swallows its own errors.
 			try:
 				from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
 				ugc_config = _get_active_config(order.restaurant)
 				if ugc_config and _is_ugc_active(ugc_config):
-					frappe.enqueue(
-						"flamezo_backend.flamezo.tasks.ugc_tasks.send_ugc_cashback_nudge",
-						order_name=order.name,
-						queue="short"
-					)
+					from flamezo_backend.flamezo.tasks.ugc_tasks import send_ugc_cashback_nudge
+					send_ugc_cashback_nudge(order.name)
 			except Exception:
 				pass
 

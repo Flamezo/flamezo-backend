@@ -16,6 +16,7 @@
   "seo_slug",
   "column_break_1",
   "product_type",
+  "dietary_attributes",
   "main_category",
   "is_active",
   "display_order",
@@ -104,6 +105,12 @@
    "fieldtype": "Select",
    "label": "Product Type",
    "options": "\ntop-picks\nchef-special"
+  },
+  {
+   "fieldname": "dietary_attributes",
+   "fieldtype": "Small Text",
+   "label": "Dietary Attributes",
+   "description": "JSON array of dish-attribute keys, e.g. [\"veg\",\"spicy\",\"new\"]. Source of truth for keys/labels/icons is flamezo/api/dish_attributes.py."
   },
   {
    "fieldname": "main_category",

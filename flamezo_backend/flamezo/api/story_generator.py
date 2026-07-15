@@ -272,7 +272,7 @@ def _write_overlay_html(path, w, h, restaurant_name, coupon_code,
     chip_py   = round(w * 0.014)
     chip_px   = round(w * 0.020)
     chip_br   = round(w * 0.04)
-    qr_size   = round(w * 0.17)
+    qr_size   = round(w * 0.24)
     qr_pad    = max(2, round(w * 0.008))
     qr_gap    = round(w * 0.018)
     strip_w   = round(w * 0.82)
@@ -316,10 +316,10 @@ def _write_overlay_html(path, w, h, restaurant_name, coupon_code,
           {offer_description}
         </p>"""
 
-    tnc_text = f"{validity_label} · T&amp;C apply" if validity_label else "T&amp;C apply"
+    tnc_base = f"{validity_label} · T&amp;C apply" if validity_label else "T&amp;C apply"
     validity_html = f"""
-        <p style="color:rgba(183,65,14,1);font-size:{fz(0.021)}px;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          {tnc_text}
+        <p style="font-size:{fz(0.021)}px;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <span style="color:rgba(183,65,14,1);">{tnc_base} · </span><span style="color:#E23744;">Secured by Flamezo</span>
         </p>"""
 
     coupon_chip_html = ""
@@ -363,6 +363,17 @@ body {{ width:{w}px; height:{h}px; background:transparent; overflow:hidden; posi
 <div style="position:absolute;inset:0;pointer-events:none;
             background:linear-gradient(to bottom,rgba(0,0,0,0) 25%,rgba(0,0,0,0.25) 50%,rgba(0,0,0,0.65) 75%,rgba(0,0,0,0.88) 100%);"></div>
 
+<!-- Top-left: QR + CTA (logo removed; QR moved here, larger) -->
+<div style="position:absolute;top:{pad}px;left:{pad}px;display:flex;flex-direction:column;align-items:center;gap:{qr_gap}px;">
+  <div style="width:{qr_size}px;height:{qr_size}px;background:#fff;border-radius:{round(w*0.018)}px;
+              padding:{qr_pad}px;box-shadow:0 2px 8px rgba(0,0,0,0.45);">
+    <img src="{qr_src}" style="width:100%;height:100%;display:block;object-fit:contain;" />
+  </div>
+  <p style="color:rgba(255,255,255,0.7);font-size:{fz(0.024)}px;font-weight:500;text-align:center;
+            line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,0.8);letter-spacing:0.01em;margin:0;">
+    Scan to join
+  </p>
+</div>
 
 <!-- Coupon strip -->
 <div style="position:absolute;bottom:{strip_bot}px;left:50%;transform:translateX(-50%);
@@ -421,27 +432,11 @@ def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
 
     pad = int(w * 0.04)
 
-    # ── Logo (top-left) on a frosted chip ──
+    # ── QR (top-left) + caption — logo removed; QR moved here, larger ──
     try:
-        if os.path.exists(LOGO_PATH):
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            lw = int(w * 0.30)
-            lh = max(1, int(lw * logo.height / logo.width))
-            logo = logo.resize((lw, lh), Image.LANCZOS)
-            cp = int(w * 0.02)
-            draw.rounded_rectangle(
-                (pad - cp, pad - cp, pad + lw + cp, pad + lh + cp),
-                radius=int(w * 0.03), fill=(255, 255, 255, 55),
-            )
-            overlay.alpha_composite(logo, (pad, pad))
-    except Exception:
-        pass
-
-    # ── QR (top-right) + caption ──
-    try:
-        qs = int(w * 0.18)
+        qs = int(w * 0.24)
         qr_img = qrcode.make(WA_CHANNEL_URL).convert("RGBA").resize((qs, qs), Image.NEAREST)
-        qx, qy = w - pad - qs, pad
+        qx, qy = pad, pad
         qp = max(2, int(qs * 0.06))
         draw.rounded_rectangle(
             (qx - qp, qy - qp, qx + qs + qp, qy + qs + qp),
@@ -470,7 +465,7 @@ def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
     if discount_line:
         rows.append((discount_line, font(int(w * 0.075)), (255, 255, 255, 255)))
     rows.append((offer_description or "on your next visit", font(int(w * 0.030), bold=False), (255, 255, 255, 175)))
-    rows.append(("T&C apply", font(int(w * 0.026)), (218, 165, 32, 255)))
+    rows.append(("T&C apply · Secured by Flamezo", font(int(w * 0.026)), (218, 165, 32, 255)))
     rows.append(("Show at checkout · Take a screenshot now", font(int(w * 0.024), bold=False), (255, 255, 255, 110)))
 
     gap = int(h * 0.011)
@@ -504,7 +499,15 @@ def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
     ty = card_y + gap
     tx = card_x + inset
     for (txt, f, color), hgt in zip(rows, heights):
-        draw.text((tx, ty), txt, font=f, fill=color)
+        marker = " · Secured by Flamezo"
+        if txt.endswith(marker):
+            # "T&C apply · " in gold, "Secured by Flamezo" in brand red (#E23744).
+            prefix = txt[: -len(marker)] + " · "
+            draw.text((tx, ty), prefix, font=f, fill=color)
+            draw.text((tx + draw.textlength(prefix, font=f), ty),
+                      "Secured by Flamezo", font=f, fill=(226, 55, 68, 255))
+        else:
+            draw.text((tx, ty), txt, font=f, fill=color)
         ty += hgt + gap
 
     overlay.save(out_png, "PNG")
