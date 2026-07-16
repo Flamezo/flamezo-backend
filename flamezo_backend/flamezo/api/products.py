@@ -988,3 +988,151 @@ def update_product_order(product_orders):
 		frappe.log_error(f"Error in update_product_order: {str(e)}")
 		return {"success": False, "error": str(e)}
 
+
+def _round_price(amount, round_to):
+	"""Round `amount` to the nearest multiple of `round_to`. round_to <= 0 means no rounding."""
+	amount = flt(amount)
+	round_to = flt(round_to)
+	if round_to <= 0:
+		return round(amount, 2)
+	return round(amount / round_to) * round_to
+
+
+def _apply_price_rule(current, mode, value, direction, round_to):
+	"""
+	Compute a new price from `current`.
+	mode: "flat" (add/subtract ₹value) or "percent" (add/subtract value% of current).
+	direction: "increase" or "decrease".
+	Result is floored at 0 and rounded to the nearest `round_to`.
+	"""
+	current = flt(current)
+	value = flt(value)
+	sign = -1 if direction == "decrease" else 1
+
+	if mode == "percent":
+		delta = current * (value / 100.0)
+	else:  # flat
+		delta = value
+
+	new_price = current + (sign * delta)
+	if new_price < 0:
+		new_price = 0
+	return _round_price(new_price, round_to)
+
+
+@frappe.whitelist()
+def bulk_update_prices(
+	restaurant_id,
+	mode,
+	value,
+	direction="increase",
+	scope="all",
+	categories=None,
+	product_ids=None,
+	round_to=1,
+	include_original_price=1,
+	dry_run=0,
+):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.products.bulk_update_prices
+
+	Bulk-adjust the price of many Menu Products at once (e.g. a menu-wide hike
+	or a GST %). Update `price`, and optionally `original_price` when it is set.
+
+	mode:      "flat"    -> add/subtract ₹`value` from each price
+	           "percent" -> add/subtract `value`% of each price (GST-style)
+	direction: "increase" | "decrease"
+	scope:     "all"      -> every product in the restaurant
+	           "category" -> products whose `category` is in `categories`
+	           "selected" -> products whose docname is in `product_ids`
+	round_to:  round each result to the nearest multiple (1 = nearest ₹1, 0 = none)
+	include_original_price: also adjust original_price when > 0 (preserves discounts)
+	dry_run:   if truthy, only return a preview — nothing is written
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+
+		mode = (mode or "").strip().lower()
+		direction = (direction or "increase").strip().lower()
+		scope = (scope or "all").strip().lower()
+		value = flt(value)
+		round_to = flt(round_to)
+		include_original_price = cint(include_original_price)
+		dry_run = cint(dry_run)
+
+		if mode not in ("flat", "percent"):
+			return {"success": False, "error": "mode must be 'flat' or 'percent'"}
+		if direction not in ("increase", "decrease"):
+			return {"success": False, "error": "direction must be 'increase' or 'decrease'"}
+		if value <= 0:
+			return {"success": False, "error": "value must be greater than 0"}
+		if mode == "percent" and value > 1000:
+			return {"success": False, "error": "percent value is unrealistically large"}
+
+		if isinstance(categories, str):
+			categories = json.loads(categories) if categories.strip().startswith("[") else [categories]
+		if isinstance(product_ids, str):
+			product_ids = json.loads(product_ids) if product_ids.strip().startswith("[") else [product_ids]
+
+		filters = {"restaurant": restaurant}
+		if scope == "category":
+			if not categories:
+				return {"success": False, "error": "categories are required for scope 'category'"}
+			filters["category"] = ["in", categories]
+		elif scope == "selected":
+			if not product_ids:
+				return {"success": False, "error": "product_ids are required for scope 'selected'"}
+			filters["name"] = ["in", product_ids]
+
+		rows = frappe.get_all(
+			"Menu Product",
+			filters=filters,
+			fields=["name", "product_name", "price", "original_price"],
+		)
+
+		samples = []
+		updated = 0
+		for row in rows:
+			old_price = flt(row.price)
+			new_price = _apply_price_rule(old_price, mode, value, direction, round_to)
+
+			new_original = None
+			old_original = flt(row.original_price)
+			if include_original_price and old_original > 0:
+				new_original = _apply_price_rule(old_original, mode, value, direction, round_to)
+
+			# Skip no-op rows (nothing actually changed)
+			if new_price == old_price and (new_original is None or new_original == old_original):
+				continue
+
+			if len(samples) < 8:
+				samples.append({
+					"name": row.name,
+					"product_name": row.product_name,
+					"old_price": old_price,
+					"new_price": new_price,
+				})
+
+			if not dry_run:
+				updates = {"price": new_price}
+				if new_original is not None:
+					updates["original_price"] = new_original
+				frappe.db.set_value("Menu Product", row.name, updates, update_modified=True)
+
+			updated += 1
+
+		if not dry_run and updated:
+			frappe.db.commit()
+			invalidate_product_cache({"restaurant": restaurant})
+
+		return {
+			"success": True,
+			"dry_run": bool(dry_run),
+			"total_matched": len(rows),
+			"updated": updated,
+			"samples": samples,
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in bulk_update_prices: {str(e)}", "bulk_update_prices")
+		return {"success": False, "error": str(e)}
+

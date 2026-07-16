@@ -3,7 +3,7 @@ import { useFrappeGetDocList, useFrappePostCall } from 'frappe-react-sdk'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, HelpCircle, ArrowRightLeft, Trash2, RefreshCw, Info } from 'lucide-react'
+import { Search, Plus, HelpCircle, ArrowRightLeft, Trash2, RefreshCw, Info, TrendingUp } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import DynamicForm from '@/components/DynamicForm'
+import BulkPriceUpdateDialog from '@/components/BulkPriceUpdateDialog'
 import { useFrappeGetCall } from '@/lib/frappe'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -68,6 +69,7 @@ export default function MenuManagement() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [isBulkPriceOpen, setIsBulkPriceOpen] = useState(false)
 
   // Sidebar resize
   const [sidebarWidth, setSidebarWidth] = useState(320)
@@ -134,6 +136,15 @@ export default function MenuManagement() {
     (categories || []).find((c: any) => c.name === selectedCategoryId),
     [categories, selectedCategoryId]
   )
+
+  // Category docnames covered by the "current category" bulk-price scope:
+  // the selected category plus (if it's a parent) all of its sub-categories.
+  const scopedCategoryNames = useMemo(() => {
+    if (!activeCategory) return []
+    const names = [activeCategory.name]
+    ;(subcategoryMap[activeCategory.name] || []).forEach((s: any) => names.push(s.name))
+    return names
+  }, [activeCategory, subcategoryMap])
 
   // Hierarchical categories for selection menus (parents -> children)
 
@@ -426,17 +437,29 @@ export default function MenuManagement() {
             </Badge>
           )}
         </div>
-        {isPOSManaged && (
-          <Button
-            variant="outline" size="sm"
-            className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white gap-2"
-            onClick={handleSyncMenu}
-            disabled={isSyncingMenu}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncingMenu ? 'animate-spin' : ''}`} />
-            {isSyncingMenu ? 'Syncing...' : 'Sync Menu Now'}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isPOSManaged && (
+            <Button
+              variant="outline" size="sm"
+              className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white gap-2"
+              onClick={() => setIsBulkPriceOpen(true)}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Price Update
+            </Button>
+          )}
+          {isPOSManaged && (
+            <Button
+              variant="outline" size="sm"
+              className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white gap-2"
+              onClick={handleSyncMenu}
+              disabled={isSyncingMenu}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncingMenu ? 'animate-spin' : ''}`} />
+              {isSyncingMenu ? 'Syncing...' : 'Sync Menu Now'}
+            </Button>
+          )}
+        </div>
       </header>
 
       {isPOSManaged && (
@@ -742,6 +765,20 @@ export default function MenuManagement() {
       </Sheet>
 
       {ConfirmDialogComponent}
+
+      {/* Bulk Price Update */}
+      <BulkPriceUpdateDialog
+        open={isBulkPriceOpen}
+        onOpenChange={setIsBulkPriceOpen}
+        restaurantId={selectedRestaurant}
+        scopedCategoryNames={scopedCategoryNames}
+        currentCategoryLabel={activeCategory?.display_name || activeCategory?.category_name}
+        selectedProductIds={selectedProductIds}
+        onApplied={() => {
+          mutateProducts()
+          setSelectedProductIds([])
+        }}
+      />
 
       {/* Help Trigger */}
       <div className="fixed bottom-6 right-6 z-50">

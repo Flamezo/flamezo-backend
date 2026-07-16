@@ -192,7 +192,7 @@ class Restaurant(Document):
 		"""Auto-assign owner when restaurant is created"""
 		updates = {}
 		if self.platform_fee_percent is None:
-			updates["platform_fee_percent"] = 3.0
+			updates["platform_fee_percent"] = 7.0
 		if updates:
 			frappe.db.set_value("Restaurant", self.name, updates)
 			# Reflect the writes back on the in-memory doc for the rest of after_insert.
