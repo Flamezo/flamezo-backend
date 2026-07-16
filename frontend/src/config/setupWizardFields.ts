@@ -33,7 +33,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'timezone',
       'google_map_url',
       'tables',
-      'enable_dine_in',
     ],
 
     alwaysHidden: [
@@ -106,6 +105,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'enable_loyalty',
 
       // Ordering / delivery (managed via dedicated settings page, not wizard)
+      'enable_dine_in',
       'enable_takeaway',
       'enable_delivery',
       'default_delivery_fee',
