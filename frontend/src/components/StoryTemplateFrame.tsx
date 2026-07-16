@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 
 const WA_CHANNEL_URL = 'https://whatsapp.com/channel/0029VbDInYjE50Up33JZob10'
-const LOGO_URL = `${import.meta.env.BASE_URL}images/main-logo-dark.png`
 
 const qrPromise = QRCode.toDataURL(WA_CHANNEL_URL, {
   width: 220,
@@ -59,12 +58,8 @@ export default function StoryTemplateFrame({
   }, [])
 
   const pad = Math.round(dims.w * 0.038)
-  const logoW = Math.round(dims.w * 0.28)
-  const qrSize = Math.round(dims.w * 0.17)   // smaller — don't compete with logo
+  const qrSize = Math.round(dims.w * 0.22)   // larger now that logo is gone
   const qrPad = Math.max(2, Math.round(dims.w * 0.008))
-  const chipBr = Math.round(dims.w * 0.04)
-  const chipPy = Math.round(dims.w * 0.014)
-  const chipPx = Math.round(dims.w * 0.020)
 
 
   // Typography scale
@@ -120,32 +115,10 @@ export default function StoryTemplateFrame({
         }}
       />
 
-      {/* ── Top-left: frosted chip + brand logo ── */}
+      {/* ── Top-left: QR + CTA ── */}
       <div
         style={{
           position: 'absolute', top: pad, left: pad,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          padding: `${chipPy}px ${chipPx}px`,
-          background: 'rgba(255,255,255,0.22)',
-          backdropFilter: 'blur(14px) saturate(1.6)',
-          WebkitBackdropFilter: 'blur(14px) saturate(1.6)',
-          borderRadius: chipBr,
-          border: '0.5px solid rgba(255,255,255,0.35)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
-        }}
-      >
-        <img
-          src={LOGO_URL}
-          alt="Flamezo"
-          draggable={false}
-          style={{ width: logoW, height: 'auto', objectFit: 'contain', display: 'block' }}
-        />
-      </div>
-
-      {/* ── Top-right: QR + CTA ── */}
-      <div
-        style={{
-          position: 'absolute', top: pad, right: pad,
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: Math.round(dims.w * 0.018),
         }}
@@ -264,11 +237,14 @@ export default function StoryTemplateFrame({
 
           {/* Row 4: validity + T&C — always shown */}
           <p style={{
-            color: 'rgba(183,65,14,1)', fontSize: fs(0.021),
-            margin: 0, fontWeight: 600,
+            fontSize: fs(0.023),
+            margin: 0, fontWeight: 700,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {validityLabel ? `${validityLabel} · T&C apply` : 'T&C apply'}
+            <span style={{ color: 'rgba(183,65,14,1)' }}>
+              {validityLabel ? `${validityLabel} · T&C apply · ` : 'T&C apply · '}
+            </span>
+            <span style={{ color: '#E23744' }}>Secured by Flamezo</span>
           </p>
 
           {/* Row 5: CTA (wraps if needed) */}

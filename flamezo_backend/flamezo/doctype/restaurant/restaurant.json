@@ -464,9 +464,9 @@
    "fieldname": "platform_fee_percent",
    "fieldtype": "Percent",
    "label": "Success Share %",
-   "default": "3",
+   "default": "7",
    "precision": 2,
-   "description": "Flamezo's Success Share percentage (default: 3% for new restaurants; legacy restaurants are grandfathered at 1.5%) \u2014 applied to every order GMV"
+   "description": "Flamezo's Success Share percentage (default: 7% for new restaurants; legacy restaurants are grandfathered at their earlier rate) \u2014 applied to every order GMV"
   },
   {
    "fieldname": "monthly_minimum",
