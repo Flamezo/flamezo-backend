@@ -128,15 +128,6 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          {isVegetarian ? (
-             <div className="h-3 w-3 border border-green-600 p-[1px] flex items-center justify-center shrink-0">
-                <div className="h-2 w-2 bg-green-600 rounded-full" />
-             </div>
-          ) : (
-             <div className="h-3 w-3 border border-red-600 p-[1px] flex items-center justify-center shrink-0">
-                <div className="h-2 w-2 bg-red-600 rounded-full" />
-             </div>
-          )}
           <h4 className="font-semibold text-foreground truncate">{name}</h4>
         </div>
         <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
@@ -149,11 +140,10 @@ export const MenuProductCard: React.FC<MenuProductCardProps> = ({
           )}
         </div>
 
-        {/* Attribute badges — all selected pills with names, minus veg/non-veg
-            (already shown by the veg dot above). */}
-        {Array.isArray(product.dietaryAttributes) && product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').length > 0 && (
+        {/* Attribute badges — all selected pills with names */}
+        {Array.isArray(product.dietaryAttributes) && product.dietaryAttributes.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {product.dietaryAttributes.filter((b: any) => b.key !== 'veg' && b.key !== 'non-veg').map((badge: any) => (
+            {product.dietaryAttributes.map((badge: any) => (
               <span
                 key={badge.key}
                 title={badge.label}
