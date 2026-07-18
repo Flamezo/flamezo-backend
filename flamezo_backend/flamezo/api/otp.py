@@ -606,6 +606,9 @@ def get_my_profile():
 		if display_name == f"Customer {phone_val}":
 			display_name = ""
 
+		from flamezo_backend.flamezo.api.addresses import get_addresses_for_customer
+		saved_addresses = get_addresses_for_customer(customer_id)
+
 		return {
 			"success": True,
 			"customer_id": customer_id,
@@ -614,10 +617,31 @@ def get_my_profile():
 			"email": c.get("email") or "",
 			"date_of_birth": str(c.get("date_of_birth")) if c.get("date_of_birth") else None,
 			"profile_photo": c.get("image") or None,
+			"saved_addresses": saved_addresses,
 		}
 	except Exception as e:
 		frappe.log_error(f"get_my_profile error: {e}", "Customer_Profile")
 		return {"success": False, "error": "INTERNAL_ERROR"}
+
+
+def _resolve_customer_from_token() -> str:
+    """
+    Read X-Customer-Token / Authorization Bearer from request headers,
+    validate the session, and return the customer_id string.
+    Raises frappe.AuthenticationError on failure so callers get a clean 401.
+    """
+    from flamezo_backend.flamezo.utils.customer_helpers import (
+        get_customer_token, get_customer_from_token
+    )
+    token = get_customer_token()
+    if not token:
+        frappe.throw("Authentication required.", frappe.AuthenticationError)
+
+    customer_id = get_customer_from_token(token)
+    if not customer_id:
+        frappe.throw("Invalid or expired session.", frappe.AuthenticationError)
+
+    return customer_id
 
 
 def _create_otp_log(restaurant_id, phone, channel, verified, purpose, error_message):

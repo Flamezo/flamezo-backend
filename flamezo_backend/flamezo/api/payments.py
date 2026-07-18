@@ -71,8 +71,13 @@ def create_linked_account(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None):
-	"""Create or update a Razorpay order for customer payment (SaaS model: no Route/transfers)."""
+def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None, payment_source="web"):
+	"""Create or update a Razorpay order for customer payment.
+
+	payment_source controls the fee model:
+	  "web"  — 0% Flamezo fee; merchant absorbs 2% Razorpay gateway cost.
+	  "app"  — 7% Flamezo fee; Flamezo absorbs 2% Razorpay gateway cost.
+	"""
 	try:
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
 		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
@@ -124,10 +129,15 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		# Convert total_amount to paise (integer)
 		total_amount_paise = int(float(total_amount) * 100)
 
-		# Calculate platform fee (Dynamic % by restaurant config)
-		default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
-		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else default_commission)  # type: ignore
-		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))  # type: ignore
+		# Fee model is determined by payment_source, not per-restaurant config.
+		# web: 0% Flamezo take (merchant pays gateway fee from their slice).
+		# app: 7% Flamezo take (Flamezo absorbs gateway fee internally).
+		payment_source = str(payment_source or "web").strip().lower()
+		if payment_source == "app":
+			platform_fee_percent = 7.0
+		else:
+			platform_fee_percent = 0.0
+		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))
 
 		# Create or Update order in ERPNext
 		order_doc = None
@@ -322,9 +332,8 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 
 		# Calculate Razorpay amount from final order total (in paise)
 		final_total_paise = int(float(order_doc.total) * 100)
-		# Recompute platform fee against the *final* total (it may differ from
-		# total_amount if loyalty/coupons were applied above) so split math
-		# is consistent with what's captured.
+		# Recompute platform fee against the *final* total (post loyalty/coupon)
+		# so split math is consistent with what Razorpay captures.
 		platform_fee_paise = int(math.floor(final_total_paise * (platform_fee_percent / 100.0)))
 
 		# ── Settlement-mode decision ────────────────────────────────────
@@ -357,8 +366,15 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			netoff_paise = commission_engine.compute_netoff_for_online_order(
 				restaurant_id, final_total_paise
 			)
-			# Platform Keep = Flamezo Commission + Cash Net-off + Razorpay Gateway Fee
-			platform_keep_paise = platform_fee_paise + netoff_paise + gateway_fee_paise
+
+			if payment_source == "app":
+				# App: Flamezo absorbs gateway fee — keep only Success Share + net-off.
+				# Gateway cost comes out of Flamezo's 7% internally.
+				platform_keep_paise = platform_fee_paise + netoff_paise
+			else:
+				# Web: merchant absorbs gateway fee — add it to platform_keep so
+				# it is deducted from the merchant's slice (Flamezo passes it to Razorpay).
+				platform_keep_paise = platform_fee_paise + netoff_paise + gateway_fee_paise
 
 			# Safety: ensure merchant slice is non-negative
 			if platform_keep_paise >= final_total_paise:
@@ -388,6 +404,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
 				"settlement_mode": settlement_mode,
+				"payment_source": payment_source,
 			},
 		}
 		if transfer_payload:
@@ -400,6 +417,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		order_doc.settlement_mode = settlement_mode
 		order_doc.platform_fee_amount = platform_fee_paise
 		order_doc.cash_netoff_applied_paise = netoff_paise
+		order_doc.payment_source = payment_source
 		if transfer_payload:
 			# merchant slice = total - platform_keep
 			order_doc.restaurant_transfer_amount = final_total_paise - platform_keep_paise
