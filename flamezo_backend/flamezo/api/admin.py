@@ -429,32 +429,58 @@ def delete_restaurant(restaurant_id):
             except Exception:
                 pass # Silent ignore for minor core tables
 
-        # 3. List of known custom DocTypes to clear
-        doctypes_to_clear = [
+        # 3. Explicit deletion order — children before parents to avoid FK violations.
+        #
+        # Key constraints:
+        #   Menu Product Addon / Customization* → before Menu Product
+        #   Menu Product                        → before Media Asset (Menu Product references it)
+        #   Menu Image Item / Extracted*        → before Menu Image Extractor
+        #   Menu Image Extractor                → before Restaurant
+        #   Media Variant / Product Media       → before Media Asset
+        #   Media Asset                         → before Restaurant
+        #   Order Item                          → before Order
+        #   Coupon Usage                        → before Coupon
+        DELETION_ORDER = [
+            # Level 0: pure leaf nodes
+            "Menu Product Addon", "Customization Option", "Customization Question",
+            "Order Item", "Coupon Usage",
+            "Menu Image Item", "Extracted Category", "Extracted Dish",
+            "Media Variant", "Product Media",
+            "Referral Visit",
+            "Legacy Gallery Image", "Legacy Instagram Reel", "Legacy Member",
+            "Legacy Signature Dish", "Legacy Testimonial Image", "Legacy Testimonial",
+            # Level 1: reference leaf nodes or other intermediates
+            "Menu Product",          # references Media Asset — must precede it
+            "Menu Recommendation",
+            "Menu Image Extractor",  # references Restaurant — must precede deletion
+            # Level 2: now safe (no longer referenced)
+            "Media Asset", "Media Upload Session",
+            "Menu Category",
+            # Level 3: remaining restaurant-linked docs
             "Restaurant Config", "Restaurant Media", "Restaurant Social Link",
-            "Menu Category", "Menu Product", "Menu Product Addon", "Customization Option", "Customization Question",
-            "Order", "Order Item", "Table Booking", "Banquet Booking", "Restaurant Table",
-            "Restaurant User", "Coupon", "Coupon Usage", "Offer", "Auto Offer", "Combo Offer", "Promo",
-            "Game", "Event", "Home Feature", "Media Asset", "Media Upload Session", "Media Variant", "Product Media",
-            "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger", "Razorpay Webhook Log",
-            "Plan Change Log", "Referral Link", "Referral Visit", "OTP Verification Log",
-            "Tokenization Attempt", "Menu Recommendation", "Menu Image Extractor", "Menu Image Item",
-            "Extracted Category", "Extracted Dish",
+            "Restaurant Table", "Table Booking", "Banquet Booking",
+            "Order",
+            "Restaurant User",
+            "Coupon", "Offer", "Auto Offer", "Combo Offer", "Promo",
+            "Game", "Event", "Home Feature",
+            "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger",
+            "Razorpay Webhook Log", "Plan Change Log",
+            "Referral Link", "OTP Verification Log", "Tokenization Attempt",
             "Restaurant Loyalty Config", "Restaurant Loyalty Entry",
-            "Legacy Content", "Legacy Gallery Image", "Legacy Instagram Reel",
-            "Legacy Member", "Legacy Signature Dish", "Legacy Testimonial", "Legacy Testimonial Image"
+            "Legacy Content",
         ]
 
-        # 4. Dynamically find ANY other doctype that links to Restaurant
-        # This catches any newly added doctypes automatically
+        # 4. Append any newly-added doctypes discovered dynamically (placed after known deps).
         try:
             dynamic_links = frappe.get_all("DocField", filters={"fieldtype": "Link", "options": "Restaurant"}, pluck="parent")
             custom_links = frappe.get_all("Custom Field", filters={"fieldtype": "Link", "options": "Restaurant"}, pluck="dt")
-            all_linked_dts = sorted(list(set(doctypes_to_clear + dynamic_links + custom_links)))
+            known = set(DELETION_ORDER)
+            extra = [dt for dt in (dynamic_links + custom_links) if dt not in known and dt != "Restaurant"]
+            all_linked_dts = DELETION_ORDER + extra
         except Exception:
-            all_linked_dts = doctypes_to_clear
+            all_linked_dts = DELETION_ORDER
 
-        # 5. Iteratively clear all linked records
+        # 5. Delete in dependency order
         for dt in all_linked_dts:
             if dt == "Restaurant":
                 continue
