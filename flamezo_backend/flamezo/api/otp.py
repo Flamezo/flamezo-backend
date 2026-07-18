@@ -312,6 +312,70 @@ def verify_flamezo_otp(phone, otp, token, name=None, email=None):
 
 
 @frappe.whitelist(allow_guest=True)
+def delete_flamezo_account(session_token):
+	"""
+	Anonymise and permanently close a Flamezo customer account.
+	DPDP Act (India) compliance — all PII is scrubbed within the request.
+	Sessions are hard-revoked so the token cannot be reused.
+	Returns: { success: true }
+	"""
+	try:
+		if not session_token:
+			return {"success": False, "error": "MISSING_TOKEN"}
+
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			get_customer_from_token, _hard_revoke, _session_doctype_exists, _SESSION_DOCTYPE
+		)
+
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": "INVALID_SESSION"}
+
+		# 1. Anonymise PII fields on the Customer record
+		anon_fields = {}
+		if frappe.db.has_column("Customer", "phone"):
+			anon_fields["phone"] = ""
+		if frappe.db.has_column("Customer", "email"):
+			anon_fields["email"] = ""
+		if frappe.db.has_column("Customer", "image"):
+			anon_fields["image"] = ""
+		if frappe.db.has_column("Customer", "date_of_birth"):
+			anon_fields["date_of_birth"] = None
+		if frappe.db.has_column("Customer", "verified_at"):
+			anon_fields["verified_at"] = None
+
+		anon_fields["customer_name"] = f"Deleted User"
+
+		for field, value in anon_fields.items():
+			frappe.db.set_value("Customer", customer_id, field, value)
+
+		# 2. Revoke ALL sessions for this customer (not just the current one)
+		if _session_doctype_exists():
+			active_tokens = frappe.get_all(
+				_SESSION_DOCTYPE,
+				filters={"customer": customer_id, "revoked": 0},
+				fields=["session_token"],
+			)
+			for s in active_tokens:
+				_hard_revoke(s.session_token)
+		else:
+			# Fallback: revoke only the current session
+			_hard_revoke(session_token)
+
+		frappe.db.commit()
+
+		frappe.log_error(
+			f"Account deleted: {customer_id}",
+			"Account_Deletion"
+		)
+
+		return {"success": True, "message": "Account deleted"}
+	except Exception as e:
+		frappe.log_error(f"delete_flamezo_account error: {e}", "Account_Deletion_Error")
+		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
 def logout_customer(session_token):
 	"""
 	Invalidate a customer session token.

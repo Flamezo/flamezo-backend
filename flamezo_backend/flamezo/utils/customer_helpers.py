@@ -5,7 +5,7 @@ import frappe
 import re
 import phonenumbers
 
-SESSION_TTL_SECONDS = 365 * 24 * 60 * 60
+SESSION_TTL_SECONDS = 90 * 24 * 60 * 60   # 90 days — rehydrated on every app open via check_session
 _SESSION_DOCTYPE = "Customer Session"
 
 
