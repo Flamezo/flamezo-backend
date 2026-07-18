@@ -44,6 +44,7 @@ import {
   XCircle,
   Info,
   RefreshCcw,
+  Loader2,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -375,9 +376,13 @@ export default function AdminRestaurantManagement() {
         toast.success(`Restaurant purged from system`)
         setIsDeleteDialogOpen(false)
         loadRestaurants()
+      } else {
+        const msg = result?.message?.error || 'System purge failed'
+        toast.error(msg)
       }
-    } catch (error) {
-      toast.error('System purge failed')
+    } catch (error: any) {
+      const msg = error?.message || 'System purge failed'
+      toast.error(msg)
     } finally {
       setUpdating(null)
     }
@@ -1117,18 +1122,33 @@ export default function AdminRestaurantManagement() {
                 onChange={(e) => setVerificationInput(e.target.value)}
                 placeholder="Type restaurant ID here"
                 className="h-11 rounded-xl border-muted focus-visible:ring-red-500 font-medium"
+                disabled={updating === restaurantToDelete?.id}
               />
             </div>
           </div>
           <DialogFooter className="p-4 bg-muted/30 border-t flex flex-row gap-2 sm:justify-end">
-            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} className="rounded-xl flex-1 sm:flex-none">Cancel</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={updating === restaurantToDelete?.id}
+              className="rounded-xl flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
             <Button
               variant="destructive"
-              disabled={verificationInput !== restaurantToDelete?.id}
+              disabled={verificationInput !== restaurantToDelete?.id || updating === restaurantToDelete?.id}
               onClick={handleConfirmDelete}
-              className="rounded-xl px-6 flex-1 sm:flex-none bg-red-600 hover:bg-red-700 shadow-sm"
+              className="rounded-xl px-6 flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white shadow-sm"
             >
-              Delete Restaurant
+              {updating === restaurantToDelete?.id ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Restaurant'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

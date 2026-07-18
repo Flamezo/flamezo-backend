@@ -510,8 +510,9 @@ def delete_restaurant(restaurant_id):
 
                 if records:
                     for record_name in records:
-                        # Use delete_doc to handle hooks and sub-records
-                        frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True)
+                        # force=1 bypasses Frappe's FK link checker; safe here because
+                        # we are intentionally purging all data for this restaurant.
+                        frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True, force=1)
 
                     cleanup_report.append(f"Deleted {len(records)} records from {dt}")
 
@@ -524,14 +525,14 @@ def delete_restaurant(restaurant_id):
             try:
                 configs = frappe.get_all('RestaurantConfig', filters={'parent': restaurant_name}, pluck='name')
                 for cfg in configs:
-                    frappe.delete_doc('RestaurantConfig', cfg, ignore_permissions=True)
+                    frappe.delete_doc('RestaurantConfig', cfg, ignore_permissions=True, force=1)
                 if configs:
                     cleanup_report.append(f"Deleted {len(configs)} RestaurantConfig records")
             except Exception as e:
                 frappe.log_error("Restaurant Delete Error", f"Error deleting RestaurantConfig: {e!s}")
 
         # 6. Finally, delete the Restaurant record itself
-        frappe.delete_doc('Restaurant', restaurant_name, ignore_permissions=True, delete_permanently=True)
+        frappe.delete_doc('Restaurant', restaurant_name, ignore_permissions=True, delete_permanently=True, force=1)
         cleanup_report.append(f"Deleted Restaurant record: {restaurant_id}")
 
         # Commit all changes to database
