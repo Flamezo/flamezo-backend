@@ -550,15 +550,27 @@ def _gemini_scene_for_dish(dish_name, dish_description, dish_category):
         category_hint = f" Category: {dish_category}." if dish_category else ""
 
         system_prompt = (
-            "You are a world-class food photography art director. "
-            "Given a dish name, invent a unique, cinematic scene for a single food photo. "
+            "You are a world-class food photography art director AND a chef who knows "
+            "global cuisines in depth — especially Indian dishes and regional street food. "
+            "Given a dish name, FIRST recall exactly what that specific dish physically looks "
+            "like, THEN invent a unique cinematic scene for a single food photo. "
             "Reply with ONLY a JSON object — no markdown, no explanation — with exactly these keys:\n"
+            "  dish_visual (describe THIS exact dish the way a customer would INSTANTLY recognise "
+            "it at a glance: its signature defining features, real colours and textures, the "
+            "traditional vessel or plate it sits in, and the standard garnish and accompaniments "
+            "it actually comes with in India. Focus on the FOOD ITSELF — accurate real components, "
+            "not a fancy reinterpretation. Name the cuisine/region. 30-45 words.)\n"
             "  angle       (camera angle and framing)\n"
             "  lighting    (light source, direction, mood)\n"
-            "  surface     (what the plate/bowl rests on)\n"
-            "  background  (what is blurred behind the dish)\n"
+            "  surface     (an elegant premium surface, VARIED for each dish — e.g. white marble, "
+            "warm rustic wood, dark slate, polished granite, glazed ceramic, or a brass tray; pick "
+            "what best suits THIS dish and do NOT default to dark stone every time)\n"
+            "  background  (an elegant softly-blurred UPSCALE setting, VARIED for each dish — e.g. "
+            "bright airy cafe, warm wooden bistro, moody dark fine-dining, or soft pastel studio, "
+            "with pleasant bokeh; NEVER a street, stall, market, roadside or outdoor scene)\n"
             "  props       (garnish and styling details on or beside the dish)\n"
-            "Keep each value under 20 words. Make it feel fresh and different every time. "
+            "Keep angle/lighting/surface/background/props each under 20 words. "
+            "Make the scene feel fresh and different every time. "
             "Never mention candles unless it truly fits the dish."
         )
         user_prompt = f"Dish: {dish_name}{desc_hint}.{category_hint}"
@@ -567,7 +579,14 @@ def _gemini_scene_for_dish(dish_name, dish_description, dish_category):
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_prompt}]}],
-            "generationConfig": {"temperature": 1.1, "maxOutputTokens": 512},
+            # thinkingBudget=0 disables 2.5-flash's internal reasoning (not needed
+            # for this structured task) so the whole token budget goes to the JSON
+            # answer — otherwise dish_visual gets truncated away. Roomier cap too.
+            "generationConfig": {
+                "temperature": 1.0,
+                "maxOutputTokens": 900,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
         }
 
         resp = requests.post(url, json=payload, timeout=15)
@@ -597,26 +616,35 @@ def _build_generate_prompt(dish_name, dish_description, dish_category, restauran
     """
     scene = _gemini_scene_for_dish(dish_name, dish_description, dish_category)
 
-    desc_clause = ""
-    if dish_description:
-        cleaned = dish_description.strip().rstrip(".").lower()[:200]
-        desc_clause = f"{cleaned}. "
+    # Accurate appearance of the dish itself. Prefer the LLM's dish_visual — it
+    # knows Indian dishes FLUX can't render from the name alone (e.g. vada pav) —
+    # and fall back to the menu description. This is what fixes wrong-dish output.
+    visual = (scene.get("dish_visual") or "").strip().rstrip(".")
+    if not visual and dish_description:
+        visual = dish_description.strip().rstrip(".")[:200]
+    desc_clause = f"{visual}. " if visual else ""
 
     ambiance = ""
     if include_branding and restaurant_name:
         ambiance = f"Ambiance and styling of {restaurant_name}. "
 
     return (
-        f"Michelin-star editorial food photography of {dish_name}. "
+        f"A real, candid photograph of {dish_name} — the authentic dish, exactly right. "
         f"{desc_clause}"
+        f"Shot on a DSLR with natural available light, like a genuine restaurant photo — realistic, "
+        f"unretouched and true-to-life, NOT AI-looking, NOT CGI, not glossy. "
         f"Plated on a {scene['surface']}. "
         f"Shot {scene['angle']}. "
         f"{scene['lighting']}. "
-        f"Razor-sharp focus on the hero dish, {scene['background']}. "
+        f"Sharp focus on the hero dish, {scene['background']}. "
         f"{ambiance}"
         f"{scene['props']}. "
-        f"Vibrant natural colours — rich, saturated but realistic. "
-        f"Ultra-realistic, 8K, Hasselblad medium format food photography. No text, no hands, no people."
+        f"True to the real recipe — recognisable at a single glance without reading its name. Set in "
+        f"an elegant, upmarket restaurant setting with a softly blurred premium background — NOT a "
+        f"street, stall or roadside scene. "
+        f"Natural realistic colours and real-food textures with subtle imperfections, shallow depth "
+        f"of field, authentic photographic look. A believable real photo — NOT a 3D render, NOT "
+        f"digital art, NOT an illustration, not plastic-looking, not overly perfect. No text, no hands, no people."
     )
 
 
@@ -647,6 +675,8 @@ _FOOD_NEGATIVE_PROMPT = (
     "blurry, out of focus, low quality, watermark, text, logo, signature, "
     "ugly plating, dirty plate, overexposed, oversaturated, washed out, "
     "artificial plastic-looking food, fake food, cartoon, illustration, "
+    "CGI, 3D render, glossy, artificial sheen, overly smooth, video-game render, "
+    "AI-generated look, digital art, rendered, painting, overly perfect, unrealistic, "
     "hands, people, face, extra objects, deformed, distorted, cluttered background"
 )
 
@@ -684,7 +714,7 @@ def generate_image_fal_ai_enhance(image_path, dish_name, dish_description, dish_
         "image_size": "portrait_4_3",
         "num_inference_steps": 8,
         "num_images": 1,
-        "enable_safety_checker": True,
+        "enable_safety_checker": False,  # food never needs NSFW screening; avoids false-flag failures
     }
 
     response = requests.post(
@@ -720,6 +750,8 @@ def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=No
         dish_name, dish_description, dish_category, restaurant_name, include_branding
     )
 
+    import time
+
     headers = {
         "Authorization": f"Key {fal_key}",
         "Content-Type": "application/json",
@@ -730,24 +762,36 @@ def generate_image_fal_ai_generate(dish_name, dish_description, dish_category=No
         "image_size": "portrait_4_3",
         "num_inference_steps": 8,
         "num_images": 1,
-        "enable_safety_checker": True,
+        # Food never needs NSFW screening — leaving it on occasionally false-flags
+        # a dish and returns zero images, which was a silent 1-2% failure rate.
+        "enable_safety_checker": False,
     }
 
-    response = requests.post(
-        "https://fal.run/fal-ai/flux/schnell",
-        headers=headers, json=payload, timeout=60,
-    )
-    response.raise_for_status()
-    data = response.json()
+    # Retry with backoff — absorbs transient fal 5xx / timeouts / empty responses
+    # and CDN download hiccups so a batch reaches 100/100 instead of 98/100.
+    # Cost is unchanged for the 98% that succeed first try (1 call each); retries
+    # only fire on the handful that previously failed outright.
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                "https://fal.run/fal-ai/flux/schnell",
+                headers=headers, json=payload, timeout=90,
+            )
+            response.raise_for_status()
+            images = (response.json() or {}).get("images") or []
+            if images:
+                temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
+                img_data = requests.get(images[0]["url"], timeout=60).content
+                with open(temp_output, "wb") as f:
+                    f.write(img_data)
+                return temp_output
+            last_err = "fal returned no images"
+        except Exception as e:
+            last_err = str(e)
+        time.sleep(1.5 * (attempt + 1))
 
-    if data.get("images"):
-        temp_output = f"/tmp/{uuid.uuid4().hex}.jpg"
-        img_data = requests.get(data["images"][0]["url"]).content
-        with open(temp_output, "wb") as f:
-            f.write(img_data)
-        return temp_output
-
-    frappe.throw("Fal.ai failed to generate a new image from product details.")
+    frappe.throw(f"Fal.ai failed to generate a new image after retries: {last_err}")
 
 
 def process_ai_image_enhancement(generation_name, mode="enhance", include_branding=False, coins_to_refund=0):
@@ -773,7 +817,9 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
             product = frappe.get_doc("Menu Product", doc.owner_name)
             dish_name = product.product_name
             dish_description = product.description or ""
-            dish_category = product.category or ""
+            # Use the human-readable category NAME, not the Link docname (a random
+            # id) — the docname told Gemini nothing useful about the dish.
+            dish_category = product.get("category_name") or product.category or ""
         elif doc.owner_doctype == "Coupon":
             coupon = frappe.get_doc("Coupon", doc.owner_name)
             dish_name = coupon.get("combo_name") or coupon.description or coupon.code
