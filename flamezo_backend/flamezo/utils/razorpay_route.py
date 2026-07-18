@@ -162,16 +162,22 @@ def ensure_linked_account(restaurant) -> dict:
         if not account_id:
             raise Exception(f"Razorpay returned no account id: {account!r}")
 
-        # Now create the Stakeholder + Bank Account product config so the
-        # account can actually receive payouts.
-        _attach_bank_and_stakeholder(client, account_id, res)
-
+        # Persist the account id IMMEDIATELY — before any later step can fail.
+        # This closes the "orphan" window: if _attach_bank_and_stakeholder (or
+        # anything after) dies, we still have the id on file, so the idempotency
+        # guard at the top short-circuits next time instead of re-creating with
+        # the same reference_id (which Razorpay rejects: "reference_id already
+        # in use" → the "code already in use" error merchants were hitting).
         frappe.db.set_value("Restaurant", res.name, {
             "razorpay_account_id": account_id,
             "razorpay_kyc_status": "under_review",
             "route_mode": "flamezo_hold",  # stays in hold until KYC clears
         })
         frappe.db.commit()
+
+        # Now create the Stakeholder + Bank Account product config so the
+        # account can actually receive payouts.
+        _attach_bank_and_stakeholder(client, account_id, res)
 
         return {
             "success": True,
@@ -180,11 +186,27 @@ def ensure_linked_account(restaurant) -> dict:
             "created": True,
         }
     except Exception as e:
+        msg = str(e)
+        # Razorpay rejects a duplicate reference_id when an account already
+        # exists for this restaurant but our local id was lost (legacy orphan).
+        # Give a clear, actionable error instead of the raw Razorpay text.
+        if "reference_id" in msg.lower() or "already in use" in msg.lower():
+            frappe.log_error(
+                f"Duplicate reference_id for {res.name} — an orphaned Razorpay "
+                f"account exists but razorpay_account_id is blank; reconnect it. ({msg})",
+                "razorpay_route.orphaned_account",
+            )
+            return {
+                "success": False,
+                "error": "account_already_exists",
+                "message": "A payout account already exists for this restaurant. "
+                           "Please contact support to reconnect it.",
+            }
         frappe.log_error(
             f"Linked account creation failed for {res.name}: {e}",
             "razorpay_route.ensure_linked_account",
         )
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": msg}
 
 
 def _attach_bank_and_stakeholder(client, account_id: str, res):
@@ -285,6 +307,43 @@ def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Option
 
     frappe.db.set_value("Restaurant", res_name, update)
     frappe.db.commit()
+
+
+def reconcile_kyc_status(restaurant) -> dict:
+    """Pull the LIVE account status from Razorpay and update the Restaurant doc.
+
+    This is the fallback for a missed `account.*` webhook — it reads the truth
+    back from Razorpay so the merchant dashboard always reflects the real KYC
+    state (e.g. an Activated account no longer shows "Under Review").
+
+    Returns {success, kyc_status, changed}. Reuses `update_kyc_status` for the
+    status mapping + route_mode side effects, so there is one source of truth.
+    """
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    account_id = res.get("razorpay_account_id")
+    if not account_id:
+        return {"success": False, "error": "no_linked_account"}
+
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+    try:
+        r = _requests.get(
+            f"https://api.razorpay.com/v2/accounts/{account_id}",
+            auth=auth, timeout=15,
+        )
+        r.raise_for_status()
+        live_status = (r.json().get("status") or "").lower()  # created/activated/under_review/...
+        before = (res.get("razorpay_kyc_status") or "").lower()
+        if live_status:
+            update_kyc_status(account_id, live_status)  # maps + writes + commits
+        after = (frappe.db.get_value("Restaurant", res.name, "razorpay_kyc_status") or "").lower()
+        return {"success": True, "kyc_status": after, "changed": before != after}
+    except Exception as e:
+        frappe.log_error(f"reconcile_kyc_status failed for {account_id}: {e}", "razorpay_route.reconcile")
+        return {"success": False, "error": str(e)}
 
 
 # ── Order split spec ────────────────────────────────────────────────────────
