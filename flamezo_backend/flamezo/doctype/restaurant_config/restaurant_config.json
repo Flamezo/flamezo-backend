@@ -48,7 +48,9 @@
   "instagram_profile_link",
   "column_break_social_media",
   "facebook_profile_link",
-  "whatsapp_phone_number"
+  "whatsapp_phone_number",
+  "section_break_qr",
+  "qr_background"
  ],
  "fields": [
   {
@@ -297,6 +299,17 @@
    "label": "WhatsApp Phone Number",
    "options": "Phone",
    "description": "Phone number for WhatsApp contact"
+  },
+  {
+   "fieldname": "section_break_qr",
+   "fieldtype": "Section Break",
+   "label": "QR Code"
+  },
+  {
+   "fieldname": "qr_background",
+   "fieldtype": "Attach Image",
+   "label": "QR Background Image",
+   "description": "Background image shown behind the QR code on printed table cards"
   },
   {
    "fieldname": "merchant_push_tokens",

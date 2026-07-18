@@ -422,6 +422,21 @@ def _remove_white_bg(img):
 	return img
 
 
+def _load_steps_strip(card_width=1200):
+	"""Load the 3-step how-it-works strip and scale to card width."""
+	from PIL import Image
+	strip_path = os.path.normpath(
+		os.path.join(os.path.dirname(__file__), "../../../public/flamezo_backend/images/steps_strip.png")
+	)
+	if not os.path.exists(strip_path):
+		return None
+	with Image.open(strip_path) as img:
+		img = img.convert("RGBA")
+		new_h = int(card_width * img.height / img.width)
+		img = img.resize((card_width, new_h), Image.Resampling.LANCZOS)
+		return img.copy()
+
+
 def _load_flamezo_wordmark(max_width=300, max_height=90):
 	"""Load Flamezo light wordmark, strip white bg, crop to content, then resize."""
 	import os
@@ -480,9 +495,9 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	canvas.alpha_composite(_make_gradient_scrim(W, 490, 0, 240, power=0.6), dest=(0, H - 490))
 
 	# ── 5. Artistic QR (segno logo-infused) or clean QR fallback ─────────────
-	QS = 660
+	QS = 600
 	qx = (W - QS) // 2
-	qy = (H - QS) // 2 + 10
+	qy = 420
 
 	# Solid white card behind QR — makes black dots pop and QR look print-ready
 	card_pad = 8
@@ -563,21 +578,22 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	out = canvas.convert("RGB")
 	draw = ImageDraw.Draw(out)
 
-	# ── 11. TABLE N ───────────────────────────────────────────────────────────
-	tbl_font = load_font(116, bold=True)
-	label = f"TABLE {table_number}"
-	tw, th = measure_text(draw, label, tbl_font)
-	tbl_bbox = draw.textbbox((0, 0), label, font=tbl_font)
-	tx, ty = (W - tw) // 2, strap_h + 34  # positioned below the cashback strap
-	draw.text((tx + 4, ty + 6), label, fill=(0, 0, 0), font=tbl_font)
-	draw.text((tx, ty), label, fill=(255, 255, 255), font=tbl_font)
-
-	# ── 12. Restaurant name — anchored to visual bottom of TABLE text ─────────
-	name_font = load_font(44, bold=False)
-	rname = (restaurant_name[:26] + "…") if len(restaurant_name) > 26 else restaurant_name
+	# ── 11. Restaurant name — auto-size by length ────────────────────────────
+	rname = (restaurant_name[:28] + "…") if len(restaurant_name) > 28 else restaurant_name
+	name_size = 90 if len(rname) <= 10 else (72 if len(rname) <= 16 else (56 if len(rname) <= 22 else 44))
+	name_font = load_font(name_size, bold=True)
 	rw, _ = measure_text(draw, rname, name_font)
-	name_y = ty + tbl_bbox[3] + 30  # 30px below the visual bottom of the TABLE glyphs
-	draw.text(((W - rw) // 2, name_y), rname, fill=(215, 205, 195), font=name_font)
+	name_bbox = draw.textbbox((0, 0), rname, font=name_font)
+	nx, ny = (W - rw) // 2, strap_h + 34
+	draw.text((nx + 3, ny + 4), rname, fill=(0, 0, 0), font=name_font)
+	draw.text((nx, ny), rname, fill=(255, 255, 255), font=name_font)
+
+	# ── 12. TABLE N — smaller, below restaurant name ──────────────────────────
+	tbl_font = load_font(36, bold=False)
+	label = f"TABLE {table_number}"
+	tw, _ = measure_text(draw, label, tbl_font)
+	ty = ny + name_bbox[3] + 22
+	draw.text(((W - tw) // 2, ty), label, fill=(215, 205, 195), font=tbl_font)
 
 	# ── 13. Cashback strap text — Playfair Display ────────────────────────────
 	line1_y = strap_y + strap_pad_v
@@ -586,26 +602,54 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	draw.text(((W - l2w) // 2, line2_y), line2, fill=(252, 196, 50), font=strap_font_lg)
 
 	# ── 14. Scan CTA — positioned below the QR card ──────────────────────────
-	scan_y = qy + QS + card_pad + 96
+	scan_y = qy + QS + card_pad + 70
 	div_w = 140
 	draw.line([(W // 2 - div_w, scan_y - 18), (W // 2 + div_w, scan_y - 18)], fill=(195, 175, 148), width=2)
 
 	scan_font = load_playfair_font(72, bold=True)
-	scan_text = "Scan to Explore"
+	scan_text = "Scan to Order"
 	sw, sh = measure_text(draw, scan_text, scan_font)
-	# stronger shadow for legibility over background image
 	for dx, dy in ((3, 3), (2, 2), (1, 1)):
 		draw.text(((W - sw) // 2 + dx, scan_y + dy), scan_text, fill=(0, 0, 0), font=scan_font)
 	draw.text(((W - sw) // 2, scan_y), scan_text, fill=(255, 255, 255), font=scan_font)
 
-	# ── 15. Powered by Flamezo — bottom right ─────────────────────────────────
+	# ── 15. How-it-works strip + solid black footer — bottom-anchored ────────
+	steps_strip_src = _load_steps_strip(W)
 	flamezo_wm = _load_flamezo_wordmark(max_width=190, max_height=52)
+	wm_h = flamezo_wm.height if flamezo_wm else 28
+
+	# Pre-compute strip size at 90% card width, centered (leaves margin, prevents clipping)
+	strip_resized = None
+	strip_h = 0
+	strip_w = int(W * 0.80)
+	strip_x = (W - strip_w) // 2
+	if steps_strip_src:
+		strip_h = int(strip_w * steps_strip_src.height / steps_strip_src.width)
+		strip_resized = steps_strip_src.resize((strip_w, strip_h), Image.Resampling.LANCZOS)
+
+	# Total footer height: top-pad + strip + gap + powered-by + bottom-pad
+	footer_total = 14 + strip_h + 10 + wm_h + 14
+	footer_y = H - footer_total  # touches bottom edge
+
+	out_rgba = out.convert("RGBA")
+	black_band = Image.new("RGBA", (W, max(1, H - footer_y)), (0, 0, 0, 255))
+	out_rgba.alpha_composite(black_band, dest=(0, footer_y))
+
+	strip_bottom = footer_y + 14
+	if strip_resized:
+		out_rgba.alpha_composite(strip_resized, dest=(strip_x, footer_y + 14))
+		strip_bottom = footer_y + 14 + strip_h
+
+	out = out_rgba.convert("RGB")
+	draw = ImageDraw.Draw(out)
+
+	# ── 16. Powered by Flamezo — below strip, flush to bottom ────────────────
 	powered_font = load_font(24, bold=False)
 	powered_text = "Powered by"
 	pw, ph = measure_text(draw, powered_text, powered_font)
 
 	if flamezo_wm:
-		logo_y = H - flamezo_wm.height - 52
+		logo_y = strip_bottom + 10
 		x_start = W - pw - 10 - flamezo_wm.width - 36
 		text_y = logo_y + (flamezo_wm.height - ph) // 2
 		draw.text((x_start, text_y), powered_text, fill=(155, 140, 126), font=powered_font)
@@ -616,7 +660,7 @@ def generate_png_card(qr_data, restaurant_name, brand_color, table_number, logo_
 	else:
 		brand_font = load_font(28, bold=False)
 		bw, _ = measure_text(draw, "Powered by Flamezo", brand_font)
-		draw.text((W - bw - 36, H - 50), "Powered by Flamezo", fill=(155, 140, 126), font=brand_font)
+		draw.text((W - bw - 36, strip_bottom + 10), "Powered by Flamezo", fill=(155, 140, 126), font=brand_font)
 
 	buf = BytesIO()
 	out.save(buf, format="PNG", optimize=True)

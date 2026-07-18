@@ -129,6 +129,50 @@ def submit_route_kyc(restaurant_id, legal_name=None, business_type=None,
 
 
 @frappe.whitelist()
+def sync_route_kyc_status(restaurant_id):
+    """Pull the latest KYC status LIVE from Razorpay for the merchant's Direct
+    Bank Payouts page. Fallback for a missed `account.*` webhook so an Activated
+    account stops showing "Under Review".
+
+    Only calls Razorpay while the status is still pending — once it's in a final
+    state (activated / rejected / suspended) there's nothing to re-poll.
+    """
+    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    res = frappe.get_doc("Restaurant", name)
+    current = (res.get("razorpay_kyc_status") or "").lower()
+
+    if not res.get("razorpay_account_id") or current in ("activated", "rejected", "suspended"):
+        return {"success": True, "kyc_status": current, "synced": False}
+
+    result = route_adapter.reconcile_kyc_status(res)
+    return {
+        "success": result.get("success", False),
+        "kyc_status": result.get("kyc_status") or current,
+        "synced": bool(result.get("changed")),
+    }
+
+
+def reconcile_all_pending_kyc():
+    """Scheduled (hourly): reconcile every restaurant still in a pending KYC
+    state with Razorpay, so activations reflect in the merchant dashboard even
+    if the `account.*` webhook was never delivered. No manual action needed.
+    """
+    pending = frappe.get_all(
+        "Restaurant",
+        filters={
+            "razorpay_account_id": ["is", "set"],
+            "razorpay_kyc_status": ["in", ["under_review", "needs_clarification", ""]],
+        },
+        pluck="name",
+    )
+    for rname in pending:
+        try:
+            route_adapter.reconcile_kyc_status(rname)
+        except Exception as e:
+            frappe.log_error(f"reconcile_all_pending_kyc {rname}: {e}", "razorpay_route.reconcile_all")
+
+
+@frappe.whitelist()
 def trigger_manual_sweep(restaurant_id):
     """Admin / merchant tool: force a Tier 2 autopay sweep right now
     instead of waiting for the weekly cadence. Useful when a merchant just

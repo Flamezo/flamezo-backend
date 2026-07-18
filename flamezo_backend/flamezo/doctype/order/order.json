@@ -15,6 +15,7 @@
   "payment_method",
   "order_type",
   "acquisition_source",
+  "payment_source",
   "idempotency_key",
   "section_customer",
   "customer_name",
@@ -102,6 +103,13 @@
    "fieldname": "acquisition_source",
    "fieldtype": "Data",
    "label": "Acquisition Source"
+  },
+  {
+   "fieldname": "payment_source",
+   "fieldtype": "Select",
+   "label": "Payment Source",
+   "options": "web\napp",
+   "default": "web"
   },
   {
    "fieldname": "idempotency_key",
