@@ -771,8 +771,11 @@ export default function MenuManagement() {
         open={isBulkPriceOpen}
         onOpenChange={setIsBulkPriceOpen}
         restaurantId={selectedRestaurant}
+        allCategories={hierarchicalCategories.map((c: any) => ({
+          name: c.name,
+          label: (c.parent_category ? '↳ ' : '') + (c.display_name || c.category_name),
+        }))}
         scopedCategoryNames={scopedCategoryNames}
-        currentCategoryLabel={activeCategory?.display_name || activeCategory?.category_name}
         selectedProductIds={selectedProductIds}
         onApplied={() => {
           mutateProducts()

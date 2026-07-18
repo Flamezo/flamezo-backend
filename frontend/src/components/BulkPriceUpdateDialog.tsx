@@ -30,10 +30,10 @@ interface BulkPriceUpdateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   restaurantId: string | null
-  /** Docnames of categories covered by the "current category" scope (selected + its sub-categories). */
+  /** All categories of the restaurant, for the category multi-select. */
+  allCategories: { name: string; label: string }[]
+  /** Docnames of the currently-open category (+ its sub-categories) — pre-selected by default. */
   scopedCategoryNames: string[]
-  /** Label shown for the "current category" option. */
-  currentCategoryLabel?: string
   /** Docnames of currently checked products. */
   selectedProductIds: string[]
   /** Called after a successful (non dry-run) apply so the caller can refresh. */
@@ -47,8 +47,8 @@ export default function BulkPriceUpdateDialog({
   open,
   onOpenChange,
   restaurantId,
+  allCategories,
   scopedCategoryNames,
-  currentCategoryLabel,
   selectedProductIds,
   onApplied,
 }: BulkPriceUpdateDialogProps) {
@@ -56,6 +56,7 @@ export default function BulkPriceUpdateDialog({
   const [direction, setDirection] = useState<Direction>('increase')
   const [scope, setScope] = useState<Scope>('all')
   const [value, setValue] = useState('')
+  const [selectedCats, setSelectedCats] = useState<string[]>([])
 
   // Results are always rounded to the nearest ₹1 for clean menu prices.
   const ROUND_TO = 1
@@ -72,7 +73,7 @@ export default function BulkPriceUpdateDialog({
   const [applying, setApplying] = useState(false)
 
   const hasSelection = selectedProductIds.length > 0
-  const hasCategory = scopedCategoryNames.length > 0
+  const hasCategory = allCategories.length > 0
 
   // Reset when opened
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function BulkPriceUpdateDialog({
       setDirection('increase')
       setScope(hasSelection ? 'selected' : 'all')
       setValue('')
+      setSelectedCats(scopedCategoryNames)
       setPreview(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,7 +97,7 @@ export default function BulkPriceUpdateDialog({
     value: numericValue,
     direction,
     scope,
-    categories: scope === 'category' ? scopedCategoryNames : undefined,
+    categories: scope === 'category' ? selectedCats : undefined,
     product_ids: scope === 'selected' ? selectedProductIds : undefined,
     round_to: ROUND_TO,
     // Never touch the original/MRP price — only the actual selling price changes.
@@ -106,7 +108,7 @@ export default function BulkPriceUpdateDialog({
   // Invalidate preview whenever inputs change
   useEffect(() => {
     setPreview(null)
-  }, [mode, direction, scope, value])
+  }, [mode, direction, scope, value, selectedCats])
 
   const handlePreview = async () => {
     if (!isValidValue || !restaurantId) return
@@ -156,8 +158,8 @@ export default function BulkPriceUpdateDialog({
       { key: 'all', label: 'Entire menu', hint: 'Every item in this restaurant' },
       {
         key: 'category',
-        label: currentCategoryLabel ? `Category: ${currentCategoryLabel}` : 'Current category',
-        hint: 'Selected category and its sub-categories',
+        label: 'Specific categories',
+        hint: 'Pick one or more categories from the list',
         disabled: !hasCategory,
       },
       {
@@ -167,7 +169,7 @@ export default function BulkPriceUpdateDialog({
         disabled: !hasSelection,
       },
     ],
-    [currentCategoryLabel, hasCategory, hasSelection, selectedProductIds.length]
+    [hasCategory, hasSelection, selectedProductIds.length]
   )
 
   const previewExample = useMemo(() => {
@@ -299,6 +301,54 @@ export default function BulkPriceUpdateDialog({
                 </button>
               ))}
             </div>
+
+            {/* Category multi-select — lists every category of the restaurant */}
+            {scope === 'category' && (
+              <div className="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-muted/20 p-2 space-y-1">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    {selectedCats.length} of {allCategories.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-orange-600 hover:underline"
+                    onClick={() =>
+                      setSelectedCats(
+                        selectedCats.length === allCategories.length ? [] : allCategories.map((c) => c.name)
+                      )
+                    }
+                  >
+                    {selectedCats.length === allCategories.length ? 'Clear all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
+                  {allCategories.map((cat) => {
+                    const checked = selectedCats.includes(cat.name)
+                    return (
+                      <label
+                        key={cat.name}
+                        className={cn(
+                          'flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer text-sm',
+                          checked ? 'bg-orange-50 dark:bg-orange-950/30' : 'hover:bg-muted'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setSelectedCats((prev) =>
+                              checked ? prev.filter((n) => n !== cat.name) : [...prev, cat.name]
+                            )
+                          }
+                          className="h-4 w-4 accent-orange-500"
+                        />
+                        <span className="truncate text-foreground">{cat.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Preview result */}
@@ -341,7 +391,7 @@ export default function BulkPriceUpdateDialog({
           {!preview ? (
             <Button
               onClick={handlePreview}
-              disabled={!isValidValue || loading}
+              disabled={!isValidValue || loading || (scope === 'category' && selectedCats.length === 0)}
               className="bg-[#ea580c] hover:bg-[#c2410c] gap-2"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
