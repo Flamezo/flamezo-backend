@@ -14,5 +14,6 @@ flamezo_backend.flamezo.patches.grandfather_legacy_success_share
 flamezo_backend.flamezo.patches.remove_monthly_floor_2026
 flamezo_backend.flamezo.patches.clean_combo_coupon_values
 flamezo_backend.flamezo.patches.backfill_google_review_coupons
+flamezo_backend.flamezo.patches.reconnect_orphaned_route_accounts
 
 

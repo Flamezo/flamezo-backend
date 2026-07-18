@@ -60,10 +60,13 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 
 		# 2. Fallback to SMS if WhatsApp failed or was skipped
 		if not used_channel:
-			try:
-				sms_key = settings.get_password("fast2sms_api_key") if settings else None
-			except Exception:
-				sms_key = None
+			# API key: prefer site_config.json (secure), else Flamezo Settings.
+			sms_key = frappe.conf.get("fast2sms_api_key")
+			if not sms_key:
+				try:
+					sms_key = settings.get_password("fast2sms_api_key") if settings else None
+				except Exception:
+					sms_key = None
 			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
 				used_channel = "sms"
 
@@ -203,10 +206,13 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 
 		# 2. Fallback to SMS
 		if not used_channel:
-			try:
-				sms_key = settings.get_password("fast2sms_api_key") if settings else None
-			except Exception:
-				sms_key = None
+			# API key: prefer site_config.json (secure), else Flamezo Settings.
+			sms_key = frappe.conf.get("fast2sms_api_key")
+			if not sms_key:
+				try:
+					sms_key = settings.get_password("fast2sms_api_key") if settings else None
+				except Exception:
+					sms_key = None
 			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name="Flamezo"):
 				used_channel = "sms"
 

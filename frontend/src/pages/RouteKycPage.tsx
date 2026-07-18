@@ -111,6 +111,23 @@ export default function RouteKycPage() {
 
   const { call: extractDetails } = useFrappePostCall<{ success: boolean; data: any }>('flamezo_backend.flamezo.api.kyc_ai.extract_bank_details')
 
+  // On open, reconcile the KYC status live from Razorpay (fallback for a missed
+  // account.* webhook) so an Activated account never stays stuck on "Under
+  // Review". Only refreshes the view when the status actually changed.
+  const { call: syncKyc } = useFrappePostCall<{ success: boolean; kyc_status?: string; synced?: boolean }>('flamezo_backend.flamezo.api.commission.sync_route_kyc_status')
+  useEffect(() => {
+    if (!selectedRestaurant) return
+    syncKyc({ restaurant_id: selectedRestaurant })
+      .then((res: any) => {
+        if (res?.message?.synced) {
+          reloadDoc()
+          refreshConfig?.()
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRestaurant])
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
