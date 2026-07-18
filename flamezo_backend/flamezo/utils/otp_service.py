@@ -98,10 +98,13 @@ def send_otp_via_whatsapp(phone: str, otp: str, restaurant_name: str = None) -> 
 def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str = None) -> bool:
 	"""Send OTP via Fast2SMS. Returns True if successful."""
 	try:
+		# DLT config: prefer site_config.json (secure, server-side, not in git);
+		# fall back to Flamezo Settings for backwards compatibility.
+		conf = frappe.conf
 		settings = frappe.get_single("Flamezo Settings")
-		route = "dlt"
-		if not (getattr(settings, "fast2sms_sender_id", None) and getattr(settings, "fast2sms_dlt_template_id", None)):
-			route = "q"
+		sender_id = conf.get("fast2sms_sender_id") or getattr(settings, "fast2sms_sender_id", None)
+		dlt_template_id = conf.get("fast2sms_dlt_template_id") or getattr(settings, "fast2sms_dlt_template_id", None)
+		route = "dlt" if (sender_id and dlt_template_id) else "q"
 
 		headers = {"authorization": api_key, "Content-Type": "application/json"}
 
@@ -117,8 +120,8 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 		else:
 			payload = {
 				"route": "dlt",
-				"sender_id": settings.fast2sms_sender_id,
-				"message": settings.fast2sms_dlt_template_id,
+				"sender_id": sender_id,
+				"message": str(dlt_template_id),
 				"variables_values": otp,
 				"numbers": numbers
 			}
