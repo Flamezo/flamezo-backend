@@ -510,9 +510,20 @@ def delete_restaurant(restaurant_id):
 
                 if records:
                     for record_name in records:
-                        # force=1 bypasses Frappe's FK link checker; safe here because
-                        # we are intentionally purging all data for this restaurant.
-                        frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True, force=1)
+                        if dt == "Media Asset":
+                            # Hard-delete the R2 objects (variants + raw + poster) before
+                            # removing the DB row — plain delete_doc leaves files orphaned.
+                            try:
+                                from flamezo_backend.flamezo.media.cleanup import _hard_delete_asset
+                                _hard_delete_asset(record_name)
+                            except Exception as r2_e:
+                                frappe.log_error("Restaurant Delete Error", f"R2 cleanup failed for {record_name}: {r2_e!s}")
+                                # Still delete the DB record even if R2 fails
+                                frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True, force=1)
+                        else:
+                            # force=1 bypasses Frappe's FK link checker; safe here because
+                            # we are intentionally purging all data for this restaurant.
+                            frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True, force=1)
 
                     cleanup_report.append(f"Deleted {len(records)} records from {dt}")
 
