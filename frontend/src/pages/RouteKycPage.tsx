@@ -48,7 +48,8 @@ import {
   Download,
   Sparkles,
   UploadCloud,
-  FileText
+  FileText,
+  RefreshCw,
 } from 'lucide-react'
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
@@ -105,6 +106,7 @@ export default function RouteKycPage() {
     bank_holder_name: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [entryMode, setEntryMode] = useState<'upload' | 'manual'>('upload')
   const [analyzingImage, setAnalyzingImage] = useState(false)
   const [uploadedFileName, setUploadedFileName] = useState('')
@@ -127,6 +129,31 @@ export default function RouteKycPage() {
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRestaurant])
+
+  const handleSync = async () => {
+    if (!selectedRestaurant || syncing) return
+    setSyncing(true)
+    try {
+      const res: any = await syncKyc({ restaurant_id: selectedRestaurant })
+      const data = res?.message ?? res
+      if (data?.synced) {
+        await Promise.all([reloadDoc(), refreshConfig?.()])
+        toast.success('Status updated', {
+          description: `New status: ${data.kyc_status}`,
+        })
+      } else if (data?.kyc_status === 'not_started' || !data?.success) {
+        toast.error(data?.message || 'No Razorpay account found for this restaurant.')
+      } else {
+        toast.info('Already up to date', {
+          description: `Current status: ${data.kyc_status || 'not started'}`,
+        })
+      }
+    } catch {
+      toast.error('Sync failed. Please try again.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -402,14 +429,31 @@ export default function RouteKycPage() {
               </div>
             </div>
 
-            <div className="p-5 flex flex-col justify-center min-w-[220px] w-full md:w-auto">
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Next Step</p>
-              <p className="text-xs font-medium leading-relaxed">{statusVariant.nextStep}</p>
-              {linkedAccountId && (
-                <p className="text-[10px] font-mono text-muted-foreground mt-2 truncate">
-                  Linked Acct: {linkedAccountId}
-                </p>
-              )}
+            <div className="p-5 flex flex-col justify-center min-w-[220px] w-full md:w-auto gap-3">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Next Step</p>
+                <p className="text-xs font-medium leading-relaxed">{statusVariant.nextStep}</p>
+                {linkedAccountId && (
+                  <p className="text-[10px] font-mono text-muted-foreground mt-2 truncate">
+                    Linked Acct: {linkedAccountId}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSync}
+                disabled={syncing}
+                className="w-full gap-2 text-xs font-bold border-border/60 hover:bg-muted/60"
+                title="Pull the latest KYC status live from Razorpay"
+              >
+                {syncing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                {syncing ? 'Syncing…' : 'Sync Status'}
+              </Button>
             </div>
           </div>
         </CardContent>
