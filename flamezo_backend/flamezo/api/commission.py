@@ -130,19 +130,52 @@ def submit_route_kyc(restaurant_id, legal_name=None, business_type=None,
 
 @frappe.whitelist()
 def sync_route_kyc_status(restaurant_id):
-    """Pull the latest KYC status LIVE from Razorpay for the merchant's Direct
-    Bank Payouts page. Fallback for a missed `account.*` webhook so an Activated
-    account stops showing "Under Review".
+    """Manual sync triggered by the Sync button on the merchant's Route/payout page.
 
-    Only calls Razorpay while the status is still pending — once it's in a final
-    state (activated / rejected / suspended) there's nothing to re-poll.
+    Handles all three states in one shot:
+      1. No account_id (orphan) — query Razorpay by reference_id, save the ID,
+         then fall through to KYC sync.
+      2. Account exists, status still pending — pull live status from Razorpay.
+      3. Account exists, status already final — return current state, no API call.
     """
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+
     name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     res = frappe.get_doc("Restaurant", name)
     current = (res.get("razorpay_kyc_status") or "").lower()
 
-    if not res.get("razorpay_account_id") or current in ("activated", "rejected", "suspended"):
-        return {"success": True, "kyc_status": current, "synced": False}
+    # ── Pass 1: orphan reconnect (no account_id saved) ────────────────────────
+    if not res.get("razorpay_account_id"):
+        cfg = get_razorpay_config()
+        auth = (cfg.get("key_id"), cfg.get("key_secret"))
+        try:
+            resp = _requests.get(
+                "https://api.razorpay.com/v2/accounts",
+                auth=auth,
+                params={"count": 1, "reference_id": name},
+                timeout=15,
+            )
+            items = resp.json().get("items") or []
+            if items:
+                account_id = items[0].get("id")
+                if account_id:
+                    frappe.db.set_value("Restaurant", name, "razorpay_account_id", account_id)
+                    frappe.db.commit()
+                    res.reload()
+            else:
+                return {"success": True, "kyc_status": "not_started", "synced": False,
+                        "message": "No Razorpay account found for this restaurant."}
+        except Exception as e:
+            frappe.log_error(f"sync_route_kyc_status orphan lookup failed for {name}: {e}",
+                             "razorpay_route.sync_button")
+            return {"success": False, "error": str(e)}
+
+    # ── Pass 2: KYC status sync ───────────────────────────────────────────────
+    current = (res.get("razorpay_kyc_status") or "").lower()
+    if current in ("activated", "rejected", "suspended"):
+        return {"success": True, "kyc_status": current, "synced": False,
+                "message": "Status is already final — nothing to sync."}
 
     result = route_adapter.reconcile_kyc_status(res)
     return {
@@ -153,10 +186,23 @@ def sync_route_kyc_status(restaurant_id):
 
 
 def reconcile_all_pending_kyc():
-    """Scheduled (hourly): reconcile every restaurant still in a pending KYC
-    state with Razorpay, so activations reflect in the merchant dashboard even
-    if the `account.*` webhook was never delivered. No manual action needed.
+    """Scheduled (daily): two-pass self-healing for Route linked accounts.
+
+    Pass 1 — KYC status sync: for every restaurant that has a linked account
+    ID but is still pending, pull the live status from Razorpay and update the
+    DB. Catches missed `account.*` webhooks so merchants don't stay stuck in
+    flamezo_hold after Razorpay approves them.
+
+    Pass 2 — Orphan reconnect: for every restaurant with NO linked account ID,
+    ask Razorpay whether an account already exists for that reference_id (our
+    restaurant doc name). If yes, save the ID and sync the KYC status. Catches
+    the rare case where account creation succeeded on Razorpay but our DB write
+    failed before storing the ID.
     """
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+
+    # ── Pass 1: KYC status sync ───────────────────────────────────────────────
     pending = frappe.get_all(
         "Restaurant",
         filters={
@@ -170,6 +216,49 @@ def reconcile_all_pending_kyc():
             route_adapter.reconcile_kyc_status(rname)
         except Exception as e:
             frappe.log_error(f"reconcile_all_pending_kyc {rname}: {e}", "razorpay_route.reconcile_all")
+
+    # ── Pass 2: Orphan reconnect ──────────────────────────────────────────────
+    orphans = frappe.get_all(
+        "Restaurant",
+        filters={"razorpay_account_id": ["in", ["", None]]},
+        fields=["name"],
+        pluck="name",
+    )
+    if not orphans:
+        return
+
+    cfg = get_razorpay_config()
+    auth = (cfg.get("key_id"), cfg.get("key_secret"))
+
+    for rname in orphans:
+        try:
+            # Razorpay uses our doc name as the reference_id when we call
+            # ensure_linked_account — search by it to find any orphaned account.
+            resp = _requests.get(
+                "https://api.razorpay.com/v2/accounts",
+                auth=auth,
+                params={"count": 1, "reference_id": rname},
+                timeout=15,
+            )
+            items = resp.json().get("items") or []
+            if not items:
+                continue
+
+            account_id = items[0].get("id")
+            live_status = (items[0].get("status") or "").lower()
+            if not account_id:
+                continue
+
+            # Link the account and sync status in one shot.
+            frappe.db.set_value("Restaurant", rname, "razorpay_account_id", account_id)
+            frappe.db.commit()
+            route_adapter.reconcile_kyc_status(rname)
+            frappe.log_error(
+                f"Orphan reconnected: {rname} → {account_id} (status={live_status})",
+                "razorpay_route.orphan_reconnect",
+            )
+        except Exception as e:
+            frappe.log_error(f"Orphan reconnect failed for {rname}: {e}", "razorpay_route.orphan_reconnect")
 
 
 @frappe.whitelist()

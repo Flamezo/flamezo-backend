@@ -321,10 +321,10 @@ scheduler_events = {
 		"0 4 * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.purge_old_proof_videos",
 		],
-		# Razorpay Route — hourly (min 20): reconcile live KYC status from
-		# Razorpay for restaurants still pending, so activations reflect in the
-		# merchant dashboard even if the account.* webhook was missed.
-		"20 * * * *": [
+		# Razorpay Route — daily at midnight: reconcile KYC status + reconnect
+		# any orphaned linked accounts (account created on Razorpay but ID never
+		# saved locally). Webhook handles real-time; this is the safety net.
+		"0 0 * * *": [
 			"flamezo_backend.flamezo.api.commission.reconcile_all_pending_kyc",
 		],
 	}
