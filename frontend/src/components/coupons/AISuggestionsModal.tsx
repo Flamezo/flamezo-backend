@@ -4,7 +4,7 @@
  * quota display, and one-click "Use This" to pre-fill the coupon form.
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Sparkles, Zap, Flame, Leaf, Tag, Gift, TrendingUp,
   RefreshCw, ChevronRight, AlertCircle, Info, Coins, CheckSquare, Square, CheckCheck,
+  Wand2, ImageIcon, MessageSquareText, Upload, X,
 } from 'lucide-react'
 import { useFrappePostCall } from '@/lib/frappe'
 import { toast } from 'sonner'
@@ -34,6 +35,8 @@ export interface AISuggestion {
   valid_days_of_week: string[] | null
   valid_time_start: string | null
   valid_time_end: string | null
+  valid_from?: string | null
+  valid_until?: string | null
   max_uses: number
   max_uses_per_user: number
   can_stack: boolean
@@ -61,6 +64,9 @@ interface QuotaInfo {
   wallet_balance?: number
 }
 
+// Input modes: auto (menu-derived), prompt (merchant NLP), poster (offer image → vision)
+export type InputMode = 'auto' | 'prompt' | 'poster'
+
 interface AISuggestionsModalProps {
   open: boolean
   onClose: () => void
@@ -68,11 +74,19 @@ interface AISuggestionsModalProps {
   onUseSuggestion: (suggestion: AISuggestion) => void
   onSaveAll?: (suggestions: AISuggestion[]) => Promise<void>
   walletBalance?: number
+  /** Which input mode to open in (from the toolbar button that launched it). */
+  initialMode?: InputMode
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 type Tone = 'calm' | 'attractive' | 'aggressive'
+
+const INPUT_MODES: { value: InputMode; label: string; icon: React.ReactNode; hint: string }[] = [
+  { value: 'auto',   label: 'Smart Auto',    icon: <Wand2 className="h-4 w-4" />,             hint: 'AI reads your menu & profile and suggests offers.' },
+  { value: 'prompt', label: 'Describe It',   icon: <MessageSquareText className="h-4 w-4" />, hint: 'Describe the offer in your own words — AI builds it.' },
+  { value: 'poster', label: 'Snap & Create', icon: <ImageIcon className="h-4 w-4" />,         hint: 'Snap or upload your offer — AI reads it and creates the offer.' },
+]
 
 const TONES: { value: Tone; label: string; icon: React.ReactNode; description: string; color: string }[] = [
   {
@@ -316,7 +330,13 @@ export function AISuggestionsModal({
   onUseSuggestion,
   onSaveAll,
   walletBalance = 0,
+  initialMode = 'auto',
 }: AISuggestionsModalProps) {
+  const [mode, setMode] = useState<InputMode>(initialMode)
+  const [userPrompt, setUserPrompt] = useState('')
+  const [posterImages, setPosterImages] = useState<string[]>([]) // up to 3 shots of the SAME offer
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const MAX_POSTER_IMAGES = 3
   const [tone, setTone] = useState<Tone>('attractive')
   const [offerTypeFilter, setOfferTypeFilter] = useState<string>('any')
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
@@ -325,17 +345,72 @@ export function AISuggestionsModal({
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
+  // When the modal (re)opens, jump to the mode of the button that launched it.
+  useEffect(() => {
+    if (open) setMode(initialMode)
+  }, [open, initialMode])
+
   const { call: generateSuggestions, loading } = useFrappePostCall(
     'flamezo_backend.flamezo.api.coupons.generate_coupon_suggestions'
   )
 
+  const handlePosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (fileInputRef.current) fileInputRef.current.value = '' // allow re-selecting same file
+    if (!files.length) return
+
+    const remaining = MAX_POSTER_IMAGES - posterImages.length
+    if (remaining <= 0) {
+      toast.error(`You can attach up to ${MAX_POSTER_IMAGES} images of the same offer.`)
+      return
+    }
+    const valid = files.filter(f => {
+      if (!f.type.startsWith('image/')) {
+        toast.error('Please choose image files (poster/screenshot).')
+        return false
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error('Image too large', { description: `"${f.name}" is over 10 MB.` })
+        return false
+      }
+      return true
+    }).slice(0, remaining)
+    if (files.length > remaining) {
+      toast.info(`Only ${remaining} more image${remaining === 1 ? '' : 's'} added — max ${MAX_POSTER_IMAGES}.`)
+    }
+
+    valid.forEach(file => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result as string // data:image/...;base64,....
+        setPosterImages(prev => (prev.length >= MAX_POSTER_IMAGES ? prev : [...prev, result]))
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const removePosterImage = (idx: number) => {
+    setPosterImages(prev => prev.filter((_, i) => i !== idx))
+  }
+
   const handleGenerate = async () => {
+    // Mode-specific input validation
+    if (mode === 'prompt' && !userPrompt.trim()) {
+      toast.error('Describe the offer first', { description: 'e.g. "Flat 20% off on orders above ₹500 every weekend".' })
+      return
+    }
+    if (mode === 'poster' && posterImages.length === 0) {
+      toast.error('Attach an offer poster first')
+      return
+    }
     try {
       const res = await generateSuggestions({
         restaurant_id: restaurantId,
         tone,
         offer_type_filter: offerTypeFilter === 'any' ? null : offerTypeFilter,
         count: 6,
+        user_prompt: mode === 'prompt' ? userPrompt.trim() : null,
+        poster_base64: mode === 'poster' ? JSON.stringify(posterImages) : null,
       })
 
       // Frappe wraps all responses in { message: ... }
@@ -424,50 +499,149 @@ export function AISuggestionsModal({
               AI Coupon Generator
             </DialogTitle>
             <DialogDescription className="text-sm">
-              Generates smart, context-aware offers based on your menu and restaurant profile.
+              {INPUT_MODES.find(m => m.value === mode)?.hint}
             </DialogDescription>
           </DialogHeader>
 
-          {/* Controls */}
-          <div className="mt-4 flex flex-col sm:flex-row gap-3">
-            {/* Tone selector */}
-            <div className="flex gap-2 flex-1">
-              {TONES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setTone(t.value)}
-                  className={cn(
-                    'flex-1 flex flex-col items-center gap-1 rounded-xl border-2 p-2.5 text-center transition-all cursor-pointer',
-                    tone === t.value ? t.color + ' border-2' : 'border-border hover:border-muted-foreground/40',
-                  )}
-                >
-                  {t.icon}
-                  <span className="text-xs font-semibold">{t.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Offer type filter */}
-            <div className="flex flex-col gap-1 min-w-[160px]">
-              <span className="text-xs text-muted-foreground font-medium">Offer Type</span>
-              <Select value={offerTypeFilter} onValueChange={setOfferTypeFilter}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {OFFER_TYPE_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Input-mode switcher (shared modal, 3 modes) */}
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {INPUT_MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMode(m.value)}
+                className={cn(
+                  'flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2 text-center transition-all cursor-pointer',
+                  mode === m.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:border-muted-foreground/40 text-muted-foreground',
+                )}
+              >
+                {m.icon}
+                <span className="text-xs font-semibold">{m.label}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Tone description */}
-          <p className="mt-2 text-xs text-muted-foreground italic">
-            {selectedTone.description}
-          </p>
+          {/* Mode: From Prompt — merchant describes the offer */}
+          {mode === 'prompt' && (
+            <div className="mt-3 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground font-medium">Describe your offer</span>
+              <textarea
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder='e.g. "Flat 20% off on all pizzas above ₹500, every Friday & Saturday evening" or "Buy 1 Get 1 free on cold coffee this week"'
+                className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <span className="text-[11px] text-muted-foreground self-end">{userPrompt.length}/500</span>
+            </div>
+          )}
+
+          {/* Mode: From Poster — merchant attaches up to 3 shots of the SAME offer */}
+          {mode === 'poster' && (
+            <div className="mt-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handlePosterSelect}
+                className="hidden"
+              />
+              {posterImages.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    {posterImages.map((img, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-lg border overflow-hidden bg-muted/30">
+                        <img src={img} alt={`Offer ${idx + 1}`} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removePosterImage(idx)}
+                          className="absolute top-1 right-1 rounded-full bg-background/90 border shadow p-0.5 hover:bg-muted"
+                          aria-label="Remove image"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {posterImages.length < MAX_POSTER_IMAGES && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 text-muted-foreground transition-colors"
+                      >
+                        <Upload className="h-5 w-5 opacity-60" />
+                        <span className="text-[11px] font-medium">Add more</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {posterImages.length}/{MAX_POSTER_IMAGES} images · all should be the <strong>same offer</strong> (tile, details, terms). The AI merges them into one offer.
+                  </p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 py-8 text-muted-foreground transition-colors"
+                >
+                  <Upload className="h-7 w-7 opacity-50" />
+                  <span className="text-sm font-medium">Click to attach your offer (up to {MAX_POSTER_IMAGES} images)</span>
+                  <span className="text-xs opacity-70 text-center max-w-sm">
+                    PNG / JPG — add the offer tile plus its details / terms screens. They should all be the <strong>same offer</strong>; the AI reads them together and creates one offer.
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Tone + offer-type controls — Smart Auto only.
+              From Prompt reads intent from the merchant's words; From Poster reads the image. */}
+          {mode === 'auto' && (
+            <>
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                {/* Tone selector */}
+                <div className="flex gap-2 flex-1">
+                  {TONES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setTone(t.value)}
+                      className={cn(
+                        'flex-1 flex flex-col items-center gap-1 rounded-xl border-2 p-2.5 text-center transition-all cursor-pointer',
+                        tone === t.value ? t.color + ' border-2' : 'border-border hover:border-muted-foreground/40',
+                      )}
+                    >
+                      {t.icon}
+                      <span className="text-xs font-semibold">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Offer type filter */}
+                <div className="flex flex-col gap-1 min-w-[160px]">
+                  <span className="text-xs text-muted-foreground font-medium">Offer Type</span>
+                  <Select value={offerTypeFilter} onValueChange={setOfferTypeFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OFFER_TYPE_OPTIONS.map(o => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Tone description */}
+              <p className="mt-2 text-xs text-muted-foreground italic">
+                {selectedTone.description}
+              </p>
+            </>
+          )}
 
           {/* Quota bar */}
           {quota && (
@@ -493,18 +667,28 @@ export function AISuggestionsModal({
           <div className="mt-3 flex justify-end">
             <Button
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={loading || (mode === 'prompt' && !userPrompt.trim()) || (mode === 'poster' && posterImages.length === 0)}
               className="gap-2 min-w-[160px]"
             >
               {loading ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  Generating…
+                  {mode === 'poster' ? 'Reading poster…' : 'Generating…'}
                 </>
               ) : hasGenerated ? (
                 <>
                   <RefreshCw className="h-4 w-4" />
                   Regenerate
+                </>
+              ) : mode === 'poster' ? (
+                <>
+                  <ImageIcon className="h-4 w-4" />
+                  Read Poster & Create
+                </>
+              ) : mode === 'prompt' ? (
+                <>
+                  <MessageSquareText className="h-4 w-4" />
+                  Generate from Prompt
                 </>
               ) : (
                 <>
@@ -521,12 +705,34 @@ export function AISuggestionsModal({
           {/* Empty state */}
           {!hasGenerated && !loading && (
             <div className="py-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
-              <Sparkles className="h-12 w-12 opacity-20" />
-              <p className="text-sm font-medium">Choose a tone and hit Generate</p>
-              <p className="text-xs max-w-xs">
-                The AI will analyse your menu, pricing, and restaurant profile to suggest
-                6 ready-to-use coupons tailored for your business.
-              </p>
+              {mode === 'poster' ? (
+                <>
+                  <ImageIcon className="h-12 w-12 opacity-20" />
+                  <p className="text-sm font-medium">Attach your offer poster</p>
+                  <p className="text-xs max-w-xs">
+                    Upload a poster or screenshot that shows your offer. The AI reads it and turns
+                    it into a ready-to-save offer — review and publish.
+                  </p>
+                </>
+              ) : mode === 'prompt' ? (
+                <>
+                  <MessageSquareText className="h-12 w-12 opacity-20" />
+                  <p className="text-sm font-medium">Describe the offer you want</p>
+                  <p className="text-xs max-w-xs">
+                    Type it in plain words — the AI turns your request into a profit-safe,
+                    ready-to-save offer.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-12 w-12 opacity-20" />
+                  <p className="text-sm font-medium">Choose a tone and hit Generate</p>
+                  <p className="text-xs max-w-xs">
+                    The AI will analyse your menu, pricing, and restaurant profile to suggest
+                    6 ready-to-use coupons tailored for your business.
+                  </p>
+                </>
+              )}
             </div>
           )}
 

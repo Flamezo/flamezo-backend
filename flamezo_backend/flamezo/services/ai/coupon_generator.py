@@ -82,6 +82,8 @@ Each object MUST have ALL these fields:
   "valid_days_of_week": <null or ["saturday","sunday"] etc>,
   "valid_time_start": <null or "HH:MM:SS">,
   "valid_time_end": <null or "HH:MM:SS">,
+  "valid_from": <null, or "YYYY-MM-DD" ONLY if a start date is shown in the source poster/request>,
+  "valid_until": <null, or "YYYY-MM-DD" ONLY if an end/expiry date is shown (e.g. "valid till Jul 31, 2026" → "2026-07-31")>,
   "max_uses": <0 for unlimited or positive int>,
   "max_uses_per_user": <0 for unlimited, 1 for one-time>,
   "can_stack": false,
@@ -359,8 +361,21 @@ def _check_and_increment_quota(restaurant_id: str) -> dict[str, Any]:
             "free_remaining": max(FREE_MONTHLY_QUOTA - new_used, 0), "resets_on": resets_on}
 
 
-def _build_prompt(context: dict, tone: str, offer_type_filter: str | None, count: int) -> str:
-    """Construct the full context-rich prompt for Gemini."""
+def _build_prompt(
+    context: dict,
+    tone: str,
+    offer_type_filter: str | None,
+    count: int,
+    user_prompt: str | None = None,
+    from_poster: bool = False,
+) -> str:
+    """Construct the full context-rich prompt for Gemini.
+
+    user_prompt : merchant's free-text description ("NLP" offer creation) — the
+                  generated offers must fulfil what the owner asked for.
+    from_poster : True when an offer POSTER image is attached — read the offer(s)
+                  off the poster and convert them into structured suggestions.
+    """
     restaurant = context["restaurant"]
     stats = context["stats"]
     menu_items = context["menu_items"]
@@ -437,9 +452,56 @@ Profit rules — every offer must feel BIG to the customer but cost the restaura
 No food costs entered yet for this menu. Stay conservative: prefer combos and BOGO on lower-priced items, keep flat discounts modest (≤15%), and use min-order thresholds so no offer can run at a loss.
 """
 
+    # ── Merchant-driven request blocks (NLP prompt / poster image) ──
+    request_block = ""
+    if from_poster:
+        request_block = f"""
+## SOURCE: OFFER POSTER IMAGE(S) (highest priority — this OVERRIDES the "{count} suggestions", "Diversity requirement" and any "generate N" instructions below)
+One to three images are ATTACHED to this request. They are DIFFERENT screenshots / photos of the SAME single offer — for example a coupon tile, the offer's detail screen after tapping it, and its terms & conditions (like a Zomato/Swiggy coupon). Read ALL the attached images TOGETHER as one offer.
+
+STRICT RULES:
+- Produce EXACTLY ONE offer that matches what the images show. Return an array containing EXACTLY ONE object. Do NOT create one offer per image — the images describe the SAME offer.
+- Combine details across the images: take the headline/discount from one screen, the minimum order / code / validity / terms from the others, and merge them into that single offer.
+- Use the EXACT discount value, code, minimum order, item names, days/times and validity SHOWN in the images. Do not change or invent values that contradict what is shown.
+- If a field is not shown anywhere in the images (e.g. no code, no min order), fill only that field in sensibly for this restaurant. If a code is shown, use that exact code.
+- Match the offer_type to what the images describe (percent/flat coupon, BOGO, combo, auto/time-based).
+- If the images contain NO readable offer at all, return an empty array [].
+- Still respect the profit guardrails below; if the offer would run at a loss, keep its headline but adjust thresholds minimally to stay safe and note it in the rationale.
+
+FIELD MAPPING (aggregator-style coupons like Swiggy/Zomato — map EXACTLY):
+- "N% off upto ₹M" / "N% off, Maximum discount ₹M"  → discount_type="percent", discount_value=N, max_discount_cap=M.  (e.g. "70% off upto ₹130" → percent, 70, cap 130)
+- "Flat ₹N off"                                      → discount_type="flat", discount_value=N, max_discount_cap=null.
+- "on orders above ₹X" / "above ₹X" / "min order ₹X" → min_order_amount=X.  (e.g. "above ₹179" → 179)
+- "USE CODE XXXX" / "Use code XXXX"                  → offer_type="coupon", code="XXXX" EXACTLY as printed (keep case-insensitive letters, do not translate/localize it).
+- "valid till <date>" / "expires <date>"            → valid_until as "YYYY-MM-DD".  (e.g. "valid till Jul 31, 2026 11:59 PM" → "2026-07-31")
+- IGNORE aggregator-platform-only terms that do not apply on Flamezo (e.g. "valid only on selected restaurants", "not applicable on pre-discounted items", "other TnCs may apply") — do NOT copy these into the offer.
+- Put a short customer-facing line in `description` (e.g. "70% off up to ₹130 on orders above ₹179").
+"""
+    # Poster & prompt modes must return ONLY the requested offers — suppress the "add a mix" push.
+    diversity_block = "" if (from_poster or user_prompt) else f"""## Diversity requirement
+Among the {count} suggestions, include a MIX unless offer_type_filter is set:
+- At least 1 auto offer (time or day restricted — no code needed)
+- At least 1 combo offer (vary combo_type — use real item names from the menu above)
+- Remaining: coupon codes (require customer to enter a code)
+"""
+
+    if user_prompt and not from_poster:
+        request_block = f"""
+## MERCHANT'S SPECIFIC REQUEST (highest priority — this OVERRIDES the "{count} suggestions", "Diversity requirement" and any "generate N" instructions below)
+The restaurant owner typed this request in their own words:
+"{user_prompt.strip()}"
+
+STRICT RULES:
+- Create ONLY the offer(s) the owner described — nothing else. If they describe a single offer, return an array with EXACTLY ONE object. If they clearly describe several distinct offers, return exactly one per offer they described.
+- Do NOT invent, add, pad, or "also suggest" any extra offer, variant, auto/combo, or complementary deal they did not ask for. Ignore the {count} target and the Diversity requirement entirely.
+- Use the EXACT discount value, items, conditions, occasion, days/times and wording the owner specified. Only fill in a field they left unspecified (e.g. a code) sensibly for this restaurant.
+- If the request is too vague to build even one concrete offer, make your single best interpretation of it — still only one offer.
+- Keep the offer profit-safe per the guardrails below; if their ask would run at a loss, keep its headline but adjust thresholds minimally and note it in the rationale.
+"""
+
     prompt = f"""You are a world-class restaurant growth consultant and promotions strategist specializing in Indian restaurants.
 Your job: generate {count} highly specific, immediately actionable coupon/offer suggestions for THIS restaurant.
-
+{request_block}
 ## Restaurant Profile
 - Name: {restaurant.restaurant_name}
 - Location: {restaurant.city or "India"}{", " + restaurant.state if restaurant.state else ""}
@@ -475,12 +537,7 @@ When generating a combo offer, pick the most suitable combo_type:
 - build_your_own: best for "Pick any 2 mains for ₹X" — high AOV, customer feels in control
 Vary the type across suggestions. Always set combo_name (punchy, customer-facing). Always set display_on_menu=true.
 
-## Diversity requirement
-Among the {count} suggestions, include a MIX unless offer_type_filter is set:
-- At least 1 auto offer (time or day restricted — no code needed)
-- At least 1 combo offer (vary combo_type — use real item names from the menu above)
-- Remaining: coupon codes (require customer to enter a code)
-
+{diversity_block}
 ## Make every offer HOT (Flamezo is "India's hottest app")
 - Lead with the BIG perceived number: "Buy 1 Get 1", "50% OFF", "Flat ₹X" — never bury the value.
 - Add urgency + scarcity: prefer time/day windows and set a believable max_uses (e.g. 50–200) so it feels limited, not infinite. Tonight/this-weekend framing wins.
@@ -600,6 +657,17 @@ def _validate_and_clean_suggestion(s: dict, tone: str, cost_map: dict | None = N
         valid_time_start = clean_time(s.get("valid_time_start"))
         valid_time_end = clean_time(s.get("valid_time_end"))
 
+        # Validate validity dates (accept YYYY-MM-DD; ignore anything else). These are
+        # only populated when a poster/prompt actually states a date.
+        def clean_date(d: Any) -> str | None:
+            if not d:
+                return None
+            d = str(d).strip()[:10]
+            return d if re.match(r"^\d{4}-\d{2}-\d{2}$", d) else None
+
+        valid_from = clean_date(s.get("valid_from"))
+        valid_until = clean_date(s.get("valid_until"))
+
         # auto offers without time/day restrictions lose their purpose — add a sensible default
         if offer_type == "auto" and not valid_days and not valid_time_start:
             valid_time_start = "12:00:00"
@@ -645,6 +713,8 @@ def _validate_and_clean_suggestion(s: dict, tone: str, cost_map: dict | None = N
             "valid_days_of_week": valid_days,
             "valid_time_start": valid_time_start,
             "valid_time_end": valid_time_end,
+            "valid_from": valid_from,
+            "valid_until": valid_until,
             "max_uses": int(s.get("max_uses") or 0),
             "max_uses_per_user": int(s.get("max_uses_per_user") or 0),
             "can_stack": bool(s.get("can_stack") or False),
@@ -836,6 +906,8 @@ def generate_suggestions(
     tone: str = "attractive",
     offer_type_filter: str | None = None,
     count: int = 6,
+    user_prompt: str | None = None,
+    poster_base64: str | None = None,
 ) -> dict[str, Any]:
     """
     Main entry point. Generates coupon suggestions using Gemini 2.5 Flash.
@@ -845,6 +917,8 @@ def generate_suggestions(
         tone: "calm" | "attractive" | "aggressive"
         offer_type_filter: Optional — restrict to one offer_type
         count: Number of suggestions to generate (3–8)
+        user_prompt: Optional merchant free-text request (NLP offer creation)
+        poster_base64: Optional base64 poster image — read the offer(s) off it (vision)
     """
     tone = tone if tone in TONE_DESCRIPTIONS else "attractive"
     count = max(3, min(count, 8))
@@ -893,24 +967,52 @@ def generate_suggestions(
             "quota": quota,
         }
 
-    context = _get_restaurant_context(restaurant_id)
-    prompt = _build_prompt(context, tone, offer_type_filter, count)
+    # Normalize poster input → list of up to 3 base64 images (same offer, different screens).
+    # The client may send a single data-URL string or a JSON array of them.
+    poster_list: list[str] = []
+    if poster_base64:
+        if isinstance(poster_base64, (list, tuple)):
+            poster_list = list(poster_base64)
+        else:
+            s = str(poster_base64).strip()
+            if s.startswith("["):
+                try:
+                    parsed = json.loads(s)
+                    poster_list = parsed if isinstance(parsed, list) else [s]
+                except Exception:
+                    poster_list = [s]
+            else:
+                poster_list = [s]
+        poster_list = [p for p in poster_list if p][:3]  # cap at 3 images
 
-    # Call Gemini
+    context = _get_restaurant_context(restaurant_id)
+    prompt = _build_prompt(
+        context, tone, offer_type_filter, count,
+        user_prompt=user_prompt, from_poster=bool(poster_list),
+    )
+
+    # Call Gemini — text prompt, or vision when offer poster image(s) are attached
     try:
         model = get_gemini_client()
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.75,
-                "top_p": 0.95,
-                # 2.5-flash is a thinking model; thinking shares the output budget, so a
-                # higher ceiling prevents the JSON array from being truncated mid-object.
-                "max_output_tokens": 16384,
-                # Force clean JSON (no markdown fences / preamble) → reliable parsing.
-                "response_mime_type": "application/json",
-            },
-        )
+        generation_config = {
+            "temperature": 0.75,
+            "top_p": 0.95,
+            # 2.5-flash is a thinking model; thinking shares the output budget, so a
+            # higher ceiling prevents the JSON array from being truncated mid-object.
+            "max_output_tokens": 16384,
+            # Force clean JSON (no markdown fences / preamble) → reliable parsing.
+            "response_mime_type": "application/json",
+        }
+        if poster_list:
+            parts: list = [prompt]
+            for img in poster_list:
+                # Strip data-URL prefix if the client sent one (data:image/...;base64,)
+                b64 = img.split("base64,")[1] if "base64," in img else img
+                parts.append({"mime_type": "image/jpeg", "data": b64})
+            content = parts
+        else:
+            content = prompt
+        response = model.generate_content(content, generation_config=generation_config)
         raw_text = response.text.strip()
     except Exception as e:
         # Roll back quota increment since generation failed

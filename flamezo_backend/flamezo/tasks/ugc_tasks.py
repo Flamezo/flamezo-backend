@@ -70,6 +70,17 @@ def send_ugc_cashback_nudge(order_name):
 			_mark_sent()  # never claimable — don't churn the cron on it
 			return
 
+		# Only nudge when THIS restaurant actually has UGC cashback active. If the
+		# merchant hasn't enabled it (is_active off / no story template / no viewer
+		# coupon), the "don't miss your cashback" invite would point the diner at a
+		# dead offer — so skip it (and mark sent so the cron doesn't keep retrying).
+		# This guards ALL callers (verify_payment, webhook, and the cron sweep).
+		from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
+		_cfg = _get_active_config(order.restaurant)
+		if not (_cfg and _is_ugc_active(_cfg)):
+			_mark_sent()
+			return
+
 		# NOTE: the nudge is sent whether or not the diner has opened the UGC page or
 		# tapped Unlock — there is intentionally no "already started" suppression here.
 
