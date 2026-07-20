@@ -402,7 +402,7 @@ export default function Coupons() {
 
   const handleSaveAllAISuggestions = async (suggestions: AISuggestion[]) => {
     let saved = 0
-    let failed = 0
+    const failures: { code: string; reason: string }[] = []
     for (const suggestion of suggestions) {
       try {
         const form = aiSuggestionToFormData(suggestion)
@@ -417,15 +417,26 @@ export default function Coupons() {
           },
         })
         saved++
-      } catch {
-        failed++
+      } catch (err: any) {
+        // Surface the REAL reason (e.g. "Discount Value must be greater than zero",
+        // duplicate code, etc.) instead of always blaming duplicates.
+        const reason =
+          err?.message ||
+          err?._server_messages?.replace(/[[\]{}"\\]/g, '') ||
+          err?.exc_type ||
+          'Could not save'
+        failures.push({ code: suggestion.code, reason: String(reason) })
       }
     }
     await mutate()
-    if (failed === 0) {
+    if (failures.length === 0) {
       toast.success(`${saved} coupon${saved > 1 ? 's' : ''} saved successfully`)
     } else {
-      toast.warning(`${saved} saved, ${failed} failed (possibly duplicate codes)`)
+      const first = failures[0]
+      toast.error(
+        `${saved} saved, ${failures.length} failed`,
+        { description: `${first.code}: ${first.reason}`, duration: 7000 },
+      )
     }
   }
 

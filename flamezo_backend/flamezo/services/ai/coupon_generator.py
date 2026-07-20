@@ -107,6 +107,7 @@ HARD RULES — violating any makes the output invalid:
 5. Do NOT reuse or closely resemble these existing offers: {existing_info}
 6. auto offer_type = no code needed, auto-applied; always use time or day restrictions
 7. Use the restaurant's actual menu item names in descriptions and combo_items_hint
+8. Every coupon/auto offer MUST have discount_value > 0. discount_value = 0 is ONLY valid for combo. A "free item"/"complimentary gift" is NOT a zero-discount coupon — model it EITHER as a combo (combo_type = "bogo", the gift is the free item) OR as a flat coupon whose discount_value = the free item's menu price, with min_order_amount = the qualifying spend (e.g. "Spend ₹1000, get a free brownie worth ₹80" → flat, discount_value 80, min_order_amount 1000).
 
 COMBO TYPE RULES:
 - fixed_bundle: all items in combo_items_hint must be in cart. combo_price = bundle price. items_to_select = null.
@@ -582,6 +583,14 @@ def _validate_and_clean_suggestion(s: dict, tone: str, cost_map: dict | None = N
             discount_value = 0.0
         else:
             discount_value = flt(s.get("discount_value") or 0)
+            # A coupon/auto offer with a zero (or negative) discount is invalid — the
+            # Coupon doctype rejects it ("Discount Value must be greater than zero"),
+            # so it can never be saved. Drop it rather than surface an unsaveable card.
+            if discount_value <= 0:
+                logger.warning(
+                    f"[coupon_generator] Dropping non-combo offer with zero discount: {code}"
+                )
+                return None
 
         # Combo-specific fields
         raw_combo_type = s.get("combo_type") or None

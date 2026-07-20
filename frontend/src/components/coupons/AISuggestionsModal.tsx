@@ -393,6 +393,17 @@ export function AISuggestionsModal({
     setPosterImages(prev => prev.filter((_, i) => i !== idx))
   }
 
+  // Switching tabs starts a fresh generation — clear the previous mode's results
+  // so a card generated under (e.g.) "Describe It" doesn't linger under other tabs.
+  const handleModeChange = (next: InputMode) => {
+    if (next === mode) return
+    setMode(next)
+    setSuggestions([])
+    setHasGenerated(false)
+    setSelectedCodes(new Set())
+    setQuota(null)
+  }
+
   const handleGenerate = async () => {
     // Mode-specific input validation
     if (mode === 'prompt' && !userPrompt.trim()) {
@@ -509,7 +520,7 @@ export function AISuggestionsModal({
               <button
                 key={m.value}
                 type="button"
-                onClick={() => setMode(m.value)}
+                onClick={() => handleModeChange(m.value)}
                 className={cn(
                   'flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2 text-center transition-all cursor-pointer',
                   mode === m.value
