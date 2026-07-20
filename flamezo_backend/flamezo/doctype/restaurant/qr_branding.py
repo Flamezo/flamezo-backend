@@ -102,7 +102,7 @@ def build_table_qr_cache_key(restaurant_doc, table_number, qr_url, branding, for
 	
 	payload = "|".join(
 		[
-			"v8",
+			"v9",
 			str(restaurant_doc.restaurant_id or ""),
 			str(table_number),
 			str(qr_url or ""),
@@ -422,13 +422,23 @@ def _remove_white_bg(img):
 	return img
 
 
+def _qr_asset_path(filename):
+	"""Resolve a bundled QR asset. Prefer the build-safe `qr_assets/` folder next
+	to this module (the frontend build wipes `public/flamezo_backend/`, deleting
+	anything there); fall back to the legacy public path for older deploys."""
+	here = os.path.dirname(__file__)
+	safe = os.path.normpath(os.path.join(here, "qr_assets", filename))
+	if os.path.exists(safe):
+		return safe
+	legacy = os.path.normpath(os.path.join(here, "../../../public/flamezo_backend/images", filename))
+	return legacy if os.path.exists(legacy) else None
+
+
 def _load_steps_strip(card_width=1200):
 	"""Load the 3-step how-it-works strip and scale to card width."""
 	from PIL import Image
-	strip_path = os.path.normpath(
-		os.path.join(os.path.dirname(__file__), "../../../public/flamezo_backend/images/steps_strip.png")
-	)
-	if not os.path.exists(strip_path):
+	strip_path = _qr_asset_path("steps_strip.png")
+	if not strip_path:
 		return None
 	with Image.open(strip_path) as img:
 		img = img.convert("RGBA")
@@ -439,12 +449,9 @@ def _load_steps_strip(card_width=1200):
 
 def _load_flamezo_wordmark(max_width=300, max_height=90):
 	"""Load Flamezo light wordmark, strip white bg, crop to content, then resize."""
-	import os
 	from PIL import Image
-	logo_path = os.path.normpath(
-		os.path.join(os.path.dirname(__file__), "../../../public/flamezo_backend/images/main-logo-light.png")
-	)
-	if not os.path.exists(logo_path):
+	logo_path = _qr_asset_path("main-logo-light.png")
+	if not logo_path:
 		return None
 	with Image.open(logo_path) as img:
 		img = img.convert("RGBA")

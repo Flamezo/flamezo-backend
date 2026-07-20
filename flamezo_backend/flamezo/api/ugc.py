@@ -901,9 +901,13 @@ def get_claimable_orders(restaurant_id, phone):
 		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
 
+		# Real restaurant name for the claim page (the WhatsApp deep link can't
+		# resolve the brand config, so the page must get the name from the API).
+		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or ""
+
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
-			return _ok({"orders": []})
+			return _ok({"orders": [], "restaurantName": restaurant_name})
 
 		# Fetch completed orders within the claim window (covers delayed claims)
 		from frappe.utils import add_days, today
@@ -955,7 +959,7 @@ def get_claimable_orders(restaurant_id, phone):
 				"alreadyClaimed": False,
 			})
 
-		return _ok({"orders": items})
+		return _ok({"orders": items, "restaurantName": restaurant_name})
 	except frappe.DoesNotExistError:
 		return _err("RESTAURANT_NOT_FOUND")
 	except Exception as e:
