@@ -8,6 +8,7 @@ import json
 import math
 from datetime import datetime
 from typing import cast
+from frappe.utils import flt
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 from flamezo_backend.flamezo.utils.customer_helpers import (
 	require_verified_phone, 
@@ -1246,24 +1247,105 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 			
 		payments = client.payment.all(params)
 
-		# Cross-reference with Order and Ledger records for strict restaurant privacy
-		order_payment_ids = set(frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, pluck="razorpay_payment_id"))
-		order_ids = set(frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, pluck="razorpay_order_id"))
+		# Cross-reference with Order and Ledger records for strict restaurant privacy,
+		# and build a per-payment breakdown (bill, offer applied, customer saving, and
+		# the split: what the merchant receives vs Flamezo's success share). Merchant-only.
+		# The richer breakdown columns (split, coupon, discount) are newer — if a
+		# site hasn't run `bench migrate` yet, fall back to the minimal fields so
+		# the page still loads (just without the per-payment breakdown).
+		BREAKDOWN_FIELDS = [
+			"name", "razorpay_payment_id", "razorpay_order_id", "coupon",
+			"total", "discount", "loyalty_discount",
+			"platform_fee_amount", "restaurant_transfer_amount", "settlement_mode",
+		]
+		breakdown_enabled = True
+		try:
+			orders = frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, fields=BREAKDOWN_FIELDS)
+		except Exception:
+			breakdown_enabled = False
+			orders = frappe.db.get_all(
+				"Order", filters={"restaurant": restaurant_id},
+				fields=["name", "razorpay_payment_id", "razorpay_order_id"],
+			)
+
+		order_payment_ids = {o.razorpay_payment_id for o in orders if o.razorpay_payment_id}
+		order_ids = {o.razorpay_order_id for o in orders if o.razorpay_order_id}
 		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"restaurant": restaurant_id}, pluck="razorpay_payment_id"))
-		
+
+		# Resolve applied-coupon codes in one batch (Order.coupon is the Coupon docname).
+		coupon_codes = {}
+		if breakdown_enabled:
+			coupon_ids = {o.coupon for o in orders if o.get("coupon")}
+			if coupon_ids:
+				for c in frappe.db.get_all("Coupon", filters={"name": ["in", list(coupon_ids)]}, fields=["name", "code"]):
+					coupon_codes[c.name] = c.code
+
+		# Restaurant's current success-share % — used to ESTIMATE the split for older
+		# orders that never persisted it (their split write failed before migration).
+		fee_pct = flt(frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")) or 0.0
+
+		def _breakdown(o):
+			bill = flt(o.get("total"))
+			merchant = (o.get("restaurant_transfer_amount") or 0) / 100.0
+			flamezo = (o.get("platform_fee_amount") or 0) / 100.0
+			estimated = False
+			if merchant <= 0 and flamezo <= 0:
+				# No stored split → estimate from the success-share % so the merchant
+				# still sees a breakdown for existing payments.
+				flamezo = round(bill * fee_pct / 100.0, 2)
+				merchant = round(bill - flamezo, 2)
+				estimated = True
+			return {
+				"bill": bill,
+				"customerSaved": flt(o.get("discount")) + flt(o.get("loyalty_discount")),
+				"couponCode": coupon_codes.get(o.get("coupon")) if o.get("coupon") else None,
+				"merchantGets": merchant,
+				"flamezoGets": flamezo,
+				"settlementMode": o.get("settlement_mode"),
+				"estimated": estimated,
+			}
+
+		bd_by_pid, bd_by_oid, bd_by_name = {}, {}, {}
+		if breakdown_enabled:
+			for o in orders:
+				b = _breakdown(o)
+				if o.razorpay_payment_id: bd_by_pid[o.razorpay_payment_id] = b
+				if o.razorpay_order_id: bd_by_oid[o.razorpay_order_id] = b
+				bd_by_name[o.name] = b
+
 		filtered_items = []
 		for item in payments.get("items", []):
 			payment_id = item.get("id")
 			rzp_order_id = item.get("order_id")
 			notes = item.get("notes", {})
-			
-			if (payment_id in order_payment_ids or 
-				payment_id in ledger_payment_ids or 
-				rzp_order_id in order_ids or 
-				notes.get("restaurant") == restaurant_id or 
+
+			if (payment_id in order_payment_ids or
+				payment_id in ledger_payment_ids or
+				rzp_order_id in order_ids or
+				notes.get("restaurant") == restaurant_id or
 				notes.get("restaurant_id") == restaurant_id):
+				# Attach the breakdown by the most reliable key available.
+				item["breakdown"] = (
+					bd_by_pid.get(payment_id)
+					or bd_by_oid.get(rzp_order_id)
+					or bd_by_name.get(notes.get("order_id"))
+				)
+				# No matching Order row → still show an estimated split from the
+				# payment amount so every payment (and the summary cards) has numbers.
+				if not item["breakdown"]:
+					amt = flt(item.get("amount")) / 100.0
+					fz = round(amt * fee_pct / 100.0, 2)
+					item["breakdown"] = {
+						"bill": amt,
+						"customerSaved": 0,
+						"couponCode": None,
+						"merchantGets": round(amt - fz, 2),
+						"flamezoGets": fz,
+						"settlementMode": None,
+						"estimated": True,
+					}
 				filtered_items.append(item)
-				
+
 		payments["items"] = filtered_items
 		return {
 			"success": True,
