@@ -105,6 +105,22 @@ def get_coupons(restaurant_id, active_only=True):
 			)
 			claimed_today_map = {r.coupon: r.cnt for r in rows}
 
+		# Google Review offers are one-per-customer for life. If this customer has
+		# already claimed one, hide it from their list entirely so they can't re-claim.
+		claimed_review_coupon_ids = set()
+		try:
+			_token = get_customer_token()
+			_customer = get_customer_from_token(_token) if _token else None
+			if _customer and coupon_ids:
+				_claimed_rows = frappe.get_all(
+					"Offer Claim",
+					filters={"restaurant": restaurant, "customer": _customer, "coupon": ["in", coupon_ids]},
+					fields=["coupon"],
+				)
+				claimed_review_coupon_ids = {r["coupon"] for r in _claimed_rows}
+		except Exception:
+			claimed_review_coupon_ids = set()
+
 		today_date = today()
 		current_dt = now_datetime()
 		current_day = current_dt.strftime("%A").lower()
@@ -119,6 +135,10 @@ def get_coupons(restaurant_id, active_only=True):
 			if valid_from and getdate(valid_from) > getdate(today_date):
 				continue
 			if valid_until and getdate(valid_until) < getdate(today_date):
+				continue
+
+			# Google Review offer already claimed by this customer → hide it (one-time for life).
+			if coupon.get("offer_type") == "google_review" and coupon["id"] in claimed_review_coupon_ids:
 				continue
 
 			# Determine real-time redeemability (day + time gates).
@@ -512,10 +532,16 @@ def import_coupons(restaurant_id, csv_content, overwrite_existing=False):
 
 
 @frappe.whitelist()
-def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_filter=None, count=6):
+def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_filter=None, count=6,
+	user_prompt=None, poster_base64=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.generate_coupon_suggestions
 	Generate AI-powered coupon suggestions using Gemini 2.5 Flash.
+
+	Three input modes (all share the same clean/validate/quota pipeline):
+	  • default        — auto-derives offers from restaurant/menu data
+	  • user_prompt    — merchant describes the offer in plain words (NLP)
+	  • poster_base64  — merchant attaches an offer poster; vision reads the offer(s)
 
 	Quota: 10 free generations/restaurant/month.
 	After quota: costs 2 wallet coins per generation.
@@ -525,6 +551,8 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 		tone: "calm" | "attractive" | "aggressive"
 		offer_type_filter: Optional offer type to restrict generation to
 		count: Number of suggestions (3–8)
+		user_prompt: Optional merchant free-text offer description (NLP mode)
+		poster_base64: Optional base64 offer-poster image (vision mode)
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
@@ -565,6 +593,8 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 			tone=tone,
 			offer_type_filter=offer_type_filter,
 			count=count,
+			user_prompt=(user_prompt or None),
+			poster_base64=(poster_base64 or None),
 		)
 
 		if not result.get("success"):
@@ -572,12 +602,13 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 
 		# If we consumed a paid slot, deduct coins
 		if not quota_status["free_remaining"]:
+			mode = "poster" if poster_base64 else ("prompt" if user_prompt else tone)
 			try:
 				deduct_coins(
 					restaurant=restaurant,
 					amount=COINS_PER_AI_COUPON,
 					type="AI Deduction",
-					description=f"AI coupon generation ({tone} tone, {count} suggestions)",
+					description=f"AI coupon generation ({mode}, {count} suggestions)",
 				)
 				result["coins_deducted"] = COINS_PER_AI_COUPON
 			except Exception as e:
@@ -708,7 +739,13 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 				continue # Not valid yet
 			if offer.valid_until and getdate(offer.valid_until) < getdate(today_date):
 				continue # Expired
-			
+
+			# Google Review offers are one-per-customer for life — hide once claimed.
+			if offer.offer_type == "google_review" and customer_id and frappe.db.exists(
+				"Offer Claim", {"restaurant": restaurant, "customer": customer_id, "coupon": offer.name}
+			):
+				continue
+
 			# Check day of week
 			if offer.valid_days_of_week:
 				try:
@@ -1241,7 +1278,7 @@ def claim_offer(restaurant_id, coupon_id):
 		coupon = frappe.db.get_value(
 			"Coupon",
 			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
-			["name", "code", "daily_limit"],
+			["name", "code", "daily_limit", "offer_type"],
 			as_dict=True,
 		)
 		if not coupon:
@@ -1262,6 +1299,20 @@ def claim_offer(restaurant_id, coupon_id):
 		)
 		if existing_lock:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant. Visit again to claim another."}}
+
+		# Google Review offers are strictly one-per-customer for their lifetime — a
+		# customer can only earn the review reward once (mirrors claim_offer_with_pin).
+		if coupon.offer_type == "google_review":
+			lifetime_claim = frappe.db.exists(
+				"Offer Claim",
+				{
+					"restaurant": restaurant,
+					"customer": customer_id,
+					"coupon": coupon.name,
+				},
+			)
+			if lifetime_claim:
+				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already claimed this Google Review offer once."}}
 
 		claim_time = now_datetime()
 		claim = frappe.get_doc({

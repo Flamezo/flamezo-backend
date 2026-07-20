@@ -171,17 +171,28 @@ def sync_route_kyc_status(restaurant_id):
                              "razorpay_route.sync_button")
             return {"success": False, "error": str(e)}
 
-    # ── Pass 2: KYC status sync ───────────────────────────────────────────────
+    # ── Pass 2: Retry bank/stakeholder attach (idempotent) ───────────────────
+    # Re-runs stakeholder + bank PATCH every time Sync is clicked. Razorpay
+    # accepts duplicate stakeholder POSTs and product PATCHes gracefully, so
+    # this is safe. Catches accounts created when the bank attach step failed
+    # silently (pre-fix). Errors are now logged under razorpay_route.product.
     current = (res.get("razorpay_kyc_status") or "").lower()
+    bank_attach_result = route_adapter.reattach_bank_details(res)
+
+    # ── Pass 3: KYC status sync ───────────────────────────────────────────────
     if current in ("activated", "rejected", "suspended"):
+        extra = {}
+        if bank_attach_result:
+            extra["bank_attached"] = bank_attach_result.get("bank_attached", False)
         return {"success": True, "kyc_status": current, "synced": False,
-                "message": "Status is already final — nothing to sync."}
+                "message": "Status is already final — nothing to sync.", **extra}
 
     result = route_adapter.reconcile_kyc_status(res)
     return {
         "success": result.get("success", False),
         "kyc_status": result.get("kyc_status") or current,
         "synced": bool(result.get("changed")),
+        **({"bank_attached": bank_attach_result.get("bank_attached", False)} if bank_attach_result else {}),
     }
 
 
@@ -276,6 +287,84 @@ def trigger_manual_sweep(restaurant_id):
         return {"success": False, "error": "rate_limited", "retry_after_sec": 60}
     frappe.cache().set_value(cache_key, "1", expires_in_sec=60)
     return commission_engine.sweep_via_autopay(name)
+
+
+@frappe.whitelist()
+def debug_bank_attach(restaurant_id):
+    """System Manager only. Runs the stakeholder + bank PATCH steps against
+    an existing linked account and returns the raw Razorpay HTTP status codes
+    and response bodies so you can diagnose exactly which step fails and why.
+    Does NOT create a new Razorpay account — only pushes bank/stakeholder data
+    to the one already on file for this restaurant."""
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+
+    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    res = frappe.get_doc("Restaurant", name)
+    account_id = res.get("razorpay_account_id")
+    if not account_id:
+        return {"success": False, "error": "no_linked_account"}
+
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+    BASE = "https://api.razorpay.com"
+    log = []
+
+    # ── Stakeholder ───────────────────────────────────────────────────────────
+    phone_str = "".join(c for c in str(res.get("owner_phone") or "") if c.isdigit())
+    if phone_str.startswith("91") and len(phone_str) == 12:
+        phone_str = phone_str[2:]
+    phone_str = phone_str[-10:]
+    phone_int = int(phone_str) if phone_str.isdigit() and phone_str else None
+
+    sr = _requests.post(f"{BASE}/v2/accounts/{account_id}/stakeholders", auth=auth, json={
+        "name": res.get("owner_name") or res.restaurant_name,
+        "email": res.owner_email,
+        "phone": {"primary": phone_int} if phone_int else {},
+        "kyc": {"pan": (res.get("pan_number") or "").strip()},
+        "addresses": {"residential": {
+            "street": (res.get("address") or "").strip()[:100],
+            "city": (res.get("city") or "").strip(),
+            "state": (res.get("state") or "").strip(),
+            "postal_code": (res.get("zip_code") or "").strip(),
+            "country": "IN",
+        }},
+    })
+    log.append({"step": "stakeholder", "status": sr.status_code, "body": sr.json()})
+
+    # ── Route product ─────────────────────────────────────────────────────────
+    pr = _requests.post(f"{BASE}/v2/accounts/{account_id}/products", auth=auth, json={
+        "product_name": "route",
+        "tnc_accepted": True,
+    })
+    log.append({"step": "product_create", "status": pr.status_code, "body": pr.json()})
+    product_id = pr.json().get("id")
+
+    # ── Bank PATCH ────────────────────────────────────────────────────────────
+    if product_id:
+        patchr = _requests.patch(
+            f"{BASE}/v2/accounts/{account_id}/products/{product_id}", auth=auth, json={
+                "settlements": {
+                    "account_number": (res.get("bank_account_number") or "").strip(),
+                    "ifsc_code": (res.get("bank_ifsc") or "").strip().upper(),
+                    "beneficiary_name": (res.get("bank_holder_name") or res.restaurant_name).strip(),
+                },
+                "tnc_accepted": True,
+            })
+        log.append({"step": "bank_patch", "status": patchr.status_code, "body": patchr.json()})
+    else:
+        log.append({"step": "bank_patch", "status": None, "body": "skipped — no product_id"})
+
+    return {
+        "success": True,
+        "account_id": account_id,
+        "restaurant": name,
+        "credentials_mode": "live" if cfg.get("key_id", "").startswith("rzp_live") else "test",
+        "steps": log,
+    }
 
 
 @frappe.whitelist()

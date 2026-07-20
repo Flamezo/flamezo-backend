@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
-import { AISuggestionsModal, type AISuggestion } from '@/components/coupons/AISuggestionsModal'
+import { AISuggestionsModal, type AISuggestion, type InputMode } from '@/components/coupons/AISuggestionsModal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -264,6 +264,7 @@ export default function Coupons() {
   const [couponToDelete, setCouponToDelete] = useState<{ name: string; code: string } | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<CouponTemplate | null>(null)
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+  const [aiModalMode, setAiModalMode] = useState<InputMode>('auto')
   const [aiPrefilledForm, setAiPrefilledForm] = useState<Partial<typeof BLANK_FORM> | null>(null)
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
 
@@ -385,6 +386,8 @@ export default function Coupons() {
     valid_days_of_week: suggestion.valid_days_of_week ? JSON.stringify(suggestion.valid_days_of_week) : '',
     valid_time_start: suggestion.valid_time_start ?? '',
     valid_time_end: suggestion.valid_time_end ?? '',
+    valid_from: suggestion.valid_from ?? '',
+    valid_until: suggestion.valid_until ?? '',
     max_uses: suggestion.max_uses,
     max_uses_per_user: suggestion.max_uses_per_user,
     can_stack: suggestion.can_stack,
@@ -399,26 +402,41 @@ export default function Coupons() {
 
   const handleSaveAllAISuggestions = async (suggestions: AISuggestion[]) => {
     let saved = 0
-    let failed = 0
+    const failures: { code: string; reason: string }[] = []
     for (const suggestion of suggestions) {
       try {
+        const form = aiSuggestionToFormData(suggestion)
         await createCoupon({
           doc: {
             doctype: 'Coupon',
-            ...aiSuggestionToFormData(suggestion),
+            ...form,
+            // Frappe Date fields reject '' — send null when the AI didn't set a date
+            valid_from: form.valid_from || null,
+            valid_until: form.valid_until || null,
             restaurant: selectedRestaurant,
           },
         })
         saved++
-      } catch {
-        failed++
+      } catch (err: any) {
+        // Surface the REAL reason (e.g. "Discount Value must be greater than zero",
+        // duplicate code, etc.) instead of always blaming duplicates.
+        const reason =
+          err?.message ||
+          err?._server_messages?.replace(/[[\]{}"\\]/g, '') ||
+          err?.exc_type ||
+          'Could not save'
+        failures.push({ code: suggestion.code, reason: String(reason) })
       }
     }
     await mutate()
-    if (failed === 0) {
+    if (failures.length === 0) {
       toast.success(`${saved} coupon${saved > 1 ? 's' : ''} saved successfully`)
     } else {
-      toast.warning(`${saved} saved, ${failed} failed (possibly duplicate codes)`)
+      const first = failures[0]
+      toast.error(
+        `${saved} saved, ${failures.length} failed`,
+        { description: `${first.code}: ${first.reason}`, duration: 7000 },
+      )
     }
   }
 
@@ -432,7 +450,7 @@ export default function Coupons() {
     setIsCreateDialogOpen(true)
   }
 
-  const handleOpenAIModal = async () => {
+  const handleOpenAIModal = async (openMode: InputMode = 'auto') => {
     setAiGateLoading(true)
     try {
       const res = await checkFoodCostCoverage({ restaurant_id: selectedRestaurant })
@@ -457,6 +475,7 @@ export default function Coupons() {
     } finally {
       setAiGateLoading(false)
     }
+    setAiModalMode(openMode)
     setIsAIModalOpen(true)
   }
 
@@ -519,7 +538,7 @@ export default function Coupons() {
             variant="outline"
             size="sm"
             className="gap-2 border-purple-400/40 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-            onClick={handleOpenAIModal}
+            onClick={() => handleOpenAIModal('auto')}
             disabled={aiGateLoading}
           >
             {aiGateLoading
@@ -814,6 +833,7 @@ export default function Coupons() {
         open={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
         restaurantId={selectedRestaurant!}
+        initialMode={aiModalMode}
         onUseSuggestion={handleUseAISuggestion}
         onSaveAll={handleSaveAllAISuggestions}
         walletBalance={(restaurant as any)?.coins_balance ?? 0}

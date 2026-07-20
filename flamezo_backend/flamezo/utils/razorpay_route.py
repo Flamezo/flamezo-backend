@@ -96,12 +96,22 @@ def ensure_linked_account(restaurant) -> dict:
     res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
 
     if res.get("razorpay_account_id"):
-        return {
+        result = {
             "success": True,
             "linked_account_id": res.razorpay_account_id,
             "kyc_status": res.razorpay_kyc_status,
             "created": False,
         }
+        # Retry the bank/stakeholder attach on re-submit. The FIRST create may have
+        # persisted the account id but failed (silently) on the bank step — without
+        # this, the early-return here would never re-push the bank details and the
+        # account stays "business-only" forever. Skip once fully activated (Razorpay
+        # locks settlement edits then, and it already works).
+        if (res.get("razorpay_kyc_status") or "").lower() != "activated":
+            attach = _attach_bank_and_stakeholder(get_razorpay_client(), res.razorpay_account_id, res)
+            result["bank_attached"] = attach.get("bank_ok", False)
+            result["attach_errors"] = attach.get("errors", [])
+        return result
 
     missing = _missing_kyc_fields(res)
     if missing:
@@ -113,162 +123,243 @@ def ensure_linked_account(restaurant) -> dict:
 
     client = get_razorpay_client()
 
-    # Build payload per Razorpay Route 'Accounts' API. The exact attribute
-    # names mirror the Razorpay v2 schema — kept here as a single source of
-    # truth so changes track upstream API revisions in one place.
-    _state = _normalize_state(res.get("state") or "")
+    # Razorpay requires phone as an integer (not string) for account creation.
+    phone_str = _normalize_phone(res.owner_phone)
+    phone_int = int(phone_str) if phone_str.isdigit() else None
+
+    # street1 = flat/building; street2 = area/locality (both required by Razorpay).
+    # Fall back to city so street2 is never blank.
+    street1 = (res.get("address") or "").strip()[:100]
+    street2 = (res.get("area") or res.get("city") or res.get("address") or "").strip()[:100]
+    if not street2:
+        street2 = street1 or "-"
+
+    # Razorpay requires state in UPPERCASE (e.g. "GUJARAT", not "Gujarat").
+    state_upper = _normalize_state(res.get("state") or "").upper()
+
+    business_type = res.get("business_type") or "proprietorship"
+
     payload = {
         "email": res.owner_email,
-        "phone": _normalize_phone(res.owner_phone),
+        "phone": phone_int or phone_str,
         "type": "route",
         "reference_id": res.name,
-        "legal_business_name": res.get("legal_name") or res.restaurant_name,
-        "business_type": res.get("business_type") or "proprietorship",
-        "contact_name": res.get("owner_name") or res.restaurant_name,
+        "legal_business_name": (res.get("legal_name") or res.restaurant_name).strip(),
+        "business_type": business_type,
+        "contact_name": (res.get("owner_name") or res.restaurant_name).strip(),
         "profile": {
             "category": "food",
             "subcategory": "restaurant",
             "addresses": {
                 "registered": {
-                    "street1": (res.get("address") or "").strip()[:100],
-                    "street2": (res.get("city") or res.get("address") or "").strip()[:100],
+                    "street1": street1 or "-",
+                    "street2": street2,
                     "city": (res.get("city") or "").strip(),
-                    "state": _state,
+                    "state": state_upper,
                     "postal_code": (res.get("zip_code") or "").strip(),
                     "country": "IN",
                 }
             },
         },
-        # Razorpay only accepts legal_info.pan (company PAN) for incorporated
-        # entities. For proprietorship, partnership, and individual the PAN
-        # belongs in the stakeholder KYC only — sending it here causes
-        # "company pan field is invalid for business type: X" errors.
+        # PAN in legal_info is only for incorporated entities (private_limited,
+        # public_limited, llp). For proprietorship it belongs in stakeholder KYC.
         "legal_info": {
-            **({"pan": res.get("pan_number", "").strip()} if (res.get("business_type") or "proprietorship") in ("private_limited", "public_limited", "llp") and res.get("pan_number") else {}),
+            **({"pan": res.get("pan_number", "").strip()} if business_type in ("private_limited", "public_limited", "llp") and res.get("pan_number") else {}),
             **({"gst": res.get("gst_number", "").strip()} if res.get("gst_number") else {}),
         },
     }
 
+    import requests as _requests
+    from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
+    cfg = get_razorpay_config()
+    auth = (cfg["key_id"], cfg["key_secret"])
+
     try:
-        # Razorpay's Python SDK exposes the v2 endpoint as `client.account`.
-        # We use `request` for portability across SDK versions where the
-        # helper isn't present.
-        if hasattr(client, "account") and hasattr(client.account, "create"):
-            account = client.account.create(payload)
-        else:
-            account = client.request("POST", "/v2/accounts", params=payload)
-
+        r = _requests.post("https://api.razorpay.com/v2/accounts", auth=auth, json=payload)
+        account = r.json()
         account_id = account.get("id")
-        if not account_id:
-            raise Exception(f"Razorpay returned no account id: {account!r}")
 
-        # Persist the account id IMMEDIATELY — before any later step can fail.
-        # This closes the "orphan" window: if _attach_bank_and_stakeholder (or
-        # anything after) dies, we still have the id on file, so the idempotency
-        # guard at the top short-circuits next time instead of re-creating with
-        # the same reference_id (which Razorpay rejects: "reference_id already
-        # in use" → the "code already in use" error merchants were hitting).
+        # reference_id conflict: old account exists on Razorpay but our DB lost
+        # the id. Retry without reference_id so a fresh account can be created.
+        if not account_id and ("reference_id" in str(account) or "already in use" in str(account).lower() or "code" in str(account).lower()):
+            payload_no_ref = {k: v for k, v in payload.items() if k != "reference_id"}
+            r = _requests.post("https://api.razorpay.com/v2/accounts", auth=auth, json=payload_no_ref)
+            account = r.json()
+            account_id = account.get("id")
+
+        if not account_id:
+            raise Exception(f"Account creation failed: {account!r}")
+
+        # Persist the account id IMMEDIATELY before any later step can fail.
         frappe.db.set_value("Restaurant", res.name, {
             "razorpay_account_id": account_id,
             "razorpay_kyc_status": "under_review",
-            "route_mode": "flamezo_hold",  # stays in hold until KYC clears
+            "route_mode": "flamezo_hold",
         })
         frappe.db.commit()
 
-        # Now create the Stakeholder + Bank Account product config so the
-        # account can actually receive payouts.
-        _attach_bank_and_stakeholder(client, account_id, res)
+        attach = _attach_bank_and_stakeholder(client, account_id, res)
 
         return {
             "success": True,
             "linked_account_id": account_id,
             "kyc_status": "under_review",
             "created": True,
+            "bank_attached": attach.get("bank_ok", False),
+            "attach_errors": attach.get("errors", []),
         }
     except Exception as e:
-        msg = str(e)
-        # Razorpay rejects a duplicate reference_id when an account already
-        # exists for this restaurant but our local id was lost (legacy orphan).
-        # Give a clear, actionable error instead of the raw Razorpay text.
-        if "reference_id" in msg.lower() or "already in use" in msg.lower():
-            frappe.log_error(
-                f"Duplicate reference_id for {res.name} — an orphaned Razorpay "
-                f"account exists but razorpay_account_id is blank; reconnect it. ({msg})",
-                "razorpay_route.orphaned_account",
-            )
-            return {
-                "success": False,
-                "error": "account_already_exists",
-                "message": "A payout account already exists for this restaurant. "
-                           "Please contact support to reconnect it.",
-            }
         frappe.log_error(
             f"Linked account creation failed for {res.name}: {e}",
             "razorpay_route.ensure_linked_account",
         )
-        return {"success": False, "error": msg}
+        return {"success": False, "error": str(e)}
 
 
-def _attach_bank_and_stakeholder(client, account_id: str, res):
-    """Push stakeholder + bank account into a freshly-created Linked Account.
+def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
+    """Push stakeholder + bank account (settlements) into a Linked Account.
+
     Uses direct requests calls — Razorpay SDK's client.request() is unreliable
-    for v2 sub-resource endpoints. Two-step: create product first, then PATCH
-    settlements (Razorpay rejects settlements in the initial POST body)."""
+    for v2 sub-resource endpoints. Two-step for the product: create it first,
+    then PATCH settlements (Razorpay rejects settlements in the initial POST body).
+
+    IDEMPOTENT so it can be safely re-run to RETRY a previously-failed bank attach:
+      • stakeholder → reuse the existing one if present, else create
+      • product     → reuse the existing 'route' product if present, else create
+      • settlements → ALWAYS PATCH the latest bank details onto the product
+
+    Returns {stakeholder_ok, bank_ok, errors:[...]} so the caller can tell the
+    merchant when the bank step did not go through — instead of silently passing
+    (the old behaviour, which left accounts with business details but no bank).
+    """
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
     cfg = get_razorpay_config()
     auth = (cfg["key_id"], cfg["key_secret"])
     BASE = "https://api.razorpay.com"
+    TIMEOUT = 30
+    result = {"stakeholder_ok": False, "bank_ok": False, "errors": []}
 
-    try:
-        _requests.post(
-            f"{BASE}/v2/accounts/{account_id}/stakeholders",
-            auth=auth,
-            json={
-                "name": res.get("owner_name") or res.restaurant_name,
-                "email": res.owner_email,
-                "phone": {"primary": _normalize_phone(res.owner_phone)},
-                "kyc": {"pan": (res.get("pan_number") or "").strip()},
-                "addresses": {
-                    "residential": {
-                        "street": (res.get("address") or "").strip()[:100],
-                        "city": (res.get("city") or "").strip(),
-                        "state": _normalize_state(res.get("state") or ""),
-                        "postal_code": (res.get("zip_code") or "").strip(),
-                        "country": "IN",
-                    }
-                },
-            },
-        ).raise_for_status()
-    except Exception as e:
-        frappe.log_error(f"Stakeholder attach failed for {account_id}: {e}", "razorpay_route.stakeholder")
+    # phone.primary must be an integer per Razorpay docs (e.g. 9000090000).
+    phone_str = _normalize_phone(res.owner_phone)
+    phone_int = int(phone_str) if phone_str.isdigit() else None
 
+    # ── Stakeholder (idempotent) ─────────────────────────────────────────────
     try:
-        # Step 1: create Route product (no settlements in body — Razorpay rejects it)
-        r = _requests.post(
-            f"{BASE}/v2/accounts/{account_id}/products",
-            auth=auth,
-            json={"product_name": "route", "tnc_accepted": True},
+        existing = _requests.get(
+            f"{BASE}/v2/accounts/{account_id}/stakeholders", auth=auth, timeout=TIMEOUT
         )
-        product_id = r.json().get("id")
-        if not product_id:
-            raise Exception(f"No product id returned: {r.text}")
+        if existing.ok:
+            items = existing.json()
+            has_one = bool(items.get("items")) if isinstance(items, dict) else bool(items)
+            if has_one:
+                result["stakeholder_ok"] = True
 
-        # Step 2: PATCH settlements onto the product
-        _requests.patch(
+        if not result["stakeholder_ok"]:
+            r = _requests.post(
+                f"{BASE}/v2/accounts/{account_id}/stakeholders",
+                auth=auth, timeout=TIMEOUT,
+                json={
+                    "name": (res.get("owner_name") or res.restaurant_name).strip(),
+                    "email": res.owner_email,
+                    **({"phone": {"primary": phone_int}} if phone_int else {}),
+                    # PAN in stakeholder KYC applies to proprietorship/individual.
+                    **({"kyc": {"pan": res.get("pan_number", "").strip().upper()}} if res.get("pan_number") else {}),
+                    "addresses": {
+                        "residential": {
+                            # Stakeholder uses single "street" field (not street1/street2).
+                            "street": (res.get("address") or "").strip()[:100],
+                            "city": (res.get("city") or "").strip(),
+                            # Stakeholder state is Title Case per Razorpay docs ("Karnataka").
+                            "state": _normalize_state(res.get("state") or ""),
+                            "postal_code": (res.get("zip_code") or "").strip(),
+                            "country": "IN",
+                        }
+                    },
+                },
+            )
+            if r.ok:
+                result["stakeholder_ok"] = True
+            else:
+                result["errors"].append(f"stakeholder: HTTP {r.status_code} {r.text[:300]}")
+                frappe.log_error(
+                    f"Stakeholder attach failed for {account_id}: HTTP {r.status_code} {r.text}",
+                    "razorpay_route.stakeholder",
+                )
+    except Exception as e:
+        result["errors"].append(f"stakeholder: {e}")
+        frappe.log_error(f"Stakeholder attach exception for {account_id}: {e}", "razorpay_route.stakeholder")
+
+    # ── Product + settlements / bank (idempotent) ────────────────────────────
+    try:
+        # Reuse the existing 'route' product if one is already requested.
+        product_id = None
+        listing = _requests.get(
+            f"{BASE}/v2/accounts/{account_id}/products", auth=auth, timeout=TIMEOUT
+        )
+        if listing.ok:
+            for p in (listing.json().get("items") or []):
+                if (p.get("product_name") or "").lower() == "route":
+                    product_id = p.get("id")
+                    break
+
+        if not product_id:
+            r = _requests.post(
+                f"{BASE}/v2/accounts/{account_id}/products",
+                auth=auth, timeout=TIMEOUT,
+                json={"product_name": "route", "tnc_accepted": True},
+            )
+            if not r.ok:
+                raise Exception(f"product create HTTP {r.status_code}: {r.text[:300]}")
+            product_id = r.json().get("id")
+        if not product_id:
+            raise Exception("no route product id available")
+
+        # Always PATCH settlements so re-runs pick up updated bank details.
+        pr = _requests.patch(
             f"{BASE}/v2/accounts/{account_id}/products/{product_id}",
-            auth=auth,
+            auth=auth, timeout=TIMEOUT,
             json={
                 "settlements": {
-                    "account_number": res.get("bank_account_number") or "",
-                    "ifsc_code": res.get("bank_ifsc") or "",
-                    "beneficiary_name": res.get("bank_holder_name") or res.restaurant_name,
+                    "account_number": (res.get("bank_account_number") or "").strip(),
+                    "ifsc_code": (res.get("bank_ifsc") or "").strip().upper(),
+                    "beneficiary_name": (res.get("bank_holder_name") or res.restaurant_name).strip(),
                 },
                 "tnc_accepted": True,
             },
-        ).raise_for_status()
+        )
+        if pr.ok:
+            result["bank_ok"] = True
+        else:
+            result["errors"].append(f"settlements: HTTP {pr.status_code} {pr.text[:300]}")
+            frappe.log_error(
+                f"Bank/settlements attach failed for {account_id}: HTTP {pr.status_code} {pr.text}",
+                "razorpay_route.product",
+            )
     except Exception as e:
+        result["errors"].append(f"product/bank: {e}")
         frappe.log_error(f"Product/bank config failed for {account_id}: {e}", "razorpay_route.product")
+
+    return result
+
+
+def reattach_bank_details(restaurant) -> dict:
+    """Re-run the stakeholder + bank product PATCH for an account that was
+    created but whose bank details were never attached. Safe to call multiple
+    times — fully idempotent (GET-before-POST on both stakeholder and product).
+    """
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    account_id = res.get("razorpay_account_id")
+    if not account_id:
+        return {"success": False, "error": "no_linked_account"}
+    client = get_razorpay_client()
+    attach = _attach_bank_and_stakeholder(client, account_id, res)
+    return {
+        "success": attach.get("bank_ok", False),
+        "bank_attached": attach.get("bank_ok", False),
+        "stakeholder_attached": attach.get("stakeholder_ok", False),
+        "errors": attach.get("errors", []),
+    }
 
 
 def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Optional[dict] = None):

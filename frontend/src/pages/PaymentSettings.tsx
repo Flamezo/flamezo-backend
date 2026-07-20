@@ -40,9 +40,25 @@ import {
   Undo2,
   ShieldAlert,
   Info,
-  CalendarDays
+  CalendarDays,
+  IndianRupee,
+  Wallet,
+  Sparkles,
+  Receipt,
+  ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import PaymentBreakdownModal from '@/components/PaymentBreakdownModal'
+
+interface PaymentBreakdown {
+  bill: number
+  customerSaved: number
+  couponCode: string | null
+  merchantGets: number
+  flamezoGets: number
+  settlementMode: string | null
+  estimated?: boolean
+}
 
 interface RazorpayPayment {
   id: string
@@ -56,9 +72,36 @@ interface RazorpayPayment {
   description?: string
   refund_status?: string | null
   amount_refunded?: number
+  breakdown?: PaymentBreakdown | null
 }
 
 type FilterPreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+
+function SummaryCard({
+  title, value, subtext, icon: Icon, accent,
+}: {
+  title: string
+  value: string | number
+  subtext: string
+  icon: React.ComponentType<{ className?: string }>
+  accent?: 'emerald' | 'orange' | 'muted'
+}) {
+  return (
+    <Card className="border-muted/50">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-[11px] uppercase tracking-widest text-muted-foreground font-black">{title}</CardTitle>
+        <Icon className={cn(
+          'h-4 w-4',
+          accent === 'emerald' ? 'text-emerald-500' : accent === 'muted' ? 'text-muted-foreground' : 'text-orange-500',
+        )} />
+      </CardHeader>
+      <CardContent>
+        <div className={cn('text-2xl font-black', accent === 'emerald' && 'text-emerald-600 dark:text-emerald-400')}>{value}</div>
+        <p className="text-[11px] text-muted-foreground mt-1">{subtext}</p>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function PaymentSettings() {
   const { restaurantId } = useParams()
@@ -66,6 +109,7 @@ export default function PaymentSettings() {
   const activeRestaurantId = restaurantId || selectedRestaurant
 
   const [payments, setPayments] = useState<RazorpayPayment[]>([])
+  const [detailPayment, setDetailPayment] = useState<RazorpayPayment | null>(null)
   const [loading, setLoading] = useState(true)
   const [isRefunding, setIsRefunding] = useState(false)
   const [refundAmount, setRefundAmount] = useState<string>('')
@@ -170,6 +214,15 @@ export default function PaymentSettings() {
     }).format(amount / 100)
   }
 
+  // Breakdown values already come from the Order in rupees (not paise).
+  const formatRs = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount || 0)
+  }
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString('en-IN', {
       day: '2-digit',
@@ -195,6 +248,25 @@ export default function PaymentSettings() {
     }
   }
 
+  // Each payment surfaces a transient "created" row and the real "captured" row.
+  // Show only the meaningful ones (hide the "created" duplicate).
+  const visiblePayments = payments.filter((p) => p.status !== 'created')
+
+  // Aggregate the 4 summary cards from the payments in the selected range.
+  const summary = visiblePayments.reduce(
+    (acc, p) => {
+      if (p.status === 'captured') {
+        acc.revenue += p.amount / 100
+        if (p.breakdown) {
+          acc.youGet += p.breakdown.merchantGets || 0
+          acc.flamezo += p.breakdown.flamezoGets || 0
+        }
+      }
+      return acc
+    },
+    { revenue: 0, youGet: 0, flamezo: 0 },
+  )
+
   if (!activeRestaurantId) {
     return <div className="p-8 text-center text-muted-foreground">Please select a restaurant to view transactions.</div>
   }
@@ -213,8 +285,8 @@ export default function PaymentSettings() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="rounded-full shadow-sm hover:bg-muted transition-all gap-2"
             onClick={() => loadPayments()}
             disabled={loading}
@@ -223,6 +295,14 @@ export default function PaymentSettings() {
             Refresh
           </Button>
         </div>
+      </div>
+
+      {/* Summary cards (merchant-only) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <SummaryCard title="Revenue" value={formatRs(summary.revenue)} subtext="Collected in this range" icon={IndianRupee} accent="orange" />
+        <SummaryCard title="You Keep" value={formatRs(summary.youGet)} subtext="Your share of payments" icon={Wallet} accent="emerald" />
+        <SummaryCard title="Flamezo Share" value={formatRs(summary.flamezo)} subtext="Success share only" icon={Sparkles} accent="muted" />
+        <SummaryCard title="Transactions" value={visiblePayments.length} subtext="Payments in this range" icon={Receipt} accent="muted" />
       </div>
 
       {/* Filters Section */}
@@ -322,7 +402,7 @@ export default function PaymentSettings() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : payments.length === 0 ? (
+                ) : visiblePayments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-64 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center space-y-4">
@@ -345,8 +425,13 @@ export default function PaymentSettings() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  payments.map((p) => (
-                    <TableRow key={p.id} className="group hover:bg-muted/30 transition-colors border-muted/50">
+                  visiblePayments.map((p, i) => (
+                    <TableRow
+                      key={p.id}
+                      onClick={() => setDetailPayment(p)}
+                      style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}
+                      className="group hover:bg-muted/30 transition-colors border-muted/50 cursor-pointer animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300"
+                    >
                       <TableCell className="font-mono text-xs pl-6 text-primary group-hover:font-semibold transition-all">{p.id}</TableCell>
                       <TableCell className="text-sm">{formatDate(p.created_at)}</TableCell>
                       <TableCell>
@@ -368,6 +453,7 @@ export default function PaymentSettings() {
                         {getStatusBadge(p.status)}
                       </TableCell>
                       <TableCell className="text-right pr-6">
+                        <div className="flex items-center justify-end gap-2">
                         {p.status === 'captured' && (
                           <Dialog>
                             <DialogTrigger asChild>
@@ -375,7 +461,7 @@ export default function PaymentSettings() {
                                 variant="outline" 
                                 size="sm" 
                                 className="h-8 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all gap-1.5"
-                                onClick={() => setSelectedPayment(p)}
+                                onClick={(e) => { e.stopPropagation(); setSelectedPayment(p) }}
                               >
                                 <Undo2 className="h-3 w-3" />
                                 Refund
@@ -448,6 +534,10 @@ export default function PaymentSettings() {
                             </DialogContent>
                           </Dialog>
                         )}
+                          <div className="h-8 w-8 rounded-full flex items-center justify-center group-hover:bg-muted/50 transition-all shrink-0">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-all translate-x-[-2px] group-hover:translate-x-0" />
+                          </div>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -472,6 +562,17 @@ export default function PaymentSettings() {
           </p>
         </div>
       </div>
+
+      {/* Per-payment animated breakdown (merchant-only): bill → offer → split → bank */}
+      <PaymentBreakdownModal
+        open={!!detailPayment}
+        onClose={() => setDetailPayment(null)}
+        paymentId={detailPayment?.id}
+        dateLabel={detailPayment ? formatDate(detailPayment.created_at) : ''}
+        status={detailPayment?.status}
+        method={detailPayment?.method}
+        breakdown={detailPayment?.breakdown}
+      />
     </div>
   )
 }
