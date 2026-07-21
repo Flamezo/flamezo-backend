@@ -57,6 +57,8 @@ interface PaymentBreakdown {
   merchantGets: number
   flamezoGets: number
   settlementMode: string | null
+  /** "web" | "app" — only app orders carry a success share. */
+  paymentSource?: string
   estimated?: boolean
 }
 
@@ -76,6 +78,9 @@ interface RazorpayPayment {
 }
 
 type FilterPreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+
+/** Which sales channel the figures below are scoped to. */
+type SourceTab = 'all' | 'web' | 'app'
 
 function SummaryCard({
   title, value, subtext, icon: Icon, accent,
@@ -121,6 +126,7 @@ export default function PaymentSettings() {
   const [fromDate, setFromDate] = useState<string>(today)
   const [toDate, setToDate] = useState<string>(today)
   const [activePreset, setActivePreset] = useState<FilterPreset>('today')
+  const [sourceTab, setSourceTab] = useState<SourceTab>('all')
 
   const { call: getPayments } = useFrappePostCall<{ success: boolean; data: { items: RazorpayPayment[] } }>(
     'flamezo_backend.flamezo.api.payments.get_razorpay_payments'
@@ -250,17 +256,29 @@ export default function PaymentSettings() {
 
   // Each payment surfaces a transient "created" row and the real "captured" row.
   // Show only the meaningful ones (hide the "created" duplicate).
-  const visiblePayments = payments.filter((p) => p.status !== 'created')
+  // Then scope to the selected channel — payments with no recorded source are
+  // treated as web, which is where every pre-app order came from.
+  const sourceOf = (p: RazorpayPayment): SourceTab =>
+    (p.breakdown?.paymentSource || 'web').toLowerCase() === 'app' ? 'app' : 'web'
+
+  const visiblePayments = payments
+    .filter((p) => p.status !== 'created')
+    .filter((p) => sourceTab === 'all' || sourceOf(p) === sourceTab)
 
   // Aggregate the 4 summary cards from the payments in the selected range.
+  // Flamezo only earns a success share on app orders — web orders are the
+  // outlet's own customers, so the merchant keeps the full amount there.
   const summary = visiblePayments.reduce(
     (acc, p) => {
       if (p.status === 'captured') {
-        acc.revenue += p.amount / 100
-        if (p.breakdown) {
-          acc.youGet += p.breakdown.merchantGets || 0
-          acc.flamezo += p.breakdown.flamezoGets || 0
-        }
+        const gross = p.amount / 100
+        acc.revenue += gross
+        const isApp = sourceOf(p) === 'app'
+        const flamezoCut = isApp ? p.breakdown?.flamezoGets || 0 : 0
+        acc.flamezo += flamezoCut
+        // Fall back to gross minus the cut when a payment has no stored split,
+        // so "You Keep" still reconciles with Revenue.
+        acc.youGet += isApp ? p.breakdown?.merchantGets || gross - flamezoCut : gross
       }
       return acc
     },
@@ -297,11 +315,32 @@ export default function PaymentSettings() {
         </div>
       </div>
 
+      {/* Channel tabs — scope every figure below to web, app, or both. */}
+      <div className="inline-flex items-center gap-1 rounded-full bg-muted/60 p-1">
+        {([
+          { id: 'all', label: 'All' },
+          { id: 'web', label: 'Web' },
+          { id: 'app', label: 'App' },
+        ] as { id: SourceTab; label: string }[]).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSourceTab(t.id)}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+              sourceTab === t.id
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Summary cards (merchant-only) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryCard title="Revenue" value={formatRs(summary.revenue)} subtext="Collected in this range" icon={IndianRupee} accent="orange" />
-        <SummaryCard title="You Keep" value={formatRs(summary.youGet)} subtext="Your share of payments" icon={Wallet} accent="emerald" />
-        <SummaryCard title="Flamezo Share" value={formatRs(summary.flamezo)} subtext="Success share only" icon={Sparkles} accent="muted" />
+        <SummaryCard title="Revenue" value={formatRs(summary.revenue)} subtext={sourceTab === 'all' ? 'Web + App in this range' : `${sourceTab === 'web' ? 'Web' : 'App'} orders in this range`} icon={IndianRupee} accent="orange" />
+        <SummaryCard title="You Keep" value={formatRs(summary.youGet)} subtext={sourceTab === 'web' ? 'You keep 100% on web' : 'Your share of payments'} icon={Wallet} accent="emerald" />
+        <SummaryCard title="Flamezo Share" value={formatRs(summary.flamezo)} subtext={sourceTab === 'web' ? 'No success share on web' : 'Success share on app orders'} icon={Sparkles} accent="muted" />
         <SummaryCard title="Transactions" value={visiblePayments.length} subtext="Payments in this range" icon={Receipt} accent="muted" />
       </div>
 

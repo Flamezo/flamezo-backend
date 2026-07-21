@@ -345,9 +345,18 @@ export function AISuggestionsModal({
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
-  // When the modal (re)opens, jump to the mode of the button that launched it.
+  // When the modal (re)opens, jump to the mode of the button that launched it and
+  // start clean — never carry over the previous prompt, poster or results.
   useEffect(() => {
-    if (open) setMode(initialMode)
+    if (!open) return
+    setMode(initialMode)
+    setUserPrompt('')
+    setPosterImages([])
+    setSuggestions([])
+    setHasGenerated(false)
+    setSelectedCodes(new Set())
+    setQuota(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }, [open, initialMode])
 
   const { call: generateSuggestions, loading } = useFrappePostCall(

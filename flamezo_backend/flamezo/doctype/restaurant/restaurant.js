@@ -3,6 +3,22 @@
 
 frappe.ui.form.on('Restaurant', {
 	refresh: function(frm) {
+		// Listen for realtime background generation events
+		if (!frm.custom_qr_listener_added) {
+			frappe.realtime.on('qr_pdf_generated', function(data) {
+				if (data.restaurant === frm.doc.name) {
+					frappe.show_alert({ message: __('QR codes PDF generation is complete!'), indicator: 'green' }, 7);
+					frm.reload_doc();
+				}
+			});
+			frappe.realtime.on('qr_pdf_error', function(data) {
+				if (data.restaurant === frm.doc.name) {
+					frappe.msgprint({ title: __('QR Generation Failed'), message: data.error, indicator: 'red' });
+				}
+			});
+			frm.custom_qr_listener_added = true;
+		}
+
 		// ── Razorpay Route: Suspend / Reactivate linked account ──────────────
 		if (frm.doc.razorpay_account_id) {
 			const isSuspended = frm.doc.razorpay_kyc_status === 'suspended';
@@ -142,8 +158,9 @@ frappe.ui.form.on('Restaurant', {
 										freeze: true,
 										freeze_message: __('Generating QR codes PDF...'),
 										callback: function(r) {
-											// Check if generation was successful
+											// Check if generation was successful or queued
 											let generated = false;
+											let queued = false;
 											if (r.message) {
 												if (typeof r.message === 'string') {
 													// Old format - direct URL
@@ -151,10 +168,17 @@ frappe.ui.form.on('Restaurant', {
 												} else if (r.message.status === 'success') {
 													// New format - JSON object
 													generated = true;
+												} else if (r.message.status === 'queued') {
+													queued = true;
 												}
 											}
 											
-											if (generated) {
+											if (queued) {
+												frappe.show_alert({
+													message: __('QR codes PDF generation started in the background. You will be notified when ready.'),
+													indicator: 'orange'
+												}, 7);
+											} else if (generated) {
 												frappe.show_alert({
 													message: __('QR codes PDF generated successfully'),
 													indicator: 'green'

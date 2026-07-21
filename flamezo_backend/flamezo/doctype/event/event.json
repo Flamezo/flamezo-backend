@@ -15,6 +15,7 @@
   "description",
   "date",
   "time",
+  "end_time",
   "location",
   "google_maps_link",
   "registration_link",
@@ -83,6 +84,11 @@
    "fieldname": "time",
    "fieldtype": "Time",
    "label": "Time"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time"
   },
   {
    "fieldname": "location",
