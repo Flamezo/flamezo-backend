@@ -24,7 +24,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink, Sparkles } from 'lucide-react'
+import EventAIModal, { type AIEvent } from '@/components/events/EventAIModal'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { toast } from 'sonner'
@@ -45,6 +46,10 @@ import { Upload, X } from 'lucide-react'
 export default function Events() {
   const { selectedRestaurant, isGold } = useRestaurant()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+  // AI-generated event used to pre-fill the create dialog (same shape the dialog
+  // already expects for editing, so it maps straight in).
+  const [aiPrefilledEvent, setAiPrefilledEvent] = useState<AIEvent | null>(null)
   const [editingEvent, setEditingEvent] = useState<any>(null)
   const [filterType, setFilterType] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -76,7 +81,7 @@ export default function Events() {
     setSearchQuery
   } = useDataTable({
     doctype: 'Event',
-    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'location', 'image_src', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
     initialFilters,
     searchFields: ['title', 'category', 'description', 'location'],
     orderBy: { field: 'creation', order: 'desc' },
@@ -185,10 +190,20 @@ export default function Events() {
             Manage your restaurant events and special occasions
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-xl h-11 px-6 shadow-lg shadow-primary/20 bg-black text-white hover:bg-black/90">
-          <Plus className="h-4 w-4 mr-2" />
-          Create Event
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setIsAIModalOpen(true)}
+            className="rounded-xl h-11 px-5 gap-2 border-purple-400/40 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+          >
+            <Sparkles className="h-4 w-4" />
+            Create with AI
+          </Button>
+          <Button onClick={() => { setAiPrefilledEvent(null); setIsCreateDialogOpen(true) }} className="rounded-xl h-11 px-6 shadow-lg shadow-primary/20 bg-black text-white hover:bg-black/90">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Event
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -401,8 +416,18 @@ export default function Events() {
 
       <EventDialog
         open={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
+        onClose={() => { setIsCreateDialogOpen(false); setAiPrefilledEvent(null) }}
+        event={aiPrefilledEvent}
+        aiGenerated={!!aiPrefilledEvent}
         onSave={handleCreateEvent}
+      />
+
+      {/* AI event creation — "Describe Event" / "Upload Poster" */}
+      <EventAIModal
+        open={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        restaurantId={selectedRestaurant || ''}
+        onUseEvent={(ev) => { setAiPrefilledEvent(ev); setIsCreateDialogOpen(true) }}
       />
 
       <EventDialog
@@ -436,7 +461,7 @@ export default function Events() {
   )
 }
 
-function EventDialog({ open, onClose, event, onSave }: any) {
+function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
   const { selectedRestaurant } = useRestaurant()
   const [formData, setFormData] = useState({
     title: '',
@@ -547,8 +572,74 @@ function EventDialog({ open, onClose, event, onSave }: any) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{event ? 'Edit Event' : 'Add New Event'}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {aiGenerated && <Sparkles className="h-5 w-5 text-purple-500" />}
+            {aiGenerated ? 'Review AI Event' : event ? 'Edit Event' : 'Add New Event'}
+          </DialogTitle>
         </DialogHeader>
+
+        {aiGenerated && (
+          <div className="rounded-2xl overflow-hidden border border-purple-400/30 shadow-lg shadow-purple-500/5">
+            {/* Live event preview — updates as you edit the fields below */}
+            <div className="relative h-44 bg-gradient-to-br from-purple-600 via-fuchsia-600 to-orange-500">
+              {formData.image_src && (
+                <img src={formData.image_src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
+
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur px-2.5 py-1">
+                <Sparkles className="h-3 w-3 text-white" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-white">AI draft</span>
+              </div>
+              {formData.featured && (
+                <div className="absolute top-3 right-3 rounded-full bg-amber-400 px-2.5 py-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-black">Featured</span>
+                </div>
+              )}
+
+              <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                <p className="text-xl font-black leading-tight drop-shadow-lg line-clamp-2">
+                  {formData.title || 'Untitled event'}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {formData.date && (
+                    <span className="flex items-center gap-1 rounded-full bg-white/20 backdrop-blur px-2 py-0.5 text-[11px] font-semibold">
+                      <Calendar className="h-3 w-3" />{formData.date}
+                    </span>
+                  )}
+                  {formData.time && (
+                    <span className="flex items-center gap-1 rounded-full bg-white/20 backdrop-blur px-2 py-0.5 text-[11px] font-semibold">
+                      <Clock className="h-3 w-3" />
+                      {formData.time.slice(0, 5)}{formData.end_time ? `–${formData.end_time.slice(0, 5)}` : ''}
+                    </span>
+                  )}
+                  {formData.location && (
+                    <span className="flex items-center gap-1 rounded-full bg-white/20 backdrop-blur px-2 py-0.5 text-[11px] font-semibold">
+                      <MapPin className="h-3 w-3" />{formData.location}
+                    </span>
+                  )}
+                  {formData.repeat_this_event && formData.recurring_days && (
+                    <span className="flex items-center gap-1 rounded-full bg-white/20 backdrop-blur px-2 py-0.5 text-[11px] font-semibold">
+                      <Zap className="h-3 w-3" />{formData.recurring_days}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Next-step strip */}
+            <div className={cn(
+              'flex items-center gap-2.5 px-4 py-2.5 text-[11px] font-medium',
+              formData.image_src
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : 'bg-amber-500/10 text-amber-700 dark:text-amber-500',
+            )}>
+              {formData.image_src
+                ? <><Sparkles className="h-3.5 w-3.5 shrink-0" />Poster added — review the details below, then publish.</>
+                : <><Upload className="h-3.5 w-3.5 shrink-0" />Add an event image below to finish, then publish.</>}
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
