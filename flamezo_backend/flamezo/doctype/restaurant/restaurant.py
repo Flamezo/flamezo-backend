@@ -643,26 +643,53 @@ def get_special_qr_assets(restaurant, force=0):
 @frappe.whitelist()
 def generate_qr_codes_pdf(restaurant, layout="2x2", background_image=None, qr_type="dine_in"):
 	"""
-	Generate QR codes PDF for a restaurant.
+	Queue QR codes PDF generation in the background.
 	layout: '1x1' (one per page) or '2x2' (four per landscape page — default)
 	background_image: optional absolute URL for the background
 	qr_type: 'dine_in' or 'takeaway'
 	"""
+	frappe.enqueue(
+		"flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf_worker",
+		queue="long",
+		timeout=1500,
+		restaurant=restaurant,
+		layout=layout,
+		background_image=background_image,
+		qr_type=qr_type,
+		user=frappe.session.user
+	)
+	return {
+		"status": "queued",
+		"message": "QR code generation started in the background. You will receive a notification when it's ready.",
+		"layout": layout,
+	}
+
+def generate_qr_codes_pdf_worker(restaurant, layout, background_image, qr_type, user):
+	"""
+	Background worker to actually generate the PDF.
+	"""
 	try:
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
 		pdf_url = restaurant_doc.generate_table_qr_codes_pdf(layout=layout, background_image=background_image, qr_type=qr_type)
-		return {
-			"status": "success",
-			"message": f"QR codes PDF generated successfully ({layout} layout)",
-			"pdf_url": pdf_url,
-			"layout": layout,
-		}
+		
+		frappe.publish_realtime(
+			event="qr_pdf_generated",
+			message={
+				"restaurant": restaurant,
+				"pdf_url": pdf_url
+			},
+			user=user
+		)
 	except Exception as e:
 		frappe.log_error(f"Error generating QR codes PDF: {str(e)}", "QR Code Generation")
-		return {
-			"status": "error",
-			"message": str(e)
-		}
+		frappe.publish_realtime(
+			event="qr_pdf_error",
+			message={
+				"restaurant": restaurant,
+				"error": str(e)
+			},
+			user=user
+		)
 
 
 @frappe.whitelist(allow_guest=True)

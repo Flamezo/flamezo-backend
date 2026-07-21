@@ -275,3 +275,80 @@ def toggle_event_status(restaurant_id, event_id, field):
 				"message": str(e)
 			}
 		}
+
+
+@frappe.whitelist()
+def generate_event_suggestions(restaurant_id, user_prompt=None, poster_base64=None):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.events.generate_event_suggestions
+
+	AI event creation (Gemini 2.5 Flash), two modes:
+	  • user_prompt   — "Describe Event": merchant types the event in plain words
+	  • poster_base64 — "Upload Poster": up to 3 images of the SAME event poster
+
+	Returns Event-shaped dicts to pre-fill the merchant's event form (they always
+	review before saving). Shares the AI monthly quota with coupon generation:
+	free allowance first, then wallet coins.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.feature_gate import require_plan
+		from flamezo_backend.flamezo.services.ai.event_generator import generate_events
+		from flamezo_backend.flamezo.services.ai.coupon_generator import (
+			FREE_MONTHLY_QUOTA, _check_quota_status,
+		)
+		from flamezo_backend.flamezo.api.coin_billing import deduct_coins
+		from frappe.utils import flt
+
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		require_plan(restaurant, ["GOLD"])
+
+		COINS_PER_AI_EVENT = 2
+
+		quota_status = _check_quota_status(restaurant)
+		if not quota_status["free_remaining"]:
+			balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+			if balance < COINS_PER_AI_EVENT:
+				return {
+					"success": False,
+					"error_code": "INSUFFICIENT_BALANCE",
+					"message": (
+						f"Your {FREE_MONTHLY_QUOTA} free AI generations for this month are used up. "
+						f"Each additional generation costs {COINS_PER_AI_EVENT} wallet coins. "
+						f"Your current balance is ₹{balance:.0f}. Please recharge your wallet."
+					),
+					"quota": quota_status,
+				}
+
+		result = generate_events(
+			restaurant_id=restaurant,
+			user_prompt=(user_prompt or None),
+			poster_base64=(poster_base64 or None),
+		)
+		if not result.get("success"):
+			return result
+
+		if not quota_status["free_remaining"]:
+			try:
+				mode = "poster" if poster_base64 else "prompt"
+				deduct_coins(
+					restaurant=restaurant,
+					amount=COINS_PER_AI_EVENT,
+					type="AI Deduction",
+					description=f"AI event creation ({mode})",
+				)
+				result["coins_deducted"] = COINS_PER_AI_EVENT
+			except Exception as e:
+				frappe.log_error(f"Coin deduction failed after AI event gen: {e}", "AI Event Billing")
+
+		return {
+			"success": True,
+			"data": {
+				"events": result["events"],
+				"quota": result["quota"],
+				"coins_deducted": result.get("coins_deducted", 0),
+			},
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error in generate_event_suggestions: {str(e)}")
+		return {"success": False, "error": {"code": "AI_EVENT_ERROR", "message": str(e)}}
