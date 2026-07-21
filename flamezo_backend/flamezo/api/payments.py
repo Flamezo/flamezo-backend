@@ -22,6 +22,11 @@ from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config, ge
 from flamezo_backend.flamezo.utils import razorpay_route as route_adapter
 from flamezo_backend.flamezo.utils import commission_engine
 
+# Success share charged on app orders when a restaurant has no rate of its own.
+# Web orders are always 0% — Flamezo only takes a cut on app-driven business.
+DEFAULT_APP_FEE_PERCENT = 7.0
+
+
 def get_or_create_mandate_plan(client):
 	"""Get or create a high-limit registration plan for Autopay mandates."""
 	try:
@@ -130,12 +135,12 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		# Convert total_amount to paise (integer)
 		total_amount_paise = int(float(total_amount) * 100)
 
-		# Fee model is determined by payment_source, not per-restaurant config.
+		# Fee model is determined by payment_source.
 		# web: 0% Flamezo take (merchant pays gateway fee from their slice).
-		# app: 7% Flamezo take (Flamezo absorbs gateway fee internally).
+		# app: the restaurant's own success share (Flamezo absorbs the gateway fee).
 		payment_source = str(payment_source or "web").strip().lower()
 		if payment_source == "app":
-			platform_fee_percent = 7.0
+			platform_fee_percent = flt(restaurant.get("platform_fee_percent")) or DEFAULT_APP_FEE_PERCENT
 		else:
 			platform_fee_percent = 0.0
 		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))
@@ -1257,6 +1262,7 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 			"name", "razorpay_payment_id", "razorpay_order_id", "coupon",
 			"total", "discount", "loyalty_discount",
 			"platform_fee_amount", "restaurant_transfer_amount", "settlement_mode",
+			"payment_source",
 		]
 		breakdown_enabled = True
 		try:
@@ -1302,6 +1308,9 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 				"merchantGets": merchant,
 				"flamezoGets": flamezo,
 				"settlementMode": o.get("settlement_mode"),
+				# "web" | "app" — the dashboard splits earnings by this, and only
+				# app orders carry a success share.
+				"paymentSource": (o.get("payment_source") or "web").lower(),
 				"estimated": estimated,
 			}
 
