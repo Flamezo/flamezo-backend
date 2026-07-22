@@ -103,7 +103,7 @@ useEffect(() => {
     if (!viewerDiscountValue || parseFloat(viewerDiscountValue) <= 0) { toast.error('Discount value must be greater than 0'); return }
     if (viewerDiscountType === 'percent') {
       if (parseFloat(viewerDiscountValue) > 100) { toast.error('Percent discount cannot exceed 100%'); return }
-      if (!viewerDiscountCap || parseFloat(viewerDiscountCap) <= 0) { toast.error('Max Discount Cap is required for percent discounts'); return }
+      if (viewerDiscountCap && parseFloat(viewerDiscountCap) <= 0) { toast.error('Max Discount Cap must be greater than 0 if provided'); return }
     }
     setSavingCoupon(true)
     try {
@@ -111,7 +111,7 @@ useEffect(() => {
         viewer_coupon_code: viewerCouponCode.trim().toUpperCase(),
         viewer_discount_type: viewerDiscountType,
         viewer_discount_value: parseFloat(viewerDiscountValue),
-        viewer_discount_cap: viewerDiscountType === 'percent' ? parseFloat(viewerDiscountCap) : 0,
+        viewer_discount_cap: (viewerDiscountType === 'percent' && viewerDiscountCap) ? parseFloat(viewerDiscountCap) : 0,
         viewer_coupon_description: viewerCouponDesc.trim(),
       }
       const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: patch })
@@ -520,7 +520,7 @@ useEffect(() => {
 
               {viewerDiscountType === 'percent' && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="vc-cap">Max Discount Cap (₹) <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="vc-cap">Max Discount Cap (₹) <span className="text-muted-foreground font-normal">(optional)</span></Label>
                   <Input
                     id="vc-cap"
                     type="number"

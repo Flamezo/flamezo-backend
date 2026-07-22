@@ -539,6 +539,17 @@
                     <p>The account where customer payments will land.</p>
                 </div>
 
+                <!-- Fastest way: upload a cancelled cheque to auto-fill the fields below -->
+                <div class="form-group">
+                    <label style="font-weight:600;color:#0f172a;margin-bottom:8px;display:block;">Fastest way — upload your cancelled cheque</label>
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('cheque_upload').click()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <span>📄</span><span id="cheque_label">Upload a photo of your cancelled cheque</span>
+                    </button>
+                    <input type="file" id="cheque_upload" accept="image/*" style="display:none;" onchange="handleChequeUpload(event)">
+                    <small id="cheque_status" style="display:block;margin-top:6px;color:#64748b;">We'll read your account number, IFSC &amp; name from it — no typing needed. Or fill them in below.</small>
+                    <div id="cheque-download-container" style="margin-top:8px;"></div>
+                </div>
+
                 <div class="row">
                     <div class="form-group">
                         <label>Account Number</label>
@@ -775,7 +786,8 @@
         let onboardingToken = new URLSearchParams(window.location.search).get('token');
         let formData = {
             menu_photos: [],
-            logo: null
+            logo: null,
+            cancelled_cheque: null
         };
 
         // Initialize Page
@@ -808,6 +820,7 @@
                     if (data.bank_account_number) document.getElementById('bank_account_number').value = data.bank_account_number;
                     if (data.bank_ifsc) document.getElementById('bank_ifsc').value = data.bank_ifsc;
                     if (data.bank_holder_name) document.getElementById('bank_holder_name').value = data.bank_holder_name;
+                    if (data.cancelled_cheque) { formData.cancelled_cheque = data.cancelled_cheque; showChequeDownload(data.cancelled_cheque); }
                     if (data.fssai_number) document.getElementById('fssai_number').value = data.fssai_number;
                     if (data.gst_number) document.getElementById('gst_number').value = data.gst_number;
                     if (data.tax_rate) document.getElementById('tax_rate').value = data.tax_rate;
@@ -1151,6 +1164,58 @@
             document.getElementById(`${type}-input`).click();
         }
 
+        // Cancelled-cheque OCR → auto-fill Account Number, IFSC, holder & legal name.
+        async function handleChequeUpload(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('cheque_status');
+            const label = document.getElementById('cheque_label');
+            label.innerText = 'Reading cheque…';
+            status.innerText = '';
+            try {
+                // 1) Store the cheque file so it's saved on the onboarding record and
+                //    can be downloaded later. Runs alongside the OCR below.
+                const storedUrl = await uploadToFrappe(file);
+                if (storedUrl) {
+                    formData.cancelled_cheque = storedUrl;
+                    showChequeDownload(storedUrl);
+                }
+
+                const base64_image = await new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onloadend = () => res(r.result);
+                    r.onerror = rej;
+                    r.readAsDataURL(file);
+                });
+                const resp = await fetch('/api/method/flamezo_backend.flamezo.api.onboarding.extract_cheque_details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': window.csrf_token },
+                    body: JSON.stringify({ token: onboardingToken, base64_image })
+                });
+                const result = await resp.json();
+                const data = (result.message && result.message.data) || null;
+                if (result.message && result.message.success && data) {
+                    if (data.account_number) document.getElementById('bank_account_number').value = String(data.account_number).replace(/\D/g, '');
+                    if (data.ifsc_code) document.getElementById('bank_ifsc').value = String(data.ifsc_code).trim().toUpperCase();
+                    if (data.legal_business_name) {
+                        document.getElementById('bank_holder_name').value = String(data.legal_business_name).trim();
+                        const legal = document.getElementById('legal_name');
+                        if (legal && !legal.value) legal.value = String(data.legal_business_name).trim();
+                    }
+                    label.innerText = 'Cheque uploaded ✓';
+                    status.innerText = 'Bank details auto-filled — please review before saving.';
+                } else {
+                    label.innerText = 'Upload a photo of your cancelled cheque';
+                    status.innerText = (result.message && result.message.error) || 'Could not read the cheque. Please enter details manually.';
+                }
+            } catch (err) {
+                label.innerText = 'Upload a photo of your cancelled cheque';
+                status.innerText = 'Could not read the cheque. Please enter details manually.';
+            } finally {
+                e.target.value = '';
+            }
+        }
+
         async function handleFile(input, type) {
             const files = input.files;
             if (!files.length) return;
@@ -1178,6 +1243,14 @@
             const container = document.getElementById('logo-download-container');
             container.innerHTML = `<a href="${url}" download class="download-link" onclick="event.stopPropagation()">
                 <span>⬇️</span> Download Current Logo
+            </a>`;
+        }
+
+        function showChequeDownload(url) {
+            const container = document.getElementById('cheque-download-container');
+            if (!container) return;
+            container.innerHTML = `<a href="${url}" target="_blank" download class="download-link">
+                <span>📎</span> View / download uploaded cheque
             </a>`;
         }
 
