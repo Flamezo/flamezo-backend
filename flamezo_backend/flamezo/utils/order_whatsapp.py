@@ -103,9 +103,6 @@ def dispatch_order_whatsapp(order_name, attempt=1):
         order = frappe.get_doc("Order", order_name)
         restaurant = frappe.get_doc("Restaurant", order.restaurant)
 
-        if getattr(restaurant, "order_channel", None) != "WhatsApp":
-            return  # restaurant is not on the WhatsApp channel
-
         # Recipient: explicit override → the setup-wizard WhatsApp number → owner phone.
         to_phone = (
             getattr(restaurant, "order_whatsapp_number", None)

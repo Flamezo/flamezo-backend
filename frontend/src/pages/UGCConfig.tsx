@@ -13,6 +13,7 @@ import { Megaphone, Info, ImagePlus, Trash2, Upload, Loader2, Film, Ticket, Chec
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 import UGCGrowthSimulatorModal from '@/components/UGCGrowthSimulatorModal'
 import { Button } from '@/components/ui/button'
+import { UGCConfigSkeleton } from '@/components/PageSkeletons'
 
 type TemplateRow = { media_asset: string; label?: string; is_default?: number; url?: string; kind?: string }
 
@@ -42,7 +43,7 @@ export default function UGCConfig() {
   const fileRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
-const { data: configRes, mutate } = useFrappeGetCall(
+const { data: configRes, mutate, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_config',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `ugc-config-${selectedRestaurant}` : undefined,
@@ -250,8 +251,10 @@ useEffect(() => {
   }
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Select a restaurant to configure UGC cashback.</div>
+    return <div className="p-8 text-center text-muted-foreground">Select an outlet to configure UGC cashback.</div>
   }
+
+  if (isLoading) return <UGCConfigSkeleton />
 
   const tpl = templates[0]
   const vStats = ((voucherStatsRes as any)?.message || voucherStatsRes)?.data
@@ -305,7 +308,7 @@ useEffect(() => {
           </Button>
         </div>
         <p className="text-muted-foreground mt-2">
-          Diners keep a story for your restaurant and earn wallet cashback — <strong>your story views in ₹, up to 100% of the bill</strong>.
+          Customers keep a story for your outlet and earn wallet cashback — <strong>your story views in ₹, up to 100% of the bill</strong>.
         </p>
       </div>
 
@@ -338,7 +341,7 @@ useEffect(() => {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" />Story Cashback Vouchers <span className="text-xs font-normal text-muted-foreground ml-1">last 30 days</span></CardTitle>
-            <CardDescription>Vouchers issued, redeemed, and outstanding for this restaurant.</CardDescription>
+            <CardDescription>Vouchers issued, redeemed, and outstanding for this outlet.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -378,7 +381,7 @@ useEffect(() => {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2"><ImagePlus className="w-4 h-4 text-primary" />Story Template</CardTitle>
-            <CardDescription>Upload <strong>one</strong> ready-made image or video diners share. Bake your coupon code & branding into it.</CardDescription>
+            <CardDescription>Upload <strong>one</strong> ready-made image or video customers share. Bake your coupon code & branding into it.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             {tpl ? (
@@ -558,9 +561,9 @@ useEffect(() => {
                 Flamezo automatically issues the poster a <strong className="text-foreground">Story Cashback Voucher = min(story views, bill, ₹2,000)</strong>.
               </p>
               <p className="text-sm text-muted-foreground">
-                They redeem this by picking a <strong className="text-foreground">Free Dish (up to 33% of their bill)</strong> on return visits. Because it's a free dish, you only pay the <strong className="text-foreground">Food Cost (33%)</strong> instead of losing 100% in a cash discount, protecting your profit margins!
+                They redeem this by picking a <strong className="text-foreground">Free Item (up to 33% of their bill)</strong> on return visits. Because it's a free item, you only pay the <strong className="text-foreground">Item Cost (33%)</strong> instead of losing 100% in a cash discount, protecting your profit margins!
               </p>
-              <p className="text-[11px] text-muted-foreground">Voucher valid 90 days · redeemable only at this restaurant · max ₹2,000 per claim · managed by Flamezo.</p>
+              <p className="text-[11px] text-muted-foreground">Voucher valid 90 days · redeemable only at this outlet · max ₹2,000 per claim · managed by Flamezo.</p>
               <hr className="border-border" />
               <p className="text-sm font-medium">About the viewer coupon</p>
               <p className="text-sm text-muted-foreground">
@@ -581,14 +584,14 @@ useEffect(() => {
           <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
             <Info className="w-4 h-4" /> How it works (managed by Flamezo)
           </CardTitle>
-          <CardDescription>Cashback rules, caps and verification are standardised across all Flamezo restaurants.</CardDescription>
+          <CardDescription>Cashback rules, caps and verification are standardised across all Flamezo outlets.</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1.5">
           <p>• <strong className="text-foreground">"Keep a story, get up to 100% cashback"</strong> — cashback = story views in ₹, capped at the bill (max ₹2,000).</p>
-          <p>• Cashback is issued as a <strong className="text-foreground">restaurant-locked voucher</strong> — customer picks a free dish worth up to 33% of each return visit's bill until fully redeemed. Valid 90 days.</p>
-          <p>• <strong className="text-foreground">Zero Revenue Cannibalization</strong> — Customers pay their full bill in cash. The reward costs you only the raw ingredient cost (33%) of the free dish, making UGC practically painless to fund.</p>
-          <p>• Your staff verify the diner's story at the table; the next day the diner uploads their view count and AI reads it.</p>
-          <p>• Up to 2 claims per restaurant per 30 days · stories must stay live 24h · fraud is auto-screened.</p>
+          <p>• Cashback is issued as a <strong className="text-foreground">outlet-locked voucher</strong> — customer picks a free item worth up to 33% of each return visit's bill until fully redeemed. Valid 90 days.</p>
+          <p>• <strong className="text-foreground">Zero Revenue Cannibalization</strong> — Customers pay their full bill in cash. The reward costs you only the raw cost (33%) of the free item, making UGC practically painless to fund.</p>
+          <p>• Your staff verify the customer's story at the counter; the next day the customer uploads their view count and AI reads it.</p>
+          <p>• Up to 2 claims per outlet per 30 days · stories must stay live 24h · fraud is auto-screened.</p>
         </CardContent>
       </Card>
 
@@ -648,7 +651,7 @@ function UGCPinSetupCard({ restaurantId }: { restaurantId: string }) {
       const res = await setPinCall({ restaurant_id: restaurantId, pin: fullPin })
       const payload = (res as any)?.message ?? res
       if (payload?.success) {
-        toast.success('PIN saved — staff can now verify UGC stories at the table')
+        toast.success('PIN saved — staff can now verify UGC stories at the counter')
         setIsSet(true)
         setCurrentPin(fullPin)
         setShowForm(false)

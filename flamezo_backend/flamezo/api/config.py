@@ -165,7 +165,8 @@ def get_restaurant_config(restaurant_id):
 				"latitude": config.get("latitude") or restaurant_doc.latitude,
 				"longitude": config.get("longitude") or restaurant_doc.longitude,
 				"googleMapUrl": (restaurant_context.get("google_map_url") if restaurant_context else "") or "",
-				"company": restaurant_doc.company
+				"company": restaurant_doc.company,
+				"outletType": restaurant_doc.outlet_type or "dining",
 			},
 			"branding": {
 				"primaryColor": primary_color,
@@ -207,17 +208,9 @@ def get_restaurant_config(restaurant_id):
 				"savingsCornerGated": True,
 				"loyaltyRequiresOnlinePayment": True,
 				"enableLoyalty": bool(restaurant_doc.get("enable_loyalty")),
-				"defaultDeliveryFee": flt(restaurant_doc.get("default_delivery_fee", 0)),
 				"googleMapsApiKey": frappe.conf.get("google_maps_api_key") or frappe.db.get_single_value("Flamezo Settings", "google_maps_api_key"),
 				"order_settings": {
-					"enable_takeaway": bool(restaurant_doc.get("enable_takeaway", 1)),
-					"enable_delivery": bool(restaurant_doc.get("enable_delivery", 0)),
 					"enable_dine_in": bool(restaurant_doc.get("enable_dine_in", 1)),
-					"order_channel": restaurant_doc.get("order_channel") or "Realtime",
-					"packaging_fee_type": restaurant_doc.get("packaging_fee_type") or "Fixed",
-					"default_packaging_fee": flt(restaurant_doc.get("default_packaging_fee", 0)),
-					"minimum_order_value": flt(restaurant_doc.get("minimum_order_value", 0)),
-					"estimated_prep_time": cint(restaurant_doc.get("estimated_prep_time", 30) or 30)
 				},
 				"cartMilestones": [], # Will be populated from coupons below
 				"enableCartMilestones": True, # Always available if coupons exist
@@ -245,7 +238,6 @@ def get_restaurant_config(restaurant_id):
 				"currentDailyVol": float(restaurant_doc.daily_auto_recharge_count or 0),
 				"onboardingDate": str(restaurant_doc.onboarding_date) if restaurant_doc.onboarding_date else None,
 				"lastAutoRechargeDate": str(restaurant_doc.last_auto_recharge_date) if restaurant_doc.last_auto_recharge_date else None,
-				"monthly_minimum": float(restaurant_doc.monthly_minimum or 0),
 				"platform_fee_percent": float(restaurant_doc.platform_fee_percent or 0),
 				"plan_defaults": {
 					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0),
@@ -878,34 +870,23 @@ def update_order_settings(restaurant_id, settings):
 		# Update fields
 		updated_fields = []
 		allowed_fields = [
-			"enable_takeaway",
-			"enable_delivery",
 			"enable_dine_in",
-			"order_channel",
 			"order_whatsapp_number",
-			"packaging_fee_type",
-			"default_packaging_fee", 
-			"minimum_order_value", 
-			"estimated_prep_time", 
-			"default_delivery_fee",
-			"delivery_charge_per_km",
 			"max_delivery_distance",
 			"tax_rate",
 			"gst_number"
 		]
-		
+
 		for field in allowed_fields:
 			if field in settings:
 				value = settings[field]
 				# Ensure correct type for Check fields
-				if field in ["enable_takeaway", "enable_delivery", "enable_dine_in"]:
+				if field in ["enable_dine_in"]:
 					value = 1 if value else 0
 				# Ensure correct type for Numeric fields
-				elif field in ["default_packaging_fee", "minimum_order_value", "default_delivery_fee", "delivery_charge_per_km", "max_delivery_distance"]:
+				elif field in ["max_delivery_distance"]:
 					value = flt(value)
-				elif field == "estimated_prep_time":
-					value = cint(value)
-					
+
 				restaurant_doc.set(field, value)
 				updated_fields.append(field)
 		

@@ -155,6 +155,11 @@ permission_query_conditions = {
 	"Coupon Usage": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"UGC Cashback Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"UGC Story Submission": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Catalogue Category": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Catalogue Item": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Service Appointment": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Court": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Court Booking": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Referral Link": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"WhatsApp Lead Unlock": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"AI credit Transaction": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
@@ -163,6 +168,13 @@ permission_query_conditions = {
 
 	"Menu Product Embedding Cache": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Offer Claim": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+
+	# Chills / Clubs / Crowd — public consumer doctypes
+	"Flamezo Creator": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Chills Reel": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Creator Club": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Creator Club Post": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Crowd Request": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 }
 
 has_permission = {

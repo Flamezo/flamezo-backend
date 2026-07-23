@@ -191,8 +191,7 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
         restaurant_id,
         [
             "restaurant_name", "city", "state", "currency",
-            "enable_takeaway", "enable_dine_in",
-            "minimum_order_value",
+            "enable_dine_in",
             "tax_rate", "total_orders", "total_revenue",
             "ai_coupon_generations_this_month", "ai_coupon_quota_reset_month",
         ],
@@ -282,12 +281,11 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
             "giveaway_candidates": giveaway_candidates,
             "min_item_price": min_price,
             "max_item_price": max_price,
-            "estimated_aov": max(estimated_aov, flt(restaurant.minimum_order_value or 0)),
+            "estimated_aov": estimated_aov,
             "total_items": len(menu_items),
             "categories": categories[:12],
             "cuisine": _infer_cuisine(restaurant.restaurant_name, categories),
             "price_tier": _get_price_tier(avg_price),
-            "enable_takeaway": bool(restaurant.enable_takeaway),
             "enable_dine_in": bool(restaurant.enable_dine_in),
             "combo_candidates": combo_candidates,
         },
@@ -410,7 +408,6 @@ def _build_prompt(
 
     # Service modes
     modes = []
-    if stats["enable_takeaway"]: modes.append("takeaway")
     if stats["enable_dine_in"]:  modes.append("dine-in")
     modes_text = ", ".join(modes) if modes else "unknown"
 
@@ -510,7 +507,6 @@ Your job: generate {count} highly specific, immediately actionable coupon/offer 
 - Price Tier: {stats["price_tier"]}
 - Service Modes: {modes_text}
 - Estimated Average Order Value (AOV): ₹{stats["estimated_aov"]}
-- Minimum order setting: ₹{restaurant.minimum_order_value or 0}
 - Today: {current_day} {"(WEEKEND — great for urgency offers)" if is_weekend else "(weekday)"}
 - Current time: {current_time} {"(EVENING PEAK — perfect for time-limited offers)" if is_evening else ""}
 {city_culture_block}

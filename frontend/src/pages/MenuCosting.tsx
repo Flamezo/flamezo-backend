@@ -195,7 +195,7 @@ export default function MenuCosting() {
     try {
       const res = await applyCategoryPct({ restaurant_id: selectedRestaurant, category, pct })
       if (res?.message?.success) {
-        toast.success(`Set ${pct}% food cost on ${res.message.data.updated} items in ${category}`)
+        toast.success(`Set ${pct}% item cost on ${res.message.data.updated} items in ${category}`)
         setDirty({}); mutate()
       } else toast.error(res?.message?.error?.message || 'Failed to apply')
     } catch { toast.error('Failed to apply') }
@@ -203,15 +203,15 @@ export default function MenuCosting() {
 
   const confirmRemoveAll = async () => {
     const confirmed = await confirm({
-      title: 'Reset All Food Costs',
-      description: 'Are you sure you want to remove food costs from all items? This will reset your margins and break the Offer Simulator until you set them again. This action cannot be undone.',
+      title: 'Reset All Item Costs',
+      description: 'Are you sure you want to remove item costs from all items? This will reset your margins and break the Offer Simulator until you set them again. This action cannot be undone.',
       variant: 'destructive'
     })
     if (!confirmed) return
     try {
       const res = await applyGlobalPct({ restaurant_id: selectedRestaurant, pct: 0 })
       if (res?.message?.success) {
-        toast.success(`Removed food costs from all ${res.message.data.updated} items`)
+        toast.success(`Removed item costs from all ${res.message.data.updated} items`)
         setDirty({}); mutate()
       } else toast.error(res?.message?.error?.message || 'Failed to remove costs')
     } catch { toast.error('Failed to remove costs') }
@@ -223,7 +223,7 @@ export default function MenuCosting() {
     try {
       const res = await applyGlobalPct({ restaurant_id: selectedRestaurant, pct })
       if (res?.message?.success) {
-        toast.success(`Set ${pct}% food cost across ${res.message.data.updated} items`)
+        toast.success(`Set ${pct}% item cost across ${res.message.data.updated} items`)
         setGlobalPct(''); setDirty({}); mutate()
       } else toast.error(res?.message?.error?.message || 'Failed to apply')
     } catch { toast.error('Failed to apply') }
@@ -406,7 +406,7 @@ export default function MenuCosting() {
             {!selectedCategoryId && !search && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                 <SummaryCard icon={<PieChart className="h-4 w-4" />} label="Items costed" value={summary ? `${summary.itemsWithCost}/${summary.totalItems}` : '—'} sub={summary ? `${summary.coveragePct}% coverage` : ''} loading={isLoading} />
-                <SummaryCard icon={<IndianRupee className="h-4 w-4" />} label="Avg food cost" value={summary ? `${summary.avgFoodCostPct}%` : '—'} sub="of selling price" loading={isLoading} tone={summary && summary.avgFoodCostPct > 40 ? 'red' : summary && summary.avgFoodCostPct > 30 ? 'amber' : 'green'} />
+                <SummaryCard icon={<IndianRupee className="h-4 w-4" />} label="Avg item cost" value={summary ? `${summary.avgFoodCostPct}%` : '—'} sub="of selling price" loading={isLoading} tone={summary && summary.avgFoodCostPct > 40 ? 'red' : summary && summary.avgFoodCostPct > 30 ? 'amber' : 'green'} />
                 <SummaryCard icon={<TrendingUp className="h-4 w-4" />} label="Avg margin" value={summary ? `${summary.avgMarginPct}%` : '—'} sub="gross, before overheads" loading={isLoading} tone={summary && summary.avgMarginPct < 50 ? 'red' : summary && summary.avgMarginPct < 60 ? 'amber' : 'green'} />
                 <SummaryCard icon={<AlertTriangle className="h-4 w-4" />} label="Missing cost" value={summary ? `${summary.itemsWithoutCost}` : '—'} sub="items need a cost" loading={isLoading} tone={summary && summary.itemsWithoutCost > 0 ? 'amber' : 'green'} />
               </div>
@@ -418,7 +418,7 @@ export default function MenuCosting() {
                 {/* Header strip */}
                 <div className="flex items-center gap-2 px-4 py-2 bg-orange-100/70 dark:bg-orange-900/25 border-b border-orange-200/80 dark:border-orange-900/40">
                   <span className="text-[11px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-400">Global Setup</span>
-                  <span className="hidden sm:block text-[11px] text-orange-500/80 dark:text-orange-500/60">— set one food cost % across every item instantly</span>
+                  <span className="hidden sm:block text-[11px] text-orange-500/80 dark:text-orange-500/60">— set one item cost % across every item instantly</span>
                 </div>
                 {/* Controls row */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 py-3 bg-orange-50/60 dark:bg-orange-950/10">

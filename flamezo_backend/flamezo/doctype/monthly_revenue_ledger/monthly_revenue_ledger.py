@@ -17,14 +17,3 @@ class MonthlyRevenueLedger(Document):
 		if existing:
 			frappe.throw(f"Monthly Revenue Ledger already exists for {self.restaurant} in {self.month}")
 	
-	def before_save(self):
-		"""Calculate minimum due before saving."""
-		if self.total_platform_fee and self.restaurant:
-			restaurant_doc = frappe.get_doc("Restaurant", self.restaurant)
-			monthly_minimum_paise = int(restaurant_doc.monthly_minimum * 100)  # Convert to paise
-			
-			if self.total_platform_fee < monthly_minimum_paise:
-				self.minimum_due = monthly_minimum_paise - self.total_platform_fee
-			else:
-				self.minimum_due = 0
-				self.status = "paid"  # No minimum due, mark as paid

@@ -693,6 +693,12 @@ def process_loyalty_and_coupons(order):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_payment_stats(restaurant_id):
+	"""Alias for get_restaurant_payment_stats — matches the EP.paymentStats key."""
+	return get_restaurant_payment_stats(restaurant_id)
+
+
+@frappe.whitelist(allow_guest=True)
 def get_restaurant_payment_stats(restaurant_id):
 	"""Get payment statistics for a restaurant"""
 	try:
@@ -714,11 +720,7 @@ def get_restaurant_payment_stats(restaurant_id):
 			"total_platform_fee": 0
 		}
 		
-		# Monthly minimum / floor was removed from the model — there is no floor.
-		default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
-		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else default_floor)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
-		minimum_due = max(0, monthly_minimum - platform_fee_collected)
 
 		from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 		rzp_cfg = get_razorpay_config()
@@ -731,8 +733,6 @@ def get_restaurant_payment_stats(restaurant_id):
 				"total_orders": stats["total_orders"],
 				"total_revenue": stats["total_revenue"],
 				"platform_fee_collected": platform_fee_collected,
-				"monthly_minimum": monthly_minimum,
-				"minimum_due": minimum_due,
 				"razorpay_customer_id": restaurant.razorpay_customer_id,
 				"razorpay_token_id": restaurant.razorpay_token_id,
 				"mandate_status": restaurant.mandate_status,
@@ -1035,13 +1035,10 @@ def schedule_monthly_billing():
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
 			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
-			default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
 			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
-			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else default_floor)  # type: ignore
-			
+
 			calculated_fee = int(math.floor(total_paise * (platform_fee_percent / 100.0)))  # type: ignore
-			min_amt_paise = int(monthly_min * 100)
-			base_commission = max(min_amt_paise, calculated_fee)
+			base_commission = calculated_fee
 			
 			# GST Compliance (Global Setting)
 			settings = frappe.get_single("Flamezo Settings")

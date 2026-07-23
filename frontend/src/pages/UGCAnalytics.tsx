@@ -48,7 +48,7 @@ export default function UGCAnalytics() {
     selectedRestaurant ? `ugc-analytics-${selectedRestaurant}` : undefined,
   )
 
-  if (!selectedRestaurant) return <div className="p-8 text-center text-muted-foreground">Select a restaurant.</div>
+  if (!selectedRestaurant) return <div className="p-8 text-center text-muted-foreground">Select an outlet.</div>
 
   const body: any = (data as any)?.message || data
   const realData = body?.success ? body.data : null

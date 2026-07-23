@@ -121,7 +121,7 @@ export default function AIEnhancementPage() {
       return
     }
     if (!selectedProduct) {
-      toast.error('Please select a Menu Product to associate with')
+      toast.error('Please select a Catalogue Item to associate with')
       return
     }
 
@@ -355,7 +355,7 @@ export default function AIEnhancementPage() {
 
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Please select a restaurant</div>
+    return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 
   return (
@@ -365,7 +365,7 @@ export default function AIEnhancementPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Image Enhancement</h1>
           <p className="text-muted-foreground mt-2">
-            Transform raw food photos into stunning, studio-quality images for your menu.
+            Transform raw product photos into stunning, studio-quality images for your catalogue.
           </p>
         </div>
         <Link to="/ai-gallery">
@@ -420,7 +420,7 @@ export default function AIEnhancementPage() {
                    <SelectItem value="generate">
                      <div className="flex items-center gap-2">
                        <Camera className="h-4 w-4 text-primary" />
-                       Generate Photo for my Food <span className="text-muted-foreground text-xs ml-1">(10 coins)</span>
+                       Generate Photo for my Product <span className="text-muted-foreground text-xs ml-1">(10 coins)</span>
                      </div>
                    </SelectItem>
                 </SelectContent>
@@ -428,7 +428,7 @@ export default function AIEnhancementPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Target Menu Product</Label>
+              <Label>Target Catalogue Item</Label>
               <Select value={selectedProduct} onValueChange={setSelectedProduct} disabled={generationIds.length > 0}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a product to associate" />
@@ -509,7 +509,7 @@ export default function AIEnhancementPage() {
                 <Camera className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm text-muted-foreground">
                   <p className="font-medium text-foreground mb-1">AI will generate a brand-new photo</p>
-                  <p>No upload needed. We'll use your product's name and description to create a professional food photo from scratch.</p>
+                  <p>No upload needed. We'll use your product's name and description to create a professional product photo from scratch.</p>
                 </div>
               </div>
             )}
@@ -717,7 +717,7 @@ export default function AIEnhancementPage() {
 
             {generationIds.length > 0 && !isAnyProcessing && !allFailed && (
               <p className="text-[10px] text-muted-foreground text-center italic mt-4">
-                Tip: Drag {completedUrls.length > 1 ? "an" : "the"} enhanced photo or click a slot to replace/add to your menu image slots.
+                Tip: Drag {completedUrls.length > 1 ? "an" : "the"} enhanced photo or click a slot to replace/add to your catalogue image slots.
               </p>
             )}
           </CardContent>

@@ -111,7 +111,7 @@ export default function AIMenuThemeHistoryPage() {
   }
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Please select a restaurant</div>
+    return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 
   return (
@@ -125,11 +125,11 @@ export default function AIMenuThemeHistoryPage() {
               </Button>
             </Link>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Menu Theme History
+              App Theme History
             </h1>
           </div>
           <p className="text-muted-foreground text-sm pl-8">
-            Browse and reuse your generated menu theme backgrounds.
+            Browse and reuse your generated app theme backgrounds.
           </p>
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function AIMenuThemeHistoryPage() {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-bold text-foreground leading-tight truncate" title={item.id}>
-                      Menu Theme Preview
+                      App Theme Preview
                     </h3>
                     <div className="shrink-0">
                       <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-primary/20 bg-primary/5 text-primary font-medium">
@@ -212,10 +212,10 @@ export default function AIMenuThemeHistoryPage() {
             <ImageIcon className="h-10 w-10 text-primary opacity-20" />
           </div>
           <h3 className="text-lg font-semibold text-foreground/80">Theme history is empty</h3>
-          <p className="text-sm text-muted-foreground mb-6">Generate menu background previews to populate this gallery.</p>
+          <p className="text-sm text-muted-foreground mb-6">Generate app background previews to populate this gallery.</p>
           <Link to="/ai-menu-theme-background">
             <Button variant="default" className="shadow-lg shadow-primary/20">
-              Go to AI Menu Background
+              Go to AI App Background
             </Button>
           </Link>
         </div>
@@ -224,8 +224,8 @@ export default function AIMenuThemeHistoryPage() {
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
         <DialogContent className="max-w-4xl p-0 border-none bg-transparent shadow-none overflow-visible">
           <DialogHeader className="sr-only">
-            <DialogTitle>Generated menu theme background preview</DialogTitle>
-            <DialogDescription>Preview the generated restaurant menu theme background image.</DialogDescription>
+            <DialogTitle>Generated app theme background preview</DialogTitle>
+            <DialogDescription>Preview the generated app theme background image.</DialogDescription>
           </DialogHeader>
           <div className="relative group overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/20">
             {selectedImage && (

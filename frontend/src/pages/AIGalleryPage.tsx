@@ -44,7 +44,7 @@ export default function AIGalleryPage() {
   }
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Please select a restaurant</div>
+    return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 
   return (
@@ -132,7 +132,7 @@ export default function AIGalleryPage() {
              <ImageIcon className="h-10 w-10 text-primary opacity-20" />
            </div>
            <h3 className="text-lg font-semibold text-foreground/80">Gallery is empty</h3>
-           <p className="text-sm text-muted-foreground mb-6">Start enhancing your menu images to populate your gallery.</p>
+           <p className="text-sm text-muted-foreground mb-6">Start enhancing your product images to populate your gallery.</p>
            <Link to="/ai-enhancements">
              <Button variant="default" className="shadow-lg shadow-primary/20">
                Go to AI Enhancements

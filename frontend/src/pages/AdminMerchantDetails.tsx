@@ -52,9 +52,10 @@ interface Restaurant {
   owner_name?: string
   onboarding_password?: string
   is_active: number
+  is_featured: number
+  is_signature: number
   coins_balance: number
   platform_fee_percent: number
-  monthly_minimum: number
   creation: string
   modified: string
   description?: string
@@ -77,25 +78,13 @@ interface Restaurant {
   bank_account_number?: string
   bank_ifsc?: string
   bank_holder_name?: string
-  pos_provider?: string
-  pos_enabled: number
-  pos_app_key?: string
-  pos_app_secret?: string
-  pos_access_token?: string
-  pos_merchant_id?: string
   enable_loyalty: number
-  enable_takeaway: number
-  enable_delivery: number
   enable_dine_in: number
   tax_rate: number
   gst_number?: string
-  default_delivery_fee: number
-  default_packaging_fee: number
   total_revenue: number
   commission_earned: number
   total_orders: number
-  minimum_order_value: number
-  estimated_prep_time: number
   timezone: string
   currency: string
   tables: number
@@ -104,7 +93,7 @@ interface Restaurant {
   referred_by_restaurant?: string
 }
 
-function AdminRestaurantDetailsPage() {
+function AdminMerchantDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   
@@ -379,7 +368,7 @@ function AdminRestaurantDetailsPage() {
             </div>
             <h2 className="text-3xl font-black tracking-tight mb-4">RESTRICTED ZONE</h2>
             <p className="text-muted-foreground leading-relaxed font-medium">
-              You lack the administrative clearance required to access the central restaurant control hub.
+              You lack the administrative clearance required to access the central outlet control hub.
             </p>
             <Button onClick={() => navigate('/')} className="mt-8 rounded-xl px-10 h-12 font-bold uppercase tracking-widest text-xs">
               Return Home
@@ -394,7 +383,7 @@ function AdminRestaurantDetailsPage() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
         <RefreshCw className="h-10 w-10 animate-spin text-primary opacity-20" />
-        <p className="text-muted-foreground animate-pulse">Loading restaurant intelligence...</p>
+        <p className="text-muted-foreground animate-pulse">Loading outlet intelligence...</p>
       </div>
     )
   }
@@ -405,8 +394,8 @@ function AdminRestaurantDetailsPage() {
         <Card className="w-full max-w-md border-destructive/20 shadow-lg">
           <CardContent className="p-8 text-center">
             <ShieldAlert className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Restaurant Not Found</h2>
-            <p className="text-muted-foreground mb-6">The requested restaurant ID does not exist.</p>
+            <h2 className="text-2xl font-bold mb-2">Outlet Not Found</h2>
+            <p className="text-muted-foreground mb-6">The requested outlet ID does not exist.</p>
             <Button onClick={() => navigate('/admin/restaurants')}>Go Back</Button>
           </CardContent>
         </Card>
@@ -418,8 +407,8 @@ function AdminRestaurantDetailsPage() {
     <div className="min-h-screen bg-background p-6 lg:p-10 pb-32">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
-          <div className="space-y-4">
+        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6 pb-2">
+          <div className="space-y-4 flex-1 min-w-0">
             <Button 
               variant="ghost" 
               size="sm" 
@@ -429,27 +418,28 @@ function AdminRestaurantDetailsPage() {
               <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
               Back to Fleet
             </Button>
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-4xl font-extrabold tracking-tight">{restaurant.restaurant_name}</h1>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 mb-1">
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight break-words">{restaurant.restaurant_name}</h1>
                 <Badge 
                   variant={restaurant.is_active ? 'default' : 'secondary'}
                   className={cn(
-                    "px-3 py-0.5 text-xs font-bold uppercase tracking-wider",
+                    "px-3 py-0.5 text-xs font-bold uppercase tracking-wider shrink-0",
                     restaurant.is_active ? "bg-green-500/10 text-green-600 border-green-200" : "bg-muted text-muted-foreground"
                   )}
                 >
                   {restaurant.is_active ? 'Live' : 'Inactive'}
                 </Badge>
               </div>
-              <p className="text-muted-foreground font-mono text-sm flex items-center gap-2">
-                ID: {restaurant.restaurant_id} <Separator className="h-3 w-px mx-1 bg-muted-foreground/30" /> 
-                <Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo.in
-              </p>
+              <div className="text-muted-foreground font-mono text-sm flex flex-wrap items-center gap-2">
+                <span className="shrink-0">ID: {restaurant.restaurant_id}</span>
+                <Separator className="hidden sm:block h-3 w-px mx-1 bg-muted-foreground/30" /> 
+                <span className="flex items-center gap-1.5 shrink-0"><Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo.in</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 xl:pt-10 shrink-0">
             {canGenerateLegacy && (
               <>
                 <Button 
@@ -466,7 +456,7 @@ function AdminRestaurantDetailsPage() {
                   className="bg-purple-600 hover:bg-purple-700 shadow-purple-500/20 shadow-lg gap-2 text-white"
                 >
                   {isGeneratingPhotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                  Generate Food Photo
+                  Generate Product Photo
                 </Button>
               </>
             )}
@@ -475,7 +465,7 @@ function AdminRestaurantDetailsPage() {
               <DialogTrigger asChild>
                 <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 shadow-lg gap-2">
                   <UploadCloud className="h-4 w-4" />
-                  Upload Menu
+                  Upload Catalogue
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
@@ -483,7 +473,7 @@ function AdminRestaurantDetailsPage() {
                   restaurantId={restaurant.name} 
                   restaurantName={restaurant.restaurant_name}
                   onComplete={() => {
-                      toast.success('Menu extraction complete!')
+                      toast.success('Catalogue extraction complete!')
                   }}
                   onClose={() => setIsMenuModalOpen(false)}
                 />
@@ -496,7 +486,7 @@ function AdminRestaurantDetailsPage() {
             }}>
               <DialogContent className={onboardResult ? "max-w-md" : ""}>
                 <DialogHeader>
-                  <DialogTitle>{onboardResult ? "Onboarding Result" : "Onboard Restaurant Owner"}</DialogTitle>
+                  <DialogTitle>{onboardResult ? "Onboarding Result" : "Onboard Outlet Owner"}</DialogTitle>
                   <DialogDescription>
                     {onboardResult 
                       ? "The owner has been successfully configured in the system."
@@ -555,7 +545,7 @@ function AdminRestaurantDetailsPage() {
                           type="email"
                           value={onboardEmail} 
                           onChange={(e) => setOnboardEmail(e.target.value)} 
-                          placeholder="e.g. john@restaurant.com"
+                          placeholder="e.g. john@business.com"
                         />
                         <p className="text-xs text-muted-foreground mt-1">A secure welcome email with credentials will be dispatched to this address.</p>
                       </div>
@@ -658,12 +648,12 @@ function AdminRestaurantDetailsPage() {
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="text-lg">Primary Identification</CardTitle>
-                  <CardDescription>Core restaurant identity and owner details</CardDescription>
+                  <CardDescription>Core outlet identity and owner details</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Legal Restaurant Name</Label>
+                      <Label>Legal Business Name</Label>
                       <Input 
                         value={restaurant.restaurant_name} 
                         onChange={(e) => setRestaurant({...restaurant, restaurant_name: e.target.value})}
@@ -774,11 +764,33 @@ function AdminRestaurantDetailsPage() {
                   <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
                     <div className="space-y-0.5">
                       <Label className="text-base">Active Status</Label>
-                      <p className="text-xs text-muted-foreground">Toggle visibility of the restaurant platform-wide</p>
+                      <p className="text-xs text-muted-foreground">Toggle visibility of the outlet platform-wide</p>
                     </div>
-                    <Switch 
-                      checked={!!restaurant.is_active} 
+                    <Switch
+                      checked={!!restaurant.is_active}
                       onCheckedChange={(checked) => setRestaurant({...restaurant, is_active: checked ? 1 : 0})}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Featured</Label>
+                      <p className="text-xs text-muted-foreground">Show in Hot Drops &amp; Limelight on the discover feed</p>
+                    </div>
+                    <Switch
+                      checked={!!restaurant.is_featured}
+                      onCheckedChange={(checked) => setRestaurant({...restaurant, is_featured: checked ? 1 : 0})}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Signature</Label>
+                      <p className="text-xs text-muted-foreground">Flamezo curated — awarded for ambience, food &amp; value. Appears in the Signatures tab.</p>
+                    </div>
+                    <Switch
+                      checked={!!restaurant.is_signature}
+                      onCheckedChange={(checked) => setRestaurant({...restaurant, is_signature: checked ? 1 : 0})}
                     />
                   </div>
 
@@ -1082,7 +1094,7 @@ function AdminRestaurantDetailsPage() {
                       <ShieldAlert className="h-3 w-3" /> Success Share Reconciliation
                     </p>
                     <p className="text-[10px] text-indigo-600/80 leading-relaxed">
-                      Total Success Share earned from this restaurant: <span className="font-bold">₹{(restaurant.commission_earned || 0).toLocaleString()}</span>.
+                      Total Success Share earned from this outlet: <span className="font-bold">₹{(restaurant.commission_earned || 0).toLocaleString()}</span>.
                       Reconciled every 24 hours.
                     </p>
                   </div>
@@ -1147,7 +1159,7 @@ function AdminRestaurantDetailsPage() {
                         <li>AI Product Photo Enhancement: 5 Coins</li>
                         <li>AI Image Generation: 10 Coins</li>
                         <li>SMS/WhatsApp Automation: ~1 Coin/unit</li>
-                        <li>Digital Menu Customizations (Premium Themes)</li>
+                        <li>Digital Catalogue Customizations (Premium Themes)</li>
                       </ul>
                    </div>
                 </CardContent>
@@ -1287,14 +1299,6 @@ function AdminRestaurantDetailsPage() {
                            <Switch checked={!!restaurant.enable_dine_in} onCheckedChange={(v) => setRestaurant({...restaurant, enable_dine_in: v ? 1 : 0})} />
                         </div>
                         <div className="flex flex-col items-center gap-3 p-4 rounded-xl border md:col-span-1">
-                           <Label className="text-[10px] uppercase font-bold opacity-50">Delivery</Label>
-                           <Switch checked={!!restaurant.enable_delivery} onCheckedChange={(v) => setRestaurant({...restaurant, enable_delivery: v ? 1 : 0})} />
-                        </div>
-                        <div className="flex flex-col items-center gap-3 p-4 rounded-xl border md:col-span-1">
-                           <Label className="text-[10px] uppercase font-bold opacity-50">Takeaway</Label>
-                           <Switch checked={!!restaurant.enable_takeaway} onCheckedChange={(v) => setRestaurant({...restaurant, enable_takeaway: v ? 1 : 0})} />
-                        </div>
-                        <div className="flex flex-col items-center gap-3 p-4 rounded-xl border md:col-span-1">
                            <Label className="text-[10px] uppercase font-bold opacity-50">Loyalty</Label>
                            <Switch checked={!!restaurant.enable_loyalty} onCheckedChange={(v) => setRestaurant({...restaurant, enable_loyalty: v ? 1 : 0})} />
                         </div>
@@ -1321,32 +1325,6 @@ function AdminRestaurantDetailsPage() {
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                       <div className="space-y-2">
-                          <Label>Default Deliv. Fee</Label>
-                          <NumberInput 
-                            
-                            value={restaurant.default_delivery_fee} 
-                            onChange={(e) => setRestaurant({...restaurant, default_delivery_fee: parseFloat(e.target.value)})}
-                          />
-                       </div>
-                       <div className="space-y-2">
-                          <Label>Pack. Fee</Label>
-                          <NumberInput 
-                            
-                            value={restaurant.default_packaging_fee} 
-                            onChange={(e) => setRestaurant({...restaurant, default_packaging_fee: parseFloat(e.target.value)})}
-                          />
-                       </div>
-                       <div className="space-y-2">
-                          <Label>Prep Time (m)</Label>
-                          <NumberInput 
-                            
-                            value={restaurant.estimated_prep_time} 
-                            onChange={(e) => setRestaurant({...restaurant, estimated_prep_time: parseInt(e.target.value)})}
-                          />
-                       </div>
-                    </div>
                   </CardContent>
                </Card>
 
@@ -1518,4 +1496,4 @@ function maskAccount(acct: string): string {
   return `••••${acct.slice(-4)}`
 }
 
-export default AdminRestaurantDetailsPage
+export default AdminMerchantDetailsPage

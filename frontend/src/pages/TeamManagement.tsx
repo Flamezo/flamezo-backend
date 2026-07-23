@@ -15,7 +15,7 @@ export default function TeamManagement() {
         <div className="space-y-1">
           <h2 className="text-lg font-bold">Admin Access Required</h2>
           <p className="text-sm text-muted-foreground">
-            Only Restaurant Admins can manage team members.
+            Only Outlet Admins can manage team members.
           </p>
         </div>
       </div>
@@ -57,10 +57,10 @@ export default function TeamManagement() {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
             </div>
-            <span className="text-sm font-semibold">Restaurant Admin</span>
+            <span className="text-sm font-semibold">Outlet Admin</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Full access: bookings, menu, billing, settings, staff management.
+            Full access: bookings, catalogue, billing, settings, staff management.
             <br /><span className="font-medium text-foreground/70">That's you.</span>
           </p>
         </div>
@@ -71,10 +71,10 @@ export default function TeamManagement() {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
               </svg>
             </div>
-            <span className="text-sm font-semibold">Restaurant Staff</span>
+            <span className="text-sm font-semibold">Outlet Staff</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Limited access: table bookings.
+            Limited access: reservations.
             <br /><span className="font-medium text-foreground/70">Billing and settings are hidden.</span>
           </p>
         </div>
@@ -84,7 +84,7 @@ export default function TeamManagement() {
         <StaffMembersList restaurantId={selectedRestaurant} />
       ) : (
         <div className="text-center text-muted-foreground py-10">
-          Select a restaurant to manage its team.
+          Select an outlet to manage its team.
         </div>
       )}
     </div>

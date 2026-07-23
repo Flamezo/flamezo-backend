@@ -62,7 +62,7 @@ export default function ForgotPassword() {
           <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl shadow-2xl">
             <h1 className="text-4xl font-black text-white mb-4 tracking-tight">Security First.</h1>
             <p className="text-white/80 font-medium text-lg leading-relaxed">
-              We utilize bank-grade encryption to ensure your restaurant data remains protected and private.
+              We utilize bank-grade encryption to ensure your business data remains protected and private.
             </p>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function ForgotPassword() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@restaurant.com"
+                    placeholder="name@business.com"
                     className="pl-12 h-14 rounded-2xl border-stone-200 focus:ring-primary/20 bg-background shadow-sm transition-all"
                     required
                   />

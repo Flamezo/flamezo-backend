@@ -1,0 +1,238 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "APPT-.YYYY.-.#####",
+ "title_field": "customer_name",
+ "creation": "2026-07-20 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_outlet",
+  "restaurant",
+  "outlet_type",
+  "column_break_outlet",
+  "catalogue_item",
+  "catalogue_item_name",
+  "section_break_service",
+  "sub_item_name",
+  "sub_item_price",
+  "column_break_service",
+  "appointment_date",
+  "appointment_time",
+  "duration_minutes",
+  "section_break_customer",
+  "customer_name",
+  "customer_phone",
+  "column_break_customer",
+  "notes",
+  "section_break_status",
+  "status",
+  "column_break_status",
+  "confirmed_at",
+  "completed_at",
+  "section_break_cancel",
+  "cancelled_by",
+  "cancellation_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_outlet",
+   "fieldtype": "Section Break",
+   "label": "Outlet"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "outlet_type",
+   "fieldtype": "Data",
+   "label": "Outlet Type",
+   "read_only": 1,
+   "description": "Auto-set from restaurant on save."
+  },
+  {
+   "fieldname": "column_break_outlet",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "catalogue_item",
+   "fieldtype": "Link",
+   "label": "Service",
+   "options": "Catalogue Item",
+   "search_index": 1,
+   "description": "The catalogue item (service/package) this appointment is for."
+  },
+  {
+   "fieldname": "catalogue_item_name",
+   "fieldtype": "Data",
+   "label": "Service Name",
+   "fetch_from": "catalogue_item.item_name",
+   "fetch_if_empty": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_service",
+   "fieldtype": "Section Break",
+   "label": "Service Details"
+  },
+  {
+   "fieldname": "sub_item_name",
+   "fieldtype": "Data",
+   "label": "Variant / Sub-item",
+   "description": "Specific variant chosen (e.g. 'Men Haircut', 'Drop-in Class')."
+  },
+  {
+   "fieldname": "sub_item_price",
+   "fieldtype": "Currency",
+   "label": "Price",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_service",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "appointment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "appointment_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "duration_minutes",
+   "fieldtype": "Int",
+   "label": "Duration (mins)",
+   "default": "60",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_break_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_global_search": 1,
+   "label": "Customer Name",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_customer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes",
+   "description": "Customer notes or special requests."
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nConfirmed\nCancelled\nCompleted\nNo Show",
+   "default": "Pending",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "confirmed_at",
+   "fieldtype": "Datetime",
+   "label": "Confirmed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_cancel",
+   "fieldtype": "Section Break",
+   "label": "Cancellation"
+  },
+  {
+   "fieldname": "cancelled_by",
+   "fieldtype": "Select",
+   "label": "Cancelled By",
+   "options": "\ncustomer\nmerchant"
+  },
+  {
+   "fieldname": "cancellation_reason",
+   "fieldtype": "Text",
+   "label": "Cancellation Reason"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-20 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Service Appointment",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "appointment_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

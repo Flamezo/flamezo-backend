@@ -1,6 +1,7 @@
 import json
 
 import frappe
+from frappe.utils import now_datetime
 
 from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_client
 from flamezo_backend.flamezo.utils.roles import (
@@ -86,7 +87,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     # chips. Synthetic filters `success_share_tier` and
                     # `throttled` are handled below.
                     allowed_eq_fields = (
-                        'is_active', 'enable_floor_recovery',
+                        'is_active',
                         'mandate_status', 'razorpay_kyc_status', 'route_mode',
                     )
                     if fieldname in allowed_eq_fields:
@@ -156,14 +157,13 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
             r.modified,
             COALESCE(r.coins_balance, 0) as coins_balance,
             COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
-            COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
-            COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
             COALESCE(r.mandate_status, '') as mandate_status,
             COALESCE(r.outstanding_commission_paise, 0) as outstanding_commission_paise,
             r.cash_payments_disabled_until,
             COALESCE(r.cash_sweep_failure_count, 0) as cash_sweep_failure_count,
             COALESCE(r.razorpay_kyc_status, '') as razorpay_kyc_status,
-            COALESCE(r.route_mode, '') as route_mode
+            COALESCE(r.route_mode, '') as route_mode,
+            COALESCE(r.outlet_type, 'dining') as outlet_type
         """
 
         if config_table_exists:
@@ -633,33 +633,48 @@ def admin_update_restaurant_settings(restaurant_id, updates):
         # but for now we follow the user's request for platform_fee_percent
         # Allow most fields for admin updates
         allowed_fields = [
-            'platform_fee_percent', 'monthly_minimum', 'is_active', 'restaurant_name', 'owner_email',
-            'owner_phone', 'owner_name', 'billing_status', 'mandate_status', 'enable_floor_recovery',
-            'pos_provider', 'pos_enabled', 'pos_app_key', 'pos_app_secret', 'pos_access_token', 'pos_merchant_id',
-            'enable_loyalty', 'enable_takeaway', 'enable_delivery', 'enable_dine_in',
-            'tax_rate', 'gst_number', 'default_delivery_fee', 'default_packaging_fee', 'minimum_order_value',
-            'estimated_prep_time', 'timezone', 'currency', 'tables', 'description', 'google_map_url'
+            'platform_fee_percent', 'is_active', 'is_featured', 'is_signature',
+            'restaurant_name', 'owner_email',
+            'owner_phone', 'owner_name', 'billing_status', 'mandate_status',
+            'enable_loyalty', 'enable_dine_in',
+            'tax_rate', 'gst_number',
+            'timezone', 'currency', 'tables', 'description', 'google_map_url',
+            'outlet_type'
         ]
 
-        for field, value in updates.items():
-            if field in allowed_fields:
-                # Handle type conversions for numeric/boolean fields
-                if field in ['platform_fee_percent', 'monthly_minimum', 'tax_rate', 'default_delivery_fee',
-                            'default_packaging_fee', 'minimum_order_value']:
-                    try:
-                        value = float(value)
-                    except (TypeError, ValueError):
-                        continue
-                elif field in ['is_active', 'enable_loyalty', 'enable_takeaway', 'enable_delivery',
-                              'enable_dine_in', 'pos_enabled', 'enable_floor_recovery']:
-                    value = 1 if value in [True, 1, '1', 'true'] else 0
-                elif field in ['tables', 'estimated_prep_time']:
-                    try:
-                        value = int(value)
-                    except (TypeError, ValueError):
-                        continue
+        # outlet_type: use db.set_value to bypass Frappe's Select validation.
+        # Pop it before the main loop so it never goes through restaurant.save().
+        if 'outlet_type' in updates:
+            valid_types = {'dining', 'cafe', 'wellness', 'fitness', 'sports_court', 'sports_venue', 'fashion'}
+            new_type = updates.pop('outlet_type')
+            if new_type in valid_types:
+                frappe.db.set_value('Restaurant', restaurant.name, 'outlet_type', new_type)
 
-                setattr(restaurant, field, value)
+        # If nothing else to update, just commit and return — avoids a
+        # redundant restaurant.save() that races with the set_value above.
+        remaining = {k: v for k, v in updates.items() if k in allowed_fields}
+        if not remaining:
+            frappe.db.commit()
+            return {
+                'success': True,
+                'message': f"Restaurant settings updated successfully for {restaurant_id}",
+                'data': {'restaurant_id': restaurant_id, 'updated_fields': list(updates.keys())}
+            }
+
+        for field, value in remaining.items():
+            if field in ['platform_fee_percent', 'tax_rate']:
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    continue
+            elif field in ['is_active', 'is_featured', 'is_signature', 'enable_loyalty', 'enable_dine_in']:
+                value = 1 if value in [True, 1, '1', 'true'] else 0
+            elif field in ['tables']:
+                try:
+                    value = int(value)
+                except (TypeError, ValueError):
+                    continue
+            setattr(restaurant, field, value)
 
         restaurant.save(ignore_permissions=True)
         frappe.db.commit()

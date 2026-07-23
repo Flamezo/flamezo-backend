@@ -33,7 +33,7 @@ const Customers = lazy(() => import('./pages/Customers'))
 const Bookings = lazy(() => import('./pages/Bookings'))
 const Coupons = lazy(() => import('./pages/Coupons'))
 const AdminRestaurantManagement = lazy(() => import('./pages/AdminRestaurantManagement'))
-const AdminRestaurantDetailsPage = lazy(() => import('./pages/AdminRestaurantDetails'))
+const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails'))
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AIEnhancementPage = lazy(() => import('./pages/AIEnhancementPage'))
@@ -70,6 +70,11 @@ const UGCConfig = lazy(() => import('./pages/UGCConfig'))
 const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
 const UGCAnalytics = lazy(() => import('./pages/UGCAnalytics'))
 
+// Non-dining industry pages
+const CatalogueManagementPage = lazy(() => import('./pages/CatalogueManagement'))
+const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage'))
+const CourtsPage = lazy(() => import('./pages/CourtsPage'))
+
 
 function AppContent() {
 	const { theme } = useTheme()
@@ -100,7 +105,7 @@ function AppContent() {
 								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />
 
 								<Route path="/admin/restaurants" element={<AdminRestaurantManagement />} />
-								<Route path="/admin/restaurants/:id" element={<AdminRestaurantDetailsPage />} />
+								<Route path="/admin/restaurants/:id" element={<AdminMerchantDetailsPage />} />
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
@@ -171,6 +176,11 @@ function AppContent() {
 								<Route path="/menu" element={<MenuManagement />} />
 								<Route path="/menu-costing" element={<MenuCosting />} />
 								<Route path="/addon-groups" element={<AddonGroupManagement />} />
+
+								{/* Non-dining industry pages */}
+								<Route path="/catalogue" element={<CatalogueManagementPage />} />
+								<Route path="/appointments" element={<AppointmentsPage />} />
+								<Route path="/courts" element={<CourtsPage />} />
 
 								<Route path="/qr-codes" element={<QRCodes />} />
 								<Route path="/gallery-management" element={<GalleryManagement />} />

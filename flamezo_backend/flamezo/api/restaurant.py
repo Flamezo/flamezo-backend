@@ -378,6 +378,175 @@ def get_restaurant_gallery(restaurant_id):
 			}
 		}
 
+@frappe.whitelist(allow_guest=True)
+def get_restaurant_detail(restaurant_id):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.restaurant.get_restaurant_detail
+
+	Consumer-facing full outlet detail. Replaces the bundled SQLite lookup.
+	Returns everything the outlet detail screen needs in one call — cached 5 min.
+
+	Response:
+	  id, restaurant_name, logo, outlet_type, address, city, lat, lng,
+	  phone, whatsapp, instagram_url, description, tagline,
+	  rating, review_count, cuisines[], price_range, amenities_mask, hours_json,
+	  is_featured, is_open_now, active_offers_count,
+	  photos[] (first 4 gallery items),
+	  enable_dine_in, enable_loyalty,
+	  google_review_url, enable_table_booking
+	"""
+	import json
+	import math
+	from frappe.utils import flt, cint, today
+
+	if not restaurant_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+
+	try:
+		# Cache 5 minutes — busted when merchant edits their profile
+		cache_key = f"flamezo:outlet_detail:{restaurant_id}"
+		cached = frappe.cache().get_value(cache_key)
+		if cached:
+			return json.loads(cached)
+
+		# Resolve internal name from restaurant_id field OR direct name
+		rest_name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+		if not rest_name:
+			rest_name = frappe.db.get_value("Restaurant", restaurant_id, "name")
+		if not rest_name:
+			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
+
+		# Single row fetch — all discovery fields + ops fields
+		r = frappe.db.get_value(
+			"Restaurant",
+			rest_name,
+			[
+				"name", "restaurant_name", "logo", "outlet_type",
+				"address", "city", "state", "zip_code",
+				"latitude", "longitude",
+				"contact_phone", "whatsapp_number", "instagram_url",
+				"description", "google_map_url",
+				"is_featured", "rating", "review_count",
+				"cuisines", "price_range", "amenities_mask", "hours_json",
+				"enable_dine_in", "enable_loyalty",
+			],
+			as_dict=True,
+		)
+		if not r:
+			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
+
+		# Fetch social links + table booking flag from Restaurant Config (single query)
+		cfg = frappe.db.get_value(
+			"Restaurant Config",
+			{"restaurant": rest_name},
+			["google_review_link", "enable_table_booking", "tagline"],
+			as_dict=True,
+		) or {}
+
+		# Gallery: first 4 selected photos
+		photos = frappe.get_all(
+			"Restaurant Gallery Item",
+			filters={"restaurant": rest_name, "is_selected": 1},
+			fields=["url", "media_type as type", "title"],
+			order_by="sort_order asc",
+			limit=4,
+		)
+
+		# Active offers count (single SQL, no N+1)
+		today_str = today()
+		offers_row = frappe.db.sql(
+			"""
+			SELECT COUNT(*) FROM `tabCoupon`
+			WHERE restaurant = %s AND is_active = 1
+			  AND (valid_from IS NULL OR valid_from <= %s)
+			  AND (valid_until IS NULL OR valid_until >= %s)
+			""",
+			(rest_name, today_str, today_str),
+		)
+		active_offers_count = offers_row[0][0] if offers_row else 0
+
+		# Open-now computation (reuse helper from flamezo.py)
+		hours_raw = r.get("hours_json") or ""
+
+		def _is_open_now_inline(hours_json_str):
+			if not hours_json_str:
+				return None
+			try:
+				import pytz
+				from datetime import datetime
+				tz = pytz.timezone("Asia/Kolkata")
+				now = datetime.now(tz)
+				day_key = now.strftime("%a").lower()
+				hours = json.loads(hours_json_str) if isinstance(hours_json_str, str) else hours_json_str
+				slot = (hours.get(day_key) or "").strip()
+				if not slot or slot.lower() in ("closed", ""):
+					return False
+				if "open 24" in slot.lower() or "24 hours" in slot.lower():
+					return True
+				parts = slot.replace("–", "-").split("-")
+				if len(parts) != 2:
+					return None
+				def _parse(s):
+					s = s.strip().upper()
+					fmt = "%I:%M %p" if ":" in s else "%I %p"
+					return datetime.strptime(s, fmt).replace(
+						year=now.year, month=now.month, day=now.day, tzinfo=tz
+					)
+				open_t, close_t = _parse(parts[0]), _parse(parts[1])
+				if close_t < open_t:
+					return now >= open_t or now <= close_t
+				return open_t <= now <= close_t
+			except Exception:
+				return None
+
+		full_address = " ".join(filter(None, [
+			r.get("address"), r.get("city"), r.get("state"), r.get("zip_code")
+		]))
+
+		data = {
+			"id": r["name"],
+			"restaurant_id": restaurant_id,
+			"restaurant_name": r["restaurant_name"],
+			"logo": r.get("logo") or "",
+			"outlet_type": r.get("outlet_type") or "dining",
+			"address": r.get("address") or "",
+			"full_address": full_address,
+			"city": r.get("city") or "",
+			"state": r.get("state") or "",
+			"zip_code": r.get("zip_code") or "",
+			"latitude": flt(r.get("latitude") or 0) or None,
+			"longitude": flt(r.get("longitude") or 0) or None,
+			"google_map_url": r.get("google_map_url") or "",
+			"phone": r.get("contact_phone") or "",
+			"whatsapp": r.get("whatsapp_number") or "",
+			"instagram_url": r.get("instagram_url") or "",
+			"description": r.get("description") or "",
+			"tagline": cfg.get("tagline") or "",
+			"is_featured": bool(r.get("is_featured")),
+			"rating": flt(r.get("rating") or 0) or None,
+			"review_count": cint(r.get("review_count") or 0),
+			"cuisines": [c.strip() for c in (r.get("cuisines") or "").split(",") if c.strip()],
+			"price_range": r.get("price_range") or "",
+			"amenities_mask": cint(r.get("amenities_mask") or 0),
+			"hours_json": json.loads(hours_raw) if hours_raw else {},
+			"is_open_now": _is_open_now_inline(hours_raw),
+			"active_offers_count": active_offers_count,
+			"photos": [{"url": p.get("url", ""), "type": p.get("type", "Image"), "title": p.get("title", "")} for p in photos],
+			"enable_dine_in": bool(r.get("enable_dine_in", 1)),
+			"enable_loyalty": bool(r.get("enable_loyalty", 0)),
+			"enable_table_booking": bool(cfg.get("enable_table_booking", 1)),
+			"google_review_url": cfg.get("google_review_link") or "",
+		}
+
+		response = {"success": True, "data": data}
+		frappe.cache().set_value(cache_key, json.dumps(response), expires_in_sec=300)
+		return response
+
+	except Exception as e:
+		frappe.log_error(f"Error in get_restaurant_detail: {str(e)}")
+		return {"success": False, "error": {"code": "DETAIL_FETCH_ERROR", "message": str(e)}}
+
+
 @frappe.whitelist()
 def get_restaurant_media_pool(restaurant_id):
 	"""

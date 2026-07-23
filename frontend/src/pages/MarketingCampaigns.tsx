@@ -42,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const TEMPLATES = {
-  'win_back': "Hi {{customer_name}}! We miss you at {{restaurant_name}}. Come back and enjoy a special offer: {{coupon_code}}. Table's waiting!",
+  'win_back': "Hi {{customer_name}}! We miss you at {{restaurant_name}}. Come back and enjoy a special offer: {{coupon_code}}. We're waiting for you!",
   'loyalty_nudge': "Hey {{customer_name}}! You have {{loyalty_balance}} loyalty coins at {{restaurant_name}}. Redeem them on your next visit!",
   'new_offer': "Big news from {{restaurant_name}}! We've got something special just for you. Use code {{coupon_code}} for an exclusive deal!",
   'birthday': "Happy Birthday {{customer_name}}! {{restaurant_name}} wants to celebrate with you. Enjoy a special birthday treat: {{coupon_code}}.",

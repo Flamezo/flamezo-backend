@@ -32,10 +32,12 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'longitude',
       'timezone',
       'google_map_url',
-      'tables',
     ],
 
     alwaysHidden: [
+      // Dining-specific (set via QR Codes page after onboarding)
+      'tables',
+
       // System / internal IDs
       'restaurant_id',
       'company',
@@ -52,7 +54,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'plan_changed_by',
       'plan_change_reason',
       'platform_fee_percent',
-      'monthly_minimum',
       'billing_status',
       'mandate_status',
       'onboarding_date',
@@ -76,10 +77,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'daily_auto_recharge_limit',
       'daily_auto_recharge_count',
       'last_auto_recharge_date',
-      'enable_floor_recovery',
-      'floor_recovery_activated_on',
-      'last_floor_recovery_date',
-
       // AI
       'total_ai_generations',
       'total_ai_cost',
@@ -92,29 +89,11 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'razorpay_customer_id',
       'razorpay_token_id',
 
-      // POS
-      'pos_provider',
-      'pos_enabled',
-      'pos_app_key',
-      'pos_app_secret',
-      'pos_access_token',
-      'pos_merchant_id',
-      'pos_last_sync_at',
-      'pos_sync_status',
-
       'enable_loyalty',
 
       // Ordering / delivery (managed via dedicated settings page, not wizard)
       'enable_dine_in',
-      'enable_takeaway',
-      'enable_delivery',
-      'default_delivery_fee',
-      'default_packaging_fee',
-      'packaging_fee_type',
-      'minimum_order_value',
-      'estimated_prep_time',
       'max_delivery_distance',
-      'delivery_charge_per_km',
       'currency',
 
       // Tax

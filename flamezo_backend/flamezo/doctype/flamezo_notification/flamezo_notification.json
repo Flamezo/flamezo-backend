@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "autoname": "FNOTIF-.YYYY.-.#####",
+ "creation": "2026-07-09 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "customer_phone",
+  "notification_type",
+  "column_break_1",
+  "is_read",
+  "is_actioned",
+  "section_break_content",
+  "title",
+  "body",
+  "image_url",
+  "section_break_ref",
+  "reference_doctype",
+  "reference_name",
+  "deep_link"
+ ],
+ "fields": [
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notification_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "order\nbooking\npromotion\nloyalty\ncrowd\nclub\ngeneral",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_read",
+   "fieldtype": "Check",
+   "label": "Is Read"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_actioned",
+   "fieldtype": "Check",
+   "label": "Is Actioned"
+  },
+  {
+   "fieldname": "section_break_content",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Small Text",
+   "label": "Body"
+  },
+  {
+   "fieldname": "image_url",
+   "fieldtype": "Data",
+   "label": "Image URL"
+  },
+  {
+   "fieldname": "section_break_ref",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Reference DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "deep_link",
+   "fieldtype": "Data",
+   "label": "Deep Link (app route)"
+  }
+ ],
+ "modified": "2026-07-09 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Flamezo Notification",
+ "naming_rule": "Expression (old-style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

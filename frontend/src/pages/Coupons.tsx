@@ -39,6 +39,7 @@ import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
+import { CouponsSkeleton } from '@/components/PageSkeletons'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -457,20 +458,20 @@ export default function Coupons() {
       const payload = res?.message ?? res
       const data = payload?.data
       if (!payload?.success) {
-        toast.error('Could not verify food cost data', { description: payload?.error?.message })
+        toast.error('Could not verify item cost data', { description: payload?.error?.message })
         return
       }
       if (!data?.all_covered) {
         const missing = data?.items_without_cost ?? 0
         const total = data?.total_items ?? 0
-        toast.error('Food cost required for AI generation', {
-          description: `${missing} of ${total} menu items are missing food cost. Go to Food Cost in the sidebar and set costs for all items — the AI needs this data to generate profit-safe offers.`,
+        toast.error('Item cost required for AI generation', {
+          description: `${missing} of ${total} catalogue items are missing item cost. Go to Item Cost in the sidebar and set costs for all items — the AI needs this data to generate profit-safe offers.`,
           duration: 7000,
         })
         return
       }
     } catch (err: any) {
-      toast.error('Could not verify food cost data', { description: err?.message })
+      toast.error('Could not verify item cost data', { description: err?.message })
       return
     } finally {
       setAiGateLoading(false)
@@ -495,13 +496,15 @@ export default function Coupons() {
   if (!selectedRestaurant) {
     return (
       <div className="p-6">
-        <EmptyState icon={AlertCircle} title="Select a Restaurant"
-          description="Please select a restaurant from the sidebar to manage offers and coupons." />
+        <EmptyState icon={AlertCircle} title="Select an Outlet"
+          description="Please select an outlet from the sidebar to manage offers and coupons." />
       </div>
     )
   }
 
   if (!isGold) return <LockedFeature feature="coupons" requiredPlan={['GOLD']} />
+
+  if (isLoading) return <CouponsSkeleton />
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -625,9 +628,7 @@ export default function Coupons() {
         </CardHeader>
 
         <CardContent>
-          {isLoading && !coupons?.length ? (
-            <div className="text-center py-12 text-muted-foreground">Loading coupons…</div>
-          ) : !coupons || coupons.length === 0 ? (
+          {!coupons || coupons.length === 0 ? (
             <EmptyState
               icon={Tag}
               title="No Coupons Found"
@@ -1128,7 +1129,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
       if (s.offer_type === 'google_review' && s.review_reward_type === 'free_dish') {
         const d = String(s.description || '').trim()
         if (!d || d.toLowerCase() === 'get a free') {
-          toast.error('Type the free dish in the description (e.g. "Get a free brownie")')
+          toast.error('Type the free item in the description (e.g. "Get a free brownie")')
           return
         }
       }
@@ -1239,13 +1240,13 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                   })}
                   className={`relative z-10 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors ${formData.review_reward_type === 'free_dish' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}
                 >
-                  🍽️ Free Dish
+                  🍽️ Free Item
                 </button>
               </div>
 
               {formData.review_reward_type === 'free_dish' ? (
                 <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                  Just type the free dish in the <b>Description</b> below — e.g. &ldquo;Get a free brownie&rdquo;. The customer sees <b>FREE DISH</b>, your staff serve it, and it&rsquo;s <b>not</b> deducted from the bill. Set the minimum bill in Conditions.
+                  Just type the free item in the <b>Description</b> below — e.g. &ldquo;Get a free brownie&rdquo;. The customer sees <b>FREE DISH</b>, your staff serve it, and it&rsquo;s <b>not</b> deducted from the bill. Set the minimum bill in Conditions.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1278,7 +1279,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
               )}
 
               <p className="text-xs text-muted-foreground">
-                The Google review link is taken from your restaurant setup automatically. We keep a safe minimum bill in Conditions so you don&rsquo;t lose on small orders.
+                The Google review link is taken from your outlet setup automatically. We keep a safe minimum bill in Conditions so you don&rsquo;t lose on small orders.
               </p>
             </div>
           )}
@@ -1319,7 +1320,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="combo_name">Display Name <span className="text-muted-foreground font-normal text-xs">(on menu card)</span></Label>
+                  <Label htmlFor="combo_name">Display Name <span className="text-muted-foreground font-normal text-xs">(on catalogue card)</span></Label>
                   <Input
                     id="combo_name"
                     value={formData.combo_name}
@@ -1512,15 +1513,15 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
                   className="h-4 w-4 rounded border-border"
                 />
                 <label htmlFor="display_on_menu" className="text-sm cursor-pointer">
-                  Show as a combo card on the menu page
+                  Show as a combo card on the catalogue page
                   {!formData.combo_image && formData.display_on_menu && (
                     <span className="ml-2 text-xs text-amber-600">(add an image above first)</span>
                   )}
                   {formData.combo_image && formData.display_on_menu && formData.combo_type !== 'bogo' && !formData.combo_price && (
-                    <span className="ml-2 text-xs text-red-600">(set a combo price — ₹0 combos won't appear on menu)</span>
+                    <span className="ml-2 text-xs text-red-600">(set a combo price — ₹0 combos won't appear on catalogue)</span>
                   )}
                   {formData.combo_image && formData.display_on_menu && formData.combo_type === 'bogo' && !formData.bogo_free_item_value && (
-                    <span className="ml-2 text-xs text-red-600">(set the free item value — ₹0 BOGO won't appear on menu)</span>
+                    <span className="ml-2 text-xs text-red-600">(set the free item value — ₹0 BOGO won't appear on catalogue)</span>
                   )}
                 </label>
               </div>
