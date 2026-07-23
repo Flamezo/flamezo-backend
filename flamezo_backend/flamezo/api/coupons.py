@@ -105,8 +105,10 @@ def get_coupons(restaurant_id, active_only=True):
 			)
 			claimed_today_map = {r.coupon: r.cnt for r in rows}
 
-		# Google Review offers are one-per-customer for life. If this customer has
-		# already claimed one, hide it from their list entirely so they can't re-claim.
+		# Google Review offers are one-per-customer for life, but only once actually
+		# USED (a PAID claim). A claimed-but-unpaid review offer must stay visible so
+		# the customer sees it selected until they pay this visit — we only hide it
+		# after they've paid with it.
 		claimed_review_coupon_ids = set()
 		try:
 			_token = get_customer_token()
@@ -114,7 +116,7 @@ def get_coupons(restaurant_id, active_only=True):
 			if _customer and coupon_ids:
 				_claimed_rows = frappe.get_all(
 					"Offer Claim",
-					filters={"restaurant": restaurant, "customer": _customer, "coupon": ["in", coupon_ids]},
+					filters={"restaurant": restaurant, "customer": _customer, "coupon": ["in", coupon_ids], "is_paid": 1},
 					fields=["coupon"],
 				)
 				claimed_review_coupon_ids = {r["coupon"] for r in _claimed_rows}
@@ -248,11 +250,11 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 		"Coupon",
 		{"code": coupon_code, "restaurant": restaurant},
 		[
-			"name", "code", "discount_value", "min_order_amount", "discount_type", 
-			"category", "is_active", "valid_from", "valid_until", "max_uses", 
+			"name", "code", "discount_value", "min_order_amount", "discount_type",
+			"category", "is_active", "valid_from", "valid_until", "max_uses",
 			"usage_count", "max_uses_per_user", "offer_type", "valid_days_of_week",
 			"valid_time_start", "valid_time_end", "max_discount_cap",
-			"priority", "can_stack"
+			"priority", "can_stack", "review_reward_type"
 		],
 		as_dict=True
 	)
@@ -318,7 +320,14 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 		discount_amount = (cart_total * flt(coupon.discount_value)) / 100
 		if coupon.max_discount_cap and discount_amount > flt(coupon.max_discount_cap):
 			discount_amount = flt(coupon.max_discount_cap)
-	
+
+	# A Google-review "free dish" reward is served physically — it must NOT take any
+	# money off the bill. (Only a "cashback" review reward reduces the bill.) This
+	# mirrors get_applicable_offers and guards the real money path regardless of any
+	# stray discount_value on the coupon.
+	if coupon.offer_type == "google_review" and (coupon.review_reward_type or "cashback") == "free_dish":
+		discount_amount = 0
+
 	return {
 		"success": True,
 		"coupon_name": coupon.name,
@@ -328,6 +337,7 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 		"min_order_amount": flt(coupon.min_order_amount or 0),
 		"type": coupon.discount_type or "flat",
 		"offer_type": coupon.offer_type or "coupon",
+		"review_reward_type": (coupon.review_reward_type or "cashback") if coupon.offer_type == "google_review" else None,
 		"category": coupon.category or "",
 		"description": coupon.description or "",
 		"priority": coupon.priority or 0,
@@ -740,9 +750,11 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 			if offer.valid_until and getdate(offer.valid_until) < getdate(today_date):
 				continue # Expired
 
-			# Google Review offers are one-per-customer for life — hide once claimed.
+			# Google Review offers are one-per-customer for life — but only hide once
+			# actually USED (a PAID claim), so a claimed-but-unpaid offer stays visible
+			# (shown selected) until the customer pays with it this visit.
 			if offer.offer_type == "google_review" and customer_id and frappe.db.exists(
-				"Offer Claim", {"restaurant": restaurant, "customer": customer_id, "coupon": offer.name}
+				"Offer Claim", {"restaurant": restaurant, "customer": customer_id, "coupon": offer.name, "is_paid": 1}
 			):
 				continue
 
@@ -1196,18 +1208,22 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		if existing_lock:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant in the last 4 hours"}}
 
-		# Lifetime check for Google Review offers
+		# Lifetime check for Google Review offers — one-time once actually USED (paid).
+		# An unpaid prior claim doesn't block: the 4-hour lock above already prevents
+		# double-claiming this visit, and we want the offer to stay usable until the
+		# review reward is actually redeemed at pay-bill.
 		if coupon.offer_type == "google_review":
 			lifetime_claim = frappe.db.exists(
 				"Offer Claim",
 				{
 					"restaurant": restaurant,
 					"customer": customer_id,
-					"coupon": coupon.name
+					"coupon": coupon.name,
+					"is_paid": 1
 				}
 			)
 			if lifetime_claim:
-				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already claimed this Google Review offer once."}}
+				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already used this Google Review offer once."}}
 
 		# Record the claim with full customer attribution
 		claim_time = now_datetime()
@@ -1300,8 +1316,9 @@ def claim_offer(restaurant_id, coupon_id):
 		if existing_lock:
 			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant. Visit again to claim another."}}
 
-		# Google Review offers are strictly one-per-customer for their lifetime — a
-		# customer can only earn the review reward once (mirrors claim_offer_with_pin).
+		# Google Review offers are one-time once actually USED (a paid claim) — mirrors
+		# claim_offer_with_pin. An unpaid prior claim doesn't block (the 4-hour lock
+		# handles this visit); the offer stays usable until the reward is redeemed.
 		if coupon.offer_type == "google_review":
 			lifetime_claim = frappe.db.exists(
 				"Offer Claim",
@@ -1309,10 +1326,11 @@ def claim_offer(restaurant_id, coupon_id):
 					"restaurant": restaurant,
 					"customer": customer_id,
 					"coupon": coupon.name,
+					"is_paid": 1,
 				},
 			)
 			if lifetime_claim:
-				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already claimed this Google Review offer once."}}
+				return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You have already used this Google Review offer once."}}
 
 		claim_time = now_datetime()
 		claim = frappe.get_doc({
