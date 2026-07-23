@@ -29,6 +29,7 @@
   "bank_account_number",
   "bank_ifsc",
   "bank_holder_name",
+  "cancelled_cheque",
   "opening_time",
   "closing_time",
   "section_break_config",
@@ -190,6 +191,11 @@
    "fieldname": "bank_holder_name",
    "fieldtype": "Data",
    "label": "Account Holder Name"
+  },
+  {
+   "fieldname": "cancelled_cheque",
+   "fieldtype": "Attach",
+   "label": "Cancelled Cheque"
   },
   {
    "fieldname": "opening_time",

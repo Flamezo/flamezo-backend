@@ -92,6 +92,7 @@ def get_onboarding_details(token):
             'bank_account_number': getattr(doc, 'bank_account_number', None),
             'bank_ifsc': getattr(doc, 'bank_ifsc', None),
             'bank_holder_name': getattr(doc, 'bank_holder_name', None),
+            'cancelled_cheque': getattr(doc, 'cancelled_cheque', None),
             'opening_time': str(doc.opening_time) if getattr(doc, 'opening_time', None) else None,
             'closing_time': str(doc.closing_time) if getattr(doc, 'closing_time', None) else None,
             'swiggy_link': getattr(doc, 'swiggy_link', None),
@@ -160,7 +161,7 @@ def submit_onboarding_data(token, data):
             'tagline', 'instagram_link', 'facebook_link', 'website_link', 
             'google_review_link', 'menu_link', 'address', 'city', 'state', 'zip_code', 'google_map_url',
             'logo', 'hero_image', 'fssai_number', 'gst_number', 'tax_rate', 
-            'pan_number', 'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name', 'opening_time', 'closing_time', 
+            'pan_number', 'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name', 'cancelled_cheque', 'opening_time', 'closing_time',
             'swiggy_link', 'zomato_link', 'subtitle', 'description', 
             'default_theme', 'menu_layout', 'enable_table_booking', 
             'enable_banquet_booking', 'tables', 'enable_events', 'enable_offers', 
@@ -301,6 +302,7 @@ def get_onboarding_by_name(name):
             'bank_account_number': getattr(doc, 'bank_account_number', None),
             'bank_ifsc': getattr(doc, 'bank_ifsc', None),
             'bank_holder_name': getattr(doc, 'bank_holder_name', None),
+            'cancelled_cheque': getattr(doc, 'cancelled_cheque', None),
             'opening_time': str(doc.opening_time) if getattr(doc, 'opening_time', None) else None,
             'closing_time': str(doc.closing_time) if getattr(doc, 'closing_time', None) else None,
             'subtitle': getattr(doc, 'subtitle', None),
@@ -488,3 +490,27 @@ def upload_onboarding_media(token):
     except Exception as e:
         frappe.log_error("Onboarding Upload Error", str(e))
         return {'success': False, 'error': str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def extract_cheque_details(token, base64_image=None):
+	"""Onboarding cheque OCR — token-scoped so the guest onboarding form can use
+	the same cancelled-cheque extraction as the merchant Direct Bank Payouts page,
+	without exposing the AI endpoint to anonymous callers.
+
+	Validates the onboarding token, then runs the existing bank-details OCR and
+	returns {success, data:{account_number, ifsc_code, legal_business_name}}.
+	"""
+	try:
+		if not token:
+			return {'success': False, 'error': 'Missing onboarding token'}
+		if not frappe.db.exists('Restaurant Onboarding', {'unique_token': token}):
+			return {'success': False, 'error': 'Invalid or expired onboarding link'}
+		if not base64_image:
+			return {'success': False, 'error': 'No image provided'}
+
+		from flamezo_backend.flamezo.api.kyc_ai import extract_bank_details
+		return extract_bank_details(base64_image=base64_image)
+	except Exception as e:
+		frappe.log_error(f"extract_cheque_details failed: {e}", "onboarding.cheque_ocr")
+		return {'success': False, 'error': 'Could not read the cheque. Please enter details manually.'}

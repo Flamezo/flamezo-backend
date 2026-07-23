@@ -539,20 +539,17 @@
                     <p>The account where customer payments will land.</p>
                 </div>
 
-                <div class="row">
-                    <div class="form-group">
-                        <label>Account Number</label>
-                        <input type="text" id="bank_account_number" placeholder="e.g. 50100123456789">
-                    </div>
-                    <div class="form-group">
-                        <label>IFSC Code</label>
-                        <input type="text" id="bank_ifsc" placeholder="HDFC0001234">
-                    </div>
-                </div>
-
+                <!-- Bank details come entirely from the cancelled cheque (read by AI),
+                     so there are no account-number / IFSC / holder-name fields here. -->
                 <div class="form-group">
-                    <label>Account Holder Name</label>
-                    <input type="text" id="bank_holder_name" placeholder="As printed on bank passbook">
+                    <label style="font-weight:600;color:#0f172a;margin-bottom:8px;display:block;">Upload your cancelled cheque</label>
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('cheque_upload').click()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <span>📄</span><span id="cheque_label">Upload a photo of your cancelled cheque</span>
+                    </button>
+                    <input type="file" id="cheque_upload" accept="image/*" style="display:none;" onchange="handleChequeUpload(event)">
+                    <small id="cheque_status" style="display:block;margin-top:6px;color:#64748b;">Your account number, IFSC &amp; account holder name are read from the cheque — no typing needed.</small>
+                    <div id="cheque-captured" style="margin-top:10px;"></div>
+                    <div id="cheque-download-container" style="margin-top:8px;"></div>
                 </div>
 
                 <div class="section-header" style="margin-top: 30px; margin-bottom: 20px;">
@@ -775,7 +772,8 @@
         let onboardingToken = new URLSearchParams(window.location.search).get('token');
         let formData = {
             menu_photos: [],
-            logo: null
+            logo: null,
+            cancelled_cheque: null
         };
 
         // Initialize Page
@@ -805,9 +803,13 @@
                     // Step 2: Legal & Ops
                     if (data.legal_name) document.getElementById('legal_name').value = data.legal_name;
                     if (data.business_type) document.getElementById('business_type').value = data.business_type;
-                    if (data.bank_account_number) document.getElementById('bank_account_number').value = data.bank_account_number;
-                    if (data.bank_ifsc) document.getElementById('bank_ifsc').value = data.bank_ifsc;
-                    if (data.bank_holder_name) document.getElementById('bank_holder_name').value = data.bank_holder_name;
+                    // Bank details have no inputs on this form — keep them in the payload
+                    // and show the read-only captured summary instead.
+                    if (data.bank_account_number) formData.bank_account_number = data.bank_account_number;
+                    if (data.bank_ifsc) formData.bank_ifsc = data.bank_ifsc;
+                    if (data.bank_holder_name) formData.bank_holder_name = data.bank_holder_name;
+                    showCapturedBank();
+                    if (data.cancelled_cheque) { formData.cancelled_cheque = data.cancelled_cheque; showChequeDownload(data.cancelled_cheque); }
                     if (data.fssai_number) document.getElementById('fssai_number').value = data.fssai_number;
                     if (data.gst_number) document.getElementById('gst_number').value = data.gst_number;
                     if (data.tax_rate) document.getElementById('tax_rate').value = data.tax_rate;
@@ -1151,6 +1153,62 @@
             document.getElementById(`${type}-input`).click();
         }
 
+        // Cancelled-cheque OCR → auto-fill Account Number, IFSC, holder & legal name.
+        async function handleChequeUpload(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('cheque_status');
+            const label = document.getElementById('cheque_label');
+            label.innerText = 'Reading cheque…';
+            status.innerText = '';
+            try {
+                // 1) Store the cheque file so it's saved on the onboarding record and
+                //    can be downloaded later. Runs alongside the OCR below.
+                const storedUrl = await uploadToFrappe(file);
+                if (storedUrl) {
+                    formData.cancelled_cheque = storedUrl;
+                    showChequeDownload(storedUrl);
+                }
+
+                const base64_image = await new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onloadend = () => res(r.result);
+                    r.onerror = rej;
+                    r.readAsDataURL(file);
+                });
+                const resp = await fetch('/api/method/flamezo_backend.flamezo.api.onboarding.extract_cheque_details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': window.csrf_token },
+                    body: JSON.stringify({ token: onboardingToken, base64_image })
+                });
+                const result = await resp.json();
+                const data = (result.message && result.message.data) || null;
+                if (result.message && result.message.success && data) {
+                    // No bank inputs on this form — the cheque IS the source of truth,
+                    // so store the extracted values straight into the submit payload.
+                    if (data.account_number) formData.bank_account_number = String(data.account_number).replace(/\D/g, '');
+                    if (data.ifsc_code) formData.bank_ifsc = String(data.ifsc_code).trim().toUpperCase();
+                    if (data.legal_business_name) {
+                        formData.bank_holder_name = String(data.legal_business_name).trim();
+                        // Business Legal Name is the PAN name — only prefill if still blank.
+                        const legal = document.getElementById('legal_name');
+                        if (legal && !legal.value) legal.value = String(data.legal_business_name).trim();
+                    }
+                    showCapturedBank();
+                    label.innerText = 'Cheque uploaded ✓';
+                    status.innerText = 'Bank details captured from your cheque.';
+                } else {
+                    label.innerText = 'Upload a photo of your cancelled cheque';
+                    status.innerText = (result.message && result.message.error) || 'Could not read the cheque. Please enter details manually.';
+                }
+            } catch (err) {
+                label.innerText = 'Upload a photo of your cancelled cheque';
+                status.innerText = 'Could not read the cheque. Please enter details manually.';
+            } finally {
+                e.target.value = '';
+            }
+        }
+
         async function handleFile(input, type) {
             const files = input.files;
             if (!files.length) return;
@@ -1178,6 +1236,35 @@
             const container = document.getElementById('logo-download-container');
             container.innerHTML = `<a href="${url}" download class="download-link" onclick="event.stopPropagation()">
                 <span>⬇️</span> Download Current Logo
+            </a>`;
+        }
+
+        // Read-only confirmation of what we read off the cheque (there are no
+        // editable bank fields on this form).
+        function showCapturedBank() {
+            const box = document.getElementById('cheque-captured');
+            if (!box) return;
+            const acc = formData.bank_account_number || '';
+            const ifsc = formData.bank_ifsc || '';
+            const holder = formData.bank_holder_name || '';
+            if (!acc && !ifsc && !holder) { box.innerHTML = ''; return; }
+            const masked = acc ? '••••' + acc.slice(-4) : '—';
+            box.innerHTML = `<div style="padding:12px 14px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;">
+                <div style="font-weight:700;font-size:12px;color:#166534;margin-bottom:6px;">✓ Bank details captured from your cheque</div>
+                <div style="font-size:12px;color:#334155;line-height:1.7;">
+                    Account: <strong>${masked}</strong><br>
+                    IFSC: <strong>${ifsc || '—'}</strong><br>
+                    Account holder: <strong>${holder || '—'}</strong>
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:6px;">Wrong details? Upload a clearer photo of the cheque.</div>
+            </div>`;
+        }
+
+        function showChequeDownload(url) {
+            const container = document.getElementById('cheque-download-container');
+            if (!container) return;
+            container.innerHTML = `<a href="${url}" target="_blank" download class="download-link">
+                <span>📎</span> View / download uploaded cheque
             </a>`;
         }
 
