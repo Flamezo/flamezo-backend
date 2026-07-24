@@ -319,7 +319,7 @@ export default function QRCodes() {
   }
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleGenerateQrCodes = async () => {
-    if (!selectedRestaurant) return toast.error('Select a restaurant first')
+    if (!selectedRestaurant) return toast.error('Select an outlet first')
     if (!tables || tables <= 0) {
       return toast.error('Set number of tables first')
     }
@@ -477,8 +477,8 @@ export default function QRCodes() {
             <div className="flex flex-col items-start gap-4 text-left">
               <AlertCircle className="h-12 w-12 text-muted-foreground" />
               <div>
-                <h3 className="text-lg font-semibold">No Restaurant Selected</h3>
-                <p className="text-sm text-muted-foreground mt-1">Select a restaurant from the sidebar to manage QR codes</p>
+                <h3 className="text-lg font-semibold">No Outlet Selected</h3>
+                <p className="text-sm text-muted-foreground mt-1">Select an outlet from the sidebar to manage QR codes</p>
               </div>
             </div>
           </CardContent>
@@ -498,7 +498,7 @@ export default function QRCodes() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Manage QR Codes</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Generate, download, and track QR codes for your restaurant tables
+            Generate, download, and track QR codes for your outlet
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -596,7 +596,7 @@ export default function QRCodes() {
                 <Settings className="h-5 w-5" />
                 QR Code Settings
               </CardTitle>
-              <CardDescription>Configure table count and PDF generation preferences</CardDescription>
+              <CardDescription>Configure spot count and PDF generation preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Base URL (read-only) */}
@@ -734,8 +734,8 @@ export default function QRCodes() {
                   <h3 className="font-semibold text-sm">How Table QR Codes Work</h3>
                   <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                     <li>Each QR encodes a unique URL: <code className="bg-muted px-1 rounded">domain/restaurant-id?table_no=N</code></li>
-                    <li>Customers scan → land on your digital menu with the table context pre-set</li>
-                    <li>Table context powers loyalty check-ins, offer claims, and pay-bill flows</li>
+                    <li>Customers scan → land on your digital catalogue with the spot context pre-set</li>
+                    <li>Spot context powers loyalty check-ins, offer claims, and pay-bill flows</li>
                     <li>Use the <strong>Analytics</strong> tab to see which tables get scanned most</li>
                     <li><strong>2×2 grid PDF</strong> fits 4 cards per landscape A4 — recommended for mass printing</li>
                     <li>Use the <strong>Per-Table</strong> tab to download individual codes as PNG / SVG</li>
@@ -949,7 +949,7 @@ export default function QRCodes() {
           <DialogHeader>
             <DialogTitle>Generate QR Codes PDF</DialogTitle>
             <DialogDescription>
-              Generating a production-ready QR code PDF for your restaurant tables.
+              Generating a production-ready QR code PDF for your outlet.
             </DialogDescription>
           </DialogHeader>
 

@@ -1,0 +1,208 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "title_field": "item_name",
+ "creation": "2026-07-20 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "category",
+  "item_name",
+  "is_active",
+  "column_break_1",
+  "is_popular",
+  "badge",
+  "sort_order",
+  "section_break_pricing",
+  "price",
+  "price_prefix",
+  "column_break_pricing",
+  "original_price",
+  "section_break_description",
+  "description",
+  "section_break_media",
+  "item_media",
+  "section_break_sub_items",
+  "sub_items",
+  "section_break_addons",
+  "addon_groups"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "Catalogue Category",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Item Name",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_popular",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Popular"
+  },
+  {
+   "fieldname": "badge",
+   "fieldtype": "Select",
+   "label": "Badge",
+   "options": "\nBest Value\nSale\nNew\nLimited"
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Sort Order",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_break_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "The headline price shown on the listing card. Used for sorting and Success Share calculations."
+  },
+  {
+   "fieldname": "price_prefix",
+   "fieldtype": "Data",
+   "label": "Price Prefix",
+   "description": "Optional prefix before the price. e.g. 'starts at', 'from', 'per person'. Leave blank for fixed price."
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "original_price",
+   "fieldtype": "Currency",
+   "label": "Original Price (MRP)",
+   "non_negative": 1,
+   "description": "Optional. If set, shown as strikethrough MRP alongside the price."
+  },
+  {
+   "fieldname": "section_break_description",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_break_media",
+   "fieldtype": "Section Break",
+   "label": "Media"
+  },
+  {
+   "fieldname": "item_media",
+   "fieldtype": "Table",
+   "label": "Media",
+   "options": "Catalogue Item Media"
+  },
+  {
+   "fieldname": "section_break_sub_items",
+   "fieldtype": "Section Break",
+   "label": "Sub-items / Pricing Breakdown"
+  },
+  {
+   "fieldname": "sub_items",
+   "fieldtype": "Table",
+   "label": "Sub-items",
+   "options": "Catalogue Sub-item",
+   "description": "Optional. Add sub-items (e.g. Men's Haircut ₹500, Child Haircut ₹650) to break down pricing variants."
+  },
+  {
+   "fieldname": "section_break_addons",
+   "fieldtype": "Section Break",
+   "label": "Add-ons & Variations"
+  },
+  {
+   "fieldname": "addon_groups",
+   "fieldtype": "Table",
+   "label": "Linked Addon Groups",
+   "options": "Catalogue Item Addon"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-21 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Catalogue Item",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

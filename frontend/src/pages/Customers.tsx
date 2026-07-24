@@ -21,6 +21,7 @@ import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Search, Us
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
+import { CustomersSkeleton } from '@/components/PageSkeletons'
 
 interface RestaurantCustomer {
   id: string
@@ -153,7 +154,7 @@ export default function Customers() {
                 <UserCheck className="h-6 w-6 text-muted-foreground/50" />
               </div>
               <p className="text-muted-foreground font-medium">
-                Select a restaurant from the dropdown to view customers.
+                Select an outlet from the dropdown to view customers.
               </p>
             </div>
           </CardContent>
@@ -161,6 +162,8 @@ export default function Customers() {
       </div>
     )
   }
+
+  if (isLoading && !customers?.length) return <CustomersSkeleton />
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -179,7 +182,7 @@ export default function Customers() {
             <div>
               <CardTitle>Customer Directory</CardTitle>
               <CardDescription>
-                {totalCount} total customers have interacted with your restaurant
+                {totalCount} total customers have interacted with your outlet
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -200,11 +203,7 @@ export default function Customers() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && !customers.length ? (
-            <div className="py-20 flex justify-center">
-              <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          ) : customers.length === 0 ? (
+          {customers.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground">No customers found</div>
           ) : (
             <>

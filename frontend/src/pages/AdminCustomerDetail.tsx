@@ -371,7 +371,7 @@ export default function AdminCustomerDetail() {
           <div className="space-y-6 max-w-5xl">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               
-              <StatCard icon={Store}         label="Restaurants"     value={fmt(stats.restaurants_visited)} sub="unique visited" />
+              <StatCard icon={Store}         label="Outlets"     value={fmt(stats.restaurants_visited)} sub="unique visited" />
               <StatCard icon={Wallet}        label="Cash Balance"    value={fmtR(stats.loyalty_balance)}    sub="spendable now" accent="border-primary/30 bg-primary/5" />
               <StatCard icon={TrendingUp}    label="Lifetime Earned" value={fmtR(stats.lifetime_earned)} />
               <StatCard icon={ArrowDownLeft} label="Total Redeemed"  value={fmtR(stats.total_redeemed)} />
@@ -420,7 +420,7 @@ export default function AdminCustomerDetail() {
                       <TableRow>
                         <TableHead>Type</TableHead>
                         <TableHead>Reason</TableHead>
-                        <TableHead>Restaurant</TableHead>
+                        <TableHead>Outlet</TableHead>
                         <TableHead>Coins</TableHead>
                         <TableHead>Expiry</TableHead>
                         <TableHead>Date</TableHead>
@@ -621,9 +621,9 @@ export default function AdminCustomerDetail() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Restaurant</Label>
+              <Label>Outlet</Label>
               <Select value={adjRestaurant} onValueChange={setAdjRestaurant}>
-                <SelectTrigger><SelectValue placeholder="Select restaurant" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select outlet" /></SelectTrigger>
                 <SelectContent>
                   {visitedRestaurants.map(([id, name]) => (
                     <SelectItem key={id} value={id}>{name as string}</SelectItem>

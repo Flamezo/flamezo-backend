@@ -170,8 +170,8 @@ export default function Events() {
         <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mb-4">
           <Calendar className="h-10 w-10 text-muted-foreground/30" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">Select a Restaurant</h3>
-        <p className="text-muted-foreground max-w-sm">Pick a restaurant to start managing floor events and special occasions.</p>
+        <h3 className="text-xl font-semibold mb-2">Select an Outlet</h3>
+        <p className="text-muted-foreground max-w-sm">Pick an outlet to start managing events and special occasions.</p>
       </div>
     )
   }
@@ -187,7 +187,7 @@ export default function Events() {
           <h2 className="text-2xl font-bold tracking-tight">Events</h2>
           <p className="text-muted-foreground text-sm flex items-center gap-2">
             <Calendar className="h-3.5 w-3.5" />
-            Manage your restaurant events and special occasions
+            Manage your outlet events and special occasions
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -212,7 +212,7 @@ export default function Events() {
             <div>
               <CardTitle>Events</CardTitle>
               <CardDescription>
-                Manage your restaurant events and special occasions
+                Manage your outlet events and special occasions
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-3">

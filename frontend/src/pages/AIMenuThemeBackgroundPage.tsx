@@ -64,7 +64,7 @@ export default function AIMenuThemeBackgroundPage() {
     setIsTogglingEnabled(true)
     try {
       await setThemeBackgroundEnabled({ restaurant: selectedRestaurant, enabled: nextEnabled ? 1 : 0 })
-      toast.success(nextEnabled ? 'Menu background enabled' : 'Menu background disabled')
+      toast.success(nextEnabled ? 'App background enabled' : 'App background disabled')
       await fetchStatus()
     } catch (error: any) {
       toast.error('Failed to update setting', { description: getFrappeError(error) })
@@ -133,7 +133,7 @@ export default function AIMenuThemeBackgroundPage() {
   }
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Please select a restaurant</div>
+    return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 
   const isEnabled = status?.enabled ?? true
@@ -142,9 +142,9 @@ export default function AIMenuThemeBackgroundPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Menu Theme Wallpapers</h1>
+          <h1 className="text-3xl font-bold tracking-tight">App Theme Wallpapers</h1>
           <p className="text-muted-foreground mt-2">
-            Upload up to 3 wallpapers for your menu splash page. The "Main" wallpaper will also serve as the blurred background for your entire application.
+            Upload up to 3 wallpapers for your app splash page. The "Main" wallpaper will also serve as the blurred background for your entire application.
           </p>
         </div>
         <div className="flex items-center gap-3">

@@ -596,6 +596,12 @@ def verify_story_with_pin(restaurant_id, submission_id, pin):
 
 
 @frappe.whitelist(allow_guest=True)
+def upload_proof_video(restaurant_id, submission_id, filename, content_type, size_bytes):
+	"""Alias for request_ugc_video_upload — matches the EP.ugcUploadProof key."""
+	return request_ugc_video_upload(restaurant_id, submission_id, filename, content_type, size_bytes)
+
+
+@frappe.whitelist(allow_guest=True)
 def request_ugc_video_upload(restaurant_id, submission_id, filename, content_type, size_bytes):
 	"""Issue a signed R2 URL for the diner to upload their view-count screen recording."""
 	try:

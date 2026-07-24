@@ -691,7 +691,7 @@ export default function BoostNewCampaign() {
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold tracking-tight text-foreground">Choose Package</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Select a budget tier tailored to your restaurant's volume expectations</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Select a budget tier tailored to your outlet's volume expectations</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {PACKAGES.map(p => {
@@ -970,7 +970,7 @@ export default function BoostNewCampaign() {
               </div>
               {!!templates.find(t => t.template_id === templateId)?.requires_hero_dish && (
                 <div className="space-y-1.5 pt-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Hero Dish Name</Label>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Hero Item Name</Label>
                   <Input value={heroDish} onChange={e => setHeroDish(e.target.value)} placeholder="e.g., Truffle Mushroom Risotto" className="mt-1.5" />
                 </div>
               )}
@@ -997,7 +997,7 @@ export default function BoostNewCampaign() {
         {stepIndex === 3 && campaign && (
           <div className="space-y-4">
             <h2 className="text-lg font-bold">Preview Your Ad</h2>
-            <p className="text-sm text-muted-foreground">Select a food photo and our AI will generate a Meta-compliant ad creative.</p>
+            <p className="text-sm text-muted-foreground">Select a product photo and our AI will generate a Meta-compliant ad creative.</p>
 
             <div className="flex flex-col lg:flex-row gap-6 items-start">
               {/* Phone Frame — Instagram Mockup */}
@@ -1021,7 +1021,7 @@ export default function BoostNewCampaign() {
                 <Card className="border-none bg-card shadow-sm">
                   <CardHeader className="pb-2">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Choose a Photo</h3>
-                    <p className="text-xs text-muted-foreground">Pick from your gallery or upload one — AI keeps the dish as-is and adds your branding, offer & address</p>
+                    <p className="text-xs text-muted-foreground">Pick from your gallery or upload one — AI keeps the item as-is and adds your branding, offer & address</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Option 1 — Gallery */}
@@ -1121,7 +1121,7 @@ export default function BoostNewCampaign() {
                   <p>• Your photo + AI-generated text = final ad creative</p>
                   <p>• Meta reviews the ad (usually 1–2 hours)</p>
                   <p>• Ad runs on Instagram Feed, Stories & Reels</p>
-                  <p>• Customers click → see coupon → visit your restaurant</p>
+                  <p>• Customers click → see coupon → visit your outlet</p>
                 </div>
               </div>
             </div>

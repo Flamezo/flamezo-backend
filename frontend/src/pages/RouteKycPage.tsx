@@ -476,7 +476,7 @@ export default function RouteKycPage() {
           <div className="p-5 space-y-5">
             <Field
               label="Legal Business Name"
-              hint="Example: 'Sharma Restaurant' — must match your PAN card or registration certificate exactly."
+              hint="Example: 'Sharma Enterprises' — must match your PAN card or registration certificate exactly."
               error={fieldErrors.legal_name}
             >
               <Input

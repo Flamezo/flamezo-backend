@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useFrappePostCall, useFrappeGetCall } from 'frappe-react-sdk'
+import { AddonGroupsSkeleton } from '@/components/PageSkeletons'
 import { useRestaurant } from '../contexts/RestaurantContext'
 import { useCurrency } from '../hooks/useCurrency'
 import { toast } from 'sonner'
@@ -17,11 +18,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '../components/ui/dialog'
 import {
-  Plus, Pencil, Trash2, Search, Layers, ChevronDown, GripVertical,
+  Plus, Trash2, Search, ChevronDown, GripVertical,
   Scale, Maximize2, Utensils, Pizza, Soup, MousePointer2, Edit2, Check,
-  Link2
+  Link2, Clock, Users, Trophy, Palette, Package, Dumbbell, TrendingUp, Zap,
 } from 'lucide-react'
-import json from 'superjson'
 
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -53,25 +53,215 @@ interface AddonGroup {
   linkedProductCount?: number
 }
 
+interface TemplateConfig {
+  id: string
+  title: string
+  subtitle: string
+  icon: React.ComponentType<{ className?: string }>
+  groupType: 'addon' | 'variation'
+  highlight?: boolean
+  defaultName: string
+  defaultItems: { name: string; price: number }[]
+}
 
-// ─── Templates ──────────────────────────────────────────────────────────────
+// ─── Industry templates ──────────────────────────────────────────────────────
 
-const TEMPLATES = [
-  { id: 'quantity', title: 'Quantity', subtitle: 'Quantity variations like - Small, medium, large, etc', icon: Scale, groupType: 'variation' as const },
-  { id: 'size', title: 'Size', subtitle: 'Different sizes of an item, eg - bread size, pizza size - 6", 12", etc', icon: Maximize2, groupType: 'variation' as const },
-  { id: 'prep', title: 'Preparation type', subtitle: 'Item preparation style, eg - Halal, non-Halal, etc', icon: Utensils, groupType: 'addon' as const },
-  { id: 'base', title: 'Base', subtitle: 'Item Base types, eg - wheat bread, multi-grain bread, etc', icon: Pizza, groupType: 'addon' as const },
-  { id: 'rice', title: 'Rice', subtitle: "Choice of item's rice selection.", icon: Soup, groupType: 'addon' as const },
-  { id: 'custom', title: 'Make your own', subtitle: "Define your own addon or variation group from scratch.", icon: Plus, groupType: 'addon' as const, highlight: true },
-]
+function getTemplates(outletType: string | undefined): TemplateConfig[] {
+  const type = outletType || 'dining'
+
+  if (type === 'dining' || type === 'cafe') {
+    return [
+      {
+        id: 'quantity', title: 'Quantity', subtitle: 'Small, Medium, Large quantity options',
+        icon: Scale, groupType: 'variation', defaultName: 'Choose Quantity',
+        defaultItems: [{ name: 'Small', price: 0 }, { name: 'Medium', price: 0 }, { name: 'Large', price: 0 }],
+      },
+      {
+        id: 'size', title: 'Size', subtitle: 'Portion or item size — 6", 12", etc',
+        icon: Maximize2, groupType: 'variation', defaultName: 'Choose Size',
+        defaultItems: [{ name: 'Regular', price: 0 }, { name: 'Large', price: 50 }, { name: 'Family', price: 100 }],
+      },
+      {
+        id: 'prep', title: 'Preparation', subtitle: 'Cooking or prep style — Halal, Jain, etc',
+        icon: Utensils, groupType: 'addon', defaultName: 'Preparation Style',
+        defaultItems: [{ name: 'Regular', price: 0 }, { name: 'Spicy', price: 0 }, { name: 'Jain', price: 0 }],
+      },
+      {
+        id: 'base', title: 'Base', subtitle: 'Bread, rice, or wrap base selection',
+        icon: Pizza, groupType: 'addon', defaultName: 'Choose Base',
+        defaultItems: [{ name: 'Regular', price: 0 }, { name: 'Whole Wheat', price: 0 }, { name: 'Multi-Grain', price: 10 }],
+      },
+      {
+        id: 'extras', title: 'Extras', subtitle: 'Optional toppings or add-ons',
+        icon: Soup, groupType: 'addon', defaultName: 'Optional Extras',
+        defaultItems: [{ name: 'Extra Cheese', price: 30 }, { name: 'Extra Sauce', price: 20 }],
+      },
+      {
+        id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+        icon: Plus, groupType: 'addon', highlight: true, defaultName: 'New Group',
+        defaultItems: [{ name: 'Option 1', price: 0 }],
+      },
+    ]
+  }
+
+  if (type === 'wellness') {
+    return [
+      {
+        id: 'duration', title: 'Duration', subtitle: 'Let customers choose service length',
+        icon: Clock, groupType: 'variation', defaultName: 'Choose Duration',
+        defaultItems: [
+          { name: '30 min', price: 0 }, { name: '45 min', price: 0 },
+          { name: '60 min', price: 0 }, { name: '90 min', price: 0 },
+        ],
+      },
+      {
+        id: 'intensity', title: 'Pressure / Intensity', subtitle: 'Mild, Moderate, or Deep pressure',
+        icon: Zap, groupType: 'variation', defaultName: 'Pressure Level',
+        defaultItems: [{ name: 'Mild', price: 0 }, { name: 'Moderate', price: 0 }, { name: 'Deep Tissue', price: 0 }],
+      },
+      {
+        id: 'gender', title: 'Service For', subtitle: 'Ladies / Gents option for gender-specific services',
+        icon: Users, groupType: 'variation', defaultName: 'Service For',
+        defaultItems: [{ name: 'Ladies', price: 0 }, { name: 'Gents', price: 0 }],
+      },
+      {
+        id: 'addon_treat', title: 'Add-on Treatments', subtitle: 'Optional extras like aromatherapy or hot stones',
+        icon: Plus, groupType: 'addon', defaultName: 'Add-on Treatments',
+        defaultItems: [
+          { name: 'Aromatherapy Oil', price: 299 },
+          { name: 'Hot Stone Therapy', price: 499 },
+          { name: 'Head Massage', price: 199 },
+        ],
+      },
+      {
+        id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+        icon: MousePointer2, groupType: 'addon', highlight: true, defaultName: 'New Group',
+        defaultItems: [{ name: 'Option 1', price: 0 }],
+      },
+    ]
+  }
+
+  if (type === 'fitness') {
+    return [
+      {
+        id: 'duration', title: 'Session Length', subtitle: '30, 45, or 60 minute sessions',
+        icon: Clock, groupType: 'variation', defaultName: 'Session Length',
+        defaultItems: [
+          { name: '30 min', price: 0 }, { name: '45 min', price: 0 }, { name: '60 min', price: 0 },
+        ],
+      },
+      {
+        id: 'level', title: 'Difficulty Level', subtitle: 'Beginner, Intermediate, or Advanced',
+        icon: TrendingUp, groupType: 'variation', defaultName: 'Difficulty Level',
+        defaultItems: [
+          { name: 'Beginner', price: 0 }, { name: 'Intermediate', price: 0 }, { name: 'Advanced', price: 0 },
+        ],
+      },
+      {
+        id: 'equipment', title: 'Equipment Add-on', subtitle: 'Mat rental, resistance bands, props',
+        icon: Dumbbell, groupType: 'addon', defaultName: 'Equipment Add-on',
+        defaultItems: [
+          { name: 'Yoga Mat', price: 0 }, { name: 'Resistance Bands', price: 50 }, { name: 'Foam Roller', price: 30 },
+        ],
+      },
+      {
+        id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+        icon: MousePointer2, groupType: 'addon', highlight: true, defaultName: 'New Group',
+        defaultItems: [{ name: 'Option 1', price: 0 }],
+      },
+    ]
+  }
+
+  if (type === 'sports_court' || type === 'sports_venue') {
+    return [
+      {
+        id: 'slot_duration', title: 'Slot Duration', subtitle: '30 min, 1 hour, or 90 min slots',
+        icon: Clock, groupType: 'variation', defaultName: 'Slot Duration',
+        defaultItems: [
+          { name: '30 min', price: 0 }, { name: '1 Hour', price: 0 }, { name: '90 min', price: 0 },
+        ],
+      },
+      {
+        id: 'equipment', title: 'Equipment Rental', subtitle: 'Rackets, balls, shuttles, accessories',
+        icon: Trophy, groupType: 'addon', defaultName: 'Equipment Rental',
+        defaultItems: [
+          { name: 'Racket (pair)', price: 50 }, { name: 'Shuttlecocks (6)', price: 30 }, { name: 'Balls (3)', price: 20 },
+        ],
+      },
+      {
+        id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+        icon: MousePointer2, groupType: 'addon', highlight: true, defaultName: 'New Group',
+        defaultItems: [{ name: 'Option 1', price: 0 }],
+      },
+    ]
+  }
+
+  if (type === 'fashion') {
+    return [
+      {
+        id: 'size', title: 'Size', subtitle: 'XS, S, M, L, XL, XXL size options',
+        icon: Maximize2, groupType: 'variation', defaultName: 'Choose Size',
+        defaultItems: [
+          { name: 'XS', price: 0 }, { name: 'S', price: 0 }, { name: 'M', price: 0 },
+          { name: 'L', price: 0 }, { name: 'XL', price: 0 }, { name: 'XXL', price: 0 },
+        ],
+      },
+      {
+        id: 'color', title: 'Colour', subtitle: 'Colour variants of the same item',
+        icon: Palette, groupType: 'variation', defaultName: 'Choose Colour',
+        defaultItems: [
+          { name: 'Black', price: 0 }, { name: 'White', price: 0 },
+          { name: 'Navy', price: 0 }, { name: 'Red', price: 0 },
+        ],
+      },
+      {
+        id: 'gift', title: 'Gift Wrap', subtitle: 'Optional gift packaging add-on',
+        icon: Package, groupType: 'addon', defaultName: 'Gift Wrap',
+        defaultItems: [{ name: 'Standard Gift Wrap', price: 49 }, { name: 'Premium Gift Wrap', price: 99 }],
+      },
+      {
+        id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+        icon: MousePointer2, groupType: 'addon', highlight: true, defaultName: 'New Group',
+        defaultItems: [{ name: 'Option 1', price: 0 }],
+      },
+    ]
+  }
+
+  // Generic fallback
+  return [
+    {
+      id: 'duration', title: 'Duration', subtitle: 'Time-based options',
+      icon: Clock, groupType: 'variation', defaultName: 'Choose Duration',
+      defaultItems: [{ name: '30 min', price: 0 }, { name: '60 min', price: 0 }, { name: '90 min', price: 0 }],
+    },
+    {
+      id: 'tier', title: 'Tier / Level', subtitle: 'Basic, Standard, Premium tiers',
+      icon: TrendingUp, groupType: 'variation', defaultName: 'Choose Tier',
+      defaultItems: [{ name: 'Basic', price: 0 }, { name: 'Standard', price: 0 }, { name: 'Premium', price: 0 }],
+    },
+    {
+      id: 'addon', title: 'Optional Add-on', subtitle: 'Extra services or items',
+      icon: Plus, groupType: 'addon', defaultName: 'Optional Add-ons',
+      defaultItems: [{ name: 'Add-on Option 1', price: 0 }],
+    },
+    {
+      id: 'custom', title: 'Custom', subtitle: 'Build your own from scratch',
+      icon: MousePointer2, groupType: 'addon', highlight: true, defaultName: 'New Group',
+      defaultItems: [{ name: 'Option 1', price: 0 }],
+    },
+  ]
+}
 
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function AddonGroupManagement() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedRestaurant, outletType } = useRestaurant()
   const restaurantId = selectedRestaurant
   const { formatAmountNoDecimals } = useCurrency()
+
+  const showVeg = !outletType || outletType === 'dining' || outletType === 'cafe'
+  const templates = useMemo(() => getTemplates(outletType), [outletType])
 
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
@@ -82,7 +272,7 @@ export default function AddonGroupManagement() {
   const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null)
 
   // API
-  const { data: groupsData, mutate: mutateGroups } = useFrappeGetCall(
+  const { data: groupsData, isLoading, mutate: mutateGroups } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.addon_groups.get_addon_groups',
     restaurantId ? { restaurant_id: restaurantId, include_items: 1 } : undefined,
     restaurantId ? `addon-groups-${restaurantId}` : null
@@ -112,21 +302,27 @@ export default function AddonGroupManagement() {
 
   const handleAddFromTemplate = async (templateId: string) => {
     if (!restaurantId) {
-      toast.error('No restaurant selected')
+      toast.error('No outlet selected')
       return
     }
-    const template = TEMPLATES.find(t => t.id === templateId)
-    const isCustom = templateId === 'custom'
+    const template = templates.find(t => t.id === templateId)
+    if (!template) return
 
     try {
       const result = await createGroup({
         restaurant_id: restaurantId,
-        group_name: isCustom ? 'Custom Group' : (template?.title || 'New Group'),
-        group_type: template?.groupType || 'addon',
+        group_name: template.defaultName,
+        group_type: template.groupType,
         is_required: 0,
         min_selections: 0,
-        max_selections: template?.groupType === 'variation' ? 1 : 0,
-        items: JSON.stringify([{ name: 'Option 1', price: 0 }])
+        max_selections: template.groupType === 'variation' ? 1 : 0,
+        items: JSON.stringify(template.defaultItems.map((item, idx) => ({
+          name: item.name,
+          price: item.price,
+          isVegetarian: showVeg ? true : false,
+          inStock: true,
+          displayOrder: idx,
+        })))
       })
 
       const data = result?.message?.data || result?.data
@@ -134,7 +330,7 @@ export default function AddonGroupManagement() {
         await mutateGroups()
         setEditingGroup(data.id)
         setExpandedGroups(new Set([...expandedGroups, data.id]))
-        toast.success(isCustom ? 'New group created' : `Created "${data.groupName}" group`)
+        toast.success(templateId === 'custom' ? 'New group created' : `"${data.groupName}" group created`)
       }
     } catch (e: any) {
       toast.error(e?.message || 'Failed to create group')
@@ -268,15 +464,22 @@ export default function AddonGroupManagement() {
     })
   }
 
+  // Table col count depends on whether Veg column is shown
+  const colCount = showVeg ? 5 : 4
+
   // ─── Render ─────────────────────────────────────────────────────────────
+
+  if (isLoading) return <AddonGroupsSkeleton />
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Addon Groups</h1>
+        <h1 className="text-2xl font-bold">Add-on Groups</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Manage reusable addon & variation groups. Link them to multiple products.
+          Reusable option groups — link them to multiple{' '}
+          {outletType === 'wellness' || outletType === 'fitness' ? 'services' :
+           outletType === 'fashion' ? 'products' : 'items'}.
         </p>
       </div>
 
@@ -286,8 +489,11 @@ export default function AddonGroupManagement() {
           <h3 className="text-sm font-bold text-foreground/80 uppercase tracking-tight">Create New Group</h3>
           <p className="text-xs text-muted-foreground mt-1">Pick a template or start from scratch.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-          {TEMPLATES.map((template) => (
+        <div className={cn(
+          "grid gap-3",
+          templates.length <= 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-6"
+        )}>
+          {templates.map((template) => (
             <Card key={template.id} className={cn(
               "group transition-all duration-300 border-border/40 bg-card/30 cursor-pointer hover:border-primary/50",
               template.highlight && "border-primary/20"
@@ -313,13 +519,13 @@ export default function AddonGroupManagement() {
       <div className="flex gap-3 items-center pt-4 border-t border-border/40">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search groups or items..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Search groups or options..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="All types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="addon">Addons</SelectItem>
+            <SelectItem value="addon">Add-ons</SelectItem>
             <SelectItem value="variation">Variations</SelectItem>
           </SelectContent>
         </Select>
@@ -332,7 +538,7 @@ export default function AddonGroupManagement() {
       {groups.length === 0 ? (
         <div className="p-12 border border-dashed rounded-xl bg-muted/10 flex flex-col items-center justify-center text-center gap-3">
           <MousePointer2 className="h-6 w-6 text-muted-foreground/30" />
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">No addon groups yet</p>
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">No add-on groups yet</p>
           <p className="text-sm text-muted-foreground">Use the templates above to create your first group.</p>
         </div>
       ) : (
@@ -343,7 +549,6 @@ export default function AddonGroupManagement() {
             const isEditing = editingGroup === rawGroup.id
             const isVariation = (group.groupType || group.type) === 'variation'
             const groupItems = group.items || []
-
             const isActive = rawGroup.status === 'Active'
 
             return (
@@ -361,20 +566,20 @@ export default function AddonGroupManagement() {
                         {isEditing ? (
                           <Input value={group.groupName || ''} onClick={e => e.stopPropagation()}
                             onChange={e => updateLocal(rawGroup.id, { groupName: e.target.value })}
-                            placeholder="Group name (e.g., Choice of Bread)" className="h-8 text-sm font-bold bg-background/50" autoFocus />
+                            placeholder="Group name (e.g., Choose Duration)" className="h-8 text-sm font-bold bg-background/50" autoFocus />
                         ) : (
                           <div>
                             <div className="flex items-center gap-2">
                               <h4 className={cn("text-sm font-bold", isActive ? "text-foreground/80" : "text-muted-foreground line-through")}>{group.groupName || 'Untitled Group'}</h4>
                               <Badge variant={isVariation ? 'default' : 'secondary'} className="text-[8px] h-3.5 px-1">
-                                {isVariation ? 'VARIATION' : 'ADDON'}
+                                {isVariation ? 'PICK ONE' : 'OPTIONAL'}
                               </Badge>
                               {group.isRequired && <Badge variant="default" className="text-[8px] h-3.5 bg-orange-500/10 text-orange-500 border-none px-1">REQUIRED</Badge>}
                               {!isActive && <Badge variant="outline" className="text-[8px] h-3.5 px-1">DISABLED</Badge>}
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
-                              <span>{groupItems.length} items</span>
-                              {rawGroup.linkedProductCount ? <span className="flex items-center gap-1"><Link2 className="w-3 h-3" />{rawGroup.linkedProductCount} products</span> : null}
+                              <span>{groupItems.length} options</span>
+                              {rawGroup.linkedProductCount ? <span className="flex items-center gap-1"><Link2 className="w-3 h-3" />{rawGroup.linkedProductCount} linked</span> : null}
                             </div>
                           </div>
                         )}
@@ -409,7 +614,7 @@ export default function AddonGroupManagement() {
                 {/* Expanded Content */}
                 {isExpanded && (
                   <CardContent className="p-4 pt-0 border-t border-border/40 bg-muted/5">
-                    {/* Selection Type & Required */}
+                    {/* Type & Required */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 mb-4 border-b border-border/40">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-bold text-muted-foreground/80 uppercase">Type</Label>
@@ -418,8 +623,8 @@ export default function AddonGroupManagement() {
                           disabled={!isEditing}>
                           <SelectTrigger className="h-8 text-xs bg-background/50 border-border/60"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="addon">Addon (multi-select extras)</SelectItem>
-                            <SelectItem value="variation">Variation (single-select, replaces price)</SelectItem>
+                            <SelectItem value="variation">Pick One (replaces base price)</SelectItem>
+                            <SelectItem value="addon">Optional Add-on (multi-select)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -428,7 +633,7 @@ export default function AddonGroupManagement() {
                           <input type="checkbox" id={`req-${rawGroup.id}`} checked={!!group.isRequired}
                             onChange={e => updateLocal(rawGroup.id, { isRequired: e.target.checked })}
                             className="h-4 w-4 rounded border-border/60 text-primary" disabled={!isEditing} />
-                          <Label htmlFor={`req-${rawGroup.id}`} className="text-xs font-medium cursor-pointer">Selection Mandatory?</Label>
+                          <Label htmlFor={`req-${rawGroup.id}`} className="text-xs font-medium cursor-pointer">Make selection mandatory?</Label>
                         </div>
                       </div>
                     </div>
@@ -451,16 +656,16 @@ export default function AddonGroupManagement() {
                             <TableRow className="hover:bg-transparent border-none h-8">
                               <TableHead className="text-[9px] font-bold uppercase h-8">Name</TableHead>
                               <TableHead className="text-[9px] font-bold uppercase h-8 text-right">Price</TableHead>
-                              <TableHead className="text-[9px] font-bold uppercase h-8 text-center">Veg</TableHead>
-                              <TableHead className="text-[9px] font-bold uppercase h-8 text-center">Stock</TableHead>
+                              {showVeg && <TableHead className="text-[9px] font-bold uppercase h-8 text-center">Veg</TableHead>}
+                              <TableHead className="text-[9px] font-bold uppercase h-8 text-center">In Stock</TableHead>
                               <TableHead className="text-[9px] font-bold uppercase h-8 text-right">Action</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {groupItems.length === 0 && (
                               <TableRow>
-                                <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-6">
-                                  No items yet. {isEditing ? 'Click "ADD OPTION" above.' : 'Click edit to add items.'}
+                                <TableCell colSpan={colCount} className="text-center text-xs text-muted-foreground py-6">
+                                  No options yet. {isEditing ? 'Click "ADD OPTION" above.' : 'Click edit to add options.'}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -475,10 +680,12 @@ export default function AddonGroupManagement() {
                                     {isEditing || isEditingOpt ? (
                                       <Input value={itemName}
                                         onChange={e => updateLocalItem(rawGroup.id, optIdx, 'itemName', e.target.value)}
-                                        className="h-7 text-xs bg-background" autoFocus={isEditingOpt} placeholder="Item name" />
+                                        className="h-7 text-xs bg-background" autoFocus={isEditingOpt} placeholder="Option name" />
                                     ) : (
                                       <div className="flex items-center gap-2">
-                                        <div className={`h-1.5 w-1.5 rounded-full ${item.isVegetarian !== false ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        {showVeg && (
+                                          <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${item.isVegetarian !== false ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        )}
                                         <span className="text-xs font-medium">{itemName || '-'}</span>
                                       </div>
                                     )}
@@ -494,11 +701,13 @@ export default function AddonGroupManagement() {
                                       </span>
                                     )}
                                   </TableCell>
-                                  <TableCell className="py-2 text-center">
-                                    <input type="checkbox" checked={item.isVegetarian !== false}
-                                      onChange={e => updateLocalItem(rawGroup.id, optIdx, 'isVegetarian', e.target.checked)}
-                                      className="h-3.5 w-3.5 rounded border-border/40" disabled={!isEditing} />
-                                  </TableCell>
+                                  {showVeg && (
+                                    <TableCell className="py-2 text-center">
+                                      <input type="checkbox" checked={item.isVegetarian !== false}
+                                        onChange={e => updateLocalItem(rawGroup.id, optIdx, 'isVegetarian', e.target.checked)}
+                                        className="h-3.5 w-3.5 rounded border-border/40" disabled={!isEditing} />
+                                    </TableCell>
+                                  )}
                                   <TableCell className="py-2 text-center">
                                     <Switch checked={item.inStock !== false} className="scale-75"
                                       onCheckedChange={() => {
@@ -537,8 +746,8 @@ export default function AddonGroupManagement() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Addon Group</DialogTitle>
-            <DialogDescription>This will unlink the group from all products and permanently delete it.</DialogDescription>
+            <DialogTitle>Delete Add-on Group</DialogTitle>
+            <DialogDescription>This will unlink the group from all items and permanently delete it.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>

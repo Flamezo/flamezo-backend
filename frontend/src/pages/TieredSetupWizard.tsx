@@ -31,7 +31,7 @@ interface WizardStep {
 // Map step IDs to URL-friendly slugs
 const stepIdToSlug = (id: string) => {
   const map: Record<string, string> = {
-    'restaurant': 'RestaurantProfile',
+    'restaurant': 'MerchantProfile',
     'config': 'BrandingAndConfig',
     'users': 'StaffMembers',
     'legacy': 'LegacyContent'
@@ -41,6 +41,8 @@ const stepIdToSlug = (id: string) => {
 
 const slugToStepId = (slug: string) => {
   const map: Record<string, string> = {
+    'MerchantProfile': 'restaurant',
+    // keep old slug working so existing bookmarks don't break
     'RestaurantProfile': 'restaurant',
     'BrandingAndConfig': 'config',
     'StaffMembers': 'users',
@@ -60,10 +62,10 @@ export default function TieredSetupWizard() {
 
   // Define All Possible Steps
   const allPotentialSteps: WizardStep[] = [
-    { id: 'restaurant', title: 'Restaurant Profile', description: 'Set up your restaurant basic information and contact details.', doctype: 'Restaurant', required: true },
+    { id: 'restaurant', title: 'Merchant Profile', description: 'Set up your merchant basic information and contact details.', doctype: 'Restaurant', required: true },
     { id: 'config', title: 'Branding & Config', description: 'Configure your brand colors, logos, and operational settings.', doctype: 'Restaurant Config', required: true },
     { id: 'users', title: 'Staff Members', description: 'Invite your team members and assign roles.', doctype: 'Restaurant User', required: false, customComponent: 'StaffMembersList' },
-    { id: 'legacy', title: 'Legacy Content', description: 'Tell your story and showcase your restaurant heritage.', doctype: 'Legacy Content', required: false, customComponent: 'LegacyContentStep' },
+    { id: 'legacy', title: 'Legacy Content', description: 'Tell your story and showcase your brand heritage.', doctype: 'Legacy Content', required: false, customComponent: 'LegacyContentStep' },
   ]
 
   // Filter steps based on current plan
@@ -160,53 +162,18 @@ export default function TieredSetupWizard() {
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-bold">Selection Required</h2>
-          <p className="text-muted-foreground">Please select a restaurant to continue with the setup process.</p>
+          <p className="text-muted-foreground">Please select a merchant to continue with the setup process.</p>
         </div>
-        <Button onClick={() => navigate(`/setup/${stepIdToSlug('restaurant')}`)} variant="outline" className="rounded-full">Back to Restaurant Profile</Button>
+        <Button onClick={() => navigate(`/setup/${stepIdToSlug('restaurant')}`)} variant="outline" className="rounded-full">Back to Merchant Profile</Button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-3">
-             <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">Setup Wizard</h1>
-             <PlanBadge />
-          </div>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-lg">
-            Let's get your dashboard ready. Follow these steps to unlock full potential.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold">{Math.round(progressPercentage)}% Complete</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{completedCount} of {steps.length} steps</p>
-          </div>
-          <Button 
-            variant="outline" 
-            className="rounded-2xl border-primary/20 hover:bg-primary/5 transition-all shadow-sm h-14 px-6 flex flex-col items-center gap-0"
-            onClick={() => setShowProgressModal(true)}
-          >
-            <div className="flex gap-1 mb-1">
-              {steps.map((_, i) => (
-                <div key={i} className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  i < completedCount ? "bg-primary" : "bg-muted"
-                )} />
-              ))}
-            </div>
-            <span className="text-[10px] uppercase font-bold tracking-tight">View Journey</span>
-          </Button>
-        </div>
-      </div>
-
+    <div className="max-w-5xl mx-auto pb-20 -mt-4 sm:-mt-6">
       {/* Main Content Card */}
       <Card className="border-none shadow-2xl shadow-primary/5 overflow-hidden rounded-2xl sm:rounded-[2rem] bg-card/50 backdrop-blur-sm border border-white/10">
-        <CardHeader className="p-4 sm:p-8 sm:pb-4 border-b border-white/5 space-y-4">
+        <CardHeader className="pt-3 sm:pt-5 pb-4 px-4 sm:px-8 border-b border-white/5 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -215,8 +182,9 @@ export default function TieredSetupWizard() {
               </div>
               <CardDescription className="text-sm sm:text-base text-foreground/70">{currentStep.description}</CardDescription>
             </div>
-            
+
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <span className="text-xs text-muted-foreground/50 mr-1">{currentStepIndex + 1} of {steps.length}</span>
               <Button 
                 variant="ghost" 
                 size="sm" 

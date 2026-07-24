@@ -1,0 +1,263 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "CRTB-.YYYY.-.#####",
+ "title_field": "court_name",
+ "creation": "2026-07-20 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_court",
+  "restaurant",
+  "court",
+  "court_name",
+  "sport_type",
+  "section_break_slot",
+  "booking_date",
+  "start_time",
+  "end_time",
+  "section_break_customer",
+  "customer_name",
+  "customer_phone",
+  "column_break_customer",
+  "notes",
+  "section_break_pricing",
+  "slot_price",
+  "consumer_fee",
+  "column_break_pricing",
+  "razorpay_order_id",
+  "razorpay_payment_id",
+  "payment_status",
+  "section_break_status",
+  "status",
+  "column_break_status",
+  "completed_at",
+  "section_break_cancel",
+  "cancelled_by",
+  "cancellation_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_court",
+   "fieldtype": "Section Break",
+   "label": "Court"
+  },
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "court",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Court",
+   "options": "Court",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "court_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Court Name",
+   "fetch_from": "court.court_name",
+   "fetch_if_empty": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sport_type",
+   "fieldtype": "Data",
+   "label": "Sport Type",
+   "fetch_from": "court.sport_type",
+   "fetch_if_empty": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_slot",
+   "fieldtype": "Section Break",
+   "label": "Slot"
+  },
+  {
+   "fieldname": "booking_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_global_search": 1,
+   "label": "Customer Name",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_customer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "section_break_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing & Payment"
+  },
+  {
+   "fieldname": "slot_price",
+   "fieldtype": "Currency",
+   "label": "Slot Price (₹)",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Court rental price (Success Share applies on this)."
+  },
+  {
+   "fieldname": "consumer_fee",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Consumer Fee (₹)",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Flat Flamezo platform fee charged to the customer."
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "razorpay_order_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Order ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "razorpay_payment_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Payment ID",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Payment Status",
+   "options": "Pending\nPaid\nRefunded",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Booking Status"
+  },
+  {
+   "default": "Pending Payment",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending Payment\nConfirmed\nCancelled\nCompleted\nNo Show",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_cancel",
+   "fieldtype": "Section Break",
+   "label": "Cancellation"
+  },
+  {
+   "fieldname": "cancelled_by",
+   "fieldtype": "Select",
+   "label": "Cancelled By",
+   "options": "\ncustomer\nmerchant"
+  },
+  {
+   "fieldname": "cancellation_reason",
+   "fieldtype": "Text",
+   "label": "Cancellation Reason"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-20 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Court Booking",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "booking_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

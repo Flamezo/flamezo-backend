@@ -286,7 +286,7 @@ export default function PaymentSettings() {
   )
 
   if (!activeRestaurantId) {
-    return <div className="p-8 text-center text-muted-foreground">Please select a restaurant to view transactions.</div>
+    return <div className="p-8 text-center text-muted-foreground">Please select an outlet to view transactions.</div>
   }
 
   return (

@@ -64,7 +64,7 @@ export default function GalleryManagement() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [uploadCategory, setUploadCategory] = useState<string>('Gallery Uploads')
 
-  const CATEGORIES = ['Branding', 'Food & Menu', 'Events', 'Gallery Uploads']
+  const CATEGORIES = ['Branding', 'Products & Catalogue', 'Events', 'Gallery Uploads']
 
   // Persist tab selection
   useEffect(() => {
@@ -255,7 +255,7 @@ export default function GalleryManagement() {
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <ImageIcon className="h-16 w-16 text-muted-foreground/20 mb-4" />
         <h3 className="text-xl font-semibold mb-2">Restaurant Required</h3>
-        <p className="text-muted-foreground max-w-sm">Please select a restaurant to manage its media assets.</p>
+        <p className="text-muted-foreground max-w-sm">Please select an outlet to manage its media assets.</p>
       </div>
     )
   }
@@ -271,7 +271,7 @@ export default function GalleryManagement() {
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Gallery Management</h2>
             <p className="text-muted-foreground text-sm font-medium">
-              Curate and manage your restaurant's visual showcase for the consumer application.
+              Curate and manage your outlet's visual showcase for the consumer application.
             </p>
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function GalleryManagement() {
             <div className="px-6 py-4 border-b border-border bg-muted/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-base">Discovery Pool</h3>
-                <p className="text-xs text-muted-foreground font-medium">Assets detected in your menu, events, and branding.</p>
+                <p className="text-xs text-muted-foreground font-medium">Assets detected in your catalogue, events, and branding.</p>
               </div>
               <Button 
                 variant="outline" 
@@ -442,7 +442,7 @@ export default function GalleryManagement() {
                         let Icon = Folder;
                         let colorClass = "text-blue-500 bg-blue-500/10 fill-blue-500/5";
                         
-                        if (category === 'Food & Menu') {
+                        if (category === 'Products & Catalogue') {
                             Icon = Utensils;
                             colorClass = "text-orange-500 bg-orange-500/10 fill-orange-500/5";
                         }
@@ -594,7 +594,7 @@ export default function GalleryManagement() {
                   <div className="flex flex-col gap-1.5">
                     {CATEGORIES.map((cat) => {
                       let Icon = Folder;
-                      if (cat === 'Food & Menu') Icon = Utensils;
+                      if (cat === 'Products & Catalogue') Icon = Utensils;
                       if (cat === 'Events') Icon = Calendar;
                       if (cat === 'Branding') Icon = Zap;
                       if (cat === 'Gallery Uploads') Icon = ImageIcon;
@@ -701,7 +701,7 @@ export default function GalleryManagement() {
                         value={editingItem.title}
                         onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                         className="h-10 rounded-lg border-border font-medium px-4"
-                        placeholder="e.g. Main Dining Area"
+                        placeholder="e.g. Main Service Area"
                         />
                     </div>
                     <div className="space-y-1.5">

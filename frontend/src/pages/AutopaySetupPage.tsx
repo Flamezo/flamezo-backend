@@ -39,7 +39,6 @@ interface BillingInfo {
   current_daily_vol: number
   deferred_plan_type?: 'GOLD' | null
   plan_change_date?: string | null
-  monthly_minimum: number
   platform_fee_percent: number
   plan_defaults: {
     gold_floor: number      // Retired — monthly floor removed (always 0)

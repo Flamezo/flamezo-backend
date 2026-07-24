@@ -75,25 +75,16 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 							serviceable = False
 							distance_error = quote_res.get("error") or "Location not serviceable by delivery partner."
 						else:
-							delivery_fee = flt(restaurant_doc.default_delivery_fee or 0)
+							delivery_fee = 0.0
 				except:
-					delivery_fee = flt(restaurant_doc.default_delivery_fee or 0)
+					delivery_fee = 0.0
 		else:
 			# If delivery selected but no location, we can't calculate fee yet but it's not unserviceable yet either
-			# We might want to show a default fee or keep it 0.
-			delivery_fee = flt(restaurant_doc.default_delivery_fee or 0)
-			
-		packaging_fee_val = flt(restaurant_doc.default_packaging_fee or 0)
-		if restaurant_doc.packaging_fee_type == "Percentage":
-			packaging_fee = round(subtotal * (packaging_fee_val / 100.0), 2)
-		else:
-			packaging_fee = packaging_fee_val
+			delivery_fee = 0.0
+
+		packaging_fee = 0.0
 	elif delivery_type == "Takeaway":
-		packaging_fee_val = flt(restaurant_doc.default_packaging_fee or 0)
-		if restaurant_doc.packaging_fee_type == "Percentage":
-			packaging_fee = round(subtotal * (packaging_fee_val / 100.0), 2)
-		else:
-			packaging_fee = packaging_fee_val
+		packaging_fee = 0.0
 	
 	# 3. Identify and Apply Offers (Auto + Manual)
 	applied_offers = []

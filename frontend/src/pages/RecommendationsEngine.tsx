@@ -158,7 +158,7 @@ export default function RecommendationsEngine() {
 
   useEffect(() => {
     if (!selectedRestaurant) {
-      toast.info('Please select a restaurant to manage recommendations.')
+      toast.info('Please select an outlet to manage recommendations.')
     }
   }, [selectedRestaurant])
 
@@ -180,7 +180,7 @@ export default function RecommendationsEngine() {
     try {
       const resp = await runEngine({ restaurant_id: selectedRestaurant })
       if ((resp as any)?.message?.success) {
-        toast.success('Recommendations generated successfully for this restaurant.')
+        toast.success('Recommendations generated successfully for this outlet.')
       } else {
         toast.success('Recommendations generated.')
       }
@@ -204,7 +204,7 @@ export default function RecommendationsEngine() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Recommendations Engine</h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              Run the AI engine once to generate optimized recommendations across the entire menu,
+              Run the AI engine once to generate optimized recommendations across the entire catalogue,
               then explore product-wise suggestion trees.
             </p>
           </div>
@@ -263,12 +263,12 @@ export default function RecommendationsEngine() {
           <CardContent className="py-10 flex flex-col items-center justify-center text-center space-y-3">
             <p className="text-base font-medium">
               {recommendationRun >= 1
-                ? 'No recommendations available for this restaurant.'
+                ? 'No recommendations available for this outlet.'
                 : 'No recommendations yet. Run the engine once to generate them.'}
             </p>
             <p className="text-sm text-muted-foreground max-w-md">
-              Ensure your restaurant has active products and categories configured before running the
-              engine. This process uses the full menu snapshot to compute suggestions.
+              Ensure your outlet has active products and categories configured before running the
+              engine. This process uses the full catalogue snapshot to compute suggestions.
             </p>
           </CardContent>
         </Card>

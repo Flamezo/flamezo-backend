@@ -1562,3 +1562,52 @@ def _mask_phone(phone: str) -> str:
 		return "*" * (len(phone) - 4) + phone[-4:]
 	return phone
 
+
+@frappe.whitelist(allow_guest=True)
+def apply_coupon(restaurant_id, coupon_code, order_id, discount_amount=0, customer_id=None, phone=None):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.coupons.apply_coupon
+
+	Record coupon usage after an order is placed. Idempotent — safe to call
+	multiple times for the same order (subsequent calls are no-ops).
+
+	Called by the web/app order flow after order creation to commit the discount.
+	For Razorpay-gated orders, process_loyalty_and_coupons (payments.py) handles
+	this automatically; this endpoint covers web orders (0% fee path).
+	"""
+	try:
+		if not restaurant_id or not coupon_code or not order_id:
+			return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id, coupon_code and order_id are required"}}
+
+		restaurant = validate_restaurant_for_api(restaurant_id)
+
+		# Resolve coupon by code
+		coupon_name = frappe.db.get_value("Coupon", {"restaurant": restaurant, "code": coupon_code}, "name")
+		if not coupon_name:
+			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Coupon not found"}}
+
+		# Idempotent: skip if already recorded for this order
+		if frappe.db.exists("Coupon Usage", {"order": order_id, "coupon": coupon_name}):
+			return {"success": True, "data": {"already_applied": True}}
+
+		frappe.get_doc({
+			"doctype": "Coupon Usage",
+			"coupon": coupon_name,
+			"customer": customer_id or "",
+			"order": order_id,
+			"restaurant": restaurant,
+			"discount_amount": frappe.utils.flt(discount_amount),
+		}).insert(ignore_permissions=True)
+
+		frappe.db.sql(
+			"UPDATE `tabCoupon` SET usage_count = COALESCE(usage_count, 0) + 1 WHERE name = %s",
+			(coupon_name,),
+		)
+		frappe.db.commit()
+
+		return {"success": True, "data": {"applied": True, "coupon": coupon_name}}
+
+	except Exception as e:
+		frappe.log_error(f"apply_coupon error: {e}", "Coupon")
+		return {"success": False, "error": {"code": "COUPON_APPLY_ERROR", "message": str(e)}}
+

@@ -58,11 +58,11 @@ def get_addon_groups(restaurant_id, status=None, group_type=None, include_items=
             for g in groups:
                 g["items"] = items_by_group.get(g.name, [])
 
-        # Count linked products for each group
+        # Count linked products + catalogue items for each group
         for g in groups:
-            g["linked_product_count"] = frappe.db.count(
-                "Product Addon Group",
-                {"addon_group": g.name, "parenttype": "Menu Product", "is_enabled": 1}
+            g["linked_product_count"] = (
+                frappe.db.count("Product Addon Group", {"addon_group": g.name, "parenttype": "Menu Product", "is_enabled": 1}) +
+                frappe.db.count("Catalogue Item Addon", {"addon_group": g.name, "parenttype": "Catalogue Item", "is_enabled": 1})
             )
 
         return {"success": True, "data": [_format_group(g) for g in groups]}
@@ -199,8 +199,9 @@ def delete_addon_group(restaurant_id, group_id):
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
 
-        # Remove all product links first
+        # Remove all product links and catalogue item links first
         frappe.db.delete("Product Addon Group", {"addon_group": group_name})
+        frappe.db.delete("Catalogue Item Addon", {"addon_group": group_name})
         frappe.delete_doc("Addon Group", group_name, ignore_permissions=True)
 
         return {"success": True, "message": "Addon group deleted"}

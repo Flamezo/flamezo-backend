@@ -1,0 +1,152 @@
+{
+ "actions": [],
+ "autoname": "CHILL-.YYYY.-.#####",
+ "creation": "2026-07-09 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "outlet",
+  "creator",
+  "outlet_name",
+  "outlet_city",
+  "outlet_logo",
+  "outlet_lat",
+  "outlet_lng",
+  "video_url",
+  "thumbnail_url",
+  "description",
+  "audio",
+  "likes_count",
+  "saves_count",
+  "shares_count",
+  "views_count",
+  "status",
+  "published_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "search_index": 1
+  },
+  {
+   "fieldname": "outlet_name",
+   "fieldtype": "Data",
+   "label": "Outlet Name",
+   "fetch_from": "outlet.restaurant_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outlet_city",
+   "fieldtype": "Data",
+   "label": "Outlet City",
+   "fetch_from": "outlet.city",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outlet_logo",
+   "fieldtype": "Data",
+   "label": "Outlet Logo",
+   "fetch_from": "outlet.logo",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outlet_lat",
+   "fieldtype": "Float",
+   "label": "Outlet Latitude",
+   "fetch_from": "outlet.latitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outlet_lng",
+   "fieldtype": "Float",
+   "label": "Outlet Longitude",
+   "fetch_from": "outlet.longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "label": "Video URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "thumbnail_url",
+   "fieldtype": "Data",
+   "label": "Thumbnail URL"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "audio",
+   "fieldtype": "Data",
+   "label": "Audio Track"
+  },
+  {
+   "fieldname": "likes_count",
+   "fieldtype": "Int",
+   "label": "Likes",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "saves_count",
+   "fieldtype": "Int",
+   "label": "Saves",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shares_count",
+   "fieldtype": "Int",
+   "label": "Shares",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "views_count",
+   "fieldtype": "Int",
+   "label": "Views",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "draft\npublished\nremoved",
+   "default": "draft",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "published_at",
+   "fieldtype": "Datetime",
+   "label": "Published At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-07-09 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Chills",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "sort_field": "published_at",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

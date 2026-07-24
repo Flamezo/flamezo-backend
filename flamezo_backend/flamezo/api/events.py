@@ -121,6 +121,45 @@ def get_events(restaurant_id=None, featured=None, category=None, upcoming_only=T
 
 
 
+@frappe.whitelist(allow_guest=True)
+def get_event_detail(event_id):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.events.get_event_detail
+
+	Returns full details for a single event by its ID.
+	Consumer-facing — no restaurant_id required.
+	"""
+	try:
+		if not event_id:
+			frappe.throw(_("event_id is required"))
+
+		events = frappe.get_all("Event", fields=_EVENT_FIELDS + ["restaurant"],
+								filters={"name": event_id, "is_active": 1}, limit=1)
+		if not events:
+			frappe.throw(_("Event not found"), frappe.DoesNotExistError)
+
+		event = events[0]
+		restaurant_meta = {}
+		if event.get("restaurant"):
+			r = frappe.db.get_value(
+				"Restaurant",
+				event["restaurant"],
+				["restaurant_id", "restaurant_name", "city"],
+				as_dict=True,
+			)
+			if r:
+				restaurant_meta = r
+
+		formatted = _format_event(event, include_restaurant=True, restaurant_meta=restaurant_meta)
+		return {"success": True, "data": {"event": formatted}}
+
+	except frappe.DoesNotExistError:
+		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Event not found"}}
+	except Exception as e:
+		frappe.log_error(f"Error in get_event_detail: {str(e)}")
+		return {"success": False, "error": {"code": "EVENT_FETCH_ERROR", "message": str(e)}}
+
+
 @frappe.whitelist()
 def save_event(restaurant_id, event_data):
 	"""

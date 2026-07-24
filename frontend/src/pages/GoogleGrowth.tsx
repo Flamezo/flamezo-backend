@@ -77,12 +77,12 @@ export default function GoogleGrowth() {
             )}
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight">Google Growth</h1>
-          <p className="text-muted-foreground mt-1">Boost your restaurant's visibility on Google Maps and Search.</p>
+          <p className="text-muted-foreground mt-1">Boost your outlet's visibility on Google Maps and Search.</p>
         </div>
         
         <div className="flex items-center gap-3">
           <Button variant="outline" asChild>
-            <Link to="/google-growth/sync">Manage Menu Sync</Link>
+            <Link to="/google-growth/sync">Manage Catalogue Sync</Link>
           </Button>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20" onClick={handleConnect}>
             {isConnected ? 'Reconnect Google Business' : 'Connect Google Business'}
@@ -207,7 +207,7 @@ export default function GoogleGrowth() {
               </div>
               <div className="space-y-4 pt-2">
                 <AuditItem label="GMB Profile Completion" score={isConnected ? 100 : 0} isConnected={isConnected} />
-                <AuditItem label="Menu Synchronization" score={isConnected ? 45 : 0} isConnected={isConnected} warning={isConnected} />
+                <AuditItem label="Catalogue Synchronization" score={isConnected ? 45 : 0} isConnected={isConnected} warning={isConnected} />
                 <AuditItem label="Review Response Rate" score={isConnected ? 32 : 0} isConnected={isConnected} warning={isConnected} />
                 <AuditItem label="Keyword Optimization" score={isConnected ? 85 : 0} isConnected={isConnected} />
               </div>

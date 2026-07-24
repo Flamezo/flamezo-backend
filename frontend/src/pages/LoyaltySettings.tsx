@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall, useFrappeGetDoc, useFrappeGetCall } from '@/lib/frappe'
+import { LoyaltySettingsSkeleton } from '@/components/PageSkeletons'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -41,7 +42,7 @@ export default function LoyaltySettings() {
   const [saving, setSaving] = useState(false)
   const [enableLoyalty, setEnableLoyalty] = useState(false)
 
-  const { data: restaurantDoc, mutate: mutateRestaurant } = useFrappeGetDoc(
+  const { data: restaurantDoc, isLoading, mutate: mutateRestaurant } = useFrappeGetDoc(
     'Restaurant', selectedRestaurant || '',
     selectedRestaurant ? `Restaurant-${selectedRestaurant}` : null
   )
@@ -100,6 +101,8 @@ export default function LoyaltySettings() {
   // Save handler for loyalty status toggle.
   const handleLoyaltyToggle = (checked: boolean) => saveSettings(checked)
 
+  if (isLoading) return <LoyaltySettingsSkeleton />
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -113,7 +116,7 @@ export default function LoyaltySettings() {
             </Badge>
           </div>
           <p className="text-muted-foreground mt-2">
-            Platform-wide loyalty that rewards customers across every restaurant in the Flamezo network.
+            Platform-wide loyalty that rewards customers across every outlet in the Flamezo network.
           </p>
         </div>
 
@@ -122,7 +125,7 @@ export default function LoyaltySettings() {
           <div className="flex flex-col">
             <Label htmlFor="enable-loyalty" className="text-sm font-semibold">Join Loyalty Network</Label>
             <p className="text-[10px] text-muted-foreground">
-              {saving ? <span className="text-primary animate-pulse font-medium">Saving...</span> : 'Enable for your restaurant'}
+              {saving ? <span className="text-primary animate-pulse font-medium">Saving...</span> : 'Enable for your outlet'}
             </p>
           </div>
           <Switch
@@ -139,7 +142,7 @@ export default function LoyaltySettings() {
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/20 dark:text-amber-400">
           <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <p className="text-sm">
-            Loyalty is currently <strong>disabled</strong>. Customers visiting your restaurant won't earn
+            Loyalty is currently <strong>disabled</strong>. Customers visiting your outlet won't earn
             Flamezo Cash. Enable it above to join the network and attract repeat customers.
           </p>
         </div>
@@ -147,8 +150,8 @@ export default function LoyaltySettings() {
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex gap-3 text-green-900 dark:bg-green-900/10 dark:border-green-900/20 dark:text-green-400">
           <ShieldCheck className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <p className="text-sm">
-            Your restaurant is <strong>active on the Flamezo Loyalty Network</strong>. Customers earn cash
-            on every order and can discover your restaurant through the explore feed.
+            Your outlet is <strong>active on the Flamezo Loyalty Network</strong>. Customers earn cash
+            on every order and can discover your outlet through the explore feed.
           </p>
         </div>
       )}
@@ -163,7 +166,7 @@ export default function LoyaltySettings() {
               How Flamezo Loyalty Works
             </CardTitle>
             <CardDescription>
-              One wallet. Every restaurant. Your customers earn and spend across the entire network.
+              One wallet. Every outlet. Your customers earn and spend across the entire network.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -174,7 +177,7 @@ export default function LoyaltySettings() {
                 </div>
                 <p className="text-sm font-semibold">Customer Earns</p>
                 <p className="text-2xl font-bold text-primary">{p.earn_percentage}% Cash</p>
-                <p className="text-xs text-muted-foreground">on every qualifying order at your restaurant</p>
+                <p className="text-xs text-muted-foreground">on every qualifying order at your outlet</p>
               </div>
               <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
                 <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -182,15 +185,15 @@ export default function LoyaltySettings() {
                 </div>
                 <p className="text-sm font-semibold">Spend Anywhere</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">1 Cash = ₹1</p>
-                <p className="text-xs text-muted-foreground">across any Flamezo partner restaurant</p>
+                <p className="text-xs text-muted-foreground">across any Flamezo partner outlet</p>
               </div>
               <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
                 <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                   <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
                 </div>
                 <p className="text-sm font-semibold">You Get</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">New Diners</p>
-                <p className="text-xs text-muted-foreground">from across the network discovering your restaurant</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">New Customers</p>
+                <p className="text-xs text-muted-foreground">from across the network discovering your outlet</p>
               </div>
             </div>
 
@@ -289,7 +292,7 @@ export default function LoyaltySettings() {
                 <Trophy className="w-4 h-4 text-amber-500" />
                 Customer Tiers
               </CardTitle>
-              <CardDescription>Global tiers based on lifetime Cash earned across all restaurants</CardDescription>
+              <CardDescription>Global tiers based on lifetime Cash earned across all outlets</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {[
@@ -316,9 +319,9 @@ export default function LoyaltySettings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>• All earn and redemption rates are <strong>fixed platform-wide</strong> — uniform, fair, and fraud-resistant across all network restaurants.</p>
+            <p>• All earn and redemption rates are <strong>fixed platform-wide</strong> — uniform, fair, and fraud-resistant across all network outlets.</p>
             <p>• <strong>Fraud protection:</strong> Phone verification required for all referral rewards. Daily redemption cap of ₹{PLATFORM.max_daily_redemption_inr} per customer.</p>
-            <p>• <strong>Settlement:</strong> No monetary charge per redemption. You gain new diners from the network; that discovery is the value exchange.</p>
+            <p>• <strong>Settlement:</strong> No monetary charge per redemption. You gain new customers from the network; that discovery is the value exchange.</p>
             <p>• Changes to platform rates apply to future transactions only. Existing earned Cash is never affected.</p>
             <p className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> To request a rate review, contact the Flamezo partner team.</p>
           </CardContent>

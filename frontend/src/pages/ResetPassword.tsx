@@ -110,7 +110,7 @@ export default function ResetPassword() {
               <div className="space-y-3">
                 <h3 className="text-2xl font-black text-emerald-900 dark:text-emerald-50">Access Restored</h3>
                 <p className="text-emerald-700 dark:text-emerald-300 font-medium leading-relaxed">
-                  Your new password is now active. We are redirecting you to your restaurant dashboard...
+                  Your new password is now active. We are redirecting you to your dashboard...
                 </p>
               </div>
               <Button asChild className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-lg shadow-emerald-600/20">

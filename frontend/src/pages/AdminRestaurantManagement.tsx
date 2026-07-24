@@ -57,11 +57,10 @@ interface Restaurant {
   restaurant_name: string
   owner_email?: string
   owner_phone?: string
+  outlet_type?: string
   is_active: number
   coins_balance: number
   platform_fee_percent: number
-  monthly_minimum: number
-  enable_floor_recovery: number
   creation: string
   modified: string
   // Razorpay Route hybrid state (May 2026)
@@ -71,6 +70,16 @@ interface Restaurant {
   cash_sweep_failure_count?: number
   razorpay_kyc_status?: '' | 'under_review' | 'needs_clarification' | 'activated' | 'suspended' | 'rejected'
   route_mode?: '' | 'flamezo_hold' | 'direct_split' | 'disabled'
+}
+
+const OUTLET_TYPE_META: Record<string, { label: string; cls: string }> = {
+  dining:        { label: 'Dine · Banquets',     cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' },
+  cafe:          { label: 'Cafe · Bakeries',      cls: 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800' },
+  wellness:      { label: 'Wellness · Beauty',    cls: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800' },
+  fitness:       { label: 'Fitness · Yoga',       cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' },
+  sports_court:  { label: 'Sports · Court',       cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800' },
+  sports_venue:  { label: 'Play · Sports',        cls: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-400 dark:border-cyan-800' },
+  fashion:       { label: 'Fashion · Accessories',cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' },
 }
 
 interface AdminStats {
@@ -298,6 +307,7 @@ export default function AdminRestaurantManagement() {
   const [reviewDetail, setReviewDetail] = useState<OnboardingDetail | null>(null)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [syncingName, setSyncingName] = useState<string | null>(null)
+  const [optimisticTypes, setOptimisticTypes] = useState<Record<string, string>>({})
 
   const { data: rawPlatformSettings, mutate: loadPlatformSettings } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.admin.get_platform_settings',
@@ -331,7 +341,7 @@ export default function AdminRestaurantManagement() {
       const newStatus = currentStatus ? 0 : 1
       const result = await toggleRestaurantStatus({ restaurant_id: restaurantName, is_active: newStatus }) as any
       if (result?.message?.success) {
-        toast.success(`Restaurant ${newStatus ? 'activated' : 'deactivated'}`)
+        toast.success(`Merchant ${newStatus ? 'activated' : 'deactivated'}`)
         loadRestaurants()
       }
     } catch (error) {
@@ -373,7 +383,7 @@ export default function AdminRestaurantManagement() {
       setUpdating(restaurantToDelete.id)
       const result = await deleteRestaurant({ restaurant_id: restaurantToDelete.id }) as any
       if (result?.message?.success) {
-        toast.success(`Restaurant purged from system`)
+        toast.success(`Merchant removed from system`)
         setIsDeleteDialogOpen(false)
         loadRestaurants()
       } else {
@@ -443,7 +453,7 @@ export default function AdminRestaurantManagement() {
 
   const handleGenerateLink = async () => {
     if (!selectedOnboardingResId) {
-      toast.error('Please select a restaurant')
+      toast.error('Please select an outlet')
       return
     }
 
@@ -537,7 +547,7 @@ export default function AdminRestaurantManagement() {
             </div>
             <h2 className="text-3xl font-black tracking-tight mb-4">RESTRICTED ZONE</h2>
             <p className="text-muted-foreground leading-relaxed font-medium">
-              You lack the administrative clearance required to access the central restaurant control hub.
+              You lack the administrative clearance required to access the central merchant control hub.
             </p>
             <Button onClick={() => navigate('/')} className="mt-8 rounded-xl px-10 h-12 font-bold uppercase tracking-widest text-xs">
               Return Home
@@ -552,9 +562,9 @@ export default function AdminRestaurantManagement() {
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Restaurant Management</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Merchant Management</h2>
           <p className="text-muted-foreground text-sm">
-            Manage all restaurants in the ecosystem
+            Manage all merchants across all industries
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -701,7 +711,7 @@ export default function AdminRestaurantManagement() {
             <div className="relative flex-1 min-w-[180px] max-w-[260px]">
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search restaurants..."
+                placeholder="Search merchants..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-7 h-8 text-xs"
@@ -732,7 +742,7 @@ export default function AdminRestaurantManagement() {
             {/* Status */}
             <Select
               value={(() => {
-                const f = filters.find(f => f.fieldname === 'is_active')
+                const f = filters.find((f: any) => f.fieldname === 'is_active')
                 if (!f) return 'all'
                 return f.value === 1 ? 'active' : 'inactive'
               })()}
@@ -750,9 +760,31 @@ export default function AdminRestaurantManagement() {
               </SelectContent>
             </Select>
 
+            {/* Business Type */}
+            <Select
+              value={(filters.find((f: any) => f.fieldname === 'outlet_type')?.value as string) || 'all'}
+              onValueChange={(v) => {
+                const next = filters.filter((f: any) => f.fieldname !== 'outlet_type')
+                if (v !== 'all') next.push({ fieldname: 'outlet_type', operator: '=', value: v })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Type: All</SelectItem>
+                <SelectItem value="dining">Dine · Banquets</SelectItem>
+                <SelectItem value="cafe">Cafe · Bakeries</SelectItem>
+                <SelectItem value="wellness">Wellness · Beauty</SelectItem>
+                <SelectItem value="fitness">Fitness · Yoga</SelectItem>
+                <SelectItem value="sports_court">Sports · Court</SelectItem>
+                <SelectItem value="sports_venue">Play · Sports</SelectItem>
+                <SelectItem value="fashion">Fashion · Accessories</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* Success Share Tier */}
             <Select
-              value={(filters.find(f => f.fieldname === 'success_share_tier')?.value as string) || 'all'}
+              value={(filters.find((f: any) => f.fieldname === 'success_share_tier')?.value as string) || 'all'}
               onValueChange={(v) => {
                 const next = filters.filter(f => f.fieldname !== 'success_share_tier')
                 if (v !== 'all') next.push({ fieldname: 'success_share_tier', operator: '=', value: v })
@@ -770,7 +802,7 @@ export default function AdminRestaurantManagement() {
 
             {/* Mandate */}
             <Select
-              value={(filters.find(f => f.fieldname === 'mandate_status')?.value as string) || 'all'}
+              value={(filters.find((f: any) => f.fieldname === 'mandate_status')?.value as string) || 'all'}
               onValueChange={(v) => {
                 const next = filters.filter(f => f.fieldname !== 'mandate_status')
                 if (v !== 'all') next.push({ fieldname: 'mandate_status', operator: '=', value: v })
@@ -788,7 +820,7 @@ export default function AdminRestaurantManagement() {
 
             {/* Route KYC */}
             <Select
-              value={(filters.find(f => f.fieldname === 'razorpay_kyc_status')?.value as string) || 'all'}
+              value={(filters.find((f: any) => f.fieldname === 'razorpay_kyc_status')?.value as string) || 'all'}
               onValueChange={(v) => {
                 const next = filters.filter(f => f.fieldname !== 'razorpay_kyc_status')
                 if (v !== 'all') next.push({ fieldname: 'razorpay_kyc_status', operator: '=', value: v })
@@ -808,7 +840,7 @@ export default function AdminRestaurantManagement() {
 
             {/* Throttle */}
             <Select
-              value={(filters.find(f => f.fieldname === 'throttled')?.value as string) || 'all'}
+              value={(filters.find((f: any) => f.fieldname === 'throttled')?.value as string) || 'all'}
               onValueChange={(v) => {
                 const next = filters.filter(f => f.fieldname !== 'throttled')
                 if (v !== 'all') next.push({ fieldname: 'throttled', operator: '=', value: v })
@@ -842,14 +874,15 @@ export default function AdminRestaurantManagement() {
               <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
             </div>
           ) : !restaurants || restaurants.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground">No restaurants found</div>
+            <div className="py-20 text-center text-muted-foreground">No merchants found</div>
           ) : (
             <>
               <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 z-20 bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] min-w-[250px]">Restaurant</TableHead>
+                      <TableHead className="sticky left-0 z-20 bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] min-w-[250px]">Merchant</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>ID</TableHead>
                       <TableHead>Success Share</TableHead>
                       <TableHead className="text-right">Outstanding</TableHead>
@@ -882,6 +915,42 @@ export default function AdminRestaurantManagement() {
                               <span className="text-xs text-muted-foreground truncate">{restaurant.owner_email}</span>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const type = optimisticTypes[restaurant.restaurant_id] || restaurant.outlet_type || 'dining'
+                            const m = OUTLET_TYPE_META[type] || { label: type, cls: 'bg-stone-50 text-stone-600 border-stone-200' }
+                            return (
+                              <Select
+                                value={type}
+                                onValueChange={async (newType) => {
+                                  setOptimisticTypes(prev => ({ ...prev, [restaurant.restaurant_id]: newType }))
+                                  const res = await updateSettings({
+                                    restaurant_id: restaurant.restaurant_id,
+                                    updates: JSON.stringify({ outlet_type: newType }),
+                                  })
+                                  if (res?.message?.success) {
+                                    loadRestaurants()
+                                    toast.success(`Type updated to ${OUTLET_TYPE_META[newType]?.label ?? newType}`)
+                                  } else {
+                                    setOptimisticTypes(prev => ({ ...prev, [restaurant.restaurant_id]: restaurant.outlet_type || 'dining' }))
+                                    toast.error(res?.message?.error || 'Failed to update type')
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className={`h-7 text-[10px] font-bold border px-2 py-0.5 rounded-full w-auto gap-1 ${m.cls}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(OUTLET_TYPE_META).map(([val, meta]) => (
+                                    <SelectItem key={val} value={val} className="text-xs">
+                                      {meta.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell>
                           <code className="text-[10px] bg-muted px-1 rounded">{restaurant.restaurant_id}</code>
@@ -1106,7 +1175,7 @@ export default function AdminRestaurantManagement() {
               <Trash2 className="h-6 w-6 text-red-600" />
             </div>
             <DialogHeader className="text-center">
-              <DialogTitle className="text-xl font-bold text-center w-full">Delete Restaurant</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-center w-full">Delete Merchant</DialogTitle>
               <DialogDescription className="text-sm text-center pt-2">
                 This action is irreversible. All configurations, balances, and data for <span className="font-bold text-foreground">"{restaurantToDelete?.name}"</span> will be permanently removed.
               </DialogDescription>
@@ -1120,7 +1189,7 @@ export default function AdminRestaurantManagement() {
               <Input
                 value={verificationInput}
                 onChange={(e) => setVerificationInput(e.target.value)}
-                placeholder="Type restaurant ID here"
+                placeholder="Type merchant ID here"
                 className="h-11 rounded-xl border-muted focus-visible:ring-red-500 font-medium"
                 disabled={updating === restaurantToDelete?.id}
               />
@@ -1147,7 +1216,7 @@ export default function AdminRestaurantManagement() {
                   Deleting...
                 </>
               ) : (
-                'Delete Restaurant'
+                'Delete Merchant'
               )}
             </Button>
           </DialogFooter>
@@ -1171,7 +1240,7 @@ export default function AdminRestaurantManagement() {
                     <DialogTitle className="text-2xl font-black tracking-tight">Onboarding Inbox</DialogTitle>
                     <DialogDescription className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                       <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                      Review and finalize new restaurant setups
+                      Review and finalize new outlet setups
                     </DialogDescription>
                   </div>
                 </div>
@@ -1201,7 +1270,7 @@ export default function AdminRestaurantManagement() {
               <div className="flex flex-col sm:flex-row gap-3 items-end animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex-1 space-y-2 w-full">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                    Select Restaurant
+                    Select Outlet
                   </Label>
                   <RestaurantSelector
                     value={selectedOnboardingResId}
@@ -1275,7 +1344,7 @@ export default function AdminRestaurantManagement() {
                         className="rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
                     </th>
-                    <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Restaurant Name</th>
+                    <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Outlet Name</th>
                     <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Owner / Status</th>
                     <th className="py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Created</th>
                     <th className="py-3 pr-4 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
@@ -1391,7 +1460,7 @@ export default function AdminRestaurantManagement() {
           <DialogHeader>
             <DialogTitle>Share Onboarding Link</DialogTitle>
             <DialogDescription>
-              Copy and share this link with the restaurant owner.
+              Copy and share this link with the outlet owner.
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center space-x-2 mt-4">
@@ -1548,9 +1617,9 @@ export default function AdminRestaurantManagement() {
                   ['Opening Time', reviewDetail.opening_time, 'Opening Time'],
                   ['Closing Time', reviewDetail.closing_time, 'Closing Time'],
                   ['Tables', reviewDetail.tables],
-                  ['Menu Layout', reviewDetail.menu_layout],
+                  ['Catalogue Layout', reviewDetail.menu_layout],
                   ['Default Theme', reviewDetail.default_theme],
-                  ['Menu Photos', reviewDetail.menu_photos?.length ? `${reviewDetail.menu_photos.length} uploaded` : null],
+                  ['Catalogue Photos', reviewDetail.menu_photos?.length ? `${reviewDetail.menu_photos.length} uploaded` : null],
                 ]},
               ]
 
@@ -1577,11 +1646,11 @@ export default function AdminRestaurantManagement() {
               >
                 {syncingName === reviewDetail.name
                   ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Syncing…</>
-                  : <><RefreshCcw className="h-4 w-4 mr-2" />Sync to Restaurant</>}
+                  : <><RefreshCcw className="h-4 w-4 mr-2" />Sync to Outlet</>}
               </Button>
             )}
             {reviewDetail && !reviewDetail.linked_restaurant && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">No linked restaurant — cannot sync</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">No linked outlet — cannot sync</p>
             )}
           </div>
         </DialogContent>

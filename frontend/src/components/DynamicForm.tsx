@@ -612,10 +612,10 @@ export default function DynamicForm({
     // Restaurant doctype specific examples
     if (doctype === 'Restaurant') {
       const examples: Record<string, string> = {
-        'restaurant_name': ' (e.g., Pizza Palace)',
-        'subdomain': ' (e.g., pizza-palace-nyc)',
-        'slug': ' (e.g., pizza-palace)',
-        'owner_email': ' (e.g., owner@restaurant.com)',
+        'restaurant_name': ' (e.g., Urban Bites, Glow Studio, FitZone)',
+        'subdomain': ' (e.g., urban-bites-surat)',
+        'slug': ' (e.g., urban-bites)',
+        'owner_email': ' (e.g., owner@yourbusiness.com)',
         'owner_phone': ' (e.g., +1 (555) 123-4567)',
         'owner_name': ' (e.g., John Smith)',
         'address': ' (e.g., 123 Main Street)',
@@ -623,10 +623,9 @@ export default function DynamicForm({
         'state': ' (e.g., New York)',
         'zip_code': ' (e.g., 10001)',
         'tax_rate': ' (e.g., 18 for 18%)',
-        'default_delivery_fee': ' (e.g., 5.00)',
         'timezone': ' (e.g., America/New_York)',
         'tables': ' (e.g., 20)',
-        'description': ' (e.g., A cozy Italian restaurant serving authentic pizza...)'
+        'description': ' (e.g., A relaxing wellness studio offering premium spa services...)'
       }
       return field.description + (examples[fieldname] || '')
     }
@@ -646,7 +645,7 @@ export default function DynamicForm({
 
     // Generic examples based on field type and name
     if (fieldname.includes('email') || fieldLabel.includes('email')) {
-      return field.description + ' (e.g., owner@restaurant.com)'
+      return field.description + ' (e.g., owner@yourbusiness.com)'
     }
     if (fieldname.includes('phone') || fieldLabel.includes('phone')) {
       return field.description + ' (e.g., +1 (555) 123-4567)'

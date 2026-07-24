@@ -378,7 +378,7 @@ export default function LegacyContentPage() {
   if (!selectedRestaurant) {
     return (
       <div className="text-center py-8">
-        <p>Please select a restaurant to manage legacy content.</p>
+        <p>Please select an outlet to manage legacy content.</p>
       </div>
     )
   }
@@ -396,7 +396,7 @@ export default function LegacyContentPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Legacy Content Management</h1>
-          <p className="text-muted-foreground">Manage your restaurant's story, heritage, and featured content</p>
+          <p className="text-muted-foreground">Manage your outlet's story, heritage, and featured content</p>
         </div>
         <Button 
           onClick={handleGenerateLegacy} 
@@ -430,7 +430,7 @@ export default function LegacyContentPage() {
                 name="opening_text" 
                 value={heroData.opening_text} 
                 onChange={(e) => setHeroData(prev => ({ ...prev, opening_text: e.target.value }))}
-                placeholder="Welcome text for your restaurant" 
+                placeholder="Welcome text for your outlet"
               />
             </div>
             <div>
@@ -439,7 +439,7 @@ export default function LegacyContentPage() {
                 name="paragraph_1" 
                 value={heroData.paragraph_1} 
                 onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_1: e.target.value }))}
-                placeholder="Tell your restaurant's story" 
+                placeholder="Tell your outlet's story"
               />
             </div>
             <Button type="submit" disabled={isUpdatingLegacy || uploading}>
@@ -581,7 +581,7 @@ export default function LegacyContentPage() {
                 name="footer_description" 
                 value={footerData.footer_description} 
                 onChange={(e) => setFooterData(prev => ({ ...prev, footer_description: e.target.value }))}
-                placeholder="Start exploring our menu today..." 
+                placeholder="Start exploring our catalogue today..."
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -591,7 +591,7 @@ export default function LegacyContentPage() {
                   name="footer_cta_text" 
                   value={footerData.footer_cta_text} 
                   onChange={(e) => setFooterData(prev => ({ ...prev, footer_cta_text: e.target.value }))}
-                  placeholder="Explore Our Menu" 
+                  placeholder="Explore Our Catalogue"
                 />
               </div>
               <div>
@@ -600,7 +600,7 @@ export default function LegacyContentPage() {
                   name="footer_cta_route" 
                   value={footerData.footer_cta_route} 
                   onChange={(e) => setFooterData(prev => ({ ...prev, footer_cta_route: e.target.value }))}
-                  placeholder="/main-menu" 
+                  placeholder="/catalogue"
                 />
               </div>
             </div>

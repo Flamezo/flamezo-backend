@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { History, LayoutDashboard } from 'lucide-react'
+import { BookingsSkeleton } from '@/components/PageSkeletons'
 
 interface Booking {
   id: string
@@ -260,17 +261,19 @@ export default function Bookings() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Please select a restaurant to view bookings</p>
+          <p className="text-muted-foreground">Please select an outlet to view bookings</p>
         </div>
       </div>
     )
   }
 
+  if (loading) return <BookingsSkeleton />
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Table Bookings</h1>
-        <p className="text-muted-foreground mt-1">Manage and track all restaurant reservations</p>
+        <p className="text-muted-foreground mt-1">Manage and track all outlet reservations</p>
       </div>
 
       {/* Stats Cards */}
@@ -305,7 +308,7 @@ export default function Bookings() {
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-600">Total Diners</p>
+              <p className="text-sm font-medium text-purple-600">Total Guests</p>
               <p className="text-2xl font-bold text-purple-900 mt-1">{stats.totalDiners}</p>
             </div>
             <Users className="w-8 h-8 text-purple-500" />
@@ -383,11 +386,7 @@ export default function Bookings() {
 
       {/* Bookings Display */}
       <div>
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          </div>
-        ) : filteredBookings.length === 0 ? (
+        {filteredBookings.length === 0 ? (
           <div className="bg-card rounded-lg border p-12 text-center">
             <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground text-lg">No bookings found for this date</p>
@@ -469,7 +468,7 @@ export default function Bookings() {
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Users className="w-4 h-4" />
-                        <span>{booking.numberOfDiners} diners</span>
+                        <span>{booking.numberOfDiners} guests</span>
                       </div>
                       {booking.customerPhone && (
                         <div className="flex items-center gap-2 text-muted-foreground">
@@ -546,7 +545,7 @@ export default function Bookings() {
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Party Size</p>
                 <p className="text-base font-semibold flex items-center gap-2">
                   <Users className="w-3.5 h-3.5 text-primary/60" />
-                  {selectedBooking?.numberOfDiners} Diners
+                  {selectedBooking?.numberOfDiners} Guests
                 </p>
               </div>
               <div className="space-y-1">

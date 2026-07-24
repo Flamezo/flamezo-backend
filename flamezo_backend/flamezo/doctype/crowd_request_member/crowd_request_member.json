@@ -1,0 +1,93 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-07-09 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "request",
+  "customer_phone",
+  "customer_name",
+  "customer_image",
+  "column_break_1",
+  "status",
+  "responded_at",
+  "section_break_intro",
+  "intro_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Request",
+   "options": "Crowd Request",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name"
+  },
+  {
+   "fieldname": "customer_image",
+   "fieldtype": "Data",
+   "label": "Customer Image (R2 URL)"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "pending\napproved\nrejected",
+   "reqd": 1
+  },
+  {
+   "fieldname": "responded_at",
+   "fieldtype": "Datetime",
+   "label": "Responded At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_intro",
+   "fieldtype": "Section Break",
+   "label": "Intro"
+  },
+  {
+   "fieldname": "intro_message",
+   "fieldtype": "Small Text",
+   "label": "Intro Message"
+  }
+ ],
+ "modified": "2026-07-09 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Crowd Request Member",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

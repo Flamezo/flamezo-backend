@@ -1,0 +1,189 @@
+{
+ "actions": [],
+ "autoname": "CROWD-.YYYY.-.#####",
+ "creation": "2026-07-09 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator_phone",
+  "creator_name",
+  "creator_image",
+  "column_break_1",
+  "status",
+  "category",
+  "gender_preference",
+  "section_break_event",
+  "title",
+  "description",
+  "outlet",
+  "venue_name",
+  "section_break_schedule",
+  "date",
+  "time",
+  "expires_at",
+  "column_break_2",
+  "max_members",
+  "current_members",
+  "section_break_filters",
+  "age_range_min",
+  "age_range_max",
+  "interests"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Creator Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "creator_name",
+   "fieldtype": "Data",
+   "label": "Creator Name"
+  },
+  {
+   "fieldname": "creator_image",
+   "fieldtype": "Data",
+   "label": "Creator Image (R2 URL)"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "open\nclosed\ncompleted\ncancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "dining\nevents\nwellness\nfitness\ncafe\nsports\nfashion"
+  },
+  {
+   "default": "any",
+   "fieldname": "gender_preference",
+   "fieldtype": "Select",
+   "label": "Gender Preference",
+   "options": "any\nmen_only\nwomen_only"
+  },
+  {
+   "fieldname": "section_break_event",
+   "fieldtype": "Section Break",
+   "label": "Event Details"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant"
+  },
+  {
+   "fieldname": "venue_name",
+   "fieldtype": "Data",
+   "label": "Venue Name (free text)"
+  },
+  {
+   "fieldname": "section_break_schedule",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "4",
+   "fieldname": "max_members",
+   "fieldtype": "Int",
+   "label": "Max Members"
+  },
+  {
+   "default": "1",
+   "fieldname": "current_members",
+   "fieldtype": "Int",
+   "label": "Current Members",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_filters",
+   "fieldtype": "Section Break",
+   "label": "Filters"
+  },
+  {
+   "fieldname": "age_range_min",
+   "fieldtype": "Int",
+   "label": "Min Age"
+  },
+  {
+   "fieldname": "age_range_max",
+   "fieldtype": "Int",
+   "label": "Max Age"
+  },
+  {
+   "fieldname": "interests",
+   "fieldtype": "Small Text",
+   "label": "Interests (comma-separated)"
+  }
+ ],
+ "modified": "2026-07-09 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Crowd Request",
+ "naming_rule": "Expression (old-style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "date",
+ "sort_order": "ASC",
+ "track_changes": 0
+}
