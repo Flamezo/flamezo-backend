@@ -28,8 +28,11 @@ class UGCCashbackConfig(Document):
 			if not flt(self.viewer_discount_value) > 0:
 				frappe.throw(_("Discount Value must be greater than 0."))
 			if self.viewer_discount_type == "percent":
-				if not flt(self.viewer_discount_cap) > 0:
-					frappe.throw(_("Max Discount Cap (₹) is required for percent discounts."))
+				# Max Discount Cap is OPTIONAL: leaving it blank/0 means the full
+				# percentage applies to whatever the bill is (uncapped). A cap only
+				# takes effect when the merchant actually sets one.
+				if flt(self.viewer_discount_cap) < 0:
+					frappe.throw(_("Max Discount Cap (₹) cannot be negative."))
 				if flt(self.viewer_discount_value) > 100:
 					frappe.throw(_("Percent discount cannot exceed 100%."))
 
@@ -38,9 +41,11 @@ class UGCCashbackConfig(Document):
 			if self.viewer_discount_type == "flat":
 				self.viewer_coupon_description = f"₹{int(flt(self.viewer_discount_value))} off on your next visit"
 			elif self.viewer_discount_type == "percent":
+				# Only mention a ceiling when one is actually set (cap is optional).
+				cap = flt(self.viewer_discount_cap)
 				self.viewer_coupon_description = (
 					f"{int(flt(self.viewer_discount_value))}% off"
-					f" (up to ₹{int(flt(self.viewer_discount_cap))})"
+					+ (f" (up to ₹{int(cap)})" if cap > 0 else " on your next visit")
 				)
 
 		# next_visit_coupon must belong to this restaurant if set

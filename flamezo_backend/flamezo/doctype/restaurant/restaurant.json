@@ -68,6 +68,7 @@
   "legal_name",
   "business_type",
   "pan_number",
+  "owner_pan",
   "column_break_route_kyc",
   "bank_account_number",
   "bank_ifsc",
@@ -466,14 +467,14 @@
    "label": "Success Share %",
    "default": "7",
    "precision": 2,
-   "description": "Flamezo's Success Share percentage (default: 7% for new restaurants; legacy restaurants are grandfathered at their earlier rate) \u2014 applied to every order GMV"
+   "description": "Flamezo's Success Share percentage (default: 7% for new restaurants; legacy restaurants are grandfathered at their earlier rate) — applied to every order GMV"
   },
   {
    "fieldname": "monthly_minimum",
    "fieldtype": "Currency",
    "label": "Monthly Minimum Fee",
    "default": "0",
-   "description": "Retired \u2014 the monthly minimum/floor was removed from the model. Kept at 0; restaurants pay only a success share on orders."
+   "description": "Retired — the monthly minimum/floor was removed from the model. Kept at 0; restaurants pay only a success share on orders."
   },
   {
    "fieldname": "razorpay_customer_id",
@@ -531,6 +532,12 @@
    "description": "10-character PAN (encrypted at rest in production)"
   },
   {
+   "fieldname": "owner_pan",
+   "fieldtype": "Data",
+   "label": "Owner / Director PAN",
+   "description": "Individual PAN of the owner, partner or director. Sent to Razorpay as the stakeholder's PAN."
+  },
+  {
    "fieldname": "column_break_route_kyc",
    "fieldtype": "Column Break"
   },
@@ -550,7 +557,7 @@
    "fieldname": "bank_holder_name",
    "fieldtype": "Data",
    "label": "Bank Account Holder Name",
-   "description": "As per bank records \u2014 must match PAN for KYC clearance"
+   "description": "As per bank records — must match PAN for KYC clearance"
   },
   {
    "fieldname": "section_break_commission_state",
@@ -704,11 +711,11 @@
   {
    "fieldname": "coins_balance",
    "fieldtype": "Float",
-   "label": "Wallet Balance (\u20b9)",
+   "label": "Wallet Balance (₹)",
    "default": "0",
    "read_only": 1,
    "in_list_view": 1,
-   "description": "Current platform balance (\u20b9)"
+   "description": "Current platform balance (₹)"
   },
   {
    "fieldname": "auto_recharge_enabled",
@@ -723,7 +730,7 @@
    "fieldtype": "Check",
    "hidden": 1,
    "label": "Enable Daily Floor Recovery",
-   "description": "Retired \u2014 the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
+   "description": "Retired — the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
   },
   {
    "fieldname": "floor_recovery_activated_on",
@@ -744,14 +751,14 @@
   {
    "fieldname": "auto_recharge_threshold",
    "fieldtype": "Float",
-   "label": "Recharge Threshold (\u20b9)",
+   "label": "Recharge Threshold (₹)",
    "default": "200.0",
    "description": "Trigger recharge when balance falls below this amount"
   },
   {
    "fieldname": "auto_recharge_amount",
    "fieldtype": "Float",
-   "label": "Recharge Amount (\u20b9)",
+   "label": "Recharge Amount (₹)",
    "default": "1000.0",
    "description": "Amount to automatically recharge via Razorpay mandate"
   },
@@ -763,14 +770,14 @@
   {
    "fieldname": "daily_auto_recharge_limit",
    "fieldtype": "Float",
-   "label": "Daily Auto-Recharge Limit (\u20b9)",
+   "label": "Daily Auto-Recharge Limit (₹)",
    "default": "5000.0",
    "description": "Maximum total auto-recharge amount allowed per day"
   },
   {
    "fieldname": "daily_auto_recharge_count",
    "fieldtype": "Float",
-   "label": "Day Auto-Recharge Volume (\u20b9)",
+   "label": "Day Auto-Recharge Volume (₹)",
    "default": "0",
    "read_only": 1
   },
@@ -799,7 +806,7 @@
   {
    "fieldname": "total_ai_cost",
    "fieldtype": "Float",
-   "label": "Total AI Cost (\u20b9)",
+   "label": "Total AI Cost (₹)",
    "default": "0",
    "read_only": 1
   },
