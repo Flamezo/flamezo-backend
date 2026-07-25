@@ -28,7 +28,7 @@
       "fieldname": "event_type",
       "fieldtype": "Select",
       "label": "Event Type",
-      "options": "menu_view\ncategory_view\nitem_view\ncart_add\nbooking_click",
+      "options": "menu_view\nqr_scan\ncategory_view\nitem_view\ncart_add\nbooking_click\nsearch",
       "reqd": 1,
       "in_list_view": 1,
       "search_index": 1
@@ -53,7 +53,7 @@
       "fieldname": "platform",
       "fieldtype": "Select",
       "label": "Platform",
-      "options": "web\nmobile\ndesktop",
+      "options": "web\nmobile\ndesktop\nqr",
       "default": "web"
     }
   ],

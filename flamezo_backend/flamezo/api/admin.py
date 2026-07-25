@@ -775,7 +775,9 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             frappe.log_error("Onboarding Email Failed", f"Failed to send welcome email to {owner_email}. Error: {e}")
 
         # 3. Add necessary roles
-        roles_to_add = ["System User", "Restaurant Staff"]
+        # The restaurant OWNER must be a Restaurant Admin (not Staff) so they can
+        # manage their own branch team. Merchant-level only — never a global role.
+        roles_to_add = ["System User", "Restaurant Admin"]
 
         has_changes = False
         for role in roles_to_add:
@@ -796,7 +798,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
 
         # Check if already in 'Restaurant User' doctype
         if not frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": restaurant.name}):
-            assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Staff", is_default=is_default_flag)
+            assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Admin", is_default=is_default_flag)
 
         frappe.db.commit()
 
@@ -820,6 +822,197 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
         frappe.log_error("Admin Onboarding Error", f"Error in admin_onboard_restaurant_owner: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
+
+
+@frappe.whitelist()
+def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None, role="Restaurant Admin"):
+    """Platform-admin action: assign ONE user (typically a multi-branch owner) to
+    several restaurant branches in a single call.
+
+      • Creates the Frappe User on first assignment (+ password + welcome email).
+      • Inserts a Restaurant User row per branch. The RestaurantUser doctype's
+        after_insert hook adds the matching Frappe role AND busts the access
+        cache automatically, so access reflects immediately.
+      • Grants ONLY the merchant role (Restaurant Admin / Restaurant Staff) —
+        NEVER a global role (System Manager / Supervisor), so the owner stays
+        confined to their own branches and can switch between them.
+      • Idempotent: branches the user already belongs to are skipped.
+
+    Args:
+        owner_email : login email — the SAME email is used across all branches.
+        owner_name  : display name (only used when creating a new user).
+        branch_ids  : list of Restaurant docnames/ids (JSON string or list accepted).
+        role        : "Restaurant Admin" (default) or "Restaurant Staff".
+
+    Returns per-branch results so the UI can show assigned / skipped / not_found.
+    """
+    try:
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        owner_email = (owner_email or "").strip().lower()
+        if not owner_email:
+            return {'success': False, 'error': 'Owner email is required'}
+
+        # Guardrail: merchant-level roles only. A global role would leak access to
+        # every restaurant — exactly what we must never give a merchant.
+        if role not in ("Restaurant Admin", "Restaurant Staff"):
+            role = "Restaurant Admin"
+
+        # branch_ids may arrive as a JSON string (HTTP) or comma list.
+        if isinstance(branch_ids, str):
+            try:
+                branch_ids = json.loads(branch_ids)
+            except Exception:
+                branch_ids = [b.strip() for b in branch_ids.split(",") if b.strip()]
+        if not branch_ids or not isinstance(branch_ids, (list, tuple)):
+            return {'success': False, 'error': 'At least one branch is required'}
+
+        from flamezo_backend.flamezo.utils.permissions import (
+            assign_user_to_restaurant,
+            create_restaurant_user_permission,
+        )
+        from frappe.utils.password import update_password
+        import string
+        import random
+
+        # --- Find or create the Frappe User ---
+        user_id = frappe.db.get_value("User", {"email": owner_email}, "name")
+        is_new_user = False
+        generated_password = None
+        first_name = (owner_name or owner_email.split("@")[0]).split()[0]
+
+        if not user_id:
+            user_doc = frappe.get_doc({
+                "doctype": "User",
+                "email": owner_email,
+                "first_name": first_name,
+                "user_type": "System User",
+                "send_welcome_email": 0,
+            })
+            user_doc.insert(ignore_permissions=True)
+            user_id = user_doc.name
+            is_new_user = True
+
+            suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+            symbol = random.choice(['!', '@', '#', '$', '%', '&', '*'])
+            generated_password = f"Flamezo{symbol}{suffix}!"
+            update_password(user=owner_email, pwd=generated_password)
+
+        # --- Resolve + assign each branch (idempotent) ---
+        results = []
+        for raw in branch_ids:
+            bid = raw.strip() if isinstance(raw, str) else raw
+            if not bid:
+                continue
+
+            branch = frappe.db.get_value("Restaurant", bid, "name")
+            if not branch:
+                try:
+                    from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
+                    branch = get_restaurant_from_id(bid)
+                except Exception:
+                    branch = None
+            if not branch:
+                results.append({'branch': bid, 'status': 'not_found'})
+                continue
+
+            if frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": branch}):
+                results.append({'branch': branch, 'status': 'skipped'})
+                continue
+
+            # First branch this user is given becomes the default (if none yet).
+            has_default = frappe.db.exists("Restaurant User", {"user": user_id, "is_default": 1})
+            is_default_flag = 0 if has_default else 1
+            try:
+                assign_user_to_restaurant(user_id, branch, role=role, is_default=is_default_flag)
+                create_restaurant_user_permission(user_id, branch, is_default=is_default_flag)
+                results.append({'branch': branch, 'status': 'assigned'})
+            except Exception as e:
+                results.append({'branch': branch, 'status': 'failed', 'error': str(e)})
+
+        frappe.db.commit()
+
+        # --- Welcome email once, only when we just created the user ---
+        email_sent = False
+        if is_new_user and generated_password:
+            try:
+                send_onboarding_email(owner_email, first_name, generated_password)
+                email_sent = True
+            except Exception as e:
+                frappe.log_error("Owner Assign Email Failed", f"{owner_email}: {e!s}")
+
+        assigned = [r for r in results if r['status'] == 'assigned']
+        return {
+            'success': True,
+            'message': f"{owner_email}: {len(assigned)} branch(es) assigned.",
+            'data': {
+                'user': user_id,
+                'email': owner_email,
+                'is_new_user': is_new_user,
+                'email_sent': email_sent,
+                'generated_password': generated_password if is_new_user else None,
+                'role': role,
+                'results': results,
+            }
+        }
+    except Exception as e:
+        frappe.log_error("Admin Assign Owner Error", f"admin_assign_owner_to_branches: {e!s}")
+        frappe.db.rollback()
+        return {'success': False, 'error': str(e)}
+
+
+@frappe.whitelist()
+def admin_list_branch_access(multi_only=0):
+    """Admin: list every user and the branches they can access, grouped by email.
+
+    Returns each email with its branch count and the branch names — so the admin
+    can see at a glance "which email has how many branches" (owners = many,
+    managers = one). Pass multi_only=1 to list only multi-branch users (owners).
+    """
+    try:
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        rows = frappe.db.sql(
+            """
+            SELECT ru.user, ru.restaurant, ru.role,
+                   COALESCE(r.restaurant_name, ru.restaurant) AS restaurant_name
+            FROM `tabRestaurant User` ru
+            LEFT JOIN `tabRestaurant` r ON r.name = ru.restaurant
+            WHERE ru.is_active = 1
+            ORDER BY ru.user
+            """,
+            as_dict=True,
+        )
+
+        grouped = {}
+        for row in rows:
+            g = grouped.setdefault(row.user, {'user': row.user, 'branches': []})
+            g['branches'].append({
+                'name': row.restaurant,
+                'restaurant_name': row.restaurant_name,
+                'role': row.role,
+            })
+
+        users = []
+        for g in grouped.values():
+            g['count'] = len(g['branches'])
+            users.append(g)
+
+        if int(multi_only or 0):
+            users = [u for u in users if u['count'] > 1]
+
+        # Most branches first, then alphabetical by email.
+        users.sort(key=lambda x: (-x['count'], x['user']))
+
+        return {'success': True, 'data': {'users': users, 'total': len(users)}}
+    except Exception as e:
+        frappe.log_error("Admin Branch Access List Error", f"admin_list_branch_access: {e!s}")
+        return {'success': False, 'error': str(e)}
+
 
 def send_onboarding_email(recipient, name, password):
     """

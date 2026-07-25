@@ -45,11 +45,13 @@ import {
   Info,
   RefreshCcw,
   Loader2,
+  Store,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
 import { RestaurantSelector } from '@/components/RestaurantSelector'
+import { BranchAccessDialog } from '@/components/BranchAccessDialog'
 
 interface Restaurant {
   name: string
@@ -215,6 +217,7 @@ export default function AdminRestaurantManagement() {
   const [isSupervisorOnly, setIsSupervisorOnly] = useState(false)
   
   const [isPlatformSettingsModalOpen, setIsPlatformSettingsModalOpen] = useState(false)
+  const [isBranchAccessOpen, setIsBranchAccessOpen] = useState(false)
   const [platformSettings, setPlatformSettings] = useState({
     charge_gst: false,
     gst_percent: 18,
@@ -575,6 +578,15 @@ export default function AdminRestaurantManagement() {
           >
             <Settings className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-500" />
             Platform Settings
+          </Button>
+
+          <Button
+            onClick={() => setIsBranchAccessOpen(true)}
+            variant="outline"
+            className="h-11 px-4 rounded-xl border-stone-200 hover:border-primary/30 hover:bg-primary/5 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 transition-all duration-300 font-semibold group"
+          >
+            <Store className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+            Branch Access
           </Button>
 
           <Button
@@ -1224,6 +1236,12 @@ export default function AdminRestaurantManagement() {
       </Dialog>
 
       {/* Onboarding Inbox Modal */}
+      <BranchAccessDialog
+        open={isBranchAccessOpen}
+        onOpenChange={setIsBranchAccessOpen}
+        onAssigned={() => loadRestaurants()}
+      />
+
       <Dialog open={isOnboardingModalOpen} onOpenChange={setIsOnboardingModalOpen}>
         <DialogContent className="sm:max-w-5xl w-[95vw] p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
           <div className="p-8 bg-gradient-to-br from-primary/10 via-background to-background border-b relative overflow-hidden">
