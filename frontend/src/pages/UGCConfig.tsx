@@ -104,7 +104,9 @@ useEffect(() => {
     if (!viewerDiscountValue || parseFloat(viewerDiscountValue) <= 0) { toast.error('Discount value must be greater than 0'); return }
     if (viewerDiscountType === 'percent') {
       if (parseFloat(viewerDiscountValue) > 100) { toast.error('Percent discount cannot exceed 100%'); return }
-      if (viewerDiscountCap && parseFloat(viewerDiscountCap) <= 0) { toast.error('Max Discount Cap must be greater than 0 if provided'); return }
+      // Max Discount Cap is optional — blank or 0 means "no cap" (the full percent
+      // applies to whatever the bill is). Only a negative value is invalid.
+      if (viewerDiscountCap && parseFloat(viewerDiscountCap) < 0) { toast.error('Max Discount Cap cannot be negative'); return }
     }
     setSavingCoupon(true)
     try {

@@ -263,8 +263,13 @@ def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
                     "name": (res.get("owner_name") or res.restaurant_name).strip(),
                     "email": res.owner_email,
                     **({"phone": {"primary": phone_int}} if phone_int else {}),
-                    # PAN in stakeholder KYC applies to proprietorship/individual.
-                    **({"kyc": {"pan": res.get("pan_number", "").strip().upper()}} if res.get("pan_number") else {}),
+                    # A stakeholder is always an INDIVIDUAL — Razorpay wants "the
+                    # stakeholder's name as per the PAN card". So this must be the
+                    # owner/partner/director's personal PAN, never the company PAN.
+                    # `owner_pan` holds it; fall back to `pan_number` for
+                    # proprietorship/individual (where they are the same person) and
+                    # for older records saved before owner_pan existed.
+                    **({"kyc": {"pan": _stakeholder_pan(res)}} if _stakeholder_pan(res) else {}),
                     "addresses": {
                         "residential": {
                             # Stakeholder uses single "street" field (not street1/street2).
@@ -547,6 +552,18 @@ def reverse_transfer(order, refund_amount_paise: int) -> dict:
 
 
 # ── Internal helpers ────────────────────────────────────────────────────────
+
+def _stakeholder_pan(res) -> str:
+    """The INDIVIDUAL's PAN for the Razorpay stakeholder (owner / partner /
+    director). Razorpay requires the stakeholder's name "as per the PAN card",
+    so a company PAN is never valid here.
+
+    Prefers the dedicated `owner_pan`; falls back to `pan_number` for
+    proprietorship / individual (same person) and for records created before
+    `owner_pan` existed — so existing accounts behave exactly as before.
+    """
+    return ((res.get("owner_pan") or res.get("pan_number") or "").strip().upper())
+
 
 def _missing_kyc_fields(res) -> list:
     required = [

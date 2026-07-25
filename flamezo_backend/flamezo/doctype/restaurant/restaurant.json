@@ -58,6 +58,7 @@
   "legal_name",
   "business_type",
   "pan_number",
+  "owner_pan",
   "column_break_route_kyc",
   "bank_account_number",
   "bank_ifsc",
@@ -453,6 +454,12 @@
    "fieldtype": "Data",
    "label": "PAN Number",
    "description": "10-character PAN (encrypted at rest in production)"
+  },
+  {
+   "fieldname": "owner_pan",
+   "fieldtype": "Data",
+   "label": "Owner / Director PAN",
+   "description": "Individual PAN of the owner, partner or director. Sent to Razorpay as the stakeholder's PAN."
   },
   {
    "fieldname": "column_break_route_kyc",
