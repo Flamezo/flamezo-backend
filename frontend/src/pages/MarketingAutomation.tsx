@@ -31,7 +31,7 @@ const PRESET_TEMPLATES = [
     trigger_event: 'On Order Complete',
     channel: 'WhatsApp',
     delay_hours: 2,
-    message_template: "Hi {{customer_name}}! 🙏 Thank you for dining at {{restaurant_name}}. We'd love your feedback — it helps us improve!\n\nLeave us a Google Review here: {{review_link}}\n\nSee you again soon! 😊"
+    message_template: "Hi {{customer_name}}! 🙏 Thank you for visiting {{business_name}}. We'd love your feedback — it helps us improve!\n\nLeave us a Google Review here: {{review_link}}\n\nSee you again soon! 😊"
   },
   {
     id: 'winback',

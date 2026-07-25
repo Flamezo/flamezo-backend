@@ -113,7 +113,7 @@ export default function FeatureLocked() {
                   <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
                     <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Smart Table Bookings</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Smart Reservations</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
@@ -154,7 +154,7 @@ function getFeatureDetails(path: string): { featureName: string; requiredPlan: '
   const cleanPath = decodeURIComponent(path.replace(/^\/+|\/+$/g, ''))
 
   const featureMap: Record<string, { name: string; plan: 'GOLD' | 'GOLD' }> = {
-    'bookings': { name: 'Table Bookings', plan: 'GOLD' },
+    'bookings': { name: 'Reservations', plan: 'GOLD' },
     'customers': { name: 'Customer Management', plan: 'GOLD' },
     'coupons': { name: 'Coupons Management', plan: 'GOLD' },
     'loyalty-settings': { name: 'Loyalty Program', plan: 'GOLD' },

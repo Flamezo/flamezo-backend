@@ -149,7 +149,7 @@ export default function MarketingOverview() {
               Flamezo runs your marketing for you
             </p>
             <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-0.5">
-              Our team designs segments, runs campaigns, and fires automations on your behalf. You focus on the food — we drive the footfall. Results appear below in real time.
+              Our team designs segments, runs campaigns, and fires automations on your behalf. You focus on your business — we drive the footfall. Results appear below in real time.
             </p>
           </div>
         </div>

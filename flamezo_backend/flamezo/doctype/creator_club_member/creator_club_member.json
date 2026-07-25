@@ -1,0 +1,53 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-07-09 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "club",
+  "customer_phone",
+  "joined_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "club",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Club",
+   "options": "Creator Club",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "joined_at",
+   "fieldtype": "Datetime",
+   "label": "Joined At"
+  }
+ ],
+ "modified": "2026-07-09 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Club Member",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

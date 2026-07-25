@@ -37,156 +37,272 @@ def _get_restaurant_primary_color(restaurant_name):
 	return "#B7410E"
 
 
-def _get_active_offers_count(restaurant_name):
-	"""Count currently active coupons with a minimum order amount for a restaurant."""
-	today_date = getdate(today())
+def _batch_active_offers_count(restaurant_names):
+	"""
+	Single SQL query — returns {restaurant_name: count} for all given restaurants.
+	Groups valid (date-gated) active coupons in one shot; no N+1.
+	"""
+	if not restaurant_names:
+		return {}
+	today_str = today()
+	placeholders = ",".join(["%s"] * len(restaurant_names))
+	rows = frappe.db.sql(
+		f"""
+		SELECT restaurant, COUNT(*) AS cnt
+		FROM `tabCoupon`
+		WHERE is_active = 1
+		  AND restaurant IN ({placeholders})
+		  AND (valid_from IS NULL OR valid_from <= %s)
+		  AND (valid_until IS NULL OR valid_until >= %s)
+		GROUP BY restaurant
+		""",
+		restaurant_names + [today_str, today_str],
+		as_dict=True,
+	)
+	return {r.restaurant: r.cnt for r in rows}
+
+
+def _is_open_now(hours_json_str):
+	"""
+	Return True if the restaurant is currently open based on its hours_json.
+	hours_json format: {"mon": "11 AM – 11 PM", "tue": "Closed", ...}
+	"""
+	if not hours_json_str:
+		return None  # unknown
 	try:
-		rows = frappe.db.get_list(
-			"Coupon",
-			filters={
-				"restaurant": restaurant_name,
-				"is_active": 1,
-			},
-			fields=["valid_from", "valid_until"],
-			ignore_permissions=True,
-		)
-		count = 0
-		for r in rows:
-			raw_from = r.get("valid_from")
-			raw_until = r.get("valid_until")
-			if raw_from and getdate(raw_from) > today_date:
-				continue
-			if raw_until and getdate(raw_until) < today_date:
-				continue
-			count += 1
-		return count
+		import pytz
+		from datetime import datetime
+		tz = pytz.timezone("Asia/Kolkata")
+		now = datetime.now(tz)
+		day_key = now.strftime("%a").lower()  # mon, tue, ...
+		hours = json.loads(hours_json_str) if isinstance(hours_json_str, str) else hours_json_str
+		slot = (hours.get(day_key) or "").strip()
+		if not slot or slot.lower() in ("closed", ""):
+			return False
+		if "open 24" in slot.lower() or "24 hours" in slot.lower():
+			return True
+		# Parse "11 AM – 11 PM" or "11:30 AM – 11:30 PM"
+		parts = slot.replace("–", "-").split("-")
+		if len(parts) != 2:
+			return None
+		def _parse(s):
+			s = s.strip().upper()
+			fmt = "%I:%M %p" if ":" in s else "%I %p"
+			return datetime.strptime(s, fmt).replace(
+				year=now.year, month=now.month, day=now.day,
+				tzinfo=tz
+			)
+		open_t = _parse(parts[0])
+		close_t = _parse(parts[1])
+		if close_t < open_t:  # midnight rollover
+			return now >= open_t or now <= close_t
+		return open_t <= now <= close_t
 	except Exception:
-		return 0
+		return None
 
 
-# ── 1. Discovery — All Restaurants ───────────────────────────────────────────
+_DISCOVERY_FIELDS = [
+	"name", "restaurant_name", "logo", "latitude", "longitude",
+	"city", "plan_type", "onboarding_date", "description", "outlet_type",
+	"contact_phone", "whatsapp_number", "instagram_url",
+	"is_featured", "is_signature", "rating", "review_count",
+	"cuisines", "price_range", "amenities_mask", "hours_json",
+	"total_orders",
+]
+
+
+def _format_restaurant_card(r, user_lat, user_lon, offers_map):
+	"""Format a single restaurant record for the discovery feed."""
+	distance_km = None
+	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
+		distance_km = round(
+			_haversine_km(user_lat, user_lon, flt(r["latitude"]), flt(r["longitude"])), 1
+		)
+	hours_raw = r.get("hours_json") or ""
+	return {
+		"id": r["name"],
+		"restaurant_name": r["restaurant_name"],
+		"logo": r.get("logo") or "",
+		"latitude": r.get("latitude"),
+		"longitude": r.get("longitude"),
+		"city": r.get("city") or "",
+		"outlet_type": r.get("outlet_type") or "dining",
+		"plan_type": r.get("plan_type") or "GOLD",
+		"primaryColor": "#B7410E",
+		"tagline": r.get("description") or "",
+		"phone": r.get("contact_phone") or "",
+		"whatsapp": r.get("whatsapp_number") or "",
+		"instagram_url": r.get("instagram_url") or "",
+		"is_featured": bool(r.get("is_featured")),
+		"is_signature": bool(r.get("is_signature")),
+		"rating": flt(r.get("rating") or 0) or None,
+		"review_count": cint(r.get("review_count") or 0),
+		"cuisines": [c.strip() for c in (r.get("cuisines") or "").split(",") if c.strip()],
+		"price_range": r.get("price_range") or "",
+		"amenities_mask": cint(r.get("amenities_mask") or 0),
+		"hours_json": json.loads(hours_raw) if hours_raw else {},
+		"is_open_now": _is_open_now(hours_raw),
+		"distance_km": distance_km,
+		"active_offers_count": offers_map.get(r["name"], 0),
+	}
+
+
+# ── 1. Discovery — All Outlets ────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_all_restaurants(latitude=None, longitude=None, search=None, city=None, page=1, limit=30):
+def get_all_outlets(
+	latitude=None, longitude=None, radius_km=None,
+	search=None, city=None,
+	outlet_type=None, section=None,
+	has_offer=None, open_now=None, is_featured=None, is_signature=None,
+	page=1, limit=30,
+):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_all_restaurants
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_all_outlets
 
-	Returns all active FLAMEZO-enrolled restaurants for the discovery feed.
-	Sorted by distance if lat/lon provided, else by onboarding date desc.
+	Production-grade discovery feed — no N+1, bounding-box geo pre-filter,
+	single batch offers-count query.
 
 	Parameters:
-	- latitude (float, optional): User's latitude for distance sorting
-	- longitude (float, optional): User's longitude for distance sorting
-	- search (str, optional): Name/cuisine/city filter
-	- city (str, optional): City filter
-	- page (int): Page number (default 1)
-	- limit (int): Results per page (default 30, max 100)
+	  latitude, longitude (float) — user coords for distance sort + optional radius filter
+	  radius_km (float)           — hard geo radius (only works with lat/lon); default none
+	  search (str)                — full-text across name, cuisines, description, city
+	  city (str)                  — city filter (exact or partial)
+	  outlet_type (str)           — comma-separated: "dining", "wellness", "fitness", etc.
+	  section (str)               — "featured" | "new" | "popular"
+	                                featured  → is_featured=1
+	                                new       → ORDER BY onboarding_date DESC (last 60d)
+	                                popular   → ORDER BY total_orders DESC
+	  has_offer (bool/int)        — only return restaurants with ≥1 active offer
+	  open_now (bool/int)         — filter to currently open outlets (requires hours_json)
+	  is_featured (bool/int)      — filter to featured outlets
+	  page, limit                 — pagination (max 100/page)
 	"""
 	try:
-		page = cint(page) or 1
+		page = max(cint(page) or 1, 1)
 		limit = min(cint(limit) or 30, 100)
 		offset = (page - 1) * limit
 
-		# Cache key — include location bucket for distance sorting (rounded to 0.1 deg ~11km)
-		lat_bucket = round(flt(latitude), 1) if latitude else None
-		lon_bucket = round(flt(longitude), 1) if longitude else None
-		cache_key = f"flamezo:restaurants:{lat_bucket}:{lon_bucket}:{search or ''}:{city or ''}:{page}:{limit}"
+		user_lat = flt(latitude) if latitude else None
+		user_lon = flt(longitude) if longitude else None
+		r_km = flt(radius_km) if radius_km else None
 
+		# ── Cache key ────────────────────────────────────────────────────────────
+		lat_b = round(user_lat, 2) if user_lat else None
+		lon_b = round(user_lon, 2) if user_lon else None
+		cache_key = (
+			f"flamezo:disco:{lat_b}:{lon_b}:{r_km}:{search or ''}:{city or ''}:"
+			f"{outlet_type or ''}:{section or ''}:{has_offer}:{open_now}:{is_featured}:{is_signature}:{page}:{limit}"
+		)
 		if frappe.session.user == "Guest":
 			cached = frappe.cache().get_value(cache_key)
 			if cached:
 				return json.loads(cached)
 
-		# Build filters
-		filters: dict = {"is_active": 1}
+		# ── SQL filters ───────────────────────────────────────────────────────────
+		sql_filters = ["r.is_active = 1"]
+		params = []
+
 		if city:
-			filters["city"] = ["like", f"%{city}%"]
+			sql_filters.append("r.city LIKE %s")
+			params.append(f"%{city}%")
 
-		fields = [
-			"name", "restaurant_name", "logo", "latitude", "longitude",
-			"city", "plan_type", "onboarding_date",
-			"description",
-		]
+		if outlet_type:
+			types = [t.strip() for t in str(outlet_type).split(",") if t.strip()]
+			if types:
+				phs = ",".join(["%s"] * len(types))
+				sql_filters.append(f"r.outlet_type IN ({phs})")
+				params.extend(types)
 
-		# Search across name, cuisine, city
+		if cint(is_featured) or section == "featured":
+			sql_filters.append("r.is_featured = 1")
+
+		if cint(is_signature):
+			sql_filters.append("r.is_signature = 1")
+
+		if section == "new":
+			cutoff = add_days(today(), -60)
+			sql_filters.append("r.onboarding_date >= %s")
+			params.append(str(cutoff))
+
+		# Bounding box pre-filter (fast index scan, Haversine applied after in Python)
+		if user_lat and user_lon and r_km:
+			lat_delta = r_km / 111.0
+			lon_delta = r_km / (111.0 * math.cos(math.radians(user_lat)))
+			sql_filters.append("r.latitude  BETWEEN %s AND %s")
+			sql_filters.append("r.longitude BETWEEN %s AND %s")
+			params += [user_lat - lat_delta, user_lat + lat_delta,
+					   user_lon - lon_delta, user_lon + lon_delta]
+
+		# Full-text search across name, cuisines, description, city
 		if search:
-			restaurants = frappe.get_all(
-				"Restaurant",
-				filters={**filters, "restaurant_name": ["like", f"%{search}%"]},
-				fields=fields,
-				order_by="onboarding_date desc",
-				limit=limit,
-				start=offset,
+			sql_filters.append(
+				"(r.restaurant_name LIKE %s OR r.cuisines LIKE %s "
+				"OR r.description LIKE %s OR r.city LIKE %s)"
 			)
-			if not restaurants:
-				restaurants = frappe.get_all(
-					"Restaurant",
-					filters={**filters, "city": ["like", f"%{search}%"]},
-					fields=fields,
-					order_by="onboarding_date desc",
-					limit=limit,
-					start=offset,
-				)
+			like = f"%{search}%"
+			params += [like, like, like, like]
+
+		# ── ORDER BY ─────────────────────────────────────────────────────────────
+		if section == "popular":
+			order_by = "r.total_orders DESC, r.onboarding_date DESC"
+		elif user_lat and user_lon:
+			order_by = "r.onboarding_date DESC"  # will re-sort by distance in Python
 		else:
-			restaurants = frappe.get_all(
-				"Restaurant",
-				filters=filters,
-				fields=fields,
-				order_by="onboarding_date desc",
-				limit=limit * 3 if latitude else limit,  # Fetch extra for distance re-sort
-				start=0 if latitude else offset,
-			)
+			order_by = "r.is_featured DESC, r.onboarding_date DESC"
 
-		# Enrich each restaurant
-		user_lat = flt(latitude) if latitude else None
-		user_lon = flt(longitude) if longitude else None
+		where_clause = " AND ".join(sql_filters)
 
-		enriched = []
-		for r in restaurants:
-			# Get branding primary color (single fast query per restaurant)
-			primary_color = _get_restaurant_primary_color(r.name)
+		# Fetch slightly more rows when doing geo sort so paginating by distance works
+		fetch_limit = limit * 4 if (user_lat and user_lon) else limit
+		fetch_offset = 0 if (user_lat and user_lon) else offset
 
-			# Get logo URL — use existing logo field or media asset
-			logo_url = r.logo or ""
+		fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
+		sql = f"""
+			SELECT {fields_csv}
+			FROM `tabRestaurant` r
+			WHERE {where_clause}
+			ORDER BY {order_by}
+			LIMIT {fetch_limit} OFFSET {fetch_offset}
+		"""
+		restaurants = frappe.db.sql(sql, params, as_dict=True)
 
-			# Distance
-			distance_km = None
-			if user_lat and user_lon and r.latitude and r.longitude:
-				distance_km = round(_haversine_km(user_lat, user_lon, flt(r.latitude), flt(r.longitude)), 1)
+		# ── Batch offers count (single query, zero N+1) ───────────────────────────
+		rest_names = [r["name"] for r in restaurants]
+		offers_map = _batch_active_offers_count(rest_names)
 
-			# Active offers count
-			active_offers = _get_active_offers_count(r.name)
+		# ── has_offer filter (post-query, uses the same offers_map) ──────────────
+		if cint(has_offer):
+			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
-			enriched.append({
-				"name": r.name,
-				"restaurant_name": r.restaurant_name,
-				"logo": logo_url,
-				"latitude": r.latitude,
-				"longitude": r.longitude,
-				"city": r.city or "",
-				"plan_type": r.plan_type or "GOLD",
-				"primaryColor": primary_color,
-				"tagline": r.description or "",
-				"distance_km": distance_km,
-				"active_offers_count": active_offers,
-			})
+		# ── Format cards ──────────────────────────────────────────────────────────
+		enriched = [_format_restaurant_card(r, user_lat, user_lon, offers_map) for r in restaurants]
 
-		# Sort by distance if coords provided, then paginate
+		# ── open_now filter (post-format, uses is_open_now computed per card) ────
+		if cint(open_now):
+			enriched = [r for r in enriched if r["is_open_now"] is True]
+
+		# ── Distance sort + hard radius + pagination ──────────────────────────────
 		if user_lat and user_lon:
 			enriched.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
+			if r_km:
+				enriched = [x for x in enriched if x["distance_km"] is not None and x["distance_km"] <= r_km]
+			total = len(enriched)
 			enriched = enriched[offset: offset + limit]
-
-		total = frappe.db.count("Restaurant", filters=filters)
+		else:
+			# Count without geo (fast)
+			count_sql = f"SELECT COUNT(*) FROM `tabRestaurant` r WHERE {where_clause}"
+			total = frappe.db.sql(count_sql, params)[0][0]
 
 		response = {
 			"success": True,
 			"data": {
-				"restaurants": enriched,
+				"outlets": enriched,
 				"page": page,
 				"limit": limit,
 				"total": total,
 				"has_more": (offset + limit) < total,
-			}
+			},
 		}
 
 		if frappe.session.user == "Guest":
@@ -195,8 +311,107 @@ def get_all_restaurants(latitude=None, longitude=None, search=None, city=None, p
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"Error in flamezo.get_all_restaurants: {str(e)}")
+		frappe.log_error(f"Error in flamezo.get_all_outlets: {str(e)}")
 		return {"success": False, "error": {"code": "DISCOVERY_ERROR", "message": str(e)}}
+
+
+# ── 1b. Map Markers — ultra-lightweight ───────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def get_outlets_for_map(
+	city=None,
+	sw_lat=None, sw_lng=None, ne_lat=None, ne_lng=None,
+	outlet_type=None,
+):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_outlets_for_map
+
+	Returns lightweight markers for all active outlets in a bounding box or city.
+	Designed for the map-discovery screen — returns ONLY what's needed to render pins.
+
+	Parameters:
+	  city                  — city name filter (alternative to bounding box)
+	  sw_lat, sw_lng        — south-west corner of the viewport
+	  ne_lat, ne_lng        — north-east corner of the viewport
+	  outlet_type           — comma-separated outlet types to show
+
+	Response per marker:
+	  { id, name, logo, lat, lng, outlet_type, is_featured, active_offers_count }
+	"""
+	try:
+		# ── Cache (5 min per city/bounds/type bucket) ─────────────────────────────
+		lat_b = f"{round(flt(sw_lat),2)},{round(flt(ne_lat),2)}" if sw_lat else "none"
+		lon_b = f"{round(flt(sw_lng),2)},{round(flt(ne_lng),2)}" if sw_lng else "none"
+		cache_key = f"flamezo:map:{city or 'all'}:{lat_b}:{lon_b}:{outlet_type or 'all'}"
+		cached = frappe.cache().get_value(cache_key)
+		if cached:
+			return json.loads(cached)
+
+		# ── SQL ───────────────────────────────────────────────────────────────────
+		sql_filters = ["is_active = 1", "latitude IS NOT NULL", "longitude IS NOT NULL"]
+		params = []
+
+		if city:
+			sql_filters.append("city LIKE %s")
+			params.append(f"%{city}%")
+
+		if sw_lat and sw_lng and ne_lat and ne_lng:
+			sql_filters.append("latitude  BETWEEN %s AND %s")
+			sql_filters.append("longitude BETWEEN %s AND %s")
+			params += [flt(sw_lat), flt(ne_lat), flt(sw_lng), flt(ne_lng)]
+
+		if outlet_type:
+			types = [t.strip() for t in str(outlet_type).split(",") if t.strip()]
+			if types:
+				phs = ",".join(["%s"] * len(types))
+				sql_filters.append(f"outlet_type IN ({phs})")
+				params.extend(types)
+
+		where = " AND ".join(sql_filters)
+		rows = frappe.db.sql(
+			f"""
+			SELECT name, restaurant_name, logo, latitude, longitude,
+			       outlet_type, is_featured
+			FROM `tabRestaurant`
+			WHERE {where}
+			ORDER BY is_featured DESC, onboarding_date DESC
+			LIMIT 2000
+			""",
+			params,
+			as_dict=True,
+		)
+
+		if not rows:
+			result = {"success": True, "data": {"markers": []}}
+			frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=300)
+			return result
+
+		# Batch offers count in one query
+		names = [r["name"] for r in rows]
+		offers_map = _batch_active_offers_count(names)
+
+		site_url = frappe.utils.get_url()
+		markers = [
+			{
+				"id": r["name"],
+				"name": r["restaurant_name"],
+				"logo": (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or ""),
+				"lat": flt(r["latitude"]),
+				"lng": flt(r["longitude"]),
+				"outlet_type": r.get("outlet_type") or "dining",
+				"is_featured": bool(r.get("is_featured")),
+				"active_offers_count": offers_map.get(r["name"], 0),
+			}
+			for r in rows
+		]
+
+		result = {"success": True, "data": {"markers": markers, "total": len(markers)}}
+		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=300)
+		return result
+
+	except Exception as e:
+		frappe.log_error(f"Error in flamezo.get_outlets_for_map: {str(e)}")
+		return {"success": False, "error": {"code": "MAP_FETCH_ERROR", "message": str(e)}}
 
 
 # ── 2. Cross-Restaurant Offers Feed ──────────────────────────────────────────
@@ -392,8 +607,11 @@ def get_flamezo_member(phone=None):
 		)
 		expiring_soon = min(sum(e.coins for e in expiring_rows), flt(balance))
 
-		# Referral code — use customer name as referral code if not set
-		raw_referral = frappe.db.get_value("Customer", customer.name, "referral_code")
+		# Referral code — custom field may not exist on all sites
+		raw_referral = (
+			frappe.db.get_value("Customer", customer.name, "referral_code")
+			if frappe.db.has_column("Customer", "referral_code") else None
+		)
 		referral_code = raw_referral or (customer.name or "")[:8].upper()
 
 		# Next tier thresholds
@@ -593,7 +811,10 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 		# Return current member state
 		balance = get_loyalty_balance(customer.name)
 		tier = get_loyalty_tier(customer.name)
-		raw_referral = frappe.db.get_value("Customer", customer.name, "referral_code")
+		raw_referral = (
+			frappe.db.get_value("Customer", customer.name, "referral_code")
+			if frappe.db.has_column("Customer", "referral_code") else None
+		)
 		referral_code = raw_referral or (customer.name or "")[:8].upper()
 
 		return {
@@ -632,10 +853,13 @@ def get_restaurant_summary(restaurant_id):
 		if cached:
 			return json.loads(cached)
 
+		_summary_fields = ["name", "restaurant_name", "logo", "city", "plan_type", "is_active",
+			"latitude", "longitude", "outlet_type", "contact_phone", "whatsapp_number", "instagram_url"]
+
 		restaurant = frappe.db.get_value(
 			"Restaurant",
 			{"restaurant_id": restaurant_id},
-			["name", "restaurant_name", "logo", "city", "plan_type", "is_active", "latitude", "longitude"],
+			_summary_fields,
 			as_dict=True,
 		)
 
@@ -644,7 +868,7 @@ def get_restaurant_summary(restaurant_id):
 			restaurant = frappe.db.get_value(
 				"Restaurant",
 				{"name": restaurant_id},
-				["name", "restaurant_name", "logo", "city", "plan_type", "is_active", "latitude", "longitude"],
+				_summary_fields,
 				as_dict=True,
 			)
 
@@ -661,7 +885,7 @@ def get_restaurant_summary(restaurant_id):
 			as_dict=True,
 		) or {}
 
-		active_offers = _get_active_offers_count(restaurant.name)
+		active_offers = _batch_active_offers_count([restaurant.name]).get(restaurant.name, 0)
 
 		response = {
 			"success": True,
@@ -672,13 +896,15 @@ def get_restaurant_summary(restaurant_id):
 				"logo": restaurant.logo or "",
 				"city": restaurant.city or "",
 				"plan_type": restaurant.plan_type or "GOLD",
+				"outlet_type": restaurant.outlet_type or "dining",
+				"contact_phone": restaurant.contact_phone or "",
+				"whatsapp_number": restaurant.whatsapp_number or "",
+				"instagram_url": restaurant.instagram_url or "",
 				"primary_color": "#B7410E",
 				"default_theme": config.get("default_theme") or "dark",
 				"latitude": restaurant.latitude,
 				"longitude": restaurant.longitude,
 				"active_offers_count": active_offers,
-				# is_gold retained for backwards compatibility; under the new model
-				# every restaurant is effectively GOLD.
 				"is_gold": True,
 			}
 		}
@@ -745,3 +971,82 @@ def upload_customer_photo():
 	except Exception as e:
 		frappe.log_error(f"Error in flamezo.upload_customer_photo: {str(e)}")
 		return {"success": False, "error": {"code": "UPLOAD_ERROR", "message": str(e)}}
+
+
+# ── 8. Update Customer Profile ────────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def update_profile(phone=None, full_name=None, email=None, date_of_birth=None):
+	"""
+	POST /api/method/flamezo_backend.flamezo.api.flamezo.update_profile
+
+	Updates editable fields on the customer record.
+	Auth: X-Customer-Token header required.
+	Updatable: full_name, email, date_of_birth.
+	Phone is immutable (identity anchor).
+	"""
+	try:
+		session_token = get_customer_token()
+		if not session_token and not phone:
+			return {"success": False, "error": {"code": "AUTH_REQUIRED", "message": "Authentication required"}}
+
+		if not phone:
+			session = frappe.cache().get_value(f"customer_session:{session_token}")
+			if not session:
+				return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Invalid or expired session"}}
+			phone = session.get("phone")
+
+		normalized_phone = normalize_phone(phone)
+		if not normalized_phone:
+			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+
+		if session_token and not validate_customer_session(normalized_phone, session_token):
+			return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Invalid or expired session"}}
+
+		customer = get_or_create_customer(normalized_phone)
+		if not customer:
+			return {"success": False, "error": {"code": "CUSTOMER_NOT_FOUND", "message": "Customer not found"}}
+
+		updates = {}
+		if full_name is not None:
+			full_name = full_name.strip()
+			if not full_name:
+				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "full_name cannot be empty"}}
+			updates["customer_name"] = full_name
+
+		if email is not None:
+			email = email.strip().lower()
+			if email and "@" not in email:
+				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid email address"}}
+			updates["email"] = email
+
+		if date_of_birth is not None:
+			try:
+				from frappe.utils import getdate as _gd
+				dob = _gd(date_of_birth)
+				from datetime import date as _date
+				if dob > _date.today():
+					return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Date of birth cannot be in the future"}}
+				updates["date_of_birth"] = str(dob)
+			except Exception:
+				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
+
+		if not updates:
+			return {"success": False, "error": {"code": "NO_FIELDS", "message": "No updatable fields provided"}}
+
+		frappe.db.set_value("Customer", customer.name, updates)
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"data": {
+				"phone": normalized_phone,
+				"full_name": updates.get("customer_name", customer.customer_name or ""),
+				"email": updates.get("email", customer.email or ""),
+				"date_of_birth": updates.get("date_of_birth", str(customer.date_of_birth) if customer.date_of_birth else None),
+			}
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error in flamezo.update_profile: {str(e)}")
+		return {"success": False, "error": {"code": "UPDATE_ERROR", "message": str(e)}}

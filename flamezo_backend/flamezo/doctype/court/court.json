@@ -1,0 +1,182 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "title_field": "court_name",
+ "creation": "2026-07-20 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "court_name",
+  "sport_type",
+  "is_active",
+  "sort_order",
+  "section_break_pricing",
+  "slot_duration_minutes",
+  "price_per_slot",
+  "column_break_pricing",
+  "consumer_fee",
+  "section_break_schedule",
+  "opening_time",
+  "closing_time",
+  "column_break_schedule",
+  "available_days",
+  "advance_booking_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "court_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_global_search": 1,
+   "label": "Court Name",
+   "reqd": 1,
+   "description": "e.g. 'Court 1', 'Badminton Court A'"
+  },
+  {
+   "fieldname": "sport_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sport Type",
+   "options": "Badminton\nTable Tennis\nSquash\nPickleball\nCricket\nFootball\nBasketball\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "section_break_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "default": "60",
+   "fieldname": "slot_duration_minutes",
+   "fieldtype": "Int",
+   "label": "Slot Duration (mins)",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Duration of each bookable time slot in minutes."
+  },
+  {
+   "fieldname": "price_per_slot",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price per Slot (₹)",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Amount charged to the customer for each slot (court rental fee)."
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "20",
+   "fieldname": "consumer_fee",
+   "fieldtype": "Currency",
+   "label": "Consumer Fee (₹)",
+   "reqd": 1,
+   "non_negative": 1,
+   "description": "Flat platform fee collected from the customer at booking time. ₹20 for standard courts, ₹30 for premium."
+  },
+  {
+   "fieldname": "section_break_schedule",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "opening_time",
+   "fieldtype": "Time",
+   "label": "Opening Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "closing_time",
+   "fieldtype": "Time",
+   "label": "Closing Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_schedule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+   "fieldname": "available_days",
+   "fieldtype": "Data",
+   "label": "Available Days",
+   "reqd": 1,
+   "description": "Comma-separated: Mon,Tue,Wed,Thu,Fri,Sat,Sun"
+  },
+  {
+   "default": "7",
+   "fieldname": "advance_booking_days",
+   "fieldtype": "Int",
+   "label": "Advance Booking (days)",
+   "non_negative": 1,
+   "description": "How many days ahead customers can book."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-20 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Court",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

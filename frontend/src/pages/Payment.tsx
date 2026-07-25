@@ -208,7 +208,7 @@ const Payment: React.FC = () => {
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <h2 className="text-xl font-semibold mb-2">Loading...</h2>
-            <p className="text-gray-600">Please wait while we load the restaurant details.</p>
+            <p className="text-gray-600">Please wait while we load the outlet details.</p>
           </div>
         </div>
     );
@@ -230,7 +230,7 @@ const Payment: React.FC = () => {
                 onClick={() => navigate(`/restaurant/${restaurantId}/menu`)}
                 className="w-full"
               >
-                Browse Menu
+                Browse Catalogue
               </Button>
             </CardContent>
           </Card>

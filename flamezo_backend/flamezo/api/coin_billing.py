@@ -357,7 +357,6 @@ def get_coin_billing_info(restaurant):
         "last_auto_recharge_date": res.last_auto_recharge_date,
         # Plan Defaults for Upgrade UI
         # Keys match frontend BillingInfo interface exactly
-        "monthly_minimum": float(res.monthly_minimum or 0),
         "platform_fee_percent": float(res.platform_fee_percent or 0),
         "plan_defaults": {
             "gold_floor": float(settings.gold_monthly_fee or 0),       # Monthly floor removed (always 0)

@@ -75,6 +75,8 @@ interface RestaurantContextType {
   isAdmin: boolean
   /** True if current user has Flamezo Supervisor role */
   isSupervisor: boolean
+  /** Outlet type for this merchant: dining | cafe | wellness | fitness | sports_court | sports_venue | fashion */
+  outletType: string
 }
 
 const RestaurantContext = createContext<RestaurantContextType | undefined>(undefined)
@@ -337,7 +339,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     billing_status: restaurantConfig.subscription.billingStatus,
     onboarding_date: restaurantConfig.subscription.onboardingDate,
     last_auto_recharge_date: restaurantConfig.subscription.lastAutoRechargeDate,
-    monthly_minimum: restaurantConfig.subscription.monthly_minimum,
     platform_fee_percent: restaurantConfig.subscription.platform_fee_percent
   } : null
 
@@ -365,6 +366,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         userRole,
         isAdmin,
         isSupervisor,
+        outletType: restaurantConfig?.restaurant?.outletType || 'dining',
       }}
     >
       {children}

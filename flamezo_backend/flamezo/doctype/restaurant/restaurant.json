@@ -35,17 +35,8 @@
   "section_break_settings",
   "tax_rate",
   "gst_number",
-  "default_delivery_fee",
-  "delivery_charge_per_km",
-  "enable_takeaway",
-  "enable_delivery",
   "enable_dine_in",
   "enable_loyalty",
-  "order_channel",
-  "packaging_fee_type",
-  "default_packaging_fee",
-  "minimum_order_value",
-  "estimated_prep_time",
   "column_break_settings",
   "timezone",
   "currency",
@@ -59,7 +50,6 @@
   "route_mode",
   "column_break_razorpay",
   "platform_fee_percent",
-  "monthly_minimum",
   "razorpay_customer_id",
   "razorpay_token_id",
   "mandate_status",
@@ -68,6 +58,7 @@
   "legal_name",
   "business_type",
   "pan_number",
+  "owner_pan",
   "column_break_route_kyc",
   "bank_account_number",
   "bank_ifsc",
@@ -96,9 +87,6 @@
   "section_break_coins",
   "coins_balance",
   "auto_recharge_enabled",
-  "enable_floor_recovery",
-  "floor_recovery_activated_on",
-  "last_floor_recovery_date",
   "column_break_coins",
   "auto_recharge_threshold",
   "auto_recharge_amount",
@@ -112,17 +100,11 @@
   "total_ai_cost",
   "ai_coupon_generations_this_month",
   "ai_coupon_quota_reset_month",
-  "section_break_pos",
-  "pos_provider",
-  "pos_enabled",
-  "pos_app_key",
-  "pos_app_secret",
-  "pos_access_token",
-  "pos_merchant_id",
-  "column_break_pos",
-  "pos_last_sync_at",
-  "pos_sync_status",
   "section_break_branding",
+  "outlet_type",
+  "contact_phone",
+  "whatsapp_number",
+  "instagram_url",
   "logo",
   "hero_video",
   "section_break_metadata",
@@ -138,7 +120,17 @@
   "enable_google_sync",
   "google_review_url",
   "google_insights_data",
-  "google_refresh_token"
+  "google_refresh_token",
+  "section_break_discovery",
+  "is_featured",
+  "is_signature",
+  "rating",
+  "review_count",
+  "column_break_discovery",
+  "cuisines",
+  "price_range",
+  "amenities_mask",
+  "hours_json"
  ],
  "fields": [
   {
@@ -156,9 +148,9 @@
    "fieldtype": "Data",
    "in_global_search": 1,
    "in_list_view": 1,
-   "label": "Restaurant Name",
+   "label": "Outlet Name",
    "reqd": 1,
-   "description": "Your restaurant's name as it will appear to customers"
+   "description": "Your outlet's name as it will appear to customers"
   },
   {
    "fieldname": "company",
@@ -208,7 +200,7 @@
    "fieldtype": "Data",
    "label": "Owner Email",
    "options": "Email",
-   "description": "Email address of the restaurant owner for system access"
+   "description": "Email address of the owner for system access"
   },
   {
    "fieldname": "owner_phone",
@@ -311,32 +303,6 @@
    "description": "Restaurant's GST registration number"
   },
   {
-   "default": "0",
-   "fieldname": "default_delivery_fee",
-   "fieldtype": "Currency",
-   "label": "Default Delivery Fee",
-   "description": "Standard delivery charge for orders"
-  },
-  {
-   "default": "0",
-   "fieldname": "delivery_charge_per_km",
-   "fieldtype": "Currency",
-   "label": "Delivery Charge Per KM",
-   "description": "Rate charged per kilometer of delivery distance"
-  },
-  {
-   "fieldname": "enable_takeaway",
-   "fieldtype": "Check",
-   "label": "Enable Takeaway",
-   "default": "1"
-  },
-  {
-   "fieldname": "enable_delivery",
-   "fieldtype": "Check",
-   "label": "Enable Delivery",
-   "default": "0"
-  },
-  {
    "fieldname": "enable_dine_in",
    "fieldtype": "Check",
    "label": "Enable Dine-in",
@@ -347,40 +313,6 @@
    "fieldtype": "Check",
    "label": "Enable Loyalty",
    "default": "0"
-  },
-  {
-   "fieldname": "order_channel",
-   "fieldtype": "Select",
-   "label": "Order Channel",
-   "options": "Realtime\nWhatsApp",
-   "default": "Realtime",
-   "description": "Realtime = in-app orders. WhatsApp = orders via WhatsApp link."
-  },
-  {
-   "default": "Fixed",
-   "fieldname": "packaging_fee_type",
-   "fieldtype": "Select",
-   "label": "Packaging Fee Type",
-   "options": "Fixed\nPercentage"
-  },
-  {
-   "default": "0",
-   "fieldname": "default_packaging_fee",
-   "fieldtype": "Currency",
-   "label": "Packaging Fee + Operation Overhead",
-   "description": "Charge for packaging and operational overhead per order."
-  },
-  {
-   "fieldname": "minimum_order_value",
-   "fieldtype": "Currency",
-   "label": "Minimum Order Value for Delivery",
-   "default": "0"
-  },
-  {
-   "fieldname": "estimated_prep_time",
-   "fieldtype": "Int",
-   "label": "Estimated Preparation Time (mins)",
-   "default": "30"
   },
   {
    "fieldname": "column_break_settings",
@@ -466,14 +398,7 @@
    "label": "Success Share %",
    "default": "7",
    "precision": 2,
-   "description": "Flamezo's Success Share percentage (default: 7% for new restaurants; legacy restaurants are grandfathered at their earlier rate) \u2014 applied to every order GMV"
-  },
-  {
-   "fieldname": "monthly_minimum",
-   "fieldtype": "Currency",
-   "label": "Monthly Minimum Fee",
-   "default": "0",
-   "description": "Retired \u2014 the monthly minimum/floor was removed from the model. Kept at 0; restaurants pay only a success share on orders."
+   "description": "Flamezo's Success Share percentage (default: 7% for new restaurants; legacy restaurants are grandfathered at their earlier rate) — applied to every order GMV"
   },
   {
    "fieldname": "razorpay_customer_id",
@@ -531,6 +456,12 @@
    "description": "10-character PAN (encrypted at rest in production)"
   },
   {
+   "fieldname": "owner_pan",
+   "fieldtype": "Data",
+   "label": "Owner / Director PAN",
+   "description": "Individual PAN of the owner, partner or director. Sent to Razorpay as the stakeholder's PAN."
+  },
+  {
    "fieldname": "column_break_route_kyc",
    "fieldtype": "Column Break"
   },
@@ -550,7 +481,7 @@
    "fieldname": "bank_holder_name",
    "fieldtype": "Data",
    "label": "Bank Account Holder Name",
-   "description": "As per bank records \u2014 must match PAN for KYC clearance"
+   "description": "As per bank records — must match PAN for KYC clearance"
   },
   {
    "fieldname": "section_break_commission_state",
@@ -704,11 +635,11 @@
   {
    "fieldname": "coins_balance",
    "fieldtype": "Float",
-   "label": "Wallet Balance (\u20b9)",
+   "label": "Wallet Balance (₹)",
    "default": "0",
    "read_only": 1,
    "in_list_view": 1,
-   "description": "Current platform balance (\u20b9)"
+   "description": "Current platform balance (₹)"
   },
   {
    "fieldname": "auto_recharge_enabled",
@@ -718,40 +649,20 @@
    "description": "Automatically recharge balance when it falls below threshold"
   },
   {
-   "default": "0",
-   "fieldname": "enable_floor_recovery",
-   "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Enable Daily Floor Recovery",
-   "description": "Retired \u2014 the monthly floor/minimum was removed from the model. Defaults to 0; the floor-recovery task is now a no-op."
-  },
-  {
-   "fieldname": "floor_recovery_activated_on",
-   "fieldtype": "Date",
-   "label": "Floor Recovery Activated On",
-   "description": "The date when floor recovery was first enabled for this restaurant."
-  },
-  {
-   "fieldname": "last_floor_recovery_date",
-   "fieldtype": "Date",
-   "label": "Last Floor Recovery Date",
-   "description": "The date of the last monthly floor check/deduction."
-  },
-  {
    "fieldname": "column_break_coins",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "auto_recharge_threshold",
    "fieldtype": "Float",
-   "label": "Recharge Threshold (\u20b9)",
+   "label": "Recharge Threshold (₹)",
    "default": "200.0",
    "description": "Trigger recharge when balance falls below this amount"
   },
   {
    "fieldname": "auto_recharge_amount",
    "fieldtype": "Float",
-   "label": "Recharge Amount (\u20b9)",
+   "label": "Recharge Amount (₹)",
    "default": "1000.0",
    "description": "Amount to automatically recharge via Razorpay mandate"
   },
@@ -763,14 +674,14 @@
   {
    "fieldname": "daily_auto_recharge_limit",
    "fieldtype": "Float",
-   "label": "Daily Auto-Recharge Limit (\u20b9)",
+   "label": "Daily Auto-Recharge Limit (₹)",
    "default": "5000.0",
    "description": "Maximum total auto-recharge amount allowed per day"
   },
   {
    "fieldname": "daily_auto_recharge_count",
    "fieldtype": "Float",
-   "label": "Day Auto-Recharge Volume (\u20b9)",
+   "label": "Day Auto-Recharge Volume (₹)",
    "default": "0",
    "read_only": 1
   },
@@ -799,7 +710,7 @@
   {
    "fieldname": "total_ai_cost",
    "fieldtype": "Float",
-   "label": "Total AI Cost (\u20b9)",
+   "label": "Total AI Cost (₹)",
    "default": "0",
    "read_only": 1
   },
@@ -816,82 +727,6 @@
    "label": "AI Coupon Quota Reset Month",
    "description": "Format: YYYY-MM. Auto-managed.",
    "read_only": 1
-  },
-  {
-   "fieldname": "section_break_pos",
-   "fieldtype": "Section Break",
-   "label": "POS Integration"
-  },
-  {
-   "fieldname": "pos_provider",
-   "fieldtype": "Select",
-   "label": "POS Provider",
-   "options": "\nPetpooja\nUrbanPiper"
-  },
-  {
-   "fieldname": "pos_enabled",
-   "fieldtype": "Check",
-   "label": "Enable POS Integration",
-   "default": 0
-  },
-  {
-   "fieldname": "pos_app_key",
-   "fieldtype": "Data",
-   "label": "POS App Key / API Key",
-   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
-  },
-  {
-   "fieldname": "pos_app_secret",
-   "fieldtype": "Password",
-   "label": "POS App Secret / Username",
-   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
-  },
-  {
-   "fieldname": "pos_access_token",
-   "fieldtype": "Password",
-   "label": "POS Access Token",
-   "depends_on": "eval:doc.pos_provider == 'Petpooja'"
-  },
-  {
-   "fieldname": "pos_merchant_id",
-   "fieldtype": "Data",
-   "label": "POS Merchant ID / Store ID",
-   "depends_on": "eval:doc.pos_provider && ['Petpooja', 'UrbanPiper'].includes(doc.pos_provider)"
-  },
-  {
-   "fieldname": "column_break_pos",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "pos_last_sync_at",
-   "fieldtype": "Datetime",
-   "label": "Last Sync At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "pos_sync_status",
-   "fieldtype": "Small Text",
-   "label": "Sync Status",
-   "read_only": 1
-  },
-  {
-   "fieldname": "pos_menu_sync_enabled",
-   "fieldtype": "Check",
-   "label": "Enable Menu Sync",
-   "default": "1",
-   "insert_after": "pos_sync_status"
-  },
-  {
-   "fieldname": "pos_cgst_taxid",
-   "fieldtype": "Data",
-   "label": "Petpooja CGST Tax ID",
-   "insert_after": "pos_sync_status"
-  },
-  {
-   "fieldname": "pos_sgst_taxid",
-   "fieldtype": "Data",
-   "label": "Petpooja SGST Tax ID",
-   "insert_after": "pos_cgst_taxid"
   },
   {
    "fieldname": "section_break_branding",
@@ -990,11 +825,94 @@
    "hidden": 1
   },
   {
-   "fieldname": "pos_store_status",
+   "fieldname": "outlet_type",
    "fieldtype": "Select",
-   "label": "POS Store Status",
-   "options": "Open\nClosed",
-   "read_only": 1
+   "label": "Outlet Type",
+   "options": "dining\ncafe\nwellness\nfitness\nsports_court\nsports_venue\nfashion",
+   "default": "dining",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone",
+   "options": "Phone",
+   "description": "Public-facing restaurant phone number (shown to customers). Different from owner_phone."
+  },
+  {
+   "fieldname": "whatsapp_number",
+   "fieldtype": "Data",
+   "label": "WhatsApp Number",
+   "options": "Phone",
+   "description": "WhatsApp number for customer enquiries. Used for Enquire on WhatsApp CTA in app."
+  },
+  {
+   "fieldname": "instagram_url",
+   "fieldtype": "Data",
+   "label": "Instagram URL"
+  },
+  {
+   "fieldname": "section_break_discovery",
+   "fieldtype": "Section Break",
+   "label": "Discovery Info"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_featured",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Featured (Hot Drops / Limelight)"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_signature",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Signature (Flamezo Curated)",
+   "description": "Awarded by Flamezo team based on ambience, food quality, and value. Powers the Signatures mode in the consumer app."
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Float",
+   "label": "Rating (1–5)",
+   "precision": "1"
+  },
+  {
+   "default": "0",
+   "fieldname": "review_count",
+   "fieldtype": "Int",
+   "label": "Review Count"
+  },
+  {
+   "fieldname": "column_break_discovery",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cuisines",
+   "fieldtype": "Small Text",
+   "label": "Cuisines (comma-separated)",
+   "description": "e.g. North Indian, Chinese, Fast Food"
+  },
+  {
+   "fieldname": "price_range",
+   "fieldtype": "Data",
+   "label": "Price Range",
+   "description": "e.g. ₹400 – ₹1400"
+  },
+  {
+   "default": "0",
+   "fieldname": "amenities_mask",
+   "fieldtype": "Int",
+   "label": "Amenities Bitmask",
+   "description": "26-bit flag: DINE_IN=1,TAKEOUT=2,DELIVERY=4,RESERVABLE=8,OUTDOOR=16,BREAKFAST=32,LUNCH=64,DINNER=128,BRUNCH=256,VEG=512,COFFEE=1024,COCKTAILS=2048,DESSERT=4096,LIVE_MUSIC=8192,KIDS=16384,GROUPS=32768,SPORTS=65536,RESTROOM=131072,CC=262144,DC=524288,UPI=1048576,CASH=2097152,PARKING_FREE=4194304,PARKING_PAID=8388608,PARKING_VALET=16777216,PARKING_STREET=33554432"
+  },
+  {
+   "fieldname": "hours_json",
+   "fieldtype": "JSON",
+   "label": "Opening Hours (JSON)",
+   "description": "e.g. {\"mon\":\"12 PM – 11 PM\",\"tue\":\"12 PM – 11 PM\",...}"
   }
  ],
  "index_web_pages_for_search": 1,

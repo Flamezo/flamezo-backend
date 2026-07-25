@@ -58,13 +58,13 @@ export default function GoogleGrowthSync() {
         <ChevronRight className="h-3 w-3" />
         <Link to="/google-growth" className="hover:text-foreground transition-colors">Google Growth</Link>
         <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground font-bold">Menu Sync</span>
+        <span className="text-foreground font-bold">Catalogue Sync</span>
       </nav>
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
-            <Package className="h-6 w-6 text-blue-500" /> Menu & Product Sync
+            <Package className="h-6 w-6 text-blue-500" /> Catalogue & Product Sync
           </h1>
           <p className="text-sm text-muted-foreground">Keep your Google Maps dishes and prices up to date.</p>
         </div>
@@ -90,7 +90,7 @@ export default function GoogleGrowthSync() {
               <span className="font-bold">{products?.filter(p => p.is_active).length || 0}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Synced to Menu</span>
+              <span className="text-muted-foreground">Synced to Catalogue</span>
               <span className="font-bold text-emerald-600">{products?.filter(p => p.google_item_id).length || 0}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
@@ -153,7 +153,7 @@ export default function GoogleGrowthSync() {
                         <div className="flex flex-wrap gap-1.5">
                           {p.google_item_id ? (
                             <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] uppercase font-bold py-0 h-5">
-                              <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> Menu
+                              <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> Catalogue
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] uppercase font-bold py-0 h-5">

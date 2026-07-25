@@ -236,7 +236,7 @@ export default function UGCApprovals() {
       const res: any = await verifyStoryWithPin({ restaurant_id: selectedRestaurant, submission_id: pinTarget.name, pin })
       const body = res?.message || res
       if (body?.success) {
-        toast.success('Story verified — diner can now upload their view count')
+        toast.success('Story verified — customer can now upload their view count')
         verifyQ.mutate()
         setPinTarget(null)
       } else {
@@ -264,7 +264,7 @@ export default function UGCApprovals() {
       const res: any = await verifyStory({ restaurant_id: selectedRestaurant, submission_id: sub.name, action, notes })
       const body = res?.message || res
       if (body?.success) {
-        toast.success(action === 'approve' ? 'Story verified — diner can upload views tomorrow' : 'Story rejected')
+        toast.success(action === 'approve' ? 'Story verified — customer can upload views tomorrow' : 'Story rejected')
         verifyQ.mutate()
       } else throw new Error(body?.message || 'Failed')
     } catch (e: any) { toast.error(e.message) } finally { setBusy(false) }
@@ -298,7 +298,7 @@ export default function UGCApprovals() {
   }
 
   if (!selectedRestaurant) {
-    return <div className="p-8 text-center text-muted-foreground">Select a restaurant.</div>
+    return <div className="p-8 text-center text-muted-foreground">Select an outlet.</div>
   }
 
   return (
@@ -306,7 +306,7 @@ export default function UGCApprovals() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">UGC Approvals</h1>
-          <p className="text-muted-foreground mt-1">Verify diners' stories in person, then resolve any view-counts the AI couldn't auto-approve.</p>
+          <p className="text-muted-foreground mt-1">Verify customers' stories in person, then resolve any view-counts the AI couldn't auto-approve.</p>
         </div>
         {selectedRestaurant === 'unvind' && (
           <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
@@ -585,7 +585,7 @@ function AnalyticsTab({ funnelRes }: { funnelRes: any }) {
       <Card>
         <CardContent className="p-6">
           <p className="text-sm font-semibold mb-1">Submission Funnel <span className="text-xs font-normal text-muted-foreground ml-1">last {data.days} days</span></p>
-          <p className="text-xs text-muted-foreground mb-5">How many diners made it through each step of the UGC cashback flow.</p>
+          <p className="text-xs text-muted-foreground mb-5">How many customers made it through each step of the UGC cashback flow.</p>
           <div className="space-y-3">
             {funnel.map((step: any, i: number) => (
               <div key={step.key}>

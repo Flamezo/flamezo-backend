@@ -142,6 +142,9 @@
             flex-direction: column;
             align-items: center;
             overflow-y: auto;
+            /* Keep the scrollbar's space reserved so the centred form never shifts
+               sideways when a step's content gets taller or shorter. */
+            scrollbar-gutter: stable;
         }
 
         .form-container {
@@ -211,6 +214,17 @@
             font-size: 12px;
             color: var(--text-muted);
             margin-top: 4px;
+        }
+
+        /* Business-type hints change text when the merchant switches type. Reserve a
+           fixed height so the Legal & Operations block never grows or shrinks — the
+           layout stays identical for every business type. */
+        #btype_hint,
+        #legal_name_hint,
+        #pan_hint,
+        #owner_pan_hint {
+            display: block;
+            min-height: 20px;
         }
 
         .row {
@@ -517,21 +531,26 @@
                     <p>Essential tax and registration details for billing.</p>
                 </div>
 
+                <!-- Business type comes first: it decides which fields below are shown
+                     and how they are labelled, so the merchant only ever sees the
+                     details that apply to their kind of business. -->
                 <div class="form-group">
-                    <label>Legal Business Name</label>
-                    <input type="text" id="legal_name" placeholder="Name on PAN card">
-                </div>
-                
-                <div class="form-group">
-                    <label>Business Type</label>
-                    <select id="business_type">
-                        <option value="proprietorship">Proprietorship</option>
-                        <option value="partnership">Partnership</option>
-                        <option value="private_limited">Private Limited</option>
-                        <option value="public_limited">Public Limited</option>
-                        <option value="llp">LLP</option>
-                        <option value="individual">Individual</option>
+                    <label>Business Type <span style="color:#dc2626">*</span></label>
+                    <select id="business_type" onchange="applyBusinessType(true)">
+                        <option value="proprietorship">Proprietorship (owned by one person)</option>
+                        <option value="individual">Individual (not registered)</option>
+                        <option value="partnership">Partnership Firm</option>
+                        <option value="llp">LLP (Limited Liability Partnership)</option>
+                        <option value="private_limited">Private Limited Company</option>
+                        <option value="public_limited">Public Limited Company</option>
                     </select>
+                    <small class="helper-text" id="btype_hint"></small>
+                </div>
+
+                <div class="form-group">
+                    <label id="legal_name_label">Business Name</label>
+                    <input type="text" id="legal_name">
+                    <small class="helper-text" id="legal_name_hint"></small>
                 </div>
 
                 <div class="section-header" style="margin-top: 30px; margin-bottom: 20px;">
@@ -542,7 +561,7 @@
                 <!-- Bank details come entirely from the cancelled cheque (read by AI),
                      so there are no account-number / IFSC / holder-name fields here. -->
                 <div class="form-group">
-                    <label style="font-weight:600;color:#0f172a;margin-bottom:8px;display:block;">Upload your cancelled cheque</label>
+                    <label style="font-weight:600;color:#0f172a;margin-bottom:8px;display:block;">Upload your cancelled cheque <span style="color:#dc2626">*</span></label>
                     <button type="button" class="btn-secondary" onclick="document.getElementById('cheque_upload').click()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
                         <span>📄</span><span id="cheque_label">Upload a photo of your cancelled cheque</span>
                     </button>
@@ -572,9 +591,18 @@
                         <input type="number" id="tax_rate" value="5.0" step="0.1">
                     </div>
                     <div class="form-group">
-                        <label>PAN Number</label>
-                        <input type="text" id="pan_number" placeholder="Permanent Account Number">
+                        <label id="pan_label">PAN Number <span style="color:#dc2626">*</span></label>
+                        <input type="text" id="pan_number" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase;">
+                        <small class="helper-text" id="pan_hint"></small>
                     </div>
+                </div>
+
+                <!-- Second PAN: only for registered entities, where the business PAN
+                     above and the signing person's PAN are different. -->
+                <div class="form-group" id="owner_pan_group" style="display:none;">
+                    <label id="owner_pan_label">Owner / Director PAN <span style="color:#dc2626">*</span></label>
+                    <input type="text" id="owner_pan" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase;">
+                    <small class="helper-text" id="owner_pan_hint"></small>
                 </div>
             </div>
 
@@ -782,6 +810,9 @@
                 Modal.show('Invalid Link', 'No onboarding token found. Please check your link.', 'error');
                 return;
             }
+            // Render business-type labels immediately (fetchDetails re-applies them
+            // once the saved business type loads).
+            applyBusinessType(false);
             await fetchDetails();
         };
 
@@ -814,6 +845,9 @@
                     if (data.gst_number) document.getElementById('gst_number').value = data.gst_number;
                     if (data.tax_rate) document.getElementById('tax_rate').value = data.tax_rate;
                     if (data.pan_number) document.getElementById('pan_number').value = data.pan_number;
+                    if (data.owner_pan) document.getElementById('owner_pan').value = data.owner_pan;
+                    // Labels/visibility must match the saved business type.
+                    applyBusinessType(false);
 
                     // Step 3: Store Setup
                     if (data.default_theme) document.getElementById('default_theme').value = data.default_theme;
@@ -1060,7 +1094,7 @@
                 'address', 'city', 'state', 'zip_code', 'google_map_url',
                 'tagline', 'subtitle', 'description', 'instagram_link', 'facebook_link', 'website_link', 'google_review_link', 'menu_link',
                 'fssai_number', 'gst_number', 'tax_rate', 'pan_number',
-                'legal_name', 'business_type', 'bank_account_number', 'bank_ifsc', 'bank_holder_name',
+                'legal_name', 'business_type', 'owner_pan', 'bank_account_number', 'bank_ifsc', 'bank_holder_name',
                 'opening_time', 'closing_time',
                 'default_theme', 'menu_layout', 'tables'
             ];
@@ -1129,6 +1163,14 @@
 
         function changeStep(delta) {
             const nextBtn = document.getElementById('next-btn');
+
+            // Validate the business/PAN details while the merchant is still on that
+            // step — catching a wrong PAN here avoids a Razorpay KYC failure later.
+            if (delta > 0 && currentStep === 2) {
+                const err = validateBusinessDetails();
+                if (err) { Modal.show('Check these details', err, 'error'); return; }
+            }
+
             if (currentStep + delta > totalSteps) {
                 submitForm();
                 return;
@@ -1147,6 +1189,162 @@
             // Navigation Visibility
             document.getElementById('prev-btn').style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
             nextBtn.innerText = (currentStep === totalSteps) ? 'Submit Setup' : 'Next Step';
+        }
+
+        // ── Business-type driven fields ───────────────────────────────────────
+        // Each business type needs different details. We show only what applies and
+        // label it in plain English, so nothing wrong or irrelevant gets entered.
+        // panKind = required 4th letter of the PAN: P = person, F = firm/LLP, C = company.
+        const BUSINESS_TYPES = {
+            proprietorship: {
+                hint: 'A business owned and run by one person, not registered as a company.',
+                legalLabel: 'Business Name',
+                legalHint: 'Your restaurant / shop name as you registered it (e.g. on GST or shop licence).',
+                panLabel: "Owner's PAN",
+                panHint: "The owner's own PAN card number. For a proprietorship the business uses the owner's PAN.",
+                panKind: 'P',
+                ownerPan: false
+            },
+            individual: {
+                hint: 'You run this yourself and it is not registered as a business.',
+                legalLabel: 'Your Name',
+                legalHint: 'Your full name, exactly as printed on your PAN card.',
+                panLabel: 'Your PAN',
+                panHint: 'Your own PAN card number.',
+                panKind: 'P',
+                ownerPan: false
+            },
+            partnership: {
+                hint: 'A firm owned by two or more partners, registered with a partnership deed.',
+                legalLabel: 'Registered Firm Name',
+                legalHint: "The firm's name exactly as printed on the firm's PAN card.",
+                panLabel: "Firm's PAN",
+                panHint: "PAN of the partnership firm itself (not a partner's personal PAN).",
+                panKind: 'F',
+                ownerPan: true,
+                ownerPanLabel: "Partner's Personal PAN",
+                ownerPanHint: 'PAN of the partner who signs for the firm. This person is verified as the account owner.'
+            },
+            llp: {
+                hint: 'A Limited Liability Partnership registered with the MCA.',
+                legalLabel: 'Registered LLP Name',
+                legalHint: "The LLP's name exactly as on its incorporation certificate / PAN card.",
+                panLabel: "LLP's PAN",
+                panHint: "PAN of the LLP itself (not a partner's personal PAN).",
+                panKind: 'F',
+                ownerPan: true,
+                ownerPanLabel: "Designated Partner's Personal PAN",
+                ownerPanHint: 'PAN of the designated partner who signs for the LLP.'
+            },
+            private_limited: {
+                hint: 'A company registered with the MCA (Pvt Ltd).',
+                legalLabel: 'Registered Company Name',
+                legalHint: 'Company name exactly as on the Certificate of Incorporation.',
+                panLabel: "Company's PAN",
+                panHint: "PAN of the company itself (not a director's personal PAN).",
+                panKind: 'C',
+                ownerPan: true,
+                ownerPanLabel: "Director's Personal PAN",
+                ownerPanHint: 'PAN of the director who signs for the company.'
+            },
+            public_limited: {
+                hint: 'A public company registered with the MCA (Ltd).',
+                legalLabel: 'Registered Company Name',
+                legalHint: 'Company name exactly as on the Certificate of Incorporation.',
+                panLabel: "Company's PAN",
+                panHint: "PAN of the company itself (not a director's personal PAN).",
+                panKind: 'C',
+                ownerPan: true,
+                ownerPanLabel: "Director's Personal PAN",
+                ownerPanHint: 'PAN of the director who signs for the company.'
+            }
+        };
+
+        const PAN_KIND_NAME = { P: 'personal', F: 'firm / LLP', C: 'company' };
+
+        function currentBusinessType() {
+            const el = document.getElementById('business_type');
+            return (el && el.value) || 'proprietorship';
+        }
+
+        /** Apply labels + visibility for the selected business type.
+         *  clearPans=true when the merchant actually changed the type, so a PAN
+         *  entered for the previous type is never left behind. */
+        function applyBusinessType(clearPans) {
+            const cfg = BUSINESS_TYPES[currentBusinessType()] || BUSINESS_TYPES.proprietorship;
+            const setText = (id, txt) => { const e = document.getElementById(id); if (e) e.innerText = txt; };
+            const setHtml = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+
+            setText('btype_hint', cfg.hint);
+            setHtml('legal_name_label', cfg.legalLabel);
+            setText('legal_name_hint', cfg.legalHint);
+            const ln = document.getElementById('legal_name');
+            if (ln) ln.placeholder = cfg.legalLabel;
+
+            setHtml('pan_label', cfg.panLabel + ' <span style="color:#dc2626">*</span>');
+            setText('pan_hint', cfg.panHint);
+
+            const grp = document.getElementById('owner_pan_group');
+            if (grp) {
+                grp.style.display = cfg.ownerPan ? '' : 'none';
+                if (cfg.ownerPan) {
+                    setHtml('owner_pan_label', cfg.ownerPanLabel + ' <span style="color:#dc2626">*</span>');
+                    setText('owner_pan_hint', cfg.ownerPanHint);
+                }
+            }
+
+            if (clearPans) {
+                ['pan_number', 'owner_pan'].forEach(id => {
+                    const e = document.getElementById(id);
+                    if (e) e.value = '';
+                });
+            }
+            // A hidden owner PAN must never be submitted for a type that doesn't use it.
+            if (!cfg.ownerPan) {
+                const op = document.getElementById('owner_pan');
+                if (op) op.value = '';
+                formData.owner_pan = '';
+            }
+        }
+
+        /** Returns an error string, or null when the PAN is acceptable. */
+        function validatePan(value, kind, label, required) {
+            const v = (value || '').trim().toUpperCase();
+            if (!v) return required ? `${label} is required.` : null;
+            if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v)) {
+                return `${label} doesn't look right. A PAN looks like ABCDE1234F.`;
+            }
+            if (kind && v[3] !== kind) {
+                return `${label} should be a ${PAN_KIND_NAME[kind]} PAN — its 4th letter must be "${kind}", but you entered "${v[3]}".`;
+            }
+            return null;
+        }
+
+        /** Validate the business/PAN details before final submit. */
+        function validateBusinessDetails() {
+            const cfg = BUSINESS_TYPES[currentBusinessType()] || BUSINESS_TYPES.proprietorship;
+            const val = id => (document.getElementById(id) || {}).value || '';
+
+            if (!val('legal_name').trim()) return `${cfg.legalLabel} is required.`;
+            let err = validatePan(val('pan_number'), cfg.panKind, cfg.panLabel, true);
+            if (err) return err;
+            if (cfg.ownerPan) {
+                err = validatePan(val('owner_pan'), 'P', cfg.ownerPanLabel, true);
+                if (err) return err;
+                if (val('pan_number').trim().toUpperCase() === val('owner_pan').trim().toUpperCase()) {
+                    return `${cfg.panLabel} and ${cfg.ownerPanLabel} must be different — one belongs to the business, the other to the person.`;
+                }
+            }
+
+            // The cancelled cheque is mandatory: it is the ONLY source of the bank
+            // details, and payouts cannot be set up without them.
+            if (!formData.cancelled_cheque) {
+                return 'Please upload a photo of your cancelled cheque. Your bank details are read from it — payouts cannot be set up without it.';
+            }
+            if (!formData.bank_account_number || !formData.bank_ifsc) {
+                return "We couldn't read the account number and IFSC from that cheque. Please upload a clearer photo where all the printed details are visible.";
+            }
+            return null;
         }
 
         function triggerUpload(type) {

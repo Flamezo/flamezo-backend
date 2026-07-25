@@ -36,7 +36,6 @@ def _make_restaurant(name: str, plan_type: str = "GOLD", **kwargs) -> str:
         "is_active": 1,
         "coins_balance": 1000.0,
         "timezone": "UTC",
-        "monthly_minimum": 0,
         "tax_rate": 0.0,
         **kwargs,
     })

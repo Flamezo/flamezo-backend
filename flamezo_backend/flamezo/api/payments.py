@@ -693,6 +693,12 @@ def process_loyalty_and_coupons(order):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_payment_stats(restaurant_id):
+	"""Alias for get_restaurant_payment_stats — matches the EP.paymentStats key."""
+	return get_restaurant_payment_stats(restaurant_id)
+
+
+@frappe.whitelist(allow_guest=True)
 def get_restaurant_payment_stats(restaurant_id):
 	"""Get payment statistics for a restaurant"""
 	try:
@@ -714,11 +720,7 @@ def get_restaurant_payment_stats(restaurant_id):
 			"total_platform_fee": 0
 		}
 		
-		# Monthly minimum / floor was removed from the model — there is no floor.
-		default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
-		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else default_floor)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
-		minimum_due = max(0, monthly_minimum - platform_fee_collected)
 
 		from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 		rzp_cfg = get_razorpay_config()
@@ -731,8 +733,6 @@ def get_restaurant_payment_stats(restaurant_id):
 				"total_orders": stats["total_orders"],
 				"total_revenue": stats["total_revenue"],
 				"platform_fee_collected": platform_fee_collected,
-				"monthly_minimum": monthly_minimum,
-				"minimum_due": minimum_due,
 				"razorpay_customer_id": restaurant.razorpay_customer_id,
 				"razorpay_token_id": restaurant.razorpay_token_id,
 				"mandate_status": restaurant.mandate_status,
@@ -1035,13 +1035,10 @@ def schedule_monthly_billing():
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
 			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
-			default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 0)
 			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
-			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else default_floor)  # type: ignore
-			
+
 			calculated_fee = int(math.floor(total_paise * (platform_fee_percent / 100.0)))  # type: ignore
-			min_amt_paise = int(monthly_min * 100)
-			base_commission = max(min_amt_paise, calculated_fee)
+			base_commission = calculated_fee
 			
 			# GST Compliance (Global Setting)
 			settings = frappe.get_single("Flamezo Settings")
@@ -1291,19 +1288,30 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 		fee_pct = flt(frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")) or 0.0
 
 		def _breakdown(o):
-			bill = flt(o.get("total"))
+			# `total` is the amount the customer actually paid (already after any
+			# offer/loyalty deduction). `discount` is the FULL saving (coupon +
+			# loyalty together — never add loyalty_discount again, that double-counts).
+			final_paid = flt(o.get("total"))
+			offer_applied = flt(o.get("discount"))
+			# Gross bill before the offer. Derived as final + saving so the three
+			# figures always reconcile on screen, regardless of packaging/delivery fees.
+			gross_total = round(final_paid + offer_applied, 2)
 			merchant = (o.get("restaurant_transfer_amount") or 0) / 100.0
 			flamezo = (o.get("platform_fee_amount") or 0) / 100.0
 			estimated = False
 			if merchant <= 0 and flamezo <= 0:
 				# No stored split → estimate from the success-share % so the merchant
 				# still sees a breakdown for existing payments.
-				flamezo = round(bill * fee_pct / 100.0, 2)
-				merchant = round(bill - flamezo, 2)
+				flamezo = round(final_paid * fee_pct / 100.0, 2)
+				merchant = round(final_paid - flamezo, 2)
 				estimated = True
 			return {
-				"bill": bill,
-				"customerSaved": flt(o.get("discount")) + flt(o.get("loyalty_discount")),
+				"bill": final_paid,
+				# Proper billing figures for the merchant's payment detail:
+				"grossTotal": gross_total,      # total before the offer
+				"offerApplied": offer_applied,  # amount the offer knocked off
+				"finalPaid": final_paid,        # what the customer actually paid
+				"customerSaved": offer_applied,
 				"couponCode": coupon_codes.get(o.get("coupon")) if o.get("coupon") else None,
 				"merchantGets": merchant,
 				"flamezoGets": flamezo,
@@ -1346,6 +1354,9 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 					fz = round(amt * fee_pct / 100.0, 2)
 					item["breakdown"] = {
 						"bill": amt,
+						"grossTotal": amt,
+						"offerApplied": 0,
+						"finalPaid": amt,
 						"customerSaved": 0,
 						"couponCode": None,
 						"merchantGets": round(amt - fz, 2),

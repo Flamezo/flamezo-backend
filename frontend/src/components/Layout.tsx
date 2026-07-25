@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers, Calculator } from 'lucide-react'
+import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers, Calculator, Utensils, Coffee, HeartPulse, Dumbbell, ShoppingBag, Trophy, Swords } from 'lucide-react'
+import { buildNavigation, type NavItem, type NavLink, type NavGroup } from '@/lib/industryConfig'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
@@ -30,6 +31,24 @@ import mainLogoLight from '/images/main-logo-light.png'
 import mainLogoDark from '/images/main-logo-dark.png'
 import appLogoLight from '/images/app-logo-light.png'
 import appLogoDark from '/images/app-logo-dark.png'
+
+import illusDine from '/images/illus/dine.png'
+import illusCafe from '/images/illus/cafe.png'
+import illusWellness from '/images/illus/wellness.png'
+import illusFitness from '/images/illus/fitness.png'
+import illusPlay from '/images/illus/play.png'
+import illusFashion from '/images/illus/fashion.png'
+
+const INDUSTRY_TILES = [
+  { id: 'dining',       line1: 'Dine',    line2: 'Banquets',    img: illusDine,     outlet_type: 'dining',    ring: 'ring-amber-300',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
+  { id: 'cafe',         line1: 'Cafe',    line2: 'Bakeries',    img: illusCafe,     outlet_type: 'cafe',      ring: 'ring-yellow-300',  bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+  { id: 'wellness',     line1: 'Wellness',line2: 'Beauty',      img: illusWellness, outlet_type: 'wellness',  ring: 'ring-teal-300',    bg: 'bg-teal-50 dark:bg-teal-900/20' },
+  { id: 'fitness',      line1: 'Fitness', line2: 'Yoga',        img: illusFitness,  outlet_type: 'fitness',   ring: 'ring-blue-300',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
+  { id: 'play',         line1: 'Play',    line2: 'Sports',      img: illusPlay,     outlet_type: 'sports_court', ring: 'ring-cyan-300', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+  { id: 'fashion',      line1: 'Fashion', line2: 'Accessories', img: illusFashion,  outlet_type: 'fashion',   ring: 'ring-purple-300',  bg: 'bg-purple-50 dark:bg-purple-900/20' },
+] as const
+
+type IndustryId = typeof INDUSTRY_TILES[number]['id']
 
 
 interface LayoutProps {
@@ -105,126 +124,15 @@ function UserProfileDropdown() {
 
 const SIDEBAR_GROUPS_KEY = 'flamezo_backend_sidebar_groups_open'
 
-type NavLink = { type: 'link'; name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeHref?: string; feature?: string; adminOnly?: boolean }
-type NavGroup = {
-  type: 'group'
-  id: string
-  name: string
-  icon: React.ComponentType<{ className?: string }>
-  children: { name: string; href: string; icon?: React.ComponentType<{ className?: string }>; badgeHref?: string; feature?: string; adminOnly?: boolean }[]
-  feature?: string
-  adminOnly?: boolean
-}
-type NavItem = NavLink | NavGroup
-
-// GOLD-only: full ordering system, CRM, marketing, POS
-
-const navigation: NavItem[] = [
-  { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
-  { type: 'link', name: 'Growth Dashboard', href: '/growth-dashboard', icon: TrendingUp },
-  {
-    type: 'group',
-    id: 'manage-product',
-    name: 'Manage Product',
-    icon: Package,
-    children: [
-      { name: 'Menu Management', href: '/menu', icon: Package },
-      { name: 'Food Cost & Margins', href: '/menu-costing', icon: Calculator },
-      { name: 'Addon Groups', href: '/addon-groups', icon: Layers },
-      { name: 'Recommendations Engine', href: '/recommendations-engine', icon: FolderTree, feature: 'ai_recommendations' },
-    ],
-  },
-  { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
-  { type: 'link', name: 'Manage Offer/Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
-  { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
-  {
-    type: 'group',
-    id: 'loyalty-growth',
-    name: 'Loyalty & Growth',
-    icon: Wallet,
-    feature: 'loyalty',
-    children: [
-      { name: 'Loyalty Settings', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
-      { name: 'Analytics', href: '/loyalty-analytics', icon: BarChart3, feature: 'loyalty' },
-    ],
-  },
-  {
-    type: 'group',
-    id: 'ugc-cashback',
-    name: 'UGC Cashback',
-    icon: Megaphone,
-    children: [
-      { name: 'Configure Offer', href: '/ugc-cashback/config', icon: Settings },
-      { name: 'Story Approvals', href: '/ugc-cashback/approvals', icon: CheckCircle2, badgeHref: '/ugc-cashback/approvals' },
-      { name: 'Analytics', href: '/ugc-cashback/analytics', icon: BarChart3 },
-    ],
-  },
-  {
-    type: 'group',
-    id: 'google-growth',
-    name: 'Google Growth',
-    icon: Globe,
-    feature: 'google_growth',
-    children: [
-      { name: 'Discovery Loop', href: '/google-growth', icon: Sparkles, feature: 'google_growth' },
-      { name: 'Menu & Product Sync', href: '/google-growth/sync', icon: Package, feature: 'google_growth_sync' },
-      { name: 'Reviews & AI Reply', href: '/google-growth/reviews', icon: Star, feature: 'google_growth_ai' },
-    ],
-  },
-  {
-    type: 'group',
-    id: 'boost',
-    name: 'Boost',
-    icon: Zap,
-    children: [
-      { name: 'Overview', href: '/boost', icon: Megaphone },
-      { name: 'New Campaign', href: '/boost/new', icon: Plus },
-      { name: 'Redeem Coupon', href: '/boost/redeem', icon: Tag },
-    ],
-  },
-  {
-    type: 'group',
-    id: 'setup-config',
-    name: 'Setup & Config',
-    icon: Store,
-    children: [
-      { name: 'Setup Wizard', href: '/setup', icon: Sparkles },
-      { name: 'Team Management', href: '/team', icon: Users, adminOnly: true },
-      { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
-
-      { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
-      { name: 'Gallery Management', href: '/gallery-management', icon: Star },
-    ],
-  },
-  { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
-  { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
-  // Admin-only links - filtered by admin check in render
-  { type: 'link', name: 'Restaurant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
-  { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
-  {
-    type: 'group',
-    id: 'marketing-studio',
-    name: 'Marketing Studio',
-    icon: Megaphone,
-    feature: 'marketing_studio',
-    adminOnly: true,
-    children: [
-      { name: 'Performance', href: '/marketing', icon: BarChart3, feature: 'marketing_studio' },
-      { name: 'Campaigns', href: '/marketing/campaigns', icon: Send, feature: 'marketing_studio', adminOnly: true },
-      { name: 'Automation', href: '/marketing/automation', icon: Zap, feature: 'marketing_studio', adminOnly: true },
-      { name: 'Segments', href: '/marketing/segments', icon: Users, feature: 'marketing_studio', adminOnly: true },
-      { name: 'Analytics', href: '/marketing/analytics', icon: TrendingUp, feature: 'marketing_studio' },
-    ],
-  },
-]
+// Navigation is built dynamically per outlet_type via buildNavigation() in Layout component body
 
 export default function Layout({ children }: LayoutProps) {
   const { currentUser } = useFrappeAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, restaurantConfig } = useRestaurant()
-  const orderChannel: 'Realtime' | 'WhatsApp' = restaurantConfig?.settings?.order_settings?.order_channel || 'Realtime'
+  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, outletType } = useRestaurant()
+  const navigation = buildNavigation(outletType)
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
@@ -334,7 +242,8 @@ export default function Layout({ children }: LayoutProps) {
     restaurant_name: '',
     owner_email: '',
     owner_phone: '',
-    referral_code: ''
+    referral_code: '',
+    outlet_type: 'dining'
   })
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
@@ -374,7 +283,8 @@ export default function Layout({ children }: LayoutProps) {
         restaurant_name: '',
         owner_email: '',
         owner_phone: '',
-        referral_code: ''
+        referral_code: '',
+        outlet_type: 'dining'
       })
       return
     }
@@ -393,7 +303,7 @@ export default function Layout({ children }: LayoutProps) {
   // Handle create restaurant submission
   const handleCreateRestaurant = async () => {
     if (!newRestaurantData.restaurant_name.trim()) {
-      toast.error('Restaurant name is required')
+      toast.error('Merchant name is required')
       return
     }
     if (!newRestaurantData.owner_email.trim()) {
@@ -411,6 +321,7 @@ export default function Layout({ children }: LayoutProps) {
           owner_email: newRestaurantData.owner_email.trim(),
           owner_phone: newRestaurantData.owner_phone.trim() || undefined,
           referred_by_restaurant_code: newRestaurantData.referral_code.trim() || undefined,
+          outlet_type: newRestaurantData.outlet_type || 'dining',
           is_active: 1
         }
       })
@@ -421,7 +332,7 @@ export default function Layout({ children }: LayoutProps) {
         const restaurantDocName = createdRestaurant.name || createdRestaurant.restaurant_id
         const restaurantId = createdRestaurant.restaurant_id || restaurantDocName
 
-        toast.success('Restaurant created successfully!')
+        toast.success('Merchant created successfully!')
 
         // ── Post-creation: Send Onboarding Details ──────────────────────
         if (sendOnboarding && newRestaurantData.owner_email.trim()) {
@@ -459,7 +370,7 @@ export default function Layout({ children }: LayoutProps) {
 
         // ── Close & Navigate ────────────────────────────────────────────
         setShowCreateModal(false)
-        setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '' })
+        setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining' })
         setSendOnboarding(false)
 
         setSelectedRestaurant(restaurantDocName)
@@ -470,12 +381,12 @@ export default function Layout({ children }: LayoutProps) {
           navigate(`/setup/${encodeURIComponent(urlFriendlyName)}`, { replace: true })
         }, 100)
       } else {
-        throw new Error('Failed to create restaurant')
+        throw new Error('Failed to create merchant')
       }
     } catch (error: any) {
-      console.error('Error creating restaurant:', error)
-      toast.error('Failed to create restaurant', {
-        description: error?.message || 'An error occurred while creating the restaurant'
+      console.error('Error creating merchant:', error)
+      toast.error('Failed to create merchant', {
+        description: error?.message || 'An error occurred while creating the merchant'
       })
     } finally {
       setIsCreating(false)
@@ -620,7 +531,7 @@ export default function Layout({ children }: LayoutProps) {
                           onSelect={() => { handleRestaurantChange('__create_new__') }}
                         >
                           <Plus className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          <span className="text-[12px] font-semibold">Add Restaurant</span>
+                          <span className="text-[12px] font-semibold">Add Merchant</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer text-foreground hover:bg-accent focus:bg-accent"
@@ -757,8 +668,8 @@ export default function Layout({ children }: LayoutProps) {
                   const showBadge = badgeCount > 0
                   // Unified locking logic
                   const featureStatus = getFeatureStatus(item.feature)
-                  // Lock WhatsApp Orders when Gold restaurant has Realtime channel active
-                  const isWhatsAppItemLocked = item.feature === 'whatsapp_orders' && isGold && orderChannel === 'Realtime'
+                  // Lock WhatsApp Orders for Gold restaurants (ordering via app channel not supported)
+                  const isWhatsAppItemLocked = item.feature === 'whatsapp_orders' && isGold
                   const isLocked = featureStatus.isLocked || isWhatsAppItemLocked
 
                   const LockIcon = (item.feature && GOLD_ONLY_FEATURES.includes(item.feature))
@@ -881,7 +792,7 @@ export default function Layout({ children }: LayoutProps) {
                             hasActiveChild ? "text-primary" : "text-muted-foreground hover:text-sidebar-foreground",
                             isGroupFullyLocked && "opacity-60"
                           )}
-                          title={`${group.name}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
+                          title={`${group.name}${(group.id === 'google-growth' || group.id === 'boost') ? ' (Beta)' : ''}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
                         >
                           <Icon className="h-4 w-4" />
                           {isGroupFullyLocked && (
@@ -985,7 +896,11 @@ export default function Layout({ children }: LayoutProps) {
                         <>
                           <span className="flex-1 text-left flex items-center gap-1.5 min-w-0">
                             <span className="truncate shrink min-w-0">{group.name}</span>
-
+                            {(group.id === 'google-growth' || group.id === 'boost') && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20 shrink-0">
+                                BETA
+                              </span>
+                            )}
                           </span>
                           {isGroupFullyLocked && (
                             GroupLockIcon
@@ -1005,7 +920,7 @@ export default function Layout({ children }: LayoutProps) {
                       {!showExpanded && (
                         <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-foreground text-background text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 shadow-lg">
                           {group.name}
-
+                           {(group.id === 'google-growth' || group.id === 'boost') && ' (Beta)'}
                           {isGroupFullyLocked && ' 🔒'}
                           {showBadge && ` (${groupBadgeCount} pending)`}
                         </span>
@@ -1462,7 +1377,7 @@ export default function Layout({ children }: LayoutProps) {
                 onClick={() => { setShowRestaurantSearch(false); handleRestaurantChange('__create_new__') }}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add Restaurant
+                Add Merchant
               </Button>
               <Button
                 variant="outline"
@@ -1552,35 +1467,117 @@ export default function Layout({ children }: LayoutProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Create New Restaurant Modal */}
+      {/* Create New Merchant Modal */}
       <Dialog open={showCreateModal} onOpenChange={(open) => {
         if (!isCreating) {
           setShowCreateModal(open)
-          if (!open) {
-            setSendOnboarding(false)
-          }
+          if (!open) setSendOnboarding(false)
         }
       }}>
-        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Restaurant</DialogTitle>
-            <DialogDescription>
-              Enter the basic information to create your restaurant
+        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto p-0 gap-0">
+          {/* Header */}
+          <div className="px-6 pt-6 pb-5 border-b border-border">
+            <DialogTitle className="text-xl font-bold">Create Merchant</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              Select the business type and fill in the details to onboard a new merchant.
             </DialogDescription>
-          </DialogHeader>
+          </div>
 
-          <div className="space-y-4 py-2">
-            {/* Restaurant Name */}
+          <div className="px-6 py-5 space-y-5">
+            {/* Industry Type Picker */}
+            <div className="space-y-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Business Type <span className="text-destructive">*</span></p>
+              <div className="grid grid-cols-6 gap-1.5">
+                {INDUSTRY_TILES.map(({ id, line1, line2, img, ring, bg, outlet_type: defaultType }) => {
+                  const isPlay = id === 'play'
+                  const isSelected = isPlay
+                    ? (newRestaurantData.outlet_type === 'sports_court' || newRestaurantData.outlet_type === 'sports_venue')
+                    : newRestaurantData.outlet_type === defaultType
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      disabled={isCreating}
+                      onClick={() => setNewRestaurantData(prev => ({ ...prev, outlet_type: defaultType }))}
+                      className={cn(
+                        'flex flex-col items-center gap-0.5 pt-2 pb-1.5 px-0.5 rounded-xl border-2 transition-all text-center',
+                        isSelected
+                          ? `border-primary ${bg} ring-2 ${ring} ring-offset-1`
+                          : 'border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80'
+                      )}
+                    >
+                      <img src={img} alt={line1} className="w-7 h-7 object-contain" />
+                      <span className={cn('text-[10px] font-bold leading-[1.2]', isSelected ? 'text-foreground' : 'text-muted-foreground')}>
+                        {line1}
+                      </span>
+                      <span className={cn('text-[9px] font-semibold leading-none', isSelected ? 'text-muted-foreground' : 'text-muted-foreground/50')}>
+                        {line2}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Play sub-type — only when Play · Sports is selected */}
+              {(newRestaurantData.outlet_type === 'sports_court' || newRestaurantData.outlet_type === 'sports_venue') && (
+                <div className="flex gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <button
+                    type="button"
+                    disabled={isCreating}
+                    onClick={() => setNewRestaurantData(prev => ({ ...prev, outlet_type: 'sports_court' }))}
+                    className={cn(
+                      'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all',
+                      newRestaurantData.outlet_type === 'sports_court'
+                        ? 'border-primary bg-cyan-50 dark:bg-cyan-900/20 text-foreground'
+                        : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                    )}
+                  >
+                    <Swords className="h-4 w-4 shrink-0" />
+                    <div className="text-left">
+                      <p className="text-[11px] font-bold">Court Booking</p>
+                      <p className="text-[9px] font-normal opacity-70">Badminton, tennis, cricket nets…</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isCreating}
+                    onClick={() => setNewRestaurantData(prev => ({ ...prev, outlet_type: 'sports_venue' }))}
+                    className={cn(
+                      'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all',
+                      newRestaurantData.outlet_type === 'sports_venue'
+                        ? 'border-primary bg-emerald-50 dark:bg-emerald-900/20 text-foreground'
+                        : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                    )}
+                  >
+                    <Trophy className="h-4 w-4 shrink-0" />
+                    <div className="text-left">
+                      <p className="text-[11px] font-bold">Open Venue</p>
+                      <p className="text-[9px] font-normal opacity-70">Multi-activity arena, adventure park…</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Merchant Name */}
             <div className="space-y-2">
               <Label htmlFor="restaurant_name">
-                Restaurant Name <span className="text-destructive">*</span>
+                Merchant Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="restaurant_name"
                 value={newRestaurantData.restaurant_name}
                 onChange={(e) => setNewRestaurantData(prev => ({ ...prev, restaurant_name: e.target.value }))}
                 disabled={isCreating}
-                placeholder="e.g. Pizza Palace"
+                placeholder={
+                  newRestaurantData.outlet_type === 'cafe' ? 'e.g. Brew & Bloom Café' :
+                  newRestaurantData.outlet_type === 'wellness' ? 'e.g. Aura Wellness Studio' :
+                  newRestaurantData.outlet_type === 'fitness' ? 'e.g. Iron & Fire Gym' :
+                  newRestaurantData.outlet_type === 'sports_court' ? 'e.g. Game On Sports Complex' :
+                  newRestaurantData.outlet_type === 'sports_venue' ? 'e.g. Arena Sports Village' :
+                  newRestaurantData.outlet_type === 'fashion' ? 'e.g. The Style Loft' :
+                  'e.g. Pizza Palace'
+                }
               />
             </div>
 
@@ -1595,7 +1592,7 @@ export default function Layout({ children }: LayoutProps) {
                 value={newRestaurantData.owner_email}
                 onChange={(e) => setNewRestaurantData(prev => ({ ...prev, owner_email: e.target.value }))}
                 disabled={isCreating}
-                placeholder="owner@restaurant.com"
+                placeholder="owner@business.com"
               />
             </div>
 
@@ -1626,17 +1623,14 @@ export default function Layout({ children }: LayoutProps) {
               <p className="text-xs text-muted-foreground">If referred by another merchant — gives them ₹500.</p>
             </div>
 
-            {/* Divider */}
-            <div className="border-t border-border pt-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">After Creation Actions</p>
-
-              {/* Checkbox 1: Send Onboarding Details */}
-              <div className={cn(
-                "flex items-start gap-3 rounded-xl border p-3 transition-all cursor-pointer",
-                sendOnboarding
-                  ? "bg-blue-500/5 border-blue-200 dark:border-blue-800"
-                  : "bg-muted/30 border-border hover:bg-muted/50"
-              )}
+            {/* After Creation */}
+            <div className="border-t border-border pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">After Creation</p>
+              <div
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border p-3 transition-all cursor-pointer",
+                  sendOnboarding ? "bg-blue-500/5 border-blue-200 dark:border-blue-800" : "bg-muted/30 border-border hover:bg-muted/50"
+                )}
                 onClick={() => !isCreating && setSendOnboarding(v => !v)}
               >
                 <Checkbox
@@ -1658,16 +1652,11 @@ export default function Layout({ children }: LayoutProps) {
                   </p>
                 </div>
               </div>
-
             </div>
           </div>
 
-          <DialogFooter className="pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateModal(false)}
-              disabled={isCreating}
-            >
+          <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={isCreating}>
               Cancel
             </Button>
             <Button
@@ -1675,18 +1664,12 @@ export default function Layout({ children }: LayoutProps) {
               disabled={isCreating || !newRestaurantData.restaurant_name.trim() || !newRestaurantData.owner_email.trim()}
             >
               {isCreating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating…</>
               ) : (
-                <>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Restaurant
-                </>
+                <><Plus className="mr-2 h-4 w-4" />Create Merchant</>
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

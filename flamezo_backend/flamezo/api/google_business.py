@@ -232,8 +232,6 @@ def sync_menu_to_google(restaurant_id):
     # response = requests.patch(url, headers=headers, data=json.dumps(payload))
     
     # For now, we simulate success if we have a token
-    frappe.db.set_value("Restaurant", restaurant_id, "pos_last_sync_at", now_datetime())
-    
     return {
         "success": True, 
         "message": f"Successfully synced {len(products)} items to Google Maps.",

@@ -18,7 +18,8 @@ import {
   QrCode,
   Users,
   Copy,
-  Gift
+  Gift,
+  CalendarDays
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ import {
   YAxis
 } from 'recharts'
 import { EmptyState } from '@/components/EmptyState'
+import { DashboardSkeleton } from '@/components/PageSkeletons'
 
 // Enhanced Stat Card with Trends
 function StatCard({ 
@@ -154,7 +156,7 @@ function TopProductsChart({ products }: { products: { name: string, count: numbe
       <EmptyState 
         variant="chart"
         title="No views yet"
-        description="Your most-viewed dishes will appear here once guests start exploring your menu."
+        description="Your most-viewed items will appear here once guests start exploring your catalogue."
         icon={Package}
       />
     )
@@ -188,7 +190,7 @@ function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
       <EmptyState 
         variant="chart"
         title="Analysis Pending"
-        description="We need more guest interactions to identify friction in your menu."
+        description="We need more guest interactions to identify friction in your catalogue."
         icon={Activity}
       />
     )
@@ -213,7 +215,7 @@ function MenuHeatmapTable({ heatmap }: { heatmap: any[] }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 text-[10px] uppercase font-bold text-muted-foreground px-2">
-        <span className="col-span-2">Dish Name</span>
+        <span className="col-span-2">Item Name</span>
         <span className="text-center">Views</span>
         <span className="text-right">Conv.</span>
       </div>
@@ -352,7 +354,7 @@ function LockedInsight({ title, description, children, isUnlocked }: { title: st
 
 // Main Dashboard Component
 export default function Dashboard() {
-  const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig, outletType } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isSimulated, setIsSimulatedState] = useState(() => localStorage.getItem('demoData') === 'true')
@@ -390,11 +392,28 @@ export default function Dashboard() {
   }) || []
   
   // Real-time Analytics Summary
-  const { data: analytics } = useFrappeGetCall('flamezo_backend.flamezo.api.analytics.get_dashboard_summary', {
+  const { data: analytics, isLoading } = useFrappeGetCall('flamezo_backend.flamezo.api.analytics.get_dashboard_summary', {
     restaurant_id: selectedRestaurant
   }, selectedRestaurant ? `analytics-dashboard-${selectedRestaurant}` : null)
 
   const analyticsData = analytics?.message?.success ? analytics.message : (analytics?.success ? analytics : null)
+
+  // Industry-specific: appointment summary (wellness / fitness)
+  const isAppointmentIndustry = outletType === 'wellness' || outletType === 'fitness'
+  const isCourtIndustry = outletType === 'sports_court'
+  const todayDate = new Date().toISOString().split('T')[0]
+  const { data: appointmentSummaryRaw } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.appointments.get_appointment_summary',
+    { restaurant_id: selectedRestaurant, date: todayDate },
+    isAppointmentIndustry && selectedRestaurant ? `appt-summary-${selectedRestaurant}-${todayDate}` : null
+  )
+  const { data: courtSummaryRaw } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.courts.get_court_booking_summary',
+    { restaurant_id: selectedRestaurant, date: todayDate },
+    isCourtIndustry && selectedRestaurant ? `court-summary-${selectedRestaurant}-${todayDate}` : null
+  )
+  const apptSummary = appointmentSummaryRaw?.message?.success ? appointmentSummaryRaw.message : null
+  const courtSummary = courtSummaryRaw?.message?.success ? courtSummaryRaw.message : null
 
   // Pseudo-random generator for realistic restaurant-specific data
   const seedStr = selectedRestaurant || 'default';
@@ -515,6 +534,8 @@ export default function Dashboard() {
     "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=400&h=711&fit=crop"
   ]
 
+  if (isLoading && !analytics) return <DashboardSkeleton />
+
   return (
     <div className="space-y-8 pb-10">
       {/* Top Banner & Strategy */}
@@ -573,8 +594,8 @@ export default function Dashboard() {
              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Guest Engagement</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard 
-              title="Menu Scans (7D)"
+            <StatCard
+              title="Catalogue Scans (7D)"
               value={totalScans}
               subtext={`Total: ${lifetimeScans} Lifetime`}
               icon={QrCode}
@@ -592,12 +613,12 @@ export default function Dashboard() {
             <StatCard 
               title="Peak Discovery"
               value={peakDiscovery}
-              subtext="Busiest time for menu scans"
+              subtext="Busiest time for catalogue scans"
               icon={Clock}
               isGold={false}
             />
-            <StatCard 
-              title="Menu Health"
+            <StatCard
+              title="Catalogue Health"
               value={menuHealth}
               subtext={`${totalScans} impressions served`}
               icon={Package}
@@ -655,7 +676,7 @@ export default function Dashboard() {
                   <Star className="h-5 w-5 text-pink-500" />
                   Recent Instagram Stories
                 </CardTitle>
-                <CardDescription>How your food looks when diners post it</CardDescription>
+                <CardDescription>How your products look when customers post them</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -674,9 +695,9 @@ export default function Dashboard() {
                           <div className="h-6 w-6 rounded-full bg-white/20 border border-white/40 flex items-center justify-center backdrop-blur-sm overflow-hidden">
                             <Users className="h-3 w-3 text-white" />
                           </div>
-                          <span className="text-[10px] font-bold text-white tracking-wider">@diner_{Math.floor(Math.random() * 900) + 100}</span>
+                          <span className="text-[10px] font-bold text-white tracking-wider">@customer_{Math.floor(Math.random() * 900) + 100}</span>
                         </div>
-                        <p className="text-[9px] text-white/70 line-clamp-2">Amazing food at {currentRestaurant?.restaurant_name || selectedRestaurant}! 🔥</p>
+                        <p className="text-[9px] text-white/70 line-clamp-2">Amazing experience at {currentRestaurant?.restaurant_name || selectedRestaurant}! 🔥</p>
                       </div>
                       <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md rounded-full px-2 py-0.5 border border-white/10 flex items-center gap-1">
                         <Star className="h-2 w-2 text-yellow-400 fill-yellow-400" />
@@ -687,6 +708,84 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Industry Performance — non-dining today's snapshot */}
+        {(isAppointmentIndustry || isCourtIndustry) && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-1 w-8 bg-primary rounded-full" />
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">
+                {isAppointmentIndustry ? (outletType === 'fitness' ? "Class Bookings — Today" : "Appointments — Today") : "Court Bookings — Today"}
+              </h2>
+            </div>
+
+            {isAppointmentIndustry && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                  title="Total Today"
+                  value={apptSummary?.total ?? 0}
+                  subtext={outletType === 'fitness' ? "Classes booked" : "Appointments booked"}
+                  icon={CalendarDays}
+                  gradient="from-blue-600 to-indigo-500"
+                />
+                <StatCard
+                  title="Pending"
+                  value={apptSummary?.by_status?.Pending ?? 0}
+                  subtext="Awaiting confirmation"
+                  icon={Clock}
+                  gradient="from-amber-500 to-orange-500"
+                />
+                <StatCard
+                  title="Confirmed"
+                  value={apptSummary?.by_status?.Confirmed ?? 0}
+                  subtext="Confirmed & upcoming"
+                  icon={CheckCircle}
+                  gradient="from-emerald-600 to-teal-500"
+                />
+                <StatCard
+                  title="Completed"
+                  value={apptSummary?.by_status?.Completed ?? 0}
+                  subtext="Served today"
+                  icon={Activity}
+                  gradient="from-purple-600 to-violet-500"
+                />
+              </div>
+            )}
+
+            {isCourtIndustry && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                  title="Total Today"
+                  value={courtSummary?.total ?? 0}
+                  subtext="Court slots booked"
+                  icon={CalendarDays}
+                  gradient="from-blue-600 to-indigo-500"
+                />
+                <StatCard
+                  title="Confirmed"
+                  value={courtSummary?.by_status?.Confirmed ?? 0}
+                  subtext="Upcoming today"
+                  icon={CheckCircle}
+                  gradient="from-emerald-600 to-teal-500"
+                />
+                <StatCard
+                  title="Slot Revenue"
+                  value={formatAmountNoDecimals(courtSummary?.total_slot_revenue ?? 0)}
+                  subtext="Booked slot value today"
+                  icon={TrendingUp}
+                  gradient="from-indigo-600 to-blue-500"
+                />
+                <StatCard
+                  title="Completed"
+                  value={courtSummary?.by_status?.Completed ?? 0}
+                  subtext="Matches played today"
+                  icon={Activity}
+                  gradient="from-purple-600 to-violet-500"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -811,13 +910,13 @@ export default function Dashboard() {
         <Card className="lg:col-span-3 shadow-sm border-none bg-card">
           <CardHeader>
             <CardTitle className="text-lg font-bold">Top Products</CardTitle>
-            <CardDescription>Reach metrics for your menu items</CardDescription>
+            <CardDescription>Reach metrics for your catalogue items</CardDescription>
           </CardHeader>
           <CardContent>
             <LockedInsight 
               isUnlocked={isAtLeastGold} 
               title="Engagement Insights" 
-              description="Learn which dishes attract eyes and which ones attract cash."
+              description="Learn which items attract eyes and which ones attract cash."
             >
               <TopProductsChart products={topProducts} />
               <div className="mt-10 pt-6 border-t border-border flex justify-between items-center">
@@ -825,7 +924,7 @@ export default function Dashboard() {
                    <Clock className="h-3 w-3" /> Updated in real-time
                  </p>
                 <Button variant="outline" size="sm" className="text-xs rounded-full px-4" asChild>
-                  <Link to="/products">Manage Menu</Link>
+                  <Link to="/products">Manage Catalogue</Link>
                 </Button>
               </div>
             </LockedInsight>
@@ -844,10 +943,10 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    Menu Heatmap
+                    Catalogue Heatmap
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">GAP ANALYSIS</span>
                   </CardTitle>
-                  <CardDescription>Which dishes draw the most guest attention</CardDescription>
+                  <CardDescription>Which items draw the most guest attention</CardDescription>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center">
                   <Zap className="h-5 w-5 text-primary" />
@@ -858,7 +957,7 @@ export default function Dashboard() {
                <LockedInsight 
                  isUnlocked={isAtLeastGold} 
                  title="Heatmap Data" 
-                 description="Unlock deep-dive metrics on dish friction and pricing sensitivity."
+                 description="Unlock deep-dive metrics on item friction and pricing sensitivity."
                >
                  <MenuHeatmapTable heatmap={menuHeatmap} />
                  
@@ -998,7 +1097,7 @@ export default function Dashboard() {
                  <div className="h-10 w-10 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
                     <Package className="h-5 w-5 text-indigo-500" />
                  </div>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Add Dish</p>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Add Item</p>
               </Card>
               <Card className="p-5 flex flex-col items-center justify-center gap-3 bg-muted/20 border-border/40 hover:bg-muted/40 transition-all cursor-pointer group" onClick={() => navigate('/setup')}>
                  <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1067,7 +1166,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-2xl font-black tracking-tight mb-2">Refer & Earn ₹500</h2>
               <p className="text-indigo-100/80 text-sm leading-relaxed">
-                Grow your network and get rewarded for every restaurant you bring to Flamezo.
+                Grow your network and get rewarded for every outlet you bring to Flamezo.
               </p>
             </div>
           </div>
@@ -1118,7 +1217,7 @@ export default function Dashboard() {
                   <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-[10px] font-bold text-primary">1</span>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-snug">Share your code with any merchant or restaurant owner.</p>
+                  <p className="text-xs text-muted-foreground leading-snug">Share your code with any merchant or outlet owner.</p>
                </div>
                <div className="flex items-start gap-3">
                   <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">

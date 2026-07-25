@@ -38,7 +38,7 @@ export default function LegacySignatureDishPage() {
     try {
       if (editingItem?.name) {
         await updateDoc('Legacy Signature Dish', editingItem.name, data)
-        toast.success('Signature dish updated successfully')
+        toast.success('Featured item updated successfully')
       } else {
         await createDoc({
           ...data,
@@ -47,24 +47,24 @@ export default function LegacySignatureDishPage() {
           parenttype: 'Legacy Content',
           parentfield: 'signature_dishes'
         })
-        toast.success('Signature dish added successfully')
+        toast.success('Featured item added successfully')
       }
       
       setIsDialogOpen(false)
       setEditingItem(null)
       window.location.reload()
     } catch (error) {
-      toast.error('Failed to save signature dish')
+      toast.error('Failed to save featured item')
     }
   }
 
   const handleDelete = async (name: string) => {
     try {
       await deleteDoc('Legacy Signature Dish', name)
-      toast.success('Signature dish deleted successfully')
+      toast.success('Featured item deleted successfully')
       window.location.reload()
     } catch (error) {
-      toast.error('Failed to delete signature dish')
+      toast.error('Failed to delete featured item')
     }
   }
 
@@ -81,7 +81,7 @@ export default function LegacySignatureDishPage() {
   if (!selectedRestaurant) {
     return (
       <div className="text-center py-8">
-        <p>Please select a restaurant to manage signature dishes.</p>
+        <p>Please select an outlet to manage featured items.</p>
       </div>
     )
   }
@@ -90,7 +90,7 @@ export default function LegacySignatureDishPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Signature Dishes</h1>
-        <p className="text-muted-foreground">Manage your restaurant's signature dishes (max 3)</p>
+        <p className="text-muted-foreground">Manage your outlet's featured items (max 3)</p>
       </div>
 
       <Card>
@@ -108,21 +108,21 @@ export default function LegacySignatureDishPage() {
               <DialogTrigger asChild>
                 <Button size="sm" onClick={() => setEditingItem({})}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Signature Dish
+                  Add Featured Item
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingItem?.name ? 'Edit Signature Dish' : 'Add Signature Dish'}
+                    {editingItem?.name ? 'Edit Featured Item' : 'Add Featured Item'}
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="dish">Dish</Label>
+                    <Label htmlFor="dish">Item</Label>
                     <Select name="dish" defaultValue={editingItem?.dish} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a dish" />
+                        <SelectValue placeholder="Select an item" />
                       </SelectTrigger>
                       <SelectContent>
                         {menuProducts?.map((product: any) => (
@@ -153,7 +153,7 @@ export default function LegacySignatureDishPage() {
         <CardContent>
           {(!signatureDishes || signatureDishes.length === 0) ? (
             <div className="text-center py-8 text-muted-foreground">
-              No signature dishes yet. Click "Add Signature Dish" to get started.
+              No featured items yet. Click "Add Featured Item" to get started.
             </div>
           ) : (
             <div className="space-y-4">

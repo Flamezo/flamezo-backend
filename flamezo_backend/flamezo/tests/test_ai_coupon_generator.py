@@ -50,10 +50,6 @@ def _make_restaurant(suffix="aicg"):
         "currency": "INR",
         "plan_type": "GOLD",
         "is_active": 1,
-        "enable_delivery": 1,
-        "enable_takeaway": 1,
-        "minimum_order_value": 150,
-        "default_delivery_fee": 40,
         "coins_balance": 100.0,
     })
     doc.insert(ignore_permissions=True)

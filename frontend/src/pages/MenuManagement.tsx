@@ -46,12 +46,6 @@ export default function MenuManagement() {
   const { selectedRestaurant } = useRestaurant()
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
-  const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
-    fields: ['name', 'pos_enabled', 'pos_provider', 'pos_menu_sync_enabled'],
-    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
-    limit: 1,
-  })
-  const restaurantDoc = restaurantDocList?.[0] || null
   const isPOSManaged = false
   const posProvider = ''
 
