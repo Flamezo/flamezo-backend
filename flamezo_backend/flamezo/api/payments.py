@@ -1288,19 +1288,30 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 		fee_pct = flt(frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")) or 0.0
 
 		def _breakdown(o):
-			bill = flt(o.get("total"))
+			# `total` is the amount the customer actually paid (already after any
+			# offer/loyalty deduction). `discount` is the FULL saving (coupon +
+			# loyalty together — never add loyalty_discount again, that double-counts).
+			final_paid = flt(o.get("total"))
+			offer_applied = flt(o.get("discount"))
+			# Gross bill before the offer. Derived as final + saving so the three
+			# figures always reconcile on screen, regardless of packaging/delivery fees.
+			gross_total = round(final_paid + offer_applied, 2)
 			merchant = (o.get("restaurant_transfer_amount") or 0) / 100.0
 			flamezo = (o.get("platform_fee_amount") or 0) / 100.0
 			estimated = False
 			if merchant <= 0 and flamezo <= 0:
 				# No stored split → estimate from the success-share % so the merchant
 				# still sees a breakdown for existing payments.
-				flamezo = round(bill * fee_pct / 100.0, 2)
-				merchant = round(bill - flamezo, 2)
+				flamezo = round(final_paid * fee_pct / 100.0, 2)
+				merchant = round(final_paid - flamezo, 2)
 				estimated = True
 			return {
-				"bill": bill,
-				"customerSaved": flt(o.get("discount")) + flt(o.get("loyalty_discount")),
+				"bill": final_paid,
+				# Proper billing figures for the merchant's payment detail:
+				"grossTotal": gross_total,      # total before the offer
+				"offerApplied": offer_applied,  # amount the offer knocked off
+				"finalPaid": final_paid,        # what the customer actually paid
+				"customerSaved": offer_applied,
 				"couponCode": coupon_codes.get(o.get("coupon")) if o.get("coupon") else None,
 				"merchantGets": merchant,
 				"flamezoGets": flamezo,
@@ -1343,6 +1354,9 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 					fz = round(amt * fee_pct / 100.0, 2)
 					item["breakdown"] = {
 						"bill": amt,
+						"grossTotal": amt,
+						"offerApplied": 0,
+						"finalPaid": amt,
 						"customerSaved": 0,
 						"couponCode": None,
 						"merchantGets": round(amt - fz, 2),

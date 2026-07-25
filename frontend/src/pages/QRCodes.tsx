@@ -869,8 +869,8 @@ export default function QRCodes() {
                 />
                 <AnalyticStatCard
                   label="Top Table"
-                  value={analyticsData.topTable ? `Table ${analyticsData.topTable.table_number}` : '—'}
-                  sub={analyticsData.topTable ? `${analyticsData.topTable.scan_count} scans` : 'No data yet'}
+                  value={analyticsData.topTable ? `Table ${analyticsData.topTable.tableNumber}` : '—'}
+                  sub={analyticsData.topTable ? `${analyticsData.topTable.scanCount} scans` : 'No data yet'}
                   icon={Trophy}
                 />
                 <AnalyticStatCard
@@ -909,19 +909,19 @@ export default function QRCodes() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {analyticsData.perTable.slice(0, 10).map((row: any, idx: number) => {
-                      const maxCount = analyticsData.perTable[0]?.scan_count || 1
-                      const pct = Math.round((row.scan_count / maxCount) * 100)
+                      const maxCount = analyticsData.perTable[0]?.scanCount || 1
+                      const pct = Math.round((row.scanCount / maxCount) * 100)
                       return (
-                        <div key={row.table_number} className="flex items-center gap-3">
+                        <div key={row.tableNumber} className="flex items-center gap-3">
                           <span className="text-xs font-medium w-5 text-muted-foreground">{idx + 1}</span>
-                          <span className="text-xs font-medium w-16">Table {row.table_number}</span>
+                          <span className="text-xs font-medium w-16">Table {row.tableNumber}</span>
                           <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
                             <div
                               className="h-full bg-primary rounded-full transition-all duration-500"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-xs font-bold w-8 text-right">{row.scan_count}</span>
+                          <span className="text-xs font-bold w-8 text-right">{row.scanCount}</span>
                         </div>
                       )
                     })}

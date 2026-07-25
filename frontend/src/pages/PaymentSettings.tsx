@@ -45,13 +45,17 @@ import {
   Wallet,
   Sparkles,
   Receipt,
-  ChevronRight
+  ChevronRight,
+  Tag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PaymentBreakdownModal from '@/components/PaymentBreakdownModal'
 
 interface PaymentBreakdown {
   bill: number
+  grossTotal?: number
+  offerApplied?: number
+  finalPaid?: number
   customerSaved: number
   couponCode: string | null
   merchantGets: number
@@ -279,10 +283,13 @@ export default function PaymentSettings() {
         // Fall back to gross minus the cut when a payment has no stored split,
         // so "You Keep" still reconciles with Revenue.
         acc.youGet += isApp ? p.breakdown?.merchantGets || gross - flamezoCut : gross
+        // Total knocked off by offers in this range — the one figure the merchant
+        // matches against PetPooja's discount total when reconciling.
+        acc.discounts += p.breakdown?.offerApplied ?? p.breakdown?.customerSaved ?? 0
       }
       return acc
     },
-    { revenue: 0, youGet: 0, flamezo: 0 },
+    { revenue: 0, youGet: 0, flamezo: 0, discounts: 0 },
   )
 
   if (!activeRestaurantId) {
@@ -337,10 +344,11 @@ export default function PaymentSettings() {
       </div>
 
       {/* Summary cards (merchant-only) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <SummaryCard title="Revenue" value={formatRs(summary.revenue)} subtext={sourceTab === 'all' ? 'Web + App in this range' : `${sourceTab === 'web' ? 'Web' : 'App'} orders in this range`} icon={IndianRupee} accent="orange" />
         <SummaryCard title="You Keep" value={formatRs(summary.youGet)} subtext={sourceTab === 'web' ? 'You keep 100% on web' : 'Your share of payments'} icon={Wallet} accent="emerald" />
         <SummaryCard title="Flamezo Share" value={formatRs(summary.flamezo)} subtext={sourceTab === 'web' ? 'No success share on web' : 'Success share on app orders'} icon={Sparkles} accent="muted" />
+        <SummaryCard title="Discounts Given" value={formatRs(summary.discounts)} subtext="Offers applied — match in PetPooja" icon={Tag} accent="orange" />
         <SummaryCard title="Transactions" value={visiblePayments.length} subtext="Payments in this range" icon={Receipt} accent="muted" />
       </div>
 
@@ -486,7 +494,21 @@ export default function PaymentSettings() {
                         </div>
                       </TableCell>
                       <TableCell className="font-bold text-sm">
-                        {formatCurrency(p.amount)}
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span>{formatCurrency(p.amount)}</span>
+                          {(() => {
+                            const off = p.breakdown?.offerApplied ?? p.breakdown?.customerSaved ?? 0
+                            if (off <= 0) return null
+                            const code = p.breakdown?.couponCode
+                            return (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 text-[9.5px] font-bold w-fit">
+                                {/* offerApplied is in rupees → use formatRs, not the
+                                    paise-based formatCurrency (that showed ₹70 as ₹0.70). */}
+                                <Tag className="h-2.5 w-2.5" />{code ? `${code} · ` : ''}−{formatRs(off)}
+                              </span>
+                            )
+                          })()}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(p.status)}
