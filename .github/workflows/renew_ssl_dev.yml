@@ -1,0 +1,33 @@
+name: Renew SSL Certificate (Dev)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 1 * *'   # 1st of every month at 3am UTC
+
+jobs:
+  renew-ssl:
+    name: Renew SSL on dev.flamezo.in
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEV_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p 2222 -H ${{ secrets.DEV_SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Renew certificate
+        env:
+          SERVER_HOST: ${{ secrets.DEV_SERVER_HOST }}
+          SSH_USER: ${{ secrets.DEV_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 2222 $SSH_USER@$SERVER_HOST \
+            "sudo certbot renew --force-renewal --non-interactive 2>&1 && sudo service nginx reload 2>&1"
+
+      - name: Verify HTTPS
+        run: |
+          sleep 5
+          curl -sSf --max-time 10 https://dev.flamezo.in/api/method/ping \
+            && echo "SSL OK" || echo "WARNING: HTTPS check failed — cert may need manual inspection"

@@ -256,6 +256,7 @@ def record_chills_view(chills_id, phone):
         "UPDATE `tabChills` SET views_count = views_count + 1 WHERE name=%s",
         chills_id,
     )
+    frappe.db.commit()
     return {"success": True, "data": {"ok": True}}
 
 
@@ -381,6 +382,52 @@ def get_chills_queue(current_id, phone=None, count=3):
             ]
         },
     }
+
+
+# ── outlet coupons for display ────────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def get_outlet_active_coupons(outlet_id):
+    """Return active coupons for an outlet for display in the Chills offers sheet."""
+    if not outlet_id:
+        return {"success": True, "data": {"offers": []}}
+
+    rows = frappe.db.sql(
+        """
+        SELECT name, code, discount_value, min_order_amount,
+               discount_type, offer_type, description, valid_until
+        FROM `tabCoupon`
+        WHERE restaurant = %s AND is_active = 1
+        ORDER BY discount_value DESC
+        LIMIT 20
+        """,
+        outlet_id,
+        as_dict=True,
+    )
+
+    offers = []
+    for r in rows:
+        dtype = r.discount_type or "flat"
+        dval = float(r.discount_value or 0)
+        title = f"{int(dval)}% OFF" if dtype == "percent" else f"₹{int(dval)} OFF"
+        min_order = float(r.min_order_amount or 0)
+        subtitle = f"Min order ₹{int(min_order)}" if min_order else "No minimum order"
+        offers.append({
+            "id": r.name,
+            "code": r.code or "",
+            "title": title,
+            "subtitle": subtitle,
+            "description": r.description or "",
+            "discountAmount": dval if dtype == "flat" else 0,
+            "discountPercent": dval if dtype == "percent" else None,
+            "minOrderAmount": min_order,
+            "offerType": r.offer_type or "coupon",
+            "type": dtype,
+            "isEligible": True,
+            "iconType": "flash" if dtype == "percent" else "tag",
+        })
+
+    return {"success": True, "data": {"offers": offers}}
 
 
 # ── shares ────────────────────────────────────────────────────────────────────

@@ -563,7 +563,9 @@ export default function Coupons() {
             </DialogTitle>
             <DialogDescription>Stats and claim analytics for your coupons and offers</DialogDescription>
           </DialogHeader>
+
           <div className="space-y-5 pt-1">
+            {/* Stats grid */}
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Total Coupons', value: totalCount || 0, icon: <Tag className="h-5 w-5 text-muted-foreground" />, color: '' },
@@ -582,6 +584,8 @@ export default function Coupons() {
                 </div>
               ))}
             </div>
+
+            {/* Claims analytics */}
             <ClaimsAnalyticsCard restaurantId={selectedRestaurant} noCard />
           </div>
         </DialogContent>
@@ -1680,33 +1684,34 @@ function ClaimsAnalyticsCard({ restaurantId, noCard }: { restaurantId: string; n
   const byCoupon: any[] = analytics?.byCoupon || []
   const recentClaims: any[] = analytics?.recentClaims || []
 
-  const header = (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-          <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+  const inner = (
+    <>
+      {/* header row */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          {!noCard && (
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+          )}
+          <div>
+            <p className={noCard ? 'text-sm font-semibold' : 'text-base font-semibold'}>Offer Claims</p>
+            <p className="text-xs text-muted-foreground mt-0.5">How many claims converted to Flamezo payments</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold">Offer Claims</p>
-          <p className="text-xs text-muted-foreground mt-0.5">How many claims converted to Flamezo payments</p>
-        </div>
+        <Select value={period} onValueChange={(v) => { setPeriod(v); load(v) }}>
+          <SelectTrigger className="w-[90px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d">7 days</SelectItem>
+            <SelectItem value="30d">30 days</SelectItem>
+            <SelectItem value="90d">90 days</SelectItem>
+            <SelectItem value="all">All time</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <Select value={period} onValueChange={(v) => { setPeriod(v); load(v) }}>
-        <SelectTrigger className="w-[90px] h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="7d">7 days</SelectItem>
-          <SelectItem value="30d">30 days</SelectItem>
-          <SelectItem value="90d">90 days</SelectItem>
-          <SelectItem value="all">All time</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  )
-
-  const body = (
-    <div className="space-y-4">
+      <div className="space-y-4">
         {loading && !analytics ? (
           <div className="flex items-center justify-center py-6">
             <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1822,22 +1827,15 @@ function ClaimsAnalyticsCard({ restaurantId, noCard }: { restaurantId: string; n
             )}
           </>
         )}
-    </div>
+      </div>
+    </>
   )
 
-  if (noCard) {
-    return (
-      <div className="rounded-xl border bg-card p-4">
-        {header}
-        {body}
-      </div>
-    )
-  }
+  if (noCard) return <div className="rounded-xl border bg-card p-4">{inner}</div>
 
   return (
     <Card>
-      <CardHeader className="pb-3">{header}</CardHeader>
-      <CardContent>{body}</CardContent>
+      <CardContent className="pt-4">{inner}</CardContent>
     </Card>
   )
 }
