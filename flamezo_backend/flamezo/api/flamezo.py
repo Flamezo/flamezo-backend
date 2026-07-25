@@ -147,10 +147,10 @@ def _format_restaurant_card(r, user_lat, user_lon, offers_map):
 	}
 
 
-# ── 1. Discovery — All Restaurants ───────────────────────────────────────────
+# ── 1. Discovery — All Outlets ────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_all_restaurants(
+def get_all_outlets(
 	latitude=None, longitude=None, radius_km=None,
 	search=None, city=None,
 	outlet_type=None, section=None,
@@ -158,7 +158,7 @@ def get_all_restaurants(
 	page=1, limit=30,
 ):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_all_restaurants
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_all_outlets
 
 	Production-grade discovery feed — no N+1, bounding-box geo pre-filter,
 	single batch offers-count query.
@@ -297,7 +297,7 @@ def get_all_restaurants(
 		response = {
 			"success": True,
 			"data": {
-				"restaurants": enriched,
+				"outlets": enriched,
 				"page": page,
 				"limit": limit,
 				"total": total,
@@ -311,22 +311,22 @@ def get_all_restaurants(
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"Error in flamezo.get_all_restaurants: {str(e)}")
+		frappe.log_error(f"Error in flamezo.get_all_outlets: {str(e)}")
 		return {"success": False, "error": {"code": "DISCOVERY_ERROR", "message": str(e)}}
 
 
 # ── 1b. Map Markers — ultra-lightweight ───────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurants_for_map(
+def get_outlets_for_map(
 	city=None,
 	sw_lat=None, sw_lng=None, ne_lat=None, ne_lng=None,
 	outlet_type=None,
 ):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_restaurants_for_map
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_outlets_for_map
 
-	Returns lightweight markers for all active restaurants in a bounding box or city.
+	Returns lightweight markers for all active outlets in a bounding box or city.
 	Designed for the map-discovery screen — returns ONLY what's needed to render pins.
 
 	Parameters:
@@ -390,11 +390,12 @@ def get_restaurants_for_map(
 		names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(names)
 
+		site_url = frappe.utils.get_url()
 		markers = [
 			{
 				"id": r["name"],
 				"name": r["restaurant_name"],
-				"logo": r.get("logo") or "",
+				"logo": (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or ""),
 				"lat": flt(r["latitude"]),
 				"lng": flt(r["longitude"]),
 				"outlet_type": r.get("outlet_type") or "dining",
@@ -409,7 +410,7 @@ def get_restaurants_for_map(
 		return result
 
 	except Exception as e:
-		frappe.log_error(f"Error in flamezo.get_restaurants_for_map: {str(e)}")
+		frappe.log_error(f"Error in flamezo.get_outlets_for_map: {str(e)}")
 		return {"success": False, "error": {"code": "MAP_FETCH_ERROR", "message": str(e)}}
 
 

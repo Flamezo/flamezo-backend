@@ -537,7 +537,9 @@ def save_catalogue_item(restaurant_id=None, name=None, item_data=None):
 			doc.badge = item_data.get("badge", "")
 			doc.sort_order = cint(item_data.get("sort_order", 0))
 			doc.is_active = cint(item_data.get("is_active", 1))
-			doc.item_media = media_rows
+			# Only replace media if explicitly sent; preserve existing rows otherwise
+			if "item_media" in item_data:
+				doc.item_media = media_rows
 			doc.sub_items = sub_item_rows
 			doc.save(ignore_permissions=True)
 		else:

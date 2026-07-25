@@ -3,12 +3,12 @@
 
 """
 E2E tests for the production discovery APIs:
-  - flamezo.get_all_restaurants    (discovery feed)
-  - flamezo.get_restaurants_for_map (map markers)
+  - flamezo.get_all_outlets    (discovery feed)
+  - flamezo.get_outlets_for_map (map markers)
   - restaurant.get_restaurant_detail (full outlet detail)
 
 Covers:
-  get_all_restaurants:
+  get_all_outlets:
     - Returns only active restaurants
     - outlet_type filter (single + comma-separated)
     - search across name, cuisines, description, city
@@ -23,7 +23,7 @@ Covers:
     - Cache: Guest users get cached response
     - Inactive restaurants excluded
 
-  get_restaurants_for_map:
+  get_outlets_for_map:
     - City filter returns correct restaurants
     - Bounding box filter works
     - outlet_type filter
@@ -134,7 +134,7 @@ from flamezo_backend.flamezo.api import flamezo as flamezo_api
 from flamezo_backend.flamezo.api import restaurant as restaurant_api
 
 
-# ── get_all_restaurants ───────────────────────────────────────────────────────
+# ── get_all_outlets ───────────────────────────────────────────────────────
 
 class TestGetAllRestaurants(unittest.TestCase):
 
@@ -151,77 +151,77 @@ class TestGetAllRestaurants(unittest.TestCase):
         _cleanup()
 
     def test_returns_only_active_restaurants(self):
-        result = flamezo_api.get_all_restaurants()
+        result = flamezo_api.get_all_outlets()
         self.assertTrue(result["success"], result)
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.dining, names)
         self.assertNotIn(self.inactive, names)
 
     def test_outlet_type_single_filter(self):
-        result = flamezo_api.get_all_restaurants(outlet_type="wellness")
+        result = flamezo_api.get_all_outlets(outlet_type="wellness")
         self.assertTrue(result["success"])
-        types = {r["outlet_type"] for r in result["data"]["restaurants"]}
+        types = {r["outlet_type"] for r in result["data"]["outlets"]}
         self.assertEqual(types, {"wellness"})
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.wellness, names)
         self.assertNotIn(self.dining, names)
 
     def test_outlet_type_comma_separated(self):
-        result = flamezo_api.get_all_restaurants(outlet_type="dining,cafe")
+        result = flamezo_api.get_all_outlets(outlet_type="dining,cafe")
         self.assertTrue(result["success"])
-        types = {r["outlet_type"] for r in result["data"]["restaurants"]}
+        types = {r["outlet_type"] for r in result["data"]["outlets"]}
         self.assertIn("dining", types)
         self.assertIn("cafe", types)
         self.assertNotIn("wellness", types)
 
     def test_search_by_name(self):
         # Naming convention: restaurant_name = "Test Restaurant TEST-DISCO-D01"
-        result = flamezo_api.get_all_restaurants(search="DISCO-D01")
+        result = flamezo_api.get_all_outlets(search="DISCO-D01")
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.dining, names)
 
     def test_search_by_cuisines(self):
         frappe.db.set_value("Restaurant", self.dining, "cuisines", "Gujarati, Jain")
         frappe.db.commit()
-        result = flamezo_api.get_all_restaurants(search="Gujarati")
+        result = flamezo_api.get_all_outlets(search="Gujarati")
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.dining, names)
 
     def test_search_by_description(self):
-        result = flamezo_api.get_all_restaurants(search="discovery tests")
+        result = flamezo_api.get_all_outlets(search="discovery tests")
         self.assertTrue(result["success"])
-        ids = [r["id"] for r in result["data"]["restaurants"]]
+        ids = [r["id"] for r in result["data"]["outlets"]]
         # All test restaurants have "discovery tests" in description
         self.assertGreater(len(ids), 0)
 
     def test_section_featured(self):
-        result = flamezo_api.get_all_restaurants(section="featured")
+        result = flamezo_api.get_all_outlets(section="featured")
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.featured, names)
         self.assertNotIn(self.dining, names)
 
     def test_is_featured_filter(self):
-        result = flamezo_api.get_all_restaurants(is_featured=1)
+        result = flamezo_api.get_all_outlets(is_featured=1)
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.featured, names)
         self.assertNotIn(self.dining, names)
 
     def test_section_new_returns_recent(self):
-        result = flamezo_api.get_all_restaurants(section="new")
+        result = flamezo_api.get_all_outlets(section="new")
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.new_rest, names)
         # old_rest is 90 days old — outside the 60-day window
         self.assertNotIn(self.old_rest, names)
 
     def test_section_popular_orders_by_total_orders(self):
-        result = flamezo_api.get_all_restaurants(section="popular")
+        result = flamezo_api.get_all_outlets(section="popular")
         self.assertTrue(result["success"])
-        rests = result["data"]["restaurants"]
+        rests = result["data"]["outlets"]
         orders = [r.get("active_offers_count") for r in rests]
         # Check featured (100 orders) appears near top among test data
         names = [r["id"] for r in rests]
@@ -232,9 +232,9 @@ class TestGetAllRestaurants(unittest.TestCase):
     def test_has_offer_filter(self):
         coupon = _make_coupon(self.dining)
         try:
-            result = flamezo_api.get_all_restaurants(has_offer=1)
+            result = flamezo_api.get_all_outlets(has_offer=1)
             self.assertTrue(result["success"])
-            names = [r["id"] for r in result["data"]["restaurants"]]
+            names = [r["id"] for r in result["data"]["outlets"]]
             self.assertIn(self.dining, names)
             # wellness has no coupon
             self.assertNotIn(self.wellness, names)
@@ -245,9 +245,9 @@ class TestGetAllRestaurants(unittest.TestCase):
     def test_active_offers_count_in_response(self):
         coupon = _make_coupon(self.dining)
         try:
-            result = flamezo_api.get_all_restaurants()
+            result = flamezo_api.get_all_outlets()
             self.assertTrue(result["success"])
-            dining_card = next((r for r in result["data"]["restaurants"] if r["id"] == self.dining), None)
+            dining_card = next((r for r in result["data"]["outlets"] if r["id"] == self.dining), None)
             self.assertIsNotNone(dining_card)
             self.assertEqual(dining_card["active_offers_count"], 1)
         finally:
@@ -255,23 +255,23 @@ class TestGetAllRestaurants(unittest.TestCase):
             frappe.db.commit()
 
     def test_city_filter(self):
-        result = flamezo_api.get_all_restaurants(city="Ahmedabad")
+        result = flamezo_api.get_all_outlets(city="Ahmedabad")
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.wellness, names)
         self.assertNotIn(self.dining, names)
 
     def test_pagination_page_and_limit(self):
-        result = flamezo_api.get_all_restaurants(page=1, limit=2)
+        result = flamezo_api.get_all_outlets(page=1, limit=2)
         self.assertTrue(result["success"])
-        self.assertLessEqual(len(result["data"]["restaurants"]), 2)
+        self.assertLessEqual(len(result["data"]["outlets"]), 2)
         self.assertIn("has_more", result["data"])
         self.assertIn("total", result["data"])
 
     def test_response_shape(self):
-        result = flamezo_api.get_all_restaurants()
+        result = flamezo_api.get_all_outlets()
         self.assertTrue(result["success"])
-        card = result["data"]["restaurants"][0]
+        card = result["data"]["outlets"][0]
         for field in ("id", "restaurant_name", "logo", "outlet_type", "city",
                       "latitude", "longitude", "is_featured", "cuisines",
                       "amenities_mask", "hours_json", "is_open_now",
@@ -279,34 +279,34 @@ class TestGetAllRestaurants(unittest.TestCase):
             self.assertIn(field, card, f"Missing field: {field}")
 
     def test_cuisines_returned_as_list(self):
-        result = flamezo_api.get_all_restaurants()
+        result = flamezo_api.get_all_outlets()
         self.assertTrue(result["success"])
-        card = next((r for r in result["data"]["restaurants"] if r["id"] == self.dining), None)
+        card = next((r for r in result["data"]["outlets"] if r["id"] == self.dining), None)
         self.assertIsNotNone(card)
         self.assertIsInstance(card["cuisines"], list)
 
     def test_hours_json_returned_as_dict(self):
-        result = flamezo_api.get_all_restaurants()
+        result = flamezo_api.get_all_outlets()
         self.assertTrue(result["success"])
-        card = next((r for r in result["data"]["restaurants"] if r["id"] == self.dining), None)
+        card = next((r for r in result["data"]["outlets"] if r["id"] == self.dining), None)
         self.assertIsNotNone(card)
         self.assertIsInstance(card["hours_json"], dict)
         self.assertIn("mon", card["hours_json"])
 
     def test_geo_radius_filter(self):
         # Surat restaurants within 5 km, Ahmedabad wellness is ~250 km away
-        result = flamezo_api.get_all_restaurants(
+        result = flamezo_api.get_all_outlets(
             latitude=21.1702, longitude=72.8311, radius_km=50
         )
         self.assertTrue(result["success"])
-        names = [r["id"] for r in result["data"]["restaurants"]]
+        names = [r["id"] for r in result["data"]["outlets"]]
         self.assertIn(self.dining, names)
         self.assertNotIn(self.wellness, names)  # Ahmedabad is outside 50km
 
     def test_distance_sort_nearest_first(self):
-        result = flamezo_api.get_all_restaurants(latitude=21.1702, longitude=72.8311)
+        result = flamezo_api.get_all_outlets(latitude=21.1702, longitude=72.8311)
         self.assertTrue(result["success"])
-        rests = result["data"]["restaurants"]
+        rests = result["data"]["outlets"]
         # Surat restaurants should appear before Ahmedabad one
         surat_ids = {self.dining, self.featured}
         for r in rests:
@@ -315,7 +315,7 @@ class TestGetAllRestaurants(unittest.TestCase):
                 break
 
 
-# ── get_restaurants_for_map ───────────────────────────────────────────────────
+# ── get_outlets_for_map ───────────────────────────────────────────────────
 
 class TestGetRestaurantsForMap(unittest.TestCase):
 
@@ -329,7 +329,7 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         _cleanup()
 
     def test_city_filter(self):
-        result = flamezo_api.get_restaurants_for_map(city="Surat")
+        result = flamezo_api.get_outlets_for_map(city="Surat")
         self.assertTrue(result["success"], result)
         ids = [m["id"] for m in result["data"]["markers"]]
         self.assertIn(self.r1, ids)
@@ -337,7 +337,7 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         self.assertNotIn(self.r3, ids)
 
     def test_bounding_box_filter(self):
-        result = flamezo_api.get_restaurants_for_map(
+        result = flamezo_api.get_outlets_for_map(
             sw_lat=21.10, sw_lng=72.80,
             ne_lat=21.25, ne_lng=72.90,
         )
@@ -348,14 +348,14 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         self.assertNotIn(self.r3, ids)  # Ahmedabad is outside bounds
 
     def test_outlet_type_filter(self):
-        result = flamezo_api.get_restaurants_for_map(city="Surat", outlet_type="wellness")
+        result = flamezo_api.get_outlets_for_map(city="Surat", outlet_type="wellness")
         self.assertTrue(result["success"])
         ids = [m["id"] for m in result["data"]["markers"]]
         self.assertIn(self.r2, ids)
         self.assertNotIn(self.r1, ids)
 
     def test_response_shape(self):
-        result = flamezo_api.get_restaurants_for_map(city="Surat")
+        result = flamezo_api.get_outlets_for_map(city="Surat")
         self.assertTrue(result["success"])
         self.assertGreater(len(result["data"]["markers"]), 0)
         marker = result["data"]["markers"][0]
@@ -368,7 +368,7 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         try:
             # Clear cache so we get fresh data
             frappe.cache().delete_value(f"flamezo:map:Surat:none:none:all")
-            result = flamezo_api.get_restaurants_for_map(city="Surat")
+            result = flamezo_api.get_outlets_for_map(city="Surat")
             self.assertTrue(result["success"])
             m = next((x for x in result["data"]["markers"] if x["id"] == self.r1), None)
             self.assertIsNotNone(m)
@@ -378,7 +378,7 @@ class TestGetRestaurantsForMap(unittest.TestCase):
             frappe.db.commit()
 
     def test_no_markers_outside_bounds(self):
-        result = flamezo_api.get_restaurants_for_map(
+        result = flamezo_api.get_outlets_for_map(
             sw_lat=28.50, sw_lng=77.00,
             ne_lat=28.70, ne_lng=77.20,  # Delhi bounding box
         )

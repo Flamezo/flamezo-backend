@@ -67,58 +67,58 @@ class TestGetAllRestaurants(unittest.TestCase):
         frappe.set_user("Administrator")
 
     def _call(self, **kw):
-        from flamezo_backend.flamezo.api.flamezo import get_all_restaurants
-        return get_all_restaurants(**kw)
+        from flamezo_backend.flamezo.api.flamezo import get_all_outlets
+        return get_all_outlets(**kw)
 
     def test_returns_success_and_list(self):
         r = self._call()
         self.assertTrue(r["success"])
-        self.assertIsInstance(r["data"]["restaurants"], list)
+        self.assertIsInstance(r["data"]["outlets"], list)
 
     def test_result_count_positive(self):
         r = self._call(city="Surat", limit=20)
-        self.assertGreater(len(r["data"]["restaurants"]), 0)
+        self.assertGreater(len(r["data"]["outlets"]), 0)
 
     def test_required_card_fields_present(self):
         r = self._call(city="Surat", limit=5)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             for field in ("id", "restaurant_name", "outlet_type",
                           "city", "latitude", "longitude"):
                 self.assertIn(field, item, f"Missing field '{field}' in card")
 
     def test_outlet_type_filter_dining(self):
         r = self._call(outlet_type="dining", limit=20)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             self.assertEqual(item["outlet_type"], "dining")
 
     def test_outlet_type_filter_wellness(self):
         r = self._call(outlet_type="wellness", limit=20)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             self.assertEqual(item["outlet_type"], "wellness")
 
     def test_outlet_type_filter_fitness(self):
         r = self._call(outlet_type="fitness", limit=20)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             self.assertEqual(item["outlet_type"], "fitness")
 
     def test_outlet_type_filter_sports_court(self):
         r = self._call(outlet_type="sports_court", limit=20)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             self.assertEqual(item["outlet_type"], "sports_court")
 
     def test_outlet_type_filter_sports_venue(self):
         r = self._call(outlet_type="sports_venue", limit=20)
-        for item in r["data"]["restaurants"]:
+        for item in r["data"]["outlets"]:
             self.assertEqual(item["outlet_type"], "sports_venue")
 
     def test_city_filter_surat(self):
         r = self._call(city="Surat", limit=50)
-        ids = [i["id"] for i in r["data"]["restaurants"]]
+        ids = [i["id"] for i in r["data"]["outlets"]]
         self.assertIn(DINING_ID, ids)
 
     def test_pagination_limit(self):
         r = self._call(limit=3)
-        self.assertLessEqual(len(r["data"]["restaurants"]), 3)
+        self.assertLessEqual(len(r["data"]["outlets"]), 3)
 
     def test_has_more_true_when_results_exceed_limit(self):
         r = self._call(limit=3)
@@ -130,12 +130,12 @@ class TestGetAllRestaurants(unittest.TestCase):
 
     def test_araku_present_in_surat(self):
         r = self._call(city="Surat", limit=50)
-        ids = [i["id"] for i in r["data"]["restaurants"]]
+        ids = [i["id"] for i in r["data"]["outlets"]]
         self.assertIn(DINING_ID, ids)
 
     def test_smashzone_present(self):
         r = self._call(outlet_type="sports_court", limit=20)
-        ids = [i["id"] for i in r["data"]["restaurants"]]
+        ids = [i["id"] for i in r["data"]["outlets"]]
         self.assertIn(COURT_ID, ids)
 
 
@@ -146,8 +146,8 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         frappe.set_user("Administrator")
 
     def _call(self, **kw):
-        from flamezo_backend.flamezo.api.flamezo import get_restaurants_for_map
-        return get_restaurants_for_map(**kw)
+        from flamezo_backend.flamezo.api.flamezo import get_outlets_for_map
+        return get_outlets_for_map(**kw)
 
     def test_success_and_markers_list(self):
         r = self._call(city="Surat")
