@@ -61,6 +61,11 @@ class Restaurant(Document):
 		if not self.subdomain and self.restaurant_id:
 			self.subdomain = self.restaurant_id.lower().replace(" ", "-")
 
+		# branch_group is an explicit named Merchant Group link — clear it if it
+		# points at a group that no longer exists.
+		if self.branch_group and not frappe.db.exists("Merchant Group", self.branch_group):
+			self.branch_group = None
+
 	def before_save(self):
 		"""
 		Safeguard: Prevent accidental wallet balance resets during standard doc.save() calls.

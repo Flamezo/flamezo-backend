@@ -51,6 +51,8 @@ import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
 import { RestaurantSelector } from '@/components/RestaurantSelector'
+import { BranchGroupTools } from '@/components/BranchGroupTools'
+import { SearchableSelect } from '@/components/SearchableSelect'
 import { BranchAccessDialog } from '@/components/BranchAccessDialog'
 
 interface Restaurant {
@@ -269,6 +271,16 @@ export default function AdminRestaurantManagement() {
     initialPageSize: 20,
     debugId: 'admin-restaurants'
   })
+
+  // Merchant Groups (for the group filter + tools)
+  const [groups, setGroups] = useState<Array<{ id: string; group_name: string; branch_count?: number }>>([])
+  const [groupsReload, setGroupsReload] = useState(0)
+  const { call: listGroups } = useFrappePostCall<{ success: boolean; groups?: any[] }>(
+    'flamezo_backend.flamezo.api.branch_clone.list_groups'
+  )
+  useEffect(() => {
+    listGroups({}).then((r: any) => { const d = r?.message ?? r; setGroups(d?.groups || []) }).catch(() => {})
+  }, [groupsReload])
 
   // APIs
   const { call: toggleRestaurantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
@@ -634,84 +646,89 @@ export default function AdminRestaurantManagement() {
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition',
+                'text-left rounded-xl border bg-card p-2 hover:border-primary/40 hover:shadow-sm transition',
                 isStatActive(null) ? 'ring-2 ring-primary/30 ring-offset-1' : ''
               )}
               onClick={() => applyStatFilter(null, null)}
               title="Show all restaurants (clears stat-card filters)"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
-              <p className="text-2xl font-black tracking-tight">{adminStats.total}</p>
+              <p className="text-lg font-black tracking-tight">{adminStats.total}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{adminStats.active} online · {adminStats.inactive} offline</p>
             </button>
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-emerald-50/50 dark:bg-emerald-500/5 p-3 hover:border-emerald-300 hover:shadow-sm transition border-emerald-200/60 dark:border-emerald-500/20',
+                'text-left rounded-xl border bg-emerald-50/50 dark:bg-emerald-500/5 p-2 hover:border-emerald-300 hover:shadow-sm transition border-emerald-200/60 dark:border-emerald-500/20',
                 'ring-emerald-300' + ring(isStatActive('is_active', 1))
               )}
               onClick={() => applyStatFilter('is_active', 1)}
               title="Show only active restaurants"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
-              <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
+              <p className="text-lg font-black tracking-tight text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
               <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Live</p>
             </button>
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-amber-50/50 dark:bg-amber-500/5 p-3 hover:border-amber-300 hover:shadow-sm transition border-amber-200/60 dark:border-amber-500/20',
+                'text-left rounded-xl border bg-amber-50/50 dark:bg-amber-500/5 p-2 hover:border-amber-300 hover:shadow-sm transition border-amber-200/60 dark:border-amber-500/20',
                 'ring-amber-300' + ring(isStatActive('has_outstanding', 'yes'))
               )}
               onClick={() => applyStatFilter('has_outstanding', 'yes')}
               title="Show only restaurants with outstanding Success Share"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Owing</p>
-              <p className="text-2xl font-black tracking-tight text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+              <p className="text-lg font-black tracking-tight text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
               <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-0.5">{adminStats.owing} restaurants</p>
             </button>
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-rose-50/50 dark:bg-rose-500/5 p-3 hover:border-rose-300 hover:shadow-sm transition border-rose-200/60 dark:border-rose-500/20',
+                'text-left rounded-xl border bg-rose-50/50 dark:bg-rose-500/5 p-2 hover:border-rose-300 hover:shadow-sm transition border-rose-200/60 dark:border-rose-500/20',
                 'ring-rose-300' + ring(isStatActive('throttled', 'yes'))
               )}
               onClick={() => applyStatFilter('throttled', 'yes')}
               title="Show only restaurants currently in cash-payment throttle"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400">Throttled</p>
-              <p className="text-2xl font-black tracking-tight text-rose-700 dark:text-rose-300">{adminStats.throttled}</p>
+              <p className="text-lg font-black tracking-tight text-rose-700 dark:text-rose-300">{adminStats.throttled}</p>
               <p className="text-[10px] text-rose-700/70 dark:text-rose-400/70 mt-0.5">Cash paused (Tier 3)</p>
             </button>
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-blue-50/50 dark:bg-blue-500/5 p-3 hover:border-blue-300 hover:shadow-sm transition border-blue-200/60 dark:border-blue-500/20',
+                'text-left rounded-xl border bg-blue-50/50 dark:bg-blue-500/5 p-2 hover:border-blue-300 hover:shadow-sm transition border-blue-200/60 dark:border-blue-500/20',
                 'ring-blue-300' + ring(isStatActive('razorpay_kyc_status', 'under_review'))
               )}
               onClick={() => applyStatFilter('razorpay_kyc_status', 'under_review')}
               title="Show only restaurants whose Route KYC is under review"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">KYC Pending</p>
-              <p className="text-2xl font-black tracking-tight text-blue-700 dark:text-blue-300">{adminStats.kyc_pending}</p>
+              <p className="text-lg font-black tracking-tight text-blue-700 dark:text-blue-300">{adminStats.kyc_pending}</p>
               <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 mt-0.5">{adminStats.kyc_activated} activated · {adminStats.kyc_blocked} blocked</p>
             </button>
             <button
               type="button"
               className={cn(
-                'text-left rounded-xl border bg-violet-50/50 dark:bg-violet-500/5 p-3 hover:border-violet-300 hover:shadow-sm transition border-violet-200/60 dark:border-violet-500/20',
+                'text-left rounded-xl border bg-violet-50/50 dark:bg-violet-500/5 p-2 hover:border-violet-300 hover:shadow-sm transition border-violet-200/60 dark:border-violet-500/20',
                 'ring-violet-300' + ring(isStatActive('mandate_status', 'active'))
               )}
               onClick={() => applyStatFilter('mandate_status', 'active')}
               title="Show only restaurants with an active autopay mandate"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Mandate Active</p>
-              <p className="text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300">{adminStats.mandate_active}</p>
+              <p className="text-lg font-black tracking-tight text-violet-700 dark:text-violet-300">{adminStats.mandate_active}</p>
               <p className="text-[10px] text-violet-700/70 dark:text-violet-400/70 mt-0.5">{adminStats.mandate_missing} missing</p>
             </button>
           </div>
         )
       })()}
+
+      {/* Group action buttons — outside the filter box, right-aligned. */}
+      <div className="flex items-center justify-end">
+        <BranchGroupTools onGroupsChanged={() => setGroupsReload(k => k + 1)} />
+      </div>
 
       <Card>
         {/* Compact single-line filter bar. The dropdown trigger reads
@@ -771,6 +788,19 @@ export default function AdminRestaurantManagement() {
                 <SelectItem value="inactive">Status: Offline</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Group filter — searchable (type-to-find) */}
+            <SearchableSelect
+              value={(filters.find((f: any) => f.fieldname === 'branch_group')?.value as string) || 'all'}
+              triggerClassName="w-[120px]"
+              placeholder="Group: All"
+              options={[{ value: 'all', label: 'Group: All' }, ...groups.map((g) => ({ value: g.id, label: g.group_name }))]}
+              onChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'branch_group')
+                if (v !== 'all') next.push({ fieldname: 'branch_group', operator: '=', value: v })
+                setFilters(next)
+              }}
+            />
 
             {/* Business Type */}
             <Select
@@ -870,11 +900,12 @@ export default function AdminRestaurantManagement() {
             {/* Clear-all chip — only when any filter is applied. */}
             {filters.length > 0 && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-8 text-xs px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 ml-auto"
+                className="h-8 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground ml-auto"
                 onClick={() => setFilters([])}
               >
+                <XCircle className="h-3.5 w-3.5" />
                 Clear ({filters.length})
               </Button>
             )}

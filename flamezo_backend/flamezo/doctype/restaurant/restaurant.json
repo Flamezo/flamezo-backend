@@ -114,6 +114,7 @@
   "max_delivery_distance",
   "referral_code",
   "referred_by_restaurant",
+  "branch_group",
   "section_break_google_growth",
   "google_business_account_id",
   "google_business_location_id",
@@ -784,6 +785,14 @@
    "label": "Referred By",
    "options": "Restaurant",
    "description": "The restaurant that referred this one"
+  },
+  {
+   "fieldname": "branch_group",
+   "fieldtype": "Link",
+   "label": "Branch Group",
+   "options": "Merchant Group",
+   "in_standard_filter": 1,
+   "description": "The named group this outlet belongs to. Branches in the same group can copy menus to each other. Empty = standalone outlet."
   },
   {
    "fieldname": "section_break_google_growth",
