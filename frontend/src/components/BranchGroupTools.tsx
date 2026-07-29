@@ -128,10 +128,20 @@ export function BranchGroupTools({ onGroupsChanged }: { onGroupsChanged?: () => 
   return (
     <>
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)} className="gap-2 h-9">
-          <Users className="h-4 w-4" /> New Group
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          className="gap-2 h-9 rounded-lg font-medium border-border/70 bg-muted/30 text-foreground/80 hover:bg-muted/60 hover:text-foreground transition-colors"
+        >
+          <Users className="h-4 w-4 opacity-70" /> New Group
         </Button>
-        <Button size="sm" onClick={() => setCopyOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 shadow-lg gap-2 text-white h-9">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCopyOpen(true)}
+          className="gap-2 h-9 rounded-lg font-medium border-primary/20 bg-primary/[0.07] text-primary hover:bg-primary/[0.12] hover:text-primary transition-colors"
+        >
           <Copy className="h-4 w-4" /> Copy Menu
         </Button>
       </div>
