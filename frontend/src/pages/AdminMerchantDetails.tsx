@@ -91,6 +91,7 @@ interface Restaurant {
   google_map_url?: string
   referral_code?: string
   referred_by_restaurant?: string
+  branch_group?: string
 }
 
 function AdminMerchantDetailsPage() {

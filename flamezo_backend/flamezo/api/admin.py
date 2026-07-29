@@ -89,6 +89,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     allowed_eq_fields = (
                         'is_active',
                         'mandate_status', 'razorpay_kyc_status', 'route_mode',
+                        'branch_group',
                     )
                     if fieldname in allowed_eq_fields:
                         if operator == '=':
