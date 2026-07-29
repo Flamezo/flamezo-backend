@@ -38,6 +38,7 @@ import {
   FolderOpen,
   ArrowLeft,
   Utensils,
+  ShoppingBag,
   Calendar,
   Zap,
   Crown,
@@ -64,8 +65,6 @@ export default function GalleryManagement() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [uploadCategory, setUploadCategory] = useState<string>('Gallery Uploads')
 
-  const CATEGORIES = ['Branding', 'Products & Catalogue', 'Events', 'Gallery Uploads']
-
   // Persist tab selection
   useEffect(() => {
     localStorage.setItem('gallery-management-active-tab', activeTab)
@@ -82,6 +81,22 @@ export default function GalleryManagement() {
     const response = (poolData as any)?.message || poolData;
     return response?.data?.media || [];
   }, [poolData])
+
+  // Industry-aware label for the products/food folder (backend-driven).
+  const productLabel = useMemo(() => {
+    const response = (poolData as any)?.message || poolData;
+    return response?.data?.product_category_label || 'Products & Catalogue';
+  }, [poolData])
+  const outletType = useMemo(() => {
+    const response = (poolData as any)?.message || poolData;
+    return response?.data?.outlet_type || '';
+  }, [poolData])
+  const isFoodOutlet = outletType === 'dining' || outletType === 'cafe'
+
+  const CATEGORIES = useMemo(
+    () => ['Branding', productLabel, 'Events', 'Gallery Uploads'],
+    [productLabel],
+  )
 
   const initialFilters = useMemo(() => {
     if (!selectedRestaurant) return []
@@ -442,8 +457,8 @@ export default function GalleryManagement() {
                         let Icon = Folder;
                         let colorClass = "text-blue-500 bg-blue-500/10 fill-blue-500/5";
                         
-                        if (category === 'Products & Catalogue') {
-                            Icon = Utensils;
+                        if (category === productLabel) {
+                            Icon = isFoodOutlet ? Utensils : ShoppingBag;
                             colorClass = "text-orange-500 bg-orange-500/10 fill-orange-500/5";
                         }
                         if (category === 'Events') {
@@ -594,7 +609,7 @@ export default function GalleryManagement() {
                   <div className="flex flex-col gap-1.5">
                     {CATEGORIES.map((cat) => {
                       let Icon = Folder;
-                      if (cat === 'Products & Catalogue') Icon = Utensils;
+                      if (cat === productLabel) Icon = isFoodOutlet ? Utensils : ShoppingBag;
                       if (cat === 'Events') Icon = Calendar;
                       if (cat === 'Branding') Icon = Zap;
                       if (cat === 'Gallery Uploads') Icon = ImageIcon;

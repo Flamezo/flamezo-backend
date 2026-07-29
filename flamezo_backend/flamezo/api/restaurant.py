@@ -559,6 +559,21 @@ def get_restaurant_media_pool(restaurant_id):
 		
 		# 0. Restaurant Branding
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+
+		# Industry-aware label for the "products" media folder — food outlets see
+		# "Food Images", fashion sees "Products & Catalogue", etc.
+		outlet_type = restaurant_doc.get("outlet_type") or "dining"
+		MEDIA_LABELS = {
+			"dining": "Food Images",
+			"cafe": "Food Images",
+			"wellness": "Products & Services",
+			"fitness": "Classes & Services",
+			"sports_court": "Facilities",
+			"sports_venue": "Facilities",
+			"fashion": "Products & Catalogue",
+		}
+		product_label = MEDIA_LABELS.get(outlet_type, "Products & Catalogue")
+
 		if restaurant_doc.get("logo"):
 			media_pool.append({
 				"url": restaurant_doc.logo,
@@ -579,9 +594,41 @@ def get_restaurant_media_pool(restaurant_id):
 		
 		for m in product_media:
 			if m.url and m.url not in seen_urls:
-				m['category'] = "Food & Menu"
+				m['category'] = product_label
 				media_pool.append(m)
 				seen_urls.add(m.url)
+
+		# 1b. AI-generated images (enhanced_image_url) — surface every generated
+		#     photo so the merchant can pick which go into the active showcase.
+		ai_generated = frappe.get_all(
+			"AI Image Generation",
+			filters={"restaurant": restaurant, "enhanced_image_url": ["is", "set"]},
+			fields=["enhanced_image_url as url", "owner_name as source_title"],
+			order_by="creation desc",
+		)
+		for a in ai_generated:
+			if a.url and a.url not in seen_urls:
+				media_pool.append({
+					"url": a.url,
+					"type": "image",
+					"source_title": a.source_title or "AI Generated",
+					"source_type": "AI Generated",
+					"category": product_label,
+				})
+				seen_urls.add(a.url)
+
+		# 1c. Catalogue Item Media (non-food outlets — fashion, wellness, etc.)
+		catalogue_media = frappe.db.sql("""
+			SELECT cim.media_url as url, cim.media_type as type, ci.item_name as source_title, 'Catalogue' as source_type
+			FROM `tabCatalogue Item Media` cim
+			JOIN `tabCatalogue Item` ci ON cim.parent = ci.name
+			WHERE ci.restaurant = %s
+		""", (restaurant,), as_dict=1)
+		for c in catalogue_media:
+			if c.url and c.url not in seen_urls:
+				c['category'] = product_label
+				media_pool.append(c)
+				seen_urls.add(c.url)
 
 		# 2. Events
 		events = frappe.get_all(
@@ -632,7 +679,9 @@ def get_restaurant_media_pool(restaurant_id):
 		return {
 			"success": True,
 			"data": {
-				"media": media_pool
+				"media": media_pool,
+				"product_category_label": product_label,
+				"outlet_type": outlet_type
 			}
 		}
 	except Exception as e:

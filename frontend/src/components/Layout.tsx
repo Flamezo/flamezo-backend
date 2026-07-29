@@ -4,6 +4,7 @@ import { buildNavigation, type NavItem, type NavLink, type NavGroup } from '@/li
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
+import { GroupPicker } from '@/components/GroupPicker'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useRestaurant } from '@/contexts/RestaurantContext'
@@ -248,6 +249,9 @@ export default function Layout({ children }: LayoutProps) {
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
   const [sendPaymentInfo] = useState(false)
+  // The named group this new outlet joins (optional).
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [selectedGroupLabel, setSelectedGroupLabel] = useState('')
 
   // API calls
   const { call: createRestaurant } = useFrappePostCall('frappe.client.insert')
@@ -322,6 +326,8 @@ export default function Layout({ children }: LayoutProps) {
           owner_phone: newRestaurantData.owner_phone.trim() || undefined,
           referred_by_restaurant_code: newRestaurantData.referral_code.trim() || undefined,
           outlet_type: newRestaurantData.outlet_type || 'dining',
+          // Join a named Merchant Group (optional).
+          branch_group: selectedGroup || undefined,
           is_active: 1
         }
       })
@@ -372,6 +378,7 @@ export default function Layout({ children }: LayoutProps) {
         setShowCreateModal(false)
         setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining' })
         setSendOnboarding(false)
+        setSelectedGroup(null); setSelectedGroupLabel('')
 
         setSelectedRestaurant(restaurantDocName)
         window.dispatchEvent(new CustomEvent('restaurant-selected'))
@@ -1621,6 +1628,18 @@ export default function Layout({ children }: LayoutProps) {
                 disabled={isCreating}
               />
               <p className="text-xs text-muted-foreground">If referred by another merchant — gives them ₹500.</p>
+            </div>
+
+            {/* Branch group (join an existing named group) */}
+            <div className="space-y-2">
+              <Label>Branch group (optional)</Label>
+              <GroupPicker
+                value={selectedGroup}
+                valueLabel={selectedGroupLabel}
+                onChange={(id, label) => { setSelectedGroup(id); setSelectedGroupLabel(label || '') }}
+                placeholder="Select a group…"
+              />
+              <p className="text-xs text-muted-foreground">Join a merchant group so this outlet's menu can be copied to/from its siblings. Create groups in Merchant Management.</p>
             </div>
 
             {/* After Creation */}

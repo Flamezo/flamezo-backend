@@ -547,11 +547,9 @@
                     <small class="helper-text" id="btype_hint"></small>
                 </div>
 
-                <div class="form-group">
-                    <label id="legal_name_label">Business Name</label>
-                    <input type="text" id="legal_name">
-                    <small class="helper-text" id="legal_name_hint"></small>
-                </div>
+                <!-- Business/Legal Name field removed: the beneficiary name read from
+                     the cancelled cheque IS the business name, so it's captured from
+                     the cheque (OCR) and carried in the payload — not typed here. -->
 
                 <div class="section-header" style="margin-top: 30px; margin-bottom: 20px;">
                     <h3>Bank Account</h3>
@@ -832,7 +830,7 @@
                     if (data.whatsapp_number) document.getElementById('whatsapp_number').value = data.whatsapp_number;
 
                     // Step 2: Legal & Ops
-                    if (data.legal_name) document.getElementById('legal_name').value = data.legal_name;
+                    if (data.legal_name) formData.legal_name = data.legal_name; // no input on form — carry in payload
                     if (data.business_type) document.getElementById('business_type').value = data.business_type;
                     // Bank details have no inputs on this form — keep them in the payload
                     // and show the read-only captured summary instead.
@@ -1325,7 +1323,7 @@
             const cfg = BUSINESS_TYPES[currentBusinessType()] || BUSINESS_TYPES.proprietorship;
             const val = id => (document.getElementById(id) || {}).value || '';
 
-            if (!val('legal_name').trim()) return `${cfg.legalLabel} is required.`;
+            // Business/Legal name comes from the cheque's beneficiary — no input to validate.
             let err = validatePan(val('pan_number'), cfg.panKind, cfg.panLabel, true);
             if (err) return err;
             if (cfg.ownerPan) {
@@ -1387,10 +1385,11 @@
                     if (data.account_number) formData.bank_account_number = String(data.account_number).replace(/\D/g, '');
                     if (data.ifsc_code) formData.bank_ifsc = String(data.ifsc_code).trim().toUpperCase();
                     if (data.legal_business_name) {
-                        formData.bank_holder_name = String(data.legal_business_name).trim();
-                        // Business Legal Name is the PAN name — only prefill if still blank.
-                        const legal = document.getElementById('legal_name');
-                        if (legal && !legal.value) legal.value = String(data.legal_business_name).trim();
+                        const nameFromCheque = String(data.legal_business_name).trim();
+                        formData.bank_holder_name = nameFromCheque;
+                        // The beneficiary name on the cheque IS the business/legal name —
+                        // carry it into the payload (there is no Business Name input).
+                        formData.legal_name = nameFromCheque;
                     }
                     showCapturedBank();
                     label.innerText = 'Cheque uploaded ✓';
