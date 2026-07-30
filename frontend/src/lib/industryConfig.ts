@@ -173,7 +173,7 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
     },
     { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
     { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
-    { type: 'link', name: 'Merchant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
+    { type: 'link', name: 'Merchant Management', href: '/admin/merchants', icon: Shield, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
     {
       type: 'group',

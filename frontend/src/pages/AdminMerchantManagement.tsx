@@ -51,12 +51,13 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
-import { RestaurantSelector } from '@/components/RestaurantSelector'
+import { MerchantSelector } from '@/components/MerchantSelector'
 import { BranchGroupTools } from '@/components/BranchGroupTools'
 import { SearchableSelect } from '@/components/SearchableSelect'
 import { BranchAccessDialog } from '@/components/BranchAccessDialog'
+import { UpdateSuccessShareModal } from '@/components/UpdateSuccessShareModal'
 
-interface Restaurant {
+interface Merchant {
   name: string
   restaurant_id: string
   restaurant_name: string
@@ -192,7 +193,7 @@ function validateOnboardingData(d: OnboardingDetail): FieldWarning[] {
   return warnings
 }
 
-export default function AdminRestaurantManagement() {
+export default function AdminMerchantManagement() {
   const navigate = useNavigate()
   const { currentUser } = useFrappeAuth()
   const [updating, setUpdating] = useState<string | null>(null)
@@ -205,16 +206,21 @@ export default function AdminRestaurantManagement() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
 
+  // Opens the "Update Success Share?" prompt right after a Signature toggle
+  // succeeds — set to the merchant just toggled, null when closed.
+  const [shareUpdateTarget, setShareUpdateTarget] = useState<Merchant | null>(null)
+  const [isSavingShareRate, setIsSavingShareRate] = useState(false)
+
   // Modals state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [restaurantToDelete, setRestaurantToDelete] = useState<{ id: string, name: string } | null>(null)
+  const [merchantToDelete, setMerchantToDelete] = useState<{ id: string, name: string } | null>(null)
   const [verificationInput, setVerificationInput] = useState('')
 
   const [isCoinModalOpen, setIsCoinModalOpen] = useState(false)
   const [coinAmount, setCoinAmount] = useState('')
   const [coinReason, setCoinReason] = useState('Admin Grant')
   const [coinAction, setCoinAction] = useState<'grant' | 'deduct'>('grant')
-  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
+  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null)
 
 
 
@@ -250,9 +256,9 @@ export default function AdminRestaurantManagement() {
   }, [currentUser])
 
   const {
-    data: restaurants,
+    data: merchants,
     isLoading,
-    mutate: loadRestaurants,
+    mutate: loadMerchants,
     page,
     setPage,
     pageSize,
@@ -271,7 +277,7 @@ export default function AdminRestaurantManagement() {
       filters: 'filters'
     },
     initialPageSize: 20,
-    debugId: 'admin-restaurants'
+    debugId: 'admin-merchants'
   })
 
   // Merchant Groups (for the group filter + tools)
@@ -285,10 +291,10 @@ export default function AdminRestaurantManagement() {
   }, [groupsReload])
 
   // APIs
-  const { call: toggleRestaurantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
+  const { call: toggleMerchantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
     'flamezo_backend.flamezo.api.admin.toggle_restaurant_status'
   )
-  const { call: deleteRestaurant } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
+  const { call: deleteMerchant } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
     'flamezo_backend.flamezo.api.admin.delete_restaurant'
   )
   const { call: giveCoins } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
@@ -342,7 +348,7 @@ export default function AdminRestaurantManagement() {
   const { data: rawAdminStats, mutate: loadAdminStats } = useFrappeGetCall<{ message?: { success: boolean; data?: AdminStats } }>(
     'flamezo_backend.flamezo.api.admin.get_admin_restaurants_stats',
     {},
-    'admin-restaurants-stats'
+    'admin-merchants-stats'
   )
   const adminStats: AdminStats | undefined = rawAdminStats?.message?.data
 
@@ -356,10 +362,10 @@ export default function AdminRestaurantManagement() {
     try {
       setUpdating(restaurantName)
       const newStatus = currentStatus ? 0 : 1
-      const result = await toggleRestaurantStatus({ restaurant_id: restaurantName, is_active: newStatus }) as any
+      const result = await toggleMerchantStatus({ restaurant_id: restaurantName, is_active: newStatus }) as any
       if (result?.message?.success) {
         toast.success(`Merchant ${newStatus ? 'activated' : 'deactivated'}`)
-        loadRestaurants()
+        loadMerchants()
       }
     } catch (error) {
       toast.error('Status synchronization failed')
@@ -368,22 +374,75 @@ export default function AdminRestaurantManagement() {
     }
   }
 
-  const handleGiveCoins = async () => {
-    if (!selectedRestaurant || !coinAmount) return
+  // Signature toggle — same effect as the Add Merchant modal's Signature
+  // switch and the merchant details page's Signature toggle: flips
+  // is_signature and its paired Success Share rate together (7% normal,
+  // 11% signature) so the badge in the Success Share column and the ⭐ next
+  // to the name both stay consistent with the table's own read of these
+  // fields, with no separate optimistic-state plumbing needed.
+  // Signature status and Success Share rate are separate decisions — this
+  // toggle ONLY flips is_signature. Rate changes are never automatic; after
+  // a successful toggle we open shareUpdateTarget so the admin can
+  // explicitly choose to update the rate (or skip and leave it as-is).
+  const handleSignatureToggle = async (merchant: Merchant, nextValue: boolean) => {
     try {
-      setUpdating(selectedRestaurant.name)
+      setUpdating(merchant.name)
+      const res = await updateSettings({
+        restaurant_id: merchant.restaurant_id,
+        updates: JSON.stringify({ is_signature: nextValue ? 1 : 0 }),
+      }) as any
+      if (res?.message?.success) {
+        toast.success(nextValue ? 'Marked as Signature merchant' : 'Removed Signature status')
+        await loadMerchants()
+        setShareUpdateTarget(merchant)
+      } else {
+        toast.error(res?.message?.error || 'Failed to update Signature status')
+      }
+    } catch (error) {
+      toast.error('Signature update failed')
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleUpdateShareRate = async (newRate: number) => {
+    if (!shareUpdateTarget) return
+    try {
+      setIsSavingShareRate(true)
+      const res = await updateSettings({
+        restaurant_id: shareUpdateTarget.restaurant_id,
+        updates: JSON.stringify({ platform_fee_percent: newRate }),
+      }) as any
+      if (res?.message?.success) {
+        toast.success(`Success Share updated to ${newRate}%`)
+        loadMerchants()
+        setShareUpdateTarget(null)
+      } else {
+        toast.error(res?.message?.error || 'Failed to update Success Share')
+      }
+    } catch (error) {
+      toast.error('Success Share update failed')
+    } finally {
+      setIsSavingShareRate(false)
+    }
+  }
+
+  const handleGiveCoins = async () => {
+    if (!selectedMerchant || !coinAmount) return
+    try {
+      setUpdating(selectedMerchant.name)
       const amount = parseFloat(coinAmount)
       const finalAmount = coinAction === 'grant' ? amount : -Math.abs(amount)
       
       const result = await giveCoins({
-        restaurant_id: selectedRestaurant.restaurant_id,
+        restaurant_id: selectedMerchant.restaurant_id,
         amount: finalAmount,
         reason: coinReason
       }) as any
       if (result?.message?.success) {
         toast.success(`${coinAction === 'grant' ? 'Granted' : 'Deducted'} ${coinAmount} coins`)
         setIsCoinModalOpen(false)
-        loadRestaurants()
+        loadMerchants()
       }
     } catch (error) {
       toast.error('Treasury update failed')
@@ -395,14 +454,14 @@ export default function AdminRestaurantManagement() {
 
 
   const handleConfirmDelete = async () => {
-    if (!restaurantToDelete || verificationInput !== restaurantToDelete.id) return
+    if (!merchantToDelete || verificationInput !== merchantToDelete.id) return
     try {
-      setUpdating(restaurantToDelete.id)
-      const result = await deleteRestaurant({ restaurant_id: restaurantToDelete.id }) as any
+      setUpdating(merchantToDelete.id)
+      const result = await deleteMerchant({ restaurant_id: merchantToDelete.id }) as any
       if (result?.message?.success) {
         toast.success(`Merchant removed from system`)
         setIsDeleteDialogOpen(false)
-        loadRestaurants()
+        loadMerchants()
       } else {
         const msg = result?.message?.error || 'System purge failed'
         toast.error(msg)
@@ -652,7 +711,7 @@ export default function AdminRestaurantManagement() {
                 isStatActive(null) ? 'ring-2 ring-primary/30 ring-offset-1' : ''
               )}
               onClick={() => applyStatFilter(null, null)}
-              title="Show all restaurants (clears stat-card filters)"
+              title="Show all merchants (clears stat-card filters)"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
@@ -667,7 +726,7 @@ export default function AdminRestaurantManagement() {
                 'ring-emerald-300' + ring(isStatActive('is_active', 1))
               )}
               onClick={() => applyStatFilter('is_active', 1)}
-              title="Show only active restaurants"
+              title="Show only active merchants"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
@@ -682,13 +741,13 @@ export default function AdminRestaurantManagement() {
                 'ring-amber-300' + ring(isStatActive('has_outstanding', 'yes'))
               )}
               onClick={() => applyStatFilter('has_outstanding', 'yes')}
-              title="Show only restaurants with outstanding Success Share"
+              title="Show only merchants with outstanding Success Share"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Owing</p>
                 <p className="text-base font-black tracking-tight leading-none text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
               </div>
-              <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-0.5">{adminStats.owing} restaurants</p>
+              <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-0.5">{adminStats.owing} merchants</p>
             </button>
             <button
               type="button"
@@ -697,7 +756,7 @@ export default function AdminRestaurantManagement() {
                 'ring-rose-300' + ring(isStatActive('throttled', 'yes'))
               )}
               onClick={() => applyStatFilter('throttled', 'yes')}
-              title="Show only restaurants currently in cash-payment throttle"
+              title="Show only merchants currently in cash-payment throttle"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400">Throttled</p>
@@ -712,7 +771,7 @@ export default function AdminRestaurantManagement() {
                 'ring-blue-300' + ring(isStatActive('razorpay_kyc_status', 'under_review'))
               )}
               onClick={() => applyStatFilter('razorpay_kyc_status', 'under_review')}
-              title="Show only restaurants whose Route KYC is under review"
+              title="Show only merchants whose Route KYC is under review"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">KYC Pending</p>
@@ -727,7 +786,7 @@ export default function AdminRestaurantManagement() {
                 'ring-violet-300' + ring(isStatActive('mandate_status', 'active'))
               )}
               onClick={() => applyStatFilter('mandate_status', 'active')}
-              title="Show only restaurants with an active autopay mandate"
+              title="Show only merchants with an active autopay mandate"
             >
               <div className="flex items-baseline justify-between gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Mandate Active</p>
@@ -764,7 +823,7 @@ export default function AdminRestaurantManagement() {
               variant="outline"
               size="icon"
               className="h-8 w-8 shrink-0"
-              onClick={() => { loadRestaurants(); loadAdminStats() }}
+              onClick={() => { loadMerchants(); loadAdminStats() }}
               title="Refresh"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
@@ -951,11 +1010,11 @@ export default function AdminRestaurantManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && !restaurants.length ? (
+          {isLoading && !merchants.length ? (
             <div className="py-20 flex justify-center">
               <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
             </div>
-          ) : !restaurants || restaurants.length === 0 ? (
+          ) : !merchants || merchants.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground">No merchants found</div>
           ) : (
             <>
@@ -967,16 +1026,14 @@ export default function AdminRestaurantManagement() {
                       <TableHead>Type</TableHead>
                       <TableHead>ID</TableHead>
                       <TableHead>Success Share</TableHead>
-                      <TableHead className="text-right">Outstanding</TableHead>
-                      <TableHead>Mandate</TableHead>
                       <TableHead>Route KYC</TableHead>
-                      <TableHead className="text-right">Coins</TableHead>
+                      <TableHead className="text-center">Signature</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {restaurants.map((restaurant: any) => (
-                      <TableRow key={restaurant.name} className="group">
+                    {merchants.map((merchant: any) => (
+                      <TableRow key={merchant.name} className="group">
                         <TableCell className="sticky left-0 z-10 bg-background group-hover:bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] transition-colors">
                           <div className="flex items-center gap-2">
                             {/* Status dot — green = Online (is_active=1),
@@ -985,45 +1042,45 @@ export default function AdminRestaurantManagement() {
                             <span
                               className={cn(
                                 "h-2 w-2 rounded-full shrink-0",
-                                restaurant.is_active
+                                merchant.is_active
                                   ? "bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse"
                                   : "bg-rose-400 ring-2 ring-rose-400/20"
                               )}
-                              title={restaurant.is_active ? "Online — live" : "Offline"}
-                              aria-label={restaurant.is_active ? "Online" : "Offline"}
+                              title={merchant.is_active ? "Online — live" : "Offline"}
+                              aria-label={merchant.is_active ? "Online" : "Offline"}
                             />
                             <div className="flex flex-col min-w-0">
                               <span className="font-bold truncate flex items-center gap-1.5">
-                                {restaurant.restaurant_name}
-                                {(!!restaurant.is_signature || Math.abs(Number(restaurant.platform_fee_percent ?? 0) - 11) < 0.001) && (
+                                {merchant.restaurant_name}
+                                {(!!merchant.is_signature || Math.abs(Number(merchant.platform_fee_percent ?? 0) - 11) < 0.001) && (
                                   <Star
                                     className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500"
                                     aria-label="Signature merchant"
                                   />
                                 )}
                               </span>
-                              <span className="text-xs text-muted-foreground truncate">{restaurant.owner_email}</span>
+                              <span className="text-xs text-muted-foreground truncate">{merchant.owner_email}</span>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const type = optimisticTypes[restaurant.restaurant_id] || restaurant.outlet_type || 'dining'
+                            const type = optimisticTypes[merchant.restaurant_id] || merchant.outlet_type || 'dining'
                             const m = OUTLET_TYPE_META[type] || { label: type, cls: 'bg-stone-50 text-stone-600 border-stone-200' }
                             return (
                               <Select
                                 value={type}
                                 onValueChange={async (newType) => {
-                                  setOptimisticTypes(prev => ({ ...prev, [restaurant.restaurant_id]: newType }))
+                                  setOptimisticTypes(prev => ({ ...prev, [merchant.restaurant_id]: newType }))
                                   const res = await updateSettings({
-                                    restaurant_id: restaurant.restaurant_id,
+                                    restaurant_id: merchant.restaurant_id,
                                     updates: JSON.stringify({ outlet_type: newType }),
                                   })
                                   if (res?.message?.success) {
-                                    loadRestaurants()
+                                    loadMerchants()
                                     toast.success(`Type updated to ${OUTLET_TYPE_META[newType]?.label ?? newType}`)
                                   } else {
-                                    setOptimisticTypes(prev => ({ ...prev, [restaurant.restaurant_id]: restaurant.outlet_type || 'dining' }))
+                                    setOptimisticTypes(prev => ({ ...prev, [merchant.restaurant_id]: merchant.outlet_type || 'dining' }))
                                     toast.error(res?.message?.error || 'Failed to update type')
                                   }
                                 }}
@@ -1043,7 +1100,7 @@ export default function AdminRestaurantManagement() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <code className="text-[10px] bg-muted px-1 rounded">{restaurant.restaurant_id}</code>
+                          <code className="text-[10px] bg-muted px-1 rounded">{merchant.restaurant_id}</code>
                         </TableCell>
                         <TableCell>
                           {(() => {
@@ -1051,7 +1108,7 @@ export default function AdminRestaurantManagement() {
                             // amber; everything else emerald. Signature status is
                             // shown by the ⭐ next to the name and edited in the
                             // merchant details page (same control as Add Merchant).
-                            const rate = Number(restaurant.platform_fee_percent ?? 0)
+                            const rate = Number(merchant.platform_fee_percent ?? 0)
                             const isLegacy = Math.abs(rate - 1.5) < 0.001
                             return (
                               <Badge
@@ -1066,44 +1123,9 @@ export default function AdminRestaurantManagement() {
                             )
                           })()}
                         </TableCell>
-                        {/* Outstanding cash Success Share (paise → rupees).
-                            Show in red when in cash-payment throttle window. */}
-                        <TableCell className="text-right font-mono">
-                          {(() => {
-                            const paise = Number(restaurant.outstanding_commission_paise || 0)
-                            const isThrottled = restaurant.cash_payments_disabled_until
-                              ? new Date(restaurant.cash_payments_disabled_until) >= new Date(new Date().toDateString())
-                              : false
-                            if (paise === 0) {
-                              return <span className="text-muted-foreground">₹0</span>
-                            }
-                            return (
-                              <span
-                                className={isThrottled ? 'text-rose-600 font-bold' : 'text-amber-600 font-semibold'}
-                                title={isThrottled
-                                  ? `Throttled — cash disabled until ${restaurant.cash_payments_disabled_until}`
-                                  : 'Outstanding cash Success Share'}
-                              >
-                                ₹{(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                              </span>
-                            )
-                          })()}
-                        </TableCell>
                         <TableCell>
                           {(() => {
-                            const s = restaurant.mandate_status || ''
-                            const map: Record<string, { label: string; cls: string }> = {
-                              active:   { label: 'Active',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                              inactive: { label: 'Inactive', cls: 'bg-stone-50 text-stone-600 border-stone-200' },
-                              failed:   { label: 'Failed',   cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-                            }
-                            const m = map[s] || { label: s || '—', cls: 'bg-stone-50 text-stone-500 border-stone-200' }
-                            return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const k = restaurant.razorpay_kyc_status || ''
+                            const k = merchant.razorpay_kyc_status || ''
                             const map: Record<string, { label: string; cls: string }> = {
                               activated:           { label: 'Activated',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                               under_review:        { label: 'Under Review',  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -1115,15 +1137,19 @@ export default function AdminRestaurantManagement() {
                             return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
                           })()}
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {restaurant.coins_balance.toLocaleString()}
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={!!merchant.is_signature}
+                            disabled={updating === merchant.name}
+                            onCheckedChange={(checked) => handleSignatureToggle(merchant, checked)}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost" size="icon" className="h-8 w-8 text-amber-600"
                               onClick={() => {
-                                setSelectedRestaurant(restaurant)
+                                setSelectedMerchant(merchant)
                                 setCoinAmount('')
                                 setIsCoinModalOpen(true)
                               }}
@@ -1132,24 +1158,24 @@ export default function AdminRestaurantManagement() {
                             </Button>
                             <Button
                               variant="ghost" size="icon" className="h-8 w-8"
-                              onClick={() => navigate(`/admin/restaurants/${restaurant.restaurant_id}`)}
+                              onClick={() => navigate(`/admin/merchants/${merchant.restaurant_id}`)}
                             >
                               <Settings className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost" size="icon"
-                              onClick={() => handleStatusToggle(restaurant.name, restaurant.is_active)}
-                              disabled={updating === restaurant.name}
-                              className={cn("h-8 w-8", restaurant.is_active ? "text-red-500" : "text-green-500")}
+                              onClick={() => handleStatusToggle(merchant.name, merchant.is_active)}
+                              disabled={updating === merchant.name}
+                              className={cn("h-8 w-8", merchant.is_active ? "text-red-500" : "text-green-500")}
                             >
-                              {restaurant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                              {merchant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                             </Button>
                             {!isSupervisorOnly && (
                               <Button
                                 variant="ghost" size="icon"
                                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => {
-                                  setRestaurantToDelete({ id: restaurant.restaurant_id, name: restaurant.restaurant_name })
+                                  setMerchantToDelete({ id: merchant.restaurant_id, name: merchant.restaurant_name })
                                   setVerificationInput('')
                                   setIsDeleteDialogOpen(true)
                                 }}
@@ -1189,7 +1215,7 @@ export default function AdminRestaurantManagement() {
             <DialogHeader className="text-center">
               <DialogTitle className="text-xl font-bold text-center w-full">Issue Credits</DialogTitle>
               <DialogDescription className="text-sm text-center pt-2">
-                {coinAction === 'grant' ? 'Manually add' : 'Manually remove'} digital coins {coinAction === 'grant' ? 'to' : 'from'} <span className="font-bold text-foreground">"{selectedRestaurant?.restaurant_name}"</span>.
+                {coinAction === 'grant' ? 'Manually add' : 'Manually remove'} digital coins {coinAction === 'grant' ? 'to' : 'from'} <span className="font-bold text-foreground">"{selectedMerchant?.restaurant_name}"</span>.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -1268,21 +1294,21 @@ export default function AdminRestaurantManagement() {
             <DialogHeader className="text-center">
               <DialogTitle className="text-xl font-bold text-center w-full">Delete Merchant</DialogTitle>
               <DialogDescription className="text-sm text-center pt-2">
-                This action is irreversible. All configurations, balances, and data for <span className="font-bold text-foreground">"{restaurantToDelete?.name}"</span> will be permanently removed.
+                This action is irreversible. All configurations, balances, and data for <span className="font-bold text-foreground">"{merchantToDelete?.name}"</span> will be permanently removed.
               </DialogDescription>
             </DialogHeader>
           </div>
           <div className="px-8 pb-8 space-y-4">
             <div className="space-y-3">
               <Label className="text-xs font-semibold text-muted-foreground">
-                To confirm, please type <span className="font-mono text-red-600 font-bold px-1 bg-red-50 rounded">{restaurantToDelete?.id}</span> below.
+                To confirm, please type <span className="font-mono text-red-600 font-bold px-1 bg-red-50 rounded">{merchantToDelete?.id}</span> below.
               </Label>
               <Input
                 value={verificationInput}
                 onChange={(e) => setVerificationInput(e.target.value)}
                 placeholder="Type merchant ID here"
                 className="h-11 rounded-xl border-muted focus-visible:ring-red-500 font-medium"
-                disabled={updating === restaurantToDelete?.id}
+                disabled={updating === merchantToDelete?.id}
               />
             </div>
           </div>
@@ -1290,18 +1316,18 @@ export default function AdminRestaurantManagement() {
             <Button
               variant="ghost"
               onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={updating === restaurantToDelete?.id}
+              disabled={updating === merchantToDelete?.id}
               className="rounded-xl flex-1 sm:flex-none"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              disabled={verificationInput !== restaurantToDelete?.id || updating === restaurantToDelete?.id}
+              disabled={verificationInput !== merchantToDelete?.id || updating === merchantToDelete?.id}
               onClick={handleConfirmDelete}
               className="rounded-xl px-6 flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white shadow-sm"
             >
-              {updating === restaurantToDelete?.id ? (
+              {updating === merchantToDelete?.id ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Deleting...
@@ -1318,7 +1344,16 @@ export default function AdminRestaurantManagement() {
       <BranchAccessDialog
         open={isBranchAccessOpen}
         onOpenChange={setIsBranchAccessOpen}
-        onAssigned={() => loadRestaurants()}
+        onAssigned={() => loadMerchants()}
+      />
+
+      <UpdateSuccessShareModal
+        open={!!shareUpdateTarget}
+        onOpenChange={(open) => { if (!open) setShareUpdateTarget(null) }}
+        merchantName={shareUpdateTarget?.restaurant_name ?? ''}
+        currentRate={Number(shareUpdateTarget?.platform_fee_percent ?? 0)}
+        onConfirm={handleUpdateShareRate}
+        isSaving={isSavingShareRate}
       />
 
       <Dialog open={isOnboardingModalOpen} onOpenChange={setIsOnboardingModalOpen}>
@@ -1369,14 +1404,14 @@ export default function AdminRestaurantManagement() {
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
                     Select Outlet
                   </Label>
-                  <RestaurantSelector
+                  <MerchantSelector
                     value={selectedOnboardingResId}
                     onSelect={setSelectedOnboardingResId}
-                    options={(restaurants || []).map((r: any) => ({
+                    options={(merchants || []).map((r: any) => ({
                       value: r.name,
                       label: r.restaurant_name
                     }))}
-                    placeholder="Search existing restaurants..."
+                    placeholder="Search existing merchants..."
                   />
                 </div>
                 <Button
@@ -1498,7 +1533,7 @@ export default function AdminRestaurantManagement() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              title="Sync to restaurant"
+                              title="Sync to merchant"
                               className="h-8 w-8 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-500/10 dark:hover:text-green-400 rounded-lg"
                               onClick={() => handleSyncOnboarding(req.name)}
                               disabled={syncingName === req.name}

@@ -9,26 +9,26 @@ import {
 } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 
-interface RestaurantOption {
+interface MerchantOption {
   value: string
   label: string
 }
 
-interface RestaurantSelectorProps {
-  options: RestaurantOption[]
+interface MerchantSelectorProps {
+  options: MerchantOption[]
   value: string
   onSelect: (value: string) => void
   placeholder?: string
   disabled?: boolean
 }
 
-export function RestaurantSelector({
+export function MerchantSelector({
   options,
   value,
   onSelect,
-  placeholder = "Select restaurant...",
+  placeholder = "Select merchant...",
   disabled = false
-}: RestaurantSelectorProps) {
+}: MerchantSelectorProps) {
   const [open, setOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
 
@@ -56,7 +56,7 @@ export function RestaurantSelector({
         <div className="flex items-center px-3 border-b border-white/5 bg-white/5">
           <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
           <Input
-            placeholder="Search restaurants..."
+            placeholder="Search merchants..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex h-11 w-full border-none bg-transparent py-3 text-sm text-white outline-none placeholder:text-muted-foreground focus-visible:ring-0"
@@ -68,7 +68,7 @@ export function RestaurantSelector({
         >
           {filteredOptions.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              No restaurant found.
+              No merchant found.
             </div>
           ) : (
             filteredOptions.map((option) => (

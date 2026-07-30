@@ -42,8 +42,9 @@ import {
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
+import { UpdateSuccessShareModal } from '@/components/UpdateSuccessShareModal'
 
-interface Restaurant {
+interface Merchant {
   name: string
   restaurant_id: string
   restaurant_name: string
@@ -99,8 +100,8 @@ function AdminMerchantDetailsPage() {
   const navigate = useNavigate()
   
   // States
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
-  const [originalRestaurant, setOriginalRestaurant] = useState<Restaurant | null>(null)
+  const [merchant, setMerchant] = useState<Merchant | null>(null)
+  const [originalMerchant, setOriginalMerchant] = useState<Merchant | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false)
@@ -119,6 +120,14 @@ function AdminMerchantDetailsPage() {
   const [isGeneratingRecharge, setIsGeneratingRecharge] = useState(false)
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
+
+  // Opens the "Update Success Share?" prompt right after the Signature
+  // switch is flipped. Confirming here stages platform_fee_percent into the
+  // same local `merchant` draft as the toggle itself — both are saved
+  // together (or discarded together) via the existing Save Changes flow,
+  // so it never fires a second, separate API call on this page.
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareModalBaseRate, setShareModalBaseRate] = useState(0)
 
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -185,7 +194,7 @@ function AdminMerchantDetailsPage() {
       const result = await generateLegacyContent({ restaurant_id: id }) as any
       if (result?.message?.success) {
         toast.success('Legacy content successfully generated!', {
-          description: 'A premium 10/10 story has been crafted for this restaurant.'
+          description: 'A premium 10/10 story has been crafted for this merchant.'
         })
       } else {
         throw new Error(result?.message?.error?.message || 'Generation failed')
@@ -198,7 +207,7 @@ function AdminMerchantDetailsPage() {
   }
 
   // APIs
-  const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { restaurant: Restaurant } }>(
+  const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { merchant: Merchant } }>(
     'flamezo_backend.flamezo.api.admin.get_restaurant_details'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
@@ -217,10 +226,10 @@ function AdminMerchantDetailsPage() {
   }>('flamezo_backend.flamezo.api.admin.admin_create_manual_recharge_link')
 
   const { call: suspendLinkedAccount } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'flamezo_backend.flamezo.doctype.restaurant.restaurant.suspend_linked_account'
+    'flamezo_backend.flamezo.doctype.merchant.merchant.suspend_linked_account'
   )
   const { call: reactivateLinkedAccount } = useFrappePostCall<{ success: boolean, status?: string, error?: string }>(
-    'flamezo_backend.flamezo.doctype.restaurant.restaurant.reactivate_linked_account'
+    'flamezo_backend.flamezo.doctype.merchant.merchant.reactivate_linked_account'
   )
   
   const { data: platformSettingsData } = useFrappeGetCall(
@@ -239,14 +248,14 @@ function AdminMerchantDetailsPage() {
     try {
       setLoading(true)
       const result = await getDetails({ restaurant_id: id }) as any
-      if (result?.message?.data?.restaurant) {
-        const data = result.message.data.restaurant
-        setRestaurant(data)
-        setOriginalRestaurant(data)
+      if (result?.message?.data?.merchant) {
+        const data = result.message.data.merchant
+        setMerchant(data)
+        setOriginalMerchant(data)
       }
     } catch (error) {
-      toast.error('Failed to load restaurant details', { description: getFrappeError(error) })
-      navigate('/admin/restaurants')
+      toast.error('Failed to load merchant details', { description: getFrappeError(error) })
+      navigate('/admin/merchants')
     } finally {
       setLoading(false)
     }
@@ -258,19 +267,19 @@ function AdminMerchantDetailsPage() {
 
   // Detect changes
   const isDirty = useMemo(() => {
-    if (!restaurant || !originalRestaurant) return false
-    return JSON.stringify(restaurant) !== JSON.stringify(originalRestaurant)
-  }, [restaurant, originalRestaurant])
+    if (!merchant || !originalMerchant) return false
+    return JSON.stringify(merchant) !== JSON.stringify(originalMerchant)
+  }, [merchant, originalMerchant])
 
   const handleSaveChanges = async () => {
-    if (!id || !restaurant || !originalRestaurant) return
+    if (!id || !merchant || !originalMerchant) return
     
     // Find only changed fields
     const updates: Record<string, any> = {}
-    Object.keys(restaurant).forEach((key) => {
-      const k = key as keyof Restaurant
-      if (restaurant[k] !== originalRestaurant[k]) {
-        updates[k] = restaurant[k]
+    Object.keys(merchant).forEach((key) => {
+      const k = key as keyof Merchant
+      if (merchant[k] !== originalMerchant[k]) {
+        updates[k] = merchant[k]
       }
     })
 
@@ -287,7 +296,7 @@ function AdminMerchantDetailsPage() {
       }) as any
       if (result?.message?.success) {
         toast.success('Changes saved successfully')
-        setOriginalRestaurant(restaurant)
+        setOriginalMerchant(merchant)
       } else {
         throw new Error(result?.message?.error || 'Failed to save changes')
       }
@@ -299,7 +308,7 @@ function AdminMerchantDetailsPage() {
   }
 
   const handleDiscardChanges = () => {
-    setRestaurant(originalRestaurant)
+    setMerchant(originalMerchant)
     toast.info('Changes discarded')
   }
 
@@ -343,8 +352,8 @@ function AdminMerchantDetailsPage() {
   }
 
   const openOnboardModal = () => {
-    setOnboardName(restaurant?.owner_name || '')
-    setOnboardEmail(restaurant?.owner_email || '')
+    setOnboardName(merchant?.owner_name || '')
+    setOnboardEmail(merchant?.owner_email || '')
     setOnboardResult(null)
     setIsOnboardModalOpen(true)
   }
@@ -389,7 +398,7 @@ function AdminMerchantDetailsPage() {
     )
   }
 
-  if (!restaurant) {
+  if (!merchant) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <Card className="w-full max-w-md border-destructive/20 shadow-lg">
@@ -397,7 +406,7 @@ function AdminMerchantDetailsPage() {
             <ShieldAlert className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Outlet Not Found</h2>
             <p className="text-muted-foreground mb-6">The requested outlet ID does not exist.</p>
-            <Button onClick={() => navigate('/admin/restaurants')}>Go Back</Button>
+            <Button onClick={() => navigate('/admin/merchants')}>Go Back</Button>
           </CardContent>
         </Card>
       </div>
@@ -413,7 +422,7 @@ function AdminMerchantDetailsPage() {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => navigate('/admin/restaurants')}
+              onClick={() => navigate('/admin/merchants')}
               className="group -ml-2 text-muted-foreground hover:text-primary"
             >
               <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
@@ -421,21 +430,21 @@ function AdminMerchantDetailsPage() {
             </Button>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 mb-1">
-                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight break-words">{restaurant.restaurant_name}</h1>
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight break-words">{merchant.restaurant_name}</h1>
                 <Badge 
-                  variant={restaurant.is_active ? 'default' : 'secondary'}
+                  variant={merchant.is_active ? 'default' : 'secondary'}
                   className={cn(
                     "px-3 py-0.5 text-xs font-bold uppercase tracking-wider shrink-0",
-                    restaurant.is_active ? "bg-green-500/10 text-green-600 border-green-200" : "bg-muted text-muted-foreground"
+                    merchant.is_active ? "bg-green-500/10 text-green-600 border-green-200" : "bg-muted text-muted-foreground"
                   )}
                 >
-                  {restaurant.is_active ? 'Live' : 'Inactive'}
+                  {merchant.is_active ? 'Live' : 'Inactive'}
                 </Badge>
               </div>
               <div className="text-muted-foreground font-mono text-sm flex flex-wrap items-center gap-2">
-                <span className="shrink-0">ID: {restaurant.restaurant_id}</span>
+                <span className="shrink-0">ID: {merchant.restaurant_id}</span>
                 <Separator className="hidden sm:block h-3 w-px mx-1 bg-muted-foreground/30" /> 
-                <span className="flex items-center gap-1.5 shrink-0"><Globe className="h-3 w-3" /> {restaurant.subdomain || 'no-subdomain'}.flamezo.in</span>
+                <span className="flex items-center gap-1.5 shrink-0"><Globe className="h-3 w-3" /> {merchant.subdomain || 'no-subdomain'}.flamezo.in</span>
               </div>
             </div>
           </div>
@@ -471,8 +480,8 @@ function AdminMerchantDetailsPage() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
                 <MenuImageExtractorForm 
-                  restaurantId={restaurant.name} 
-                  restaurantName={restaurant.restaurant_name}
+                  restaurantId={merchant.name} 
+                  restaurantName={merchant.restaurant_name}
                   onComplete={() => {
                       toast.success('Catalogue extraction complete!')
                   }}
@@ -576,8 +585,8 @@ function AdminMerchantDetailsPage() {
             <CardContent className="p-5">
               <p className="text-[10px] uppercase font-bold tracking-widest text-primary/60 mb-1">Success Share</p>
               {(() => {
-                // Platform Success Share rate that this restaurant pays (legacy 1.5% vs new 3% vs custom).
-                const rate = Number(restaurant.platform_fee_percent ?? 0)
+                // Platform Success Share rate that this merchant pays (legacy 1.5% vs new 3% vs custom).
+                const rate = Number(merchant.platform_fee_percent ?? 0)
                 const isLegacy = Math.abs(rate - 1.5) < 0.001
                 return (
                   <div className="flex items-center gap-2">
@@ -607,7 +616,7 @@ function AdminMerchantDetailsPage() {
             <CardContent className="p-5">
               <p className="text-[10px] uppercase font-bold tracking-widest text-green-600/60 mb-1">Revenue (Life)</p>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold">₹{restaurant.total_revenue.toLocaleString()}</span>
+                <span className="text-xl font-bold">₹{merchant.total_revenue.toLocaleString()}</span>
               </div>
             </CardContent>
           </Card>
@@ -619,7 +628,7 @@ function AdminMerchantDetailsPage() {
             <CardContent className="p-5">
               <p className="text-[10px] uppercase font-bold tracking-widest text-orange-600/60 mb-1">Wallet Balance</p>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold">{restaurant.coins_balance.toLocaleString()} Coins</span>
+                <span className="text-xl font-bold">{merchant.coins_balance.toLocaleString()} Coins</span>
               </div>
             </CardContent>
           </Card>
@@ -656,13 +665,13 @@ function AdminMerchantDetailsPage() {
                     <div className="space-y-2">
                       <Label>Legal Business Name</Label>
                       <Input 
-                        value={restaurant.restaurant_name} 
-                        onChange={(e) => setRestaurant({...restaurant, restaurant_name: e.target.value})}
+                        value={merchant.restaurant_name} 
+                        onChange={(e) => setMerchant({...merchant, restaurant_name: e.target.value})}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Internal Slug / ID</Label>
-                      <Input value={restaurant.restaurant_id} disabled className="bg-muted/50 font-mono" />
+                      <Input value={merchant.restaurant_id} disabled className="bg-muted/50 font-mono" />
                     </div>
                   </div>
 
@@ -681,22 +690,22 @@ function AdminMerchantDetailsPage() {
                       <div className="space-y-2">
                         <Label>Owner Name</Label>
                         <Input 
-                          value={restaurant.owner_name || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, owner_name: e.target.value})}
+                          value={merchant.owner_name || ''} 
+                          onChange={(e) => setMerchant({...merchant, owner_name: e.target.value})}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Owner Email</Label>
                         <Input 
-                          value={restaurant.owner_email || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, owner_email: e.target.value})}
+                          value={merchant.owner_email || ''} 
+                          onChange={(e) => setMerchant({...merchant, owner_email: e.target.value})}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Owner Phone</Label>
                         <Input 
-                          value={restaurant.owner_phone || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, owner_phone: e.target.value})}
+                          value={merchant.owner_phone || ''} 
+                          onChange={(e) => setMerchant({...merchant, owner_phone: e.target.value})}
                         />
                       </div>
                     </div>
@@ -705,17 +714,17 @@ function AdminMerchantDetailsPage() {
                       <div className="flex items-center gap-2 max-w-sm">
                         <Input 
                           type={showPassword ? "text" : "password"}
-                          value={restaurant.onboarding_password || 'Onboarding is left'} 
+                          value={merchant.onboarding_password || 'Onboarding is left'} 
                           readOnly
                           className="bg-muted text-muted-foreground font-mono"
                         />
-                        {restaurant.onboarding_password && (
+                        {merchant.onboarding_password && (
                           <>
                             <Button variant="outline" size="icon" onClick={() => setShowPassword(!showPassword)}>
                               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </Button>
                             <Button variant="outline" size="icon" onClick={() => {
-                              copyToClipboard(restaurant.onboarding_password!);
+                              copyToClipboard(merchant.onboarding_password!);
                               toast.success('Password copied to clipboard!');
                             }}>
                               <ClipboardCopy className="h-4 w-4" />
@@ -736,11 +745,11 @@ function AdminMerchantDetailsPage() {
                       <Label>Location Map URL</Label>
                       <div className="flex gap-2">
                         <Input 
-                          value={restaurant.google_map_url || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, google_map_url: e.target.value})}
+                          value={merchant.google_map_url || ''} 
+                          onChange={(e) => setMerchant({...merchant, google_map_url: e.target.value})}
                           placeholder="Google Maps URL"
                         />
-                        <Button variant="outline" size="icon" onClick={() => window.open(restaurant.google_map_url, '_blank')} disabled={!restaurant.google_map_url}>
+                        <Button variant="outline" size="icon" onClick={() => window.open(merchant.google_map_url, '_blank')} disabled={!merchant.google_map_url}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </div>
@@ -748,8 +757,8 @@ function AdminMerchantDetailsPage() {
                     <div className="space-y-2">
                       <Label>Description</Label>
                       <Textarea 
-                        value={restaurant.description || ''} 
-                        onChange={(e) => setRestaurant({...restaurant, description: e.target.value})}
+                        value={merchant.description || ''} 
+                        onChange={(e) => setMerchant({...merchant, description: e.target.value})}
                         rows={4}
                       />
                     </div>
@@ -768,8 +777,8 @@ function AdminMerchantDetailsPage() {
                       <p className="text-xs text-muted-foreground">Toggle visibility of the outlet platform-wide</p>
                     </div>
                     <Switch
-                      checked={!!restaurant.is_active}
-                      onCheckedChange={(checked) => setRestaurant({...restaurant, is_active: checked ? 1 : 0})}
+                      checked={!!merchant.is_active}
+                      onCheckedChange={(checked) => setMerchant({...merchant, is_active: checked ? 1 : 0})}
                     />
                   </div>
 
@@ -779,8 +788,8 @@ function AdminMerchantDetailsPage() {
                       <p className="text-xs text-muted-foreground">Show in Hot Drops &amp; Limelight on the discover feed</p>
                     </div>
                     <Switch
-                      checked={!!restaurant.is_featured}
-                      onCheckedChange={(checked) => setRestaurant({...restaurant, is_featured: checked ? 1 : 0})}
+                      checked={!!merchant.is_featured}
+                      onCheckedChange={(checked) => setMerchant({...merchant, is_featured: checked ? 1 : 0})}
                     />
                   </div>
 
@@ -790,8 +799,12 @@ function AdminMerchantDetailsPage() {
                       <p className="text-xs text-muted-foreground">Flamezo curated — awarded for ambience, food &amp; value. Appears in the Signatures tab.</p>
                     </div>
                     <Switch
-                      checked={!!restaurant.is_signature}
-                      onCheckedChange={(checked) => setRestaurant({...restaurant, is_signature: checked ? 1 : 0})}
+                      checked={!!merchant.is_signature}
+                      onCheckedChange={(checked) => {
+                        setShareModalBaseRate(Number(merchant.platform_fee_percent ?? 0))
+                        setMerchant({...merchant, is_signature: checked ? 1 : 0})
+                        setShowShareModal(true)
+                      }}
                     />
                   </div>
 
@@ -800,15 +813,15 @@ function AdminMerchantDetailsPage() {
                      <div className="space-y-3">
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-muted-foreground">Created on</span>
-                          <span className="font-medium">{formatDate(restaurant.creation)}</span>
+                          <span className="font-medium">{formatDate(merchant.creation)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-muted-foreground">Last modified</span>
-                          <span className="font-medium">{formatDate(restaurant.modified)}</span>
+                          <span className="font-medium">{formatDate(merchant.modified)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-muted-foreground">Success Share Rate</span>
-                          <Badge variant="outline" className="text-primary border-primary/20">{restaurant.platform_fee_percent}%</Badge>
+                          <Badge variant="outline" className="text-primary border-primary/20">{merchant.platform_fee_percent}%</Badge>
                         </div>
                      </div>
                   </div>
@@ -821,13 +834,13 @@ function AdminMerchantDetailsPage() {
                        <div className="space-y-1.5">
                          <Label className="text-[10px] uppercase font-bold text-muted-foreground/60">Own Referral Code</Label>
                          <div className="flex gap-2">
-                           <Input value={restaurant.referral_code || ''} readOnly className="h-8 bg-muted/30 font-mono text-xs" />
+                           <Input value={merchant.referral_code || ''} readOnly className="h-8 bg-muted/30 font-mono text-xs" />
                            <Button 
                              variant="outline" 
                              size="sm" 
                              onClick={async () => {
-                               if (restaurant.referral_code) {
-                                 const success = await copyToClipboard(restaurant.referral_code)
+                               if (merchant.referral_code) {
+                                 const success = await copyToClipboard(merchant.referral_code)
                                  if (success) toast.success('Code copied')
                                }
                              }}
@@ -838,10 +851,10 @@ function AdminMerchantDetailsPage() {
                          </div>
                        </div>
                        <div className="space-y-1.5">
-                         <Label className="text-[10px] uppercase font-bold text-muted-foreground/60">Referred By (Restaurant ID)</Label>
+                         <Label className="text-[10px] uppercase font-bold text-muted-foreground/60">Referred By (Merchant ID)</Label>
                          <Input 
-                           value={restaurant.referred_by_restaurant || ''} 
-                           onChange={(e) => setRestaurant({...restaurant, referred_by_restaurant: e.target.value})}
+                           value={merchant.referred_by_restaurant || ''} 
+                           onChange={(e) => setMerchant({...merchant, referred_by_restaurant: e.target.value})}
                            placeholder="e.g. the-food-court"
                            className="h-8 text-xs font-mono"
                          />
@@ -857,7 +870,7 @@ function AdminMerchantDetailsPage() {
                       <span className="text-sm font-bold">Admin Zone</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      Changes here affect the billing engine and restaurant access. Exercise caution.
+                      Changes here affect the billing engine and merchant access. Exercise caution.
                     </p>
                   </div>
                 </CardContent>
@@ -878,11 +891,11 @@ function AdminMerchantDetailsPage() {
                   <div className="space-y-2">
                     <Label>Success Share (%)</Label>
                     <NumberInput
-                      value={restaurant.platform_fee_percent}
-                      onChange={(e) => setRestaurant({...restaurant, platform_fee_percent: parseFloat(e.target.value)})}
+                      value={merchant.platform_fee_percent}
+                      onChange={(e) => setMerchant({...merchant, platform_fee_percent: parseFloat(e.target.value)})}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Default 3% for new restaurants, 1.5% grandfathered.
+                      Default 3% for new merchants, 1.5% grandfathered.
                     </p>
                   </div>
 
@@ -891,8 +904,8 @@ function AdminMerchantDetailsPage() {
                   <div className="space-y-3">
                     <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Admin Billing Status</Label>
                     <Select
-                      value={restaurant.billing_status}
-                      onValueChange={(v) => setRestaurant({...restaurant, billing_status: v})}
+                      value={merchant.billing_status}
+                      onValueChange={(v) => setMerchant({...merchant, billing_status: v})}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -917,8 +930,8 @@ function AdminMerchantDetailsPage() {
                   {/* Settlement Mode + KYC Status — the two most important
                       signals at a glance. */}
                   {(() => {
-                    const routeMode = restaurant.route_mode || 'flamezo_hold'
-                    const kycStatus = restaurant.razorpay_kyc_status || ''
+                    const routeMode = merchant.route_mode || 'flamezo_hold'
+                    const kycStatus = merchant.razorpay_kyc_status || ''
                     const routeMap: Record<string, { label: string; cls: string; hint: string }> = {
                       direct_split: { label: 'Direct Split', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', hint: 'Payments split at capture; merchant gets bulk in T+2.' },
                       flamezo_hold: { label: 'Flamezo Hold', cls: 'bg-stone-50 text-stone-700 border-stone-200', hint: 'Payments land in Flamezo; weekly NEFT to merchant.' },
@@ -960,13 +973,13 @@ function AdminMerchantDetailsPage() {
                   <div className="space-y-2">
                     <Label>Razorpay Linked Account ID</Label>
                     <Input
-                      value={restaurant.razorpay_account_id || ''}
+                      value={merchant.razorpay_account_id || ''}
                       disabled
                       className="bg-muted/50 font-mono text-xs"
                       placeholder="— Not created yet —"
                     />
-                    {restaurant.razorpay_account_id && (() => {
-                      const isSuspended = restaurant.razorpay_kyc_status === 'suspended'
+                    {merchant.razorpay_account_id && (() => {
+                      const isSuspended = merchant.razorpay_kyc_status === 'suspended'
                       return (
                         <Button
                           size="sm"
@@ -977,15 +990,15 @@ function AdminMerchantDetailsPage() {
                             const action = isSuspended ? 'reactivate' : 'suspend'
                             const confirmed = window.confirm(
                               isSuspended
-                                ? `Reactivate linked account ${restaurant.razorpay_account_id} for ${restaurant.restaurant_name}?`
-                                : `Suspend linked account ${restaurant.razorpay_account_id} for ${restaurant.restaurant_name}? No Route transfers will go to this restaurant until reactivated.`
+                                ? `Reactivate linked account ${merchant.razorpay_account_id} for ${merchant.restaurant_name}?`
+                                : `Suspend linked account ${merchant.razorpay_account_id} for ${merchant.restaurant_name}? No Route transfers will go to this merchant until reactivated.`
                             )
                             if (!confirmed) return
                             setIsRouteActionLoading(true)
                             try {
                               const result = isSuspended
-                                ? await reactivateLinkedAccount({ restaurant: restaurant.name }) as any
-                                : await suspendLinkedAccount({ restaurant: restaurant.name }) as any
+                                ? await reactivateLinkedAccount({ merchant: merchant.name }) as any
+                                : await suspendLinkedAccount({ merchant: merchant.name }) as any
                               const res = result?.message
                               if (res?.success) {
                                 toast.success(isSuspended ? 'Linked account reactivated' : 'Linked account suspended')
@@ -1013,10 +1026,10 @@ function AdminMerchantDetailsPage() {
                     <div className="flex items-center justify-between">
                       <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Autopay Mandate</Label>
                       <Badge
-                        variant={restaurant.mandate_status === 'active' ? 'default' : 'destructive'}
-                        className={restaurant.mandate_status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'text-white'}
+                        variant={merchant.mandate_status === 'active' ? 'default' : 'destructive'}
+                        className={merchant.mandate_status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'text-white'}
                       >
-                        {restaurant.mandate_status ? restaurant.mandate_status.toUpperCase() : 'INACTIVE'}
+                        {merchant.mandate_status ? merchant.mandate_status.toUpperCase() : 'INACTIVE'}
                       </Badge>
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-snug">
@@ -1026,12 +1039,12 @@ function AdminMerchantDetailsPage() {
 
                   {/* Outstanding cash Success Share — admin-visible debt. */}
                   {(() => {
-                    const outstandingPaise = Number(restaurant.outstanding_commission_paise || 0)
-                    const throttledUntil = restaurant.cash_payments_disabled_until
+                    const outstandingPaise = Number(merchant.outstanding_commission_paise || 0)
+                    const throttledUntil = merchant.cash_payments_disabled_until
                     const isThrottled = throttledUntil
                       ? new Date(throttledUntil) >= new Date(new Date().toDateString())
                       : false
-                    const failureCount = Number(restaurant.cash_sweep_failure_count || 0)
+                    const failureCount = Number(merchant.cash_sweep_failure_count || 0)
                     if (outstandingPaise === 0 && !isThrottled && failureCount === 0) return null
                     return (
                       <div className={cn(
@@ -1064,9 +1077,9 @@ function AdminMerchantDetailsPage() {
                             Cash payments disabled until <span className="font-bold">{throttledUntil}</span> to drain debt via online net-off.
                           </p>
                         )}
-                        {restaurant.last_cash_sweep_error && (
-                          <p className="text-[10px] text-muted-foreground leading-snug truncate" title={restaurant.last_cash_sweep_error}>
-                            Last error: <span className="font-mono">{restaurant.last_cash_sweep_error}</span>
+                        {merchant.last_cash_sweep_error && (
+                          <p className="text-[10px] text-muted-foreground leading-snug truncate" title={merchant.last_cash_sweep_error}>
+                            Last error: <span className="font-mono">{merchant.last_cash_sweep_error}</span>
                           </p>
                         )}
                       </div>
@@ -1074,16 +1087,16 @@ function AdminMerchantDetailsPage() {
                   })()}
 
                   {/* Submitted KYC details — only show if any field is on file. */}
-                  {(restaurant.legal_name || restaurant.pan_number || restaurant.bank_ifsc) && (
+                  {(merchant.legal_name || merchant.pan_number || merchant.bank_ifsc) && (
                     <div className="space-y-3">
                       <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Submitted KYC Details</Label>
                       <div className="rounded-xl border divide-y divide-border/40 text-xs">
-                        <KycRow label="Legal Name" value={restaurant.legal_name} />
-                        <KycRow label="Business Type" value={restaurant.business_type} mono={false} />
-                        <KycRow label="PAN" value={restaurant.pan_number} mask={(v) => maskPan(v)} />
-                        <KycRow label="Bank Account" value={restaurant.bank_account_number} mask={(v) => maskAccount(v)} />
-                        <KycRow label="IFSC" value={restaurant.bank_ifsc} />
-                        <KycRow label="Account Holder" value={restaurant.bank_holder_name} mono={false} />
+                        <KycRow label="Legal Name" value={merchant.legal_name} />
+                        <KycRow label="Business Type" value={merchant.business_type} mono={false} />
+                        <KycRow label="PAN" value={merchant.pan_number} mask={(v) => maskPan(v)} />
+                        <KycRow label="Bank Account" value={merchant.bank_account_number} mask={(v) => maskAccount(v)} />
+                        <KycRow label="IFSC" value={merchant.bank_ifsc} />
+                        <KycRow label="Account Holder" value={merchant.bank_holder_name} mono={false} />
                       </div>
                     </div>
                   )}
@@ -1095,7 +1108,7 @@ function AdminMerchantDetailsPage() {
                       <ShieldAlert className="h-3 w-3" /> Success Share Reconciliation
                     </p>
                     <p className="text-[10px] text-indigo-600/80 leading-relaxed">
-                      Total Success Share earned from this outlet: <span className="font-bold">₹{(restaurant.commission_earned || 0).toLocaleString()}</span>.
+                      Total Success Share earned from this outlet: <span className="font-bold">₹{(merchant.commission_earned || 0).toLocaleString()}</span>.
                       Reconciled every 24 hours.
                     </p>
                   </div>
@@ -1117,7 +1130,7 @@ function AdminMerchantDetailsPage() {
                 <CardContent className="space-y-6">
                   <div className="text-center py-6 bg-orange-500/10 rounded-2xl border border-orange-200">
                     <p className="text-sm text-orange-600 font-bold uppercase tracking-wider mb-2">Current Balance</p>
-                    <h2 className="text-5xl font-black text-orange-700">{restaurant.coins_balance.toLocaleString()}</h2>
+                    <h2 className="text-5xl font-black text-orange-700">{merchant.coins_balance.toLocaleString()}</h2>
                     <p className="text-[10px] text-orange-600/60 mt-1">Flamezo Coins (1 Coin = ₹1)</p>
                   </div>
 
@@ -1144,7 +1157,7 @@ function AdminMerchantDetailsPage() {
                    <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 rounded-xl border bg-muted/20">
                          <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Total Refilled</p>
-                         <p className="text-lg font-bold">₹{(restaurant.total_revenue || 0).toLocaleString()}</p>
+                         <p className="text-lg font-bold">₹{(merchant.total_revenue || 0).toLocaleString()}</p>
                       </div>
                       <div className="p-4 rounded-xl border bg-muted/20">
                          <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Avg Consump.</p>
@@ -1264,7 +1277,7 @@ function AdminMerchantDetailsPage() {
                             size="icon" 
                             className="shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
                             onClick={async () => {
-                              const msg = `Hi ${restaurant.owner_name || restaurant.restaurant_name}, please use this link to top-up your Flamezo wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
+                              const msg = `Hi ${merchant.owner_name || merchant.restaurant_name}, please use this link to top-up your Flamezo wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
                               const success = await copyToClipboard(msg)
                               if (success) toast.success('Recharge message copied!')
                             }}
@@ -1274,7 +1287,7 @@ function AdminMerchantDetailsPage() {
                           </Button>
                         </div>
                         <p className="text-[10px] text-muted-foreground italic">
-                          Share the link or the full message with {restaurant.owner_name || 'the customer'}.
+                          Share the link or the full message with {merchant.owner_name || 'the customer'}.
                         </p>
                       </div>
                     )}
@@ -1297,11 +1310,11 @@ function AdminMerchantDetailsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                         <div className="flex flex-col items-center gap-3 p-4 rounded-xl border md:col-span-1">
                            <Label className="text-[10px] uppercase font-bold opacity-50">Dine-In</Label>
-                           <Switch checked={!!restaurant.enable_dine_in} onCheckedChange={(v) => setRestaurant({...restaurant, enable_dine_in: v ? 1 : 0})} />
+                           <Switch checked={!!merchant.enable_dine_in} onCheckedChange={(v) => setMerchant({...merchant, enable_dine_in: v ? 1 : 0})} />
                         </div>
                         <div className="flex flex-col items-center gap-3 p-4 rounded-xl border md:col-span-1">
                            <Label className="text-[10px] uppercase font-bold opacity-50">Loyalty</Label>
-                           <Switch checked={!!restaurant.enable_loyalty} onCheckedChange={(v) => setRestaurant({...restaurant, enable_loyalty: v ? 1 : 0})} />
+                           <Switch checked={!!merchant.enable_loyalty} onCheckedChange={(v) => setMerchant({...merchant, enable_loyalty: v ? 1 : 0})} />
                         </div>
                     </div>
 
@@ -1310,19 +1323,19 @@ function AdminMerchantDetailsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div className="space-y-2">
                           <Label>Currency</Label>
-                          <Input value={restaurant.currency} disabled className="bg-muted/50" />
+                          <Input value={merchant.currency} disabled className="bg-muted/50" />
                        </div>
                        <div className="space-y-2">
                           <Label>Tax Rate (%)</Label>
                           <NumberInput 
                             
-                            value={restaurant.tax_rate} 
-                            onChange={(e) => setRestaurant({...restaurant, tax_rate: parseFloat(e.target.value)})}
+                            value={merchant.tax_rate} 
+                            onChange={(e) => setMerchant({...merchant, tax_rate: parseFloat(e.target.value)})}
                           />
                        </div>
                        <div className="space-y-2">
                           <Label>Timezone</Label>
-                          <Input value={restaurant.timezone} disabled className="bg-muted/50" />
+                          <Input value={merchant.timezone} disabled className="bg-muted/50" />
                        </div>
                     </div>
 
@@ -1340,14 +1353,14 @@ function AdminMerchantDetailsPage() {
                               <p className="text-sm font-bold">Tables Count</p>
                               <p className="text-[10px] text-muted-foreground uppercase">Triggers QR Generation</p>
                            </div>
-                           <h2 className="text-2xl font-black">{restaurant.tables}</h2>
+                           <h2 className="text-2xl font-black">{merchant.tables}</h2>
                         </div>
                         <div className="space-y-2">
                           <Label>Update Tables</Label>
                           <NumberInput 
                              
-                             value={restaurant.tables} 
-                             onChange={(e) => setRestaurant({...restaurant, tables: parseInt(e.target.value)})}
+                             value={merchant.tables} 
+                             onChange={(e) => setMerchant({...merchant, tables: parseInt(e.target.value)})}
                           />
                         </div>
                      </div>
@@ -1357,8 +1370,8 @@ function AdminMerchantDetailsPage() {
                      <div className="space-y-2">
                         <Label>GST Identification</Label>
                         <Input 
-                          value={restaurant.gst_number || ''} 
-                          onChange={(e) => setRestaurant({...restaurant, gst_number: e.target.value})}
+                          value={merchant.gst_number || ''} 
+                          onChange={(e) => setMerchant({...merchant, gst_number: e.target.value})}
                           placeholder="GSTIN"
                         />
                      </div>
@@ -1411,6 +1424,17 @@ function AdminMerchantDetailsPage() {
           </div>
         </div>
       )}
+      <UpdateSuccessShareModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        merchantName={merchant.restaurant_name}
+        currentRate={shareModalBaseRate}
+        onConfirm={(newRate) => {
+          setMerchant({ ...merchant, platform_fee_percent: newRate })
+          setShowShareModal(false)
+        }}
+      />
+
       <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
         <DialogContent className="sm:max-w-md p-6 rounded-2xl">
           <DialogHeader>
