@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user_phone",
+  "chills_id",
+  "column_break_1",
+  "event_type",
+  "source",
+  "section_break_metrics",
+  "watch_pct",
+  "watch_sec",
+  "section_break_context",
+  "outlet_id",
+  "niche_tags_snapshot",
+  "session_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "user_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Phone",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "chills_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Chills ID",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Event Type",
+   "options": "watch_complete\nwatch_half\nfast_skip\nshare\nsave\nreplay\nprofile_tap\nnot_interested",
+   "reqd": 1
+  },
+  {
+   "default": "feed",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "feed\nprofile\ndiscovery\nsearch"
+  },
+  {
+   "fieldname": "section_break_metrics",
+   "fieldtype": "Section Break",
+   "label": "Watch Metrics"
+  },
+  {
+   "default": "0",
+   "fieldname": "watch_pct",
+   "fieldtype": "Int",
+   "label": "Watch %"
+  },
+  {
+   "default": "0",
+   "fieldname": "watch_sec",
+   "fieldtype": "Int",
+   "label": "Watch Seconds"
+  },
+  {
+   "fieldname": "section_break_context",
+   "fieldtype": "Section Break",
+   "label": "Context"
+  },
+  {
+   "fieldname": "outlet_id",
+   "fieldtype": "Data",
+   "label": "Outlet ID",
+   "search_index": 1
+  },
+  {
+   "fieldname": "niche_tags_snapshot",
+   "fieldtype": "Small Text",
+   "label": "Niche Tags (Snapshot)",
+   "description": "JSON snapshot of niche tags at time of watch — allows retroactive preference recompute"
+  },
+  {
+   "fieldname": "session_id",
+   "fieldtype": "Data",
+   "label": "Session ID"
+  }
+ ],
+ "issingle": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Chills Watch Event",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

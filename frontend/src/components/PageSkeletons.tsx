@@ -524,6 +524,175 @@ export function CatalogueSkeleton() {
   )
 }
 
+// ─── Chills Upload ────────────────────────────────────────────────────────────
+
+export function ChillsUploadSkeleton() {
+  return (
+    <div className="space-y-6 p-6 max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-10 w-10 rounded-xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-36" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+      </div>
+
+      {/* Drop zone */}
+      <Card className="p-8 flex flex-col items-center gap-4">
+        <Skeleton className="h-16 w-16 rounded-2xl" />
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-10 w-36 rounded-lg" />
+      </Card>
+
+      {/* Video preview + thumbnail row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="overflow-hidden">
+          <Skeleton className="h-56 w-full rounded-none" />
+          <div className="p-3 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </Card>
+        <Card className="p-4 space-y-4">
+          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+        </Card>
+      </div>
+
+      {/* Form fields */}
+      <Card className="p-4 space-y-4">
+        <Skeleton className="h-5 w-32" />
+        {Array.from({ length: 3 }).map((_, i) => <FormFieldSkeleton key={i} />)}
+      </Card>
+
+      {/* Publish button */}
+      <Skeleton className="h-11 w-full rounded-lg" />
+    </div>
+  )
+}
+
+// ─── Chills Videos ────────────────────────────────────────────────────────────
+
+export function ChillsVideosSkeleton() {
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-36" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <Skeleton className="h-9 w-32 rounded-lg" />
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="p-4 space-y-2">
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-3 w-20" />
+          </Card>
+        ))}
+      </div>
+
+      {/* Video grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i} className="overflow-hidden">
+            <Skeleton className="h-48 w-full rounded-none" />
+            <div className="p-3 space-y-2">
+              <Skeleton className="h-3 w-full" />
+              <div className="flex gap-4">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="flex items-center gap-1">
+                    <Skeleton className="h-3 w-3 rounded" />
+                    <Skeleton className="h-3 w-8" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Skeleton className="h-7 flex-1 rounded-lg" />
+                <Skeleton className="h-7 w-7 rounded-lg" />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Chills Analytics ─────────────────────────────────────────────────────────
+
+export function ChillsAnalyticsSkeleton() {
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-60" />
+      </div>
+
+      {/* Top stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
+      </div>
+
+      {/* Engagement + top video */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2 p-4 space-y-4">
+          <Skeleton className="h-5 w-36" />
+          <div className="grid grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border p-3 space-y-2">
+                <Skeleton className="h-6 w-6 rounded" />
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-4 space-y-3">
+          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Per-video table */}
+      <Card>
+        <div className="flex items-center gap-4 px-4 py-3 border-b border-border bg-muted/30">
+          {[200, 60, 60, 60, 60, 80].map((w, i) => (
+            <Skeleton key={i} className="h-3 flex-shrink-0" style={{ width: w }} />
+          ))}
+        </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-border/50">
+            <div className="flex items-center gap-3" style={{ width: 200, flexShrink: 0 }}>
+              <Skeleton className="h-10 w-16 rounded-md" />
+              <Skeleton className="h-4 flex-1" />
+            </div>
+            {Array.from({ length: 4 }).map((_, j) => (
+              <Skeleton key={j} className="h-4 w-14 flex-shrink-0" />
+            ))}
+            <Skeleton className="h-5 w-16 rounded-full flex-shrink-0" />
+          </div>
+        ))}
+      </Card>
+    </div>
+  )
+}
+
 // ─── Generic fallback (keeps existing PageSkeleton shape) ─────────────────────
 
 export function GenericPageSkeleton() {

@@ -1,8 +1,12 @@
 import uuid
+import json as _json
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, today
+from frappe.utils import now_datetime, today, cint
 
+# ── Tag limits ───────────────────────────────────────────────────────────────
+MAX_NICHE_TAGS = 8
+MAX_CUSTOM_TAGS = 5
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -14,6 +18,48 @@ def _require_phone(phone):
 
 def _redis_key(prefix, *parts):
     return f"chills:{prefix}:" + ":".join(str(p) for p in parts)
+
+
+def _parse_list(val):
+    """Parse a JSON-encoded list or pass-through a list. Returns [] on failure."""
+    if not val:
+        return []
+    try:
+        parsed = _json.loads(val) if isinstance(val, str) else val
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def _validate_tags(niche_raw, custom_raw):
+    """
+    Parse, validate against taxonomy, deduplicate, and cap both tag lists.
+    Returns (niche_list, custom_list) as plain Python lists.
+    Raises frappe.ValidationError if limits exceeded.
+    """
+    from flamezo_backend.flamezo.utils.niche_taxonomy import TAXONOMY_IDS
+
+    niche = _parse_list(niche_raw)
+    custom = _parse_list(custom_raw)
+
+    # Validate niche IDs against known taxonomy
+    niche = [i for i in niche if isinstance(i, str) and i.strip() and i in TAXONOMY_IDS]
+
+    # Clean custom tags
+    custom = [t.strip() for t in custom if isinstance(t, str) and t.strip()]
+
+    # Deduplicate preserving insertion order
+    seen: set = set()
+    niche = [i for i in niche if not (i in seen or seen.add(i))]  # type: ignore[func-returns-value]
+    seen = set()
+    custom = [t for t in custom if not (t in seen or seen.add(t))]  # type: ignore[func-returns-value]
+
+    if len(niche) > MAX_NICHE_TAGS:
+        frappe.throw(_(f"Maximum {MAX_NICHE_TAGS} niche tags allowed per Chills"))
+    if len(custom) > MAX_CUSTOM_TAGS:
+        frappe.throw(_(f"Maximum {MAX_CUSTOM_TAGS} custom tags allowed per Chills"))
+
+    return niche, custom
 
 
 def _get_outlet_follow_set(phone):
@@ -67,6 +113,14 @@ def _format_chills(c, liked_set, saved_set, follow_set, offers_map):
         },
         "description": c.description or "",
         "audio": c.audio or "",
+        "nicheTags": _parse_list(c.niche_tags),
+        "customTags": _parse_list(c.custom_tags),
+        "location": {
+            "name": getattr(c, "location_name", None) or "",
+            "lat": float(getattr(c, "location_lat", None) or 0),
+            "lng": float(getattr(c, "location_lng", None) or 0),
+            "radius": int(getattr(c, "location_radius", None) or 0),
+        } if getattr(c, "location_name", None) else None,
         "likes": c.likes_count or 0,
         "saves": c.saves_count or 0,
         "shares": c.shares_count or 0,
@@ -128,7 +182,8 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
         SELECT
             c.name, c.outlet, c.outlet_name, c.outlet_city, c.outlet_logo,
             c.outlet_lat, c.outlet_lng, c.video_url, c.thumbnail_url,
-            c.description, c.audio,
+            c.description, c.audio, c.niche_tags, c.custom_tags,
+            c.location_name, c.location_lat, c.location_lng, c.location_radius,
             c.likes_count, c.saves_count, c.shares_count, c.views_count,
             c.published_at
         FROM `tabChills` c
@@ -448,3 +503,543 @@ def increment_shares(chills_id):
     return {"success": True, "data": {"shares": new_count}}
 
 
+# ── merchant dashboard endpoints ─────────────────────────────────────────────
+
+def _resolve_outlet(outlet_id):
+    from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
+    name = frappe.db.get_value("Restaurant", outlet_id, "name") or get_restaurant_from_id(outlet_id)
+    if not name:
+        frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
+    return name
+
+
+def _assert_outlet_access(outlet, phone=None):
+    """Allow Restaurant Admin/Staff (Frappe session) OR owner phone (app merchants)."""
+    # Phone-based auth path (app merchants, frappe.session.user = Guest)
+    if phone:
+        phone = phone.strip()
+        row = frappe.db.get_value("Restaurant", outlet, ["owner_phone", "contact_phone"], as_dict=True)
+        if row and phone in (row.get("owner_phone") or "", row.get("contact_phone") or ""):
+            return
+        frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
+
+    # Frappe session auth path (dashboard)
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Authentication required."), frappe.AuthenticationError)
+    roles = frappe.get_roles(user)
+    GLOBAL_ADMIN = {"System Manager", "Flamezo Admin", "Flamezo Supervisor"}
+    if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Restaurant Admin" in roles:
+        return
+    rec_role = frappe.db.get_value(
+        "Restaurant User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+    )
+    if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
+        frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
+
+
+@frappe.whitelist(allow_guest=True)
+def merchant_request_chills_upload(outlet_id, filename, content_type, kind="video", phone=None):
+    """Presigned R2 PUT URL for merchant Chills upload. Accepts Frappe session OR owner phone."""
+    from flamezo_backend.flamezo.utils.r2_storage import generate_presigned_put
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    # Derive extension from actual content_type so the key stays accurate
+    ext_map = {
+        "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+    }
+    ext = ext_map.get(content_type, "mp4" if kind == "video" else "jpg")
+    object_key = f"chills/merchant/{outlet}/{uuid.uuid4()}.{ext}"
+    upload_url = generate_presigned_put(object_key, content_type, expires=3600)
+    return {"success": True, "data": {"upload_url": upload_url, "object_key": object_key, "expires_in": 3600}}
+
+
+@frappe.whitelist(allow_guest=True)
+def merchant_publish_chills(
+    outlet_id, object_key, description, thumbnail_key=None, phone=None,
+    niche_tags=None, custom_tags=None,
+    location_name=None, location_lat=None, location_lng=None, location_radius=None,
+):
+    """Publish a merchant Chills video. Accepts Frappe session OR owner phone."""
+    from flamezo_backend.flamezo.utils.r2_storage import public_url
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    video_url = public_url(object_key)
+    thumbnail_url = public_url(thumbnail_key) if thumbnail_key else ""
+
+    niche_list, custom_list = _validate_tags(niche_tags, custom_tags)
+
+    loc_name = (location_name or "").strip()[:200]
+    try:
+        loc_lat = float(location_lat) if location_lat is not None and location_lat != "" else 0.0
+        loc_lng = float(location_lng) if location_lng is not None and location_lng != "" else 0.0
+        loc_radius = int(location_radius) if location_radius is not None and location_radius != "" else 0
+    except (ValueError, TypeError):
+        loc_lat, loc_lng, loc_radius = 0.0, 0.0, 0
+
+    doc = frappe.get_doc({
+        "doctype": "Chills",
+        "outlet": outlet,
+        "video_url": video_url,
+        "thumbnail_url": thumbnail_url,
+        "description": (description or "").strip()[:500],
+        "niche_tags": _json.dumps(niche_list) if niche_list else "",
+        "custom_tags": _json.dumps(custom_list) if custom_list else "",
+        "location_name": loc_name,
+        "location_lat": loc_lat,
+        "location_lng": loc_lng,
+        "location_radius": loc_radius,
+        "status": "published",
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
+
+    return {"success": True, "data": {"chills_id": doc.name, "video_url": video_url}}
+
+
+@frappe.whitelist(allow_guest=True)
+def suggest_chills_tags(outlet_id, caption, phone=None):
+    """
+    AI-powered niche tag suggestion.
+    Uses outlet name + type + video caption → Gemini → taxonomy IDs.
+    Returns up to 6 valid taxonomy IDs ordered by relevance.
+    """
+    import json as _json
+    import re as _re
+    from flamezo_backend.flamezo.services.ai.base import get_gemini_client, handle_ai_error
+    from flamezo_backend.flamezo.utils.niche_taxonomy import TAXONOMY_IDS, taxonomy_prompt_block
+
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    caption = (caption or "").strip()
+    if not caption:
+        frappe.throw(_("caption is required"))
+
+    outlet_row = frappe.db.get_value(
+        "Restaurant", outlet, ["restaurant_name", "outlet_type"], as_dict=True
+    )
+    outlet_name = (outlet_row.get("restaurant_name") or outlet) if outlet_row else outlet
+    outlet_type = (outlet_row.get("outlet_type") or "Business") if outlet_row else "Business"
+
+    tax_block = taxonomy_prompt_block()
+    prompt = f"""You are a content tagging assistant for Flamezo, a lifestyle discovery platform in India.
+
+An outlet called "{outlet_name}" (business type: {outlet_type}) posted a short video with caption:
+"{caption}"
+
+From the taxonomy below, select 3 to 6 IDs that most precisely describe what this video is about.
+Rules:
+- Prefer the most specific (leaf) nodes over broad parent nodes.
+- Include a parent only when the video clearly covers the whole category.
+- Do NOT include tags from unrelated industries.
+- Return ONLY a JSON array of IDs. No explanation.
+
+Example output: ["dining-cafe-specialty", "dining-cafe-brunch"]
+
+Taxonomy (id: breadcrumb):
+{tax_block}"""
+
+    try:
+        model = get_gemini_client()
+        gen_config = {
+            "temperature": 0.1,
+            "top_p": 0.95,
+            "max_output_tokens": 8192,
+            "response_mime_type": "application/json",
+        }
+        response = model.generate_content(prompt, generation_config=gen_config)
+        raw = response.text.strip()
+        raw = _re.sub(r"^```(?:json)?\s*", "", raw, flags=_re.MULTILINE)
+        raw = _re.sub(r"\s*```\s*$", "", raw, flags=_re.MULTILINE).strip()
+        ids = _json.loads(raw)
+        if not isinstance(ids, list):
+            ids = []
+        valid = [i for i in ids if isinstance(i, str) and i in TAXONOMY_IDS][:6]
+        return {"success": True, "data": {"tags": valid}}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "suggest_chills_tags")
+        return {"success": False, "data": {"tags": []}, "error": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def resolve_custom_tag(outlet_id, tag_text, phone=None):
+    """
+    Resolve a user-typed custom tag against the niche taxonomy.
+    Returns {matched, tag_id?, tag_label?, partial?} or {matched: false} for novel tags.
+    Novel tags should be stored as custom_tags on the Chills doc (separate from niche_tags).
+    """
+    import json as _json
+    import re as _re
+    from flamezo_backend.flamezo.services.ai.base import get_gemini_client, handle_ai_error
+    from flamezo_backend.flamezo.utils.niche_taxonomy import TAXONOMY_IDS, taxonomy_prompt_block
+
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    tag_text = (tag_text or "").strip()
+    if not tag_text:
+        frappe.throw(_("tag_text is required"))
+
+    tax_block = taxonomy_prompt_block()
+    prompt = f"""You are a taxonomy matching assistant for Flamezo, a lifestyle discovery platform.
+
+A merchant typed this custom tag: "{tag_text}"
+
+Decide if any taxonomy entry is a DIRECT or CLOSE semantic match for "{tag_text}".
+
+Rules:
+1. DIRECT match — tag clearly describes a product/service in that taxonomy category.
+   Return: {{"matched": true, "tag_id": "<id>", "tag_label": "<breadcrumb label>"}}
+2. PARTIAL match — tag is more specific than any leaf but a parent is the best approximation.
+   Return: {{"matched": true, "tag_id": "<closest id>", "tag_label": "<breadcrumb label>", "partial": true}}
+3. NOVEL — tag does not belong in any of the 7 industries, or describes a modifier/feature rather than a business type (e.g. "cloud gaming setup" is a home setup, not a gaming venue; "pet photography" is photography, not a pet store; "biryani recipe" is a recipe, not a restaurant).
+   Return: {{"matched": false}}
+
+Be conservative. If the connection requires a stretch, return matched=false.
+Return ONLY valid JSON. No explanation.
+
+Taxonomy:
+{tax_block}"""
+
+    try:
+        model = get_gemini_client()
+        gen_config = {
+            "temperature": 0.1,
+            "top_p": 0.95,
+            "max_output_tokens": 8192,
+            "response_mime_type": "application/json",
+        }
+        response = model.generate_content(prompt, generation_config=gen_config)
+        raw = response.text.strip()
+        raw = _re.sub(r"^```(?:json)?\s*", "", raw, flags=_re.MULTILINE)
+        raw = _re.sub(r"\s*```\s*$", "", raw, flags=_re.MULTILINE).strip()
+        result = _json.loads(raw)
+        if not isinstance(result, dict):
+            return {"success": True, "data": {"matched": False}}
+
+        matched = bool(result.get("matched"))
+        if matched:
+            tag_id = result.get("tag_id", "")
+            # Validate returned ID is actually in our taxonomy
+            if tag_id not in TAXONOMY_IDS:
+                return {"success": True, "data": {"matched": False}}
+            return {
+                "success": True,
+                "data": {
+                    "matched": True,
+                    "tag_id": tag_id,
+                    "tag_label": result.get("tag_label", ""),
+                    "partial": bool(result.get("partial", False)),
+                },
+            }
+        return {"success": True, "data": {"matched": False}}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "resolve_custom_tag")
+        return {"success": False, "data": {"matched": False}, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_merchant_chills(outlet_id, cursor=None, limit=20):
+    """Paginated list of Chills belonging to an outlet for the merchant dashboard."""
+    limit = min(int(limit), 50)
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet)
+
+    conditions = ["outlet = %s", "status != 'removed'"]
+    params = [outlet]
+
+    if cursor:
+        try:
+            cur_ts, cur_name = cursor.split("|", 1)
+            conditions.append("(published_at < %s OR (published_at = %s AND name < %s))")
+            params += [cur_ts, cur_ts, cur_name]
+        except ValueError:
+            pass
+
+    where = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT name, video_url, thumbnail_url, description, audio,
+               niche_tags, custom_tags,
+               location_name, location_lat, location_lng, location_radius,
+               views_count, likes_count, saves_count, shares_count,
+               status, published_at
+        FROM `tabChills`
+        WHERE {where}
+        ORDER BY published_at DESC, name DESC
+        LIMIT %s
+        """,
+        params + [limit + 1],
+        as_dict=True,
+    )
+
+    has_more = len(rows) > limit
+    items = rows[:limit]
+
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = f"{last.published_at}|{last.name}"
+
+    return {
+        "success": True,
+        "data": {
+            "videos": [
+                {
+                    "id": r.name,
+                    "videoUrl": r.video_url or "",
+                    "thumbnail": r.thumbnail_url or "",
+                    "description": r.description or "",
+                    "audio": r.audio or "",
+                    "nicheTags": _parse_list(r.niche_tags),
+                    "customTags": _parse_list(r.custom_tags),
+                    "location": {
+                        "name": r.location_name or "",
+                        "lat": float(r.location_lat or 0),
+                        "lng": float(r.location_lng or 0),
+                        "radius": int(r.location_radius or 0),
+                    } if r.location_name else None,
+                    "views": cint(r.views_count),
+                    "likes": cint(r.likes_count),
+                    "saves": cint(r.saves_count),
+                    "shares": cint(r.shares_count),
+                    "status": r.status,
+                    "published_at": str(r.published_at) if r.published_at else "",
+                }
+                for r in items
+            ],
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+        },
+    }
+
+
+@frappe.whitelist()
+def get_chills_outlet_analytics(outlet_id):
+    """Aggregate Chills performance stats for a merchant outlet."""
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet)
+
+    agg = frappe.db.sql(
+        """
+        SELECT
+            COUNT(*) AS total_videos,
+            COALESCE(SUM(views_count), 0)  AS total_views,
+            COALESCE(SUM(likes_count), 0)  AS total_likes,
+            COALESCE(SUM(saves_count), 0)  AS total_saves,
+            COALESCE(SUM(shares_count), 0) AS total_shares
+        FROM `tabChills`
+        WHERE outlet = %s AND status = 'published'
+        """,
+        outlet,
+        as_dict=True,
+    )
+    a = agg[0] if agg else {}
+
+    total_videos = cint(a.get("total_videos"))
+    total_views  = cint(a.get("total_views"))
+    total_likes  = cint(a.get("total_likes"))
+    total_saves  = cint(a.get("total_saves"))
+    total_shares = cint(a.get("total_shares"))
+    avg_views    = round(total_views / total_videos, 1) if total_videos else 0
+    engagement   = round((total_likes + total_saves) / total_views * 100, 1) if total_views else 0
+
+    top_rows = frappe.db.sql(
+        """
+        SELECT name, video_url, thumbnail_url, description,
+               views_count, likes_count, saves_count, shares_count, published_at
+        FROM `tabChills`
+        WHERE outlet = %s AND status = 'published'
+        ORDER BY views_count DESC
+        LIMIT 1
+        """,
+        outlet,
+        as_dict=True,
+    )
+    top_video = None
+    if top_rows:
+        t = top_rows[0]
+        top_video = {
+            "id": t.name,
+            "thumbnail": t.thumbnail_url or t.video_url or "",
+            "description": t.description or "",
+            "views": cint(t.views_count),
+            "likes": cint(t.likes_count),
+            "saves": cint(t.saves_count),
+            "shares": cint(t.shares_count),
+            "published_at": str(t.published_at) if t.published_at else "",
+        }
+
+    return {
+        "success": True,
+        "data": {
+            "total_videos": total_videos,
+            "total_views": total_views,
+            "total_likes": total_likes,
+            "total_saves": total_saves,
+            "total_shares": total_shares,
+            "avg_views_per_video": avg_views,
+            "engagement_rate": engagement,
+            "top_video": top_video,
+        },
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def merchant_update_chills_tags(outlet_id, chills_id, niche_tags=None, custom_tags=None, phone=None):
+    """Update niche_tags and custom_tags on an existing Chills doc."""
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    if not chills_id:
+        frappe.throw(_("chills_id is required"))
+
+    owner_outlet = frappe.db.get_value("Chills", chills_id, "outlet")
+    if owner_outlet != outlet:
+        frappe.throw(_("This video does not belong to your outlet."), frappe.PermissionError)
+
+    if frappe.db.get_value("Chills", chills_id, "status") == "removed":
+        frappe.throw(_("Cannot update a removed Chills."))
+
+    niche_list, custom_list = _validate_tags(niche_tags, custom_tags)
+
+    frappe.db.set_value("Chills", chills_id, {
+        "niche_tags": _json.dumps(niche_list) if niche_list else "",
+        "custom_tags": _json.dumps(custom_list) if custom_list else "",
+    })
+    frappe.db.commit()
+
+    # Bust any cached feed slices that include this chills
+    frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
+
+    return {
+        "success": True,
+        "data": {
+            "chills_id": chills_id,
+            "nicheTags": niche_list,
+            "customTags": custom_list,
+        },
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def merchant_update_chills_location(
+    outlet_id, chills_id,
+    location_name=None, location_lat=None, location_lng=None, location_radius=None,
+    phone=None,
+):
+    """Update the location pin on an existing Chills doc. Pass empty strings to clear."""
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet, phone=phone)
+
+    if not chills_id:
+        frappe.throw(_("chills_id is required"))
+
+    owner_outlet = frappe.db.get_value("Chills", chills_id, "outlet")
+    if owner_outlet != outlet:
+        frappe.throw(_("This video does not belong to your outlet."), frappe.PermissionError)
+
+    if frappe.db.get_value("Chills", chills_id, "status") == "removed":
+        frappe.throw(_("Cannot update a removed Chills."))
+
+    loc_name = (location_name or "").strip()[:200]
+    try:
+        loc_lat = float(location_lat) if location_lat is not None and location_lat != "" else 0.0
+        loc_lng = float(location_lng) if location_lng is not None and location_lng != "" else 0.0
+        loc_radius = int(location_radius) if location_radius is not None and location_radius != "" else 0
+    except (ValueError, TypeError):
+        frappe.throw(_("Invalid location coordinates."))
+        loc_lat, loc_lng, loc_radius = 0.0, 0.0, 0  # unreachable but satisfies linter
+
+    frappe.db.set_value("Chills", chills_id, {
+        "location_name": loc_name,
+        "location_lat": loc_lat,
+        "location_lng": loc_lng,
+        "location_radius": loc_radius,
+    })
+    frappe.db.commit()
+
+    frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
+
+    return {
+        "success": True,
+        "data": {
+            "chills_id": chills_id,
+            "location": {
+                "name": loc_name,
+                "lat": loc_lat,
+                "lng": loc_lng,
+                "radius": loc_radius,
+            } if loc_name else None,
+        },
+    }
+
+
+@frappe.whitelist()
+def delete_merchant_chills(outlet_id, chills_id):
+    """Soft-delete a Chills doc (set status = removed)."""
+    outlet = _resolve_outlet(outlet_id)
+    _assert_outlet_access(outlet)
+
+    if not chills_id:
+        frappe.throw(_("chills_id is required"))
+
+    owner_outlet = frappe.db.get_value("Chills", chills_id, "outlet")
+    if owner_outlet != outlet:
+        frappe.throw(_("This video does not belong to your outlet."), frappe.PermissionError)
+
+    frappe.db.set_value("Chills", chills_id, "status", "removed")
+    frappe.db.commit()
+
+    frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
+
+    return {"success": True, "data": {"chills_id": chills_id}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_merchant_outlet_location(phone):
+    """
+    Resolve the merchant's outlet from their phone number and return
+    the outlet id, name, and coordinates. Used by the app to pre-seed
+    the chills upload location field.
+    """
+    if not phone:
+        frappe.throw(_("phone is required"), frappe.ValidationError)
+
+    phone = phone.strip()
+
+    row = frappe.db.sql(
+        """
+        SELECT name, restaurant_name, latitude, longitude
+        FROM `tabRestaurant`
+        WHERE (owner_phone = %s OR contact_phone = %s)
+          AND is_active = 1
+        LIMIT 1
+        """,
+        (phone, phone),
+        as_dict=True,
+    )
+
+    if not row:
+        return {"success": True, "data": None}
+
+    r = row[0]
+    lat = float(r.latitude or 0)
+    lng = float(r.longitude or 0)
+
+    return {
+        "success": True,
+        "data": {
+            "outlet_id": r.name,
+            "outlet_name": r.restaurant_name or r.name,
+            "lat": lat,
+            "lng": lng,
+            "has_coords": bool(lat and lng),
+        },
+    }

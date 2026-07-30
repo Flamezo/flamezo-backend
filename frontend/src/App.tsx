@@ -70,6 +70,10 @@ const UGCConfig = lazy(() => import('./pages/UGCConfig'))
 const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
 const UGCAnalytics = lazy(() => import('./pages/UGCAnalytics'))
 
+const ChillsUpload = lazy(() => import('./pages/ChillsUpload'))
+const ChillsVideos = lazy(() => import('./pages/ChillsVideos'))
+const ChillsAnalytics = lazy(() => import('./pages/ChillsAnalytics'))
+
 // Non-dining industry pages
 const CatalogueManagementPage = lazy(() => import('./pages/CatalogueManagement'))
 const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage'))
@@ -126,6 +130,11 @@ function AppContent() {
 								<Route path="/ugc-cashback/config" element={<UGCConfig />} />
 								<Route path="/ugc-cashback/approvals" element={<UGCApprovals />} />
 								<Route path="/ugc-cashback/analytics" element={<UGCAnalytics />} />
+
+								{/* Chills — short-video upload and analytics */}
+								<Route path="/chills/upload" element={<ChillsUpload />} />
+								<Route path="/chills/videos" element={<ChillsVideos />} />
+								<Route path="/chills/analytics" element={<ChillsAnalytics />} />
 
 								<Route element={<FeatureProtectedRoute feature="tableBooking" />}>
 									<Route path="/bookings" element={<Bookings />} />

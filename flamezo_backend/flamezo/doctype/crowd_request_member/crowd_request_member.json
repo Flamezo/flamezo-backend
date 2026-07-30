@@ -13,6 +13,7 @@
   "column_break_1",
   "status",
   "responded_at",
+  "attended",
   "section_break_intro",
   "intro_message"
  ],
@@ -52,7 +53,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "pending\napproved\nrejected",
+   "options": "pending\napproved\nrejected\nleft",
    "reqd": 1
   },
   {
@@ -60,6 +61,12 @@
    "fieldtype": "Datetime",
    "label": "Responded At",
    "read_only": 1
+  },
+  {
+   "default": 0,
+   "fieldname": "attended",
+   "fieldtype": "Check",
+   "label": "Attended"
   },
   {
    "fieldname": "section_break_intro",

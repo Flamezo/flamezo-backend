@@ -274,6 +274,8 @@ scheduler_events = {
 		# Marketing Studio: dispatch scheduled campaigns every 15 minutes
 		"*/15 * * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
+			# Chills: recompute Bayesian engagement + social percentile scores
+			"flamezo_backend.flamezo.api.chills_feed.recompute_global_scores",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
@@ -283,6 +285,12 @@ scheduler_events = {
 			"flamezo_backend.flamezo.tasks.ugc_tasks.retry_stalled_submissions",
 			# Boost — sync Meta campaign performance metrics.
 			"flamezo_backend.flamezo.tasks.boost_tasks.sync_boost_performance",
+			# Crowd — close Team Ups whose expires_at has passed.
+			"flamezo_backend.flamezo.api.crowd.close_expired_crowd_requests",
+		],
+		# Chills: decay preference scores + persist Redis state to DB
+		"0 2 * * *": [
+			"flamezo_backend.flamezo.api.chills_feed.sync_preferences_to_db",
 		],
 		# Google Growth: fetch insights daily
         "0 1 * * *": [
@@ -308,6 +316,8 @@ scheduler_events = {
 		# (worker restart / transient failures) and re-aggregate or mark Failed.
 		"*/5 * * * *": [
 			"flamezo_backend.flamezo.tasks.extraction_recovery.recover_stuck_extractions",
+			# Chills: refresh candidate pool + new content + trending caches
+			"flamezo_backend.flamezo.api.chills_feed.refresh_candidates_snapshot",
 			"flamezo_backend.flamezo.tasks.ugc_tasks.dispatch_ugc_cashback_nudges",
 		],
 		# Cash commission engine — Tier 2 weekly autopay sweep: Mondays
@@ -319,9 +329,10 @@ scheduler_events = {
 		"0 9 * * *": [
 			"flamezo_backend.flamezo.tasks.boost_tasks.check_boost_campaigns_health",
 		],
-		# Boost — midnight: finalize expired campaigns, calculate guarantee
+		# Midnight: finalize expired boost campaigns + reconcile Razorpay KYC
 		"0 0 * * *": [
 			"flamezo_backend.flamezo.tasks.boost_tasks.finalize_completed_boosts",
+			"flamezo_backend.flamezo.api.commission.reconcile_all_pending_kyc",
 		],
 		# UGC Cashback — hourly: send proof-upload reminders (max 2) and expire
 		# claims whose proof window has elapsed.
@@ -330,14 +341,10 @@ scheduler_events = {
 		],
 		# UGC Cashback — daily 04:00: purge proof videos older than the retention
 		# window (privacy + storage), keeping the submission record for audit.
+		# Crowd — delete chat messages for completed/cancelled requests > 30 days old.
 		"0 4 * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.purge_old_proof_videos",
-		],
-		# Razorpay Route — daily at midnight: reconcile KYC status + reconnect
-		# any orphaned linked accounts (account created on Razorpay but ID never
-		# saved locally). Webhook handles real-time; this is the safety net.
-		"0 0 * * *": [
-			"flamezo_backend.flamezo.api.commission.reconcile_all_pending_kyc",
+			"flamezo_backend.flamezo.api.crowd.expire_old_chat_messages",
 		],
 	}
 }
