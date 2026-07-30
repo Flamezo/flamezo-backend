@@ -33,6 +33,9 @@ import {
   ClipboardList,
   Wrench,
   Wand2,
+  Film,
+  Upload,
+  Play,
 } from 'lucide-react'
 
 export type OutletType =
@@ -121,6 +124,17 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
         { name: 'Configure Offer', href: '/ugc-cashback/config', icon: Settings },
         { name: 'Story Approvals', href: '/ugc-cashback/approvals', icon: CheckCircle2, badgeHref: '/ugc-cashback/approvals' },
         { name: 'Analytics', href: '/ugc-cashback/analytics', icon: BarChart3 },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'chills',
+      name: 'Chills',
+      icon: Film,
+      children: [
+        { name: 'Upload Video', href: '/chills/upload', icon: Upload },
+        { name: 'My Videos', href: '/chills/videos', icon: Play },
+        { name: 'Analytics', href: '/chills/analytics', icon: BarChart3 },
       ],
     },
     {

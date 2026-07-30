@@ -16,6 +16,12 @@
   "thumbnail_url",
   "description",
   "audio",
+  "niche_tags",
+  "custom_tags",
+  "location_name",
+  "location_lat",
+  "location_lng",
+  "location_radius",
   "likes_count",
   "saves_count",
   "shares_count",
@@ -95,6 +101,36 @@
    "fieldname": "audio",
    "fieldtype": "Data",
    "label": "Audio Track"
+  },
+  {
+   "fieldname": "niche_tags",
+   "fieldtype": "Long Text",
+   "label": "Niche Tags"
+  },
+  {
+   "fieldname": "custom_tags",
+   "fieldtype": "Long Text",
+   "label": "Custom Tags"
+  },
+  {
+   "fieldname": "location_name",
+   "fieldtype": "Data",
+   "label": "Video Location Name"
+  },
+  {
+   "fieldname": "location_lat",
+   "fieldtype": "Float",
+   "label": "Video Location Latitude"
+  },
+  {
+   "fieldname": "location_lng",
+   "fieldtype": "Float",
+   "label": "Video Location Longitude"
+  },
+  {
+   "fieldname": "location_radius",
+   "fieldtype": "Int",
+   "label": "Video Location Radius (m)"
   },
   {
    "fieldname": "likes_count",

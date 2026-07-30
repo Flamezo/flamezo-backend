@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "UUID",
+ "creation": "2026-07-23 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "request_id",
+  "sender_phone",
+  "sender_name",
+  "sender_image",
+  "sender_interests",
+  "message_type",
+  "message",
+  "image_url",
+  "is_system",
+  "created_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "request_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Crowd Request ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sender_phone",
+   "fieldtype": "Data",
+   "label": "Sender Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sender_name",
+   "fieldtype": "Data",
+   "label": "Sender Name"
+  },
+  {
+   "fieldname": "sender_image",
+   "fieldtype": "Data",
+   "label": "Sender Image URL"
+  },
+  {
+   "fieldname": "sender_interests",
+   "fieldtype": "Data",
+   "label": "Sender Interests (comma-separated)"
+  },
+  {
+   "fieldname": "message_type",
+   "fieldtype": "Select",
+   "label": "Message Type",
+   "options": "text\nimage\nsystem",
+   "default": "text",
+   "reqd": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Long Text",
+   "label": "Message"
+  },
+  {
+   "fieldname": "image_url",
+   "fieldtype": "Data",
+   "label": "Image URL"
+  },
+  {
+   "fieldname": "is_system",
+   "fieldtype": "Check",
+   "label": "Is System Message",
+   "default": 0
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Created At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-23 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Crowd Chat Message",
+ "naming_rule": "By \"Autoname\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "search_fields": "request_id,sender_phone",
+ "sort_field": "created_at",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}
