@@ -32,7 +32,7 @@ const RecommendationsEngine = lazy(() => import('./pages/RecommendationsEngine')
 const Customers = lazy(() => import('./pages/Customers'))
 const Bookings = lazy(() => import('./pages/Bookings'))
 const Coupons = lazy(() => import('./pages/Coupons'))
-const AdminRestaurantManagement = lazy(() => import('./pages/AdminRestaurantManagement'))
+const AdminMerchantManagement = lazy(() => import('./pages/AdminMerchantManagement'))
 const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails'))
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
@@ -108,8 +108,8 @@ function AppContent() {
 								<Route path="/setup" element={<TieredSetupWizard />} />
 								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />
 
-								<Route path="/admin/restaurants" element={<AdminRestaurantManagement />} />
-								<Route path="/admin/restaurants/:id" element={<AdminMerchantDetailsPage />} />
+								<Route path="/admin/merchants" element={<AdminMerchantManagement />} />
+								<Route path="/admin/merchants/:id" element={<AdminMerchantDetailsPage />} />
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 
