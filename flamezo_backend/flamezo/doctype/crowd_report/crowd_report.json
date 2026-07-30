@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-07-29 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "reporter_phone",
+  "message_id",
+  "request_id",
+  "reported_phone",
+  "column_break_1",
+  "reason",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "reporter_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reporter Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "message_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Message ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "request_id",
+   "fieldtype": "Data",
+   "label": "Crowd Request ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reported_phone",
+   "fieldtype": "Data",
+   "label": "Reported Phone"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "other",
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Reason",
+   "options": "explicit_content\nharassment\nspam\ncontact_details\nother",
+   "reqd": 1
+  },
+  {
+   "default": "pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "pending\nreviewed\naction_taken\ndismissed"
+  }
+ ],
+ "modified": "2026-07-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Crowd Report",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

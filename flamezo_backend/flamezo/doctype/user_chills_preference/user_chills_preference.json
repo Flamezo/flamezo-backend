@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user_phone",
+  "total_watches",
+  "last_active",
+  "column_break_1",
+  "section_break_scores",
+  "tag_scores",
+  "section_break_thompson",
+  "thompson_state",
+  "section_break_suppress",
+  "suppressed_outlets"
+ ],
+ "fields": [
+  {
+   "fieldname": "user_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Phone",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_watches",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total Watches"
+  },
+  {
+   "fieldname": "last_active",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Active"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_scores",
+   "fieldtype": "Section Break",
+   "label": "Tag Preference Scores"
+  },
+  {
+   "fieldname": "tag_scores",
+   "fieldtype": "Code",
+   "label": "Tag Scores",
+   "options": "JSON",
+   "description": "JSON dict: {tag_id: float_score}. Decayed daily. Mirrors chills:prefs:{phone} in Redis."
+  },
+  {
+   "fieldname": "section_break_thompson",
+   "fieldtype": "Section Break",
+   "label": "Thompson Sampling State"
+  },
+  {
+   "fieldname": "thompson_state",
+   "fieldtype": "Code",
+   "label": "Thompson State",
+   "options": "JSON",
+   "description": "JSON dict: {tag:a: float, tag:b: float}. Alpha/beta pairs for Beta distribution sampling."
+  },
+  {
+   "fieldname": "section_break_suppress",
+   "fieldtype": "Section Break",
+   "label": "Suppressed Outlets"
+  },
+  {
+   "fieldname": "suppressed_outlets",
+   "fieldtype": "Code",
+   "label": "Suppressed Outlets",
+   "options": "JSON",
+   "description": "JSON dict: {outlet_id: expiry_unix_timestamp}. Outlets suppressed via not_interested."
+  }
+ ],
+ "issingle": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "User Chills Preference",
+ "naming_rule": "By fieldname",
+ "autoname": "field:user_phone",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "last_active",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

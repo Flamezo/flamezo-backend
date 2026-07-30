@@ -28,7 +28,8 @@
   "section_break_filters",
   "age_range_min",
   "age_range_max",
-  "interests"
+  "interests",
+  "tier"
  ],
  "fields": [
   {
@@ -161,6 +162,12 @@
    "fieldname": "interests",
    "fieldtype": "Small Text",
    "label": "Interests (comma-separated)"
+  },
+  {
+   "fieldname": "tier",
+   "fieldtype": "Select",
+   "label": "Lifestyle Tier",
+   "options": "budget\nmid\npremium\nluxury"
   }
  ],
  "modified": "2026-07-09 10:00:00.000000",
