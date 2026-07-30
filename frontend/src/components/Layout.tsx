@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import { NumberInput } from '@/components/ui/number-input'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -50,6 +52,12 @@ const INDUSTRY_TILES = [
 ] as const
 
 type IndustryId = typeof INDUSTRY_TILES[number]['id']
+
+// Success Share tier defaults. A "Signature" (Flamezo-curated, premium) merchant
+// bills at 11%; a normal merchant at 7%. Both are editable at creation time —
+// toggling the tier just pre-fills the field; the admin can nudge it (e.g. 6/8).
+const NORMAL_SHARE = 7
+const SIGNATURE_SHARE = 11
 
 
 interface LayoutProps {
@@ -244,7 +252,9 @@ export default function Layout({ children }: LayoutProps) {
     owner_email: '',
     owner_phone: '',
     referral_code: '',
-    outlet_type: 'dining'
+    outlet_type: 'dining',
+    is_signature: false,
+    platform_fee_percent: NORMAL_SHARE,
   })
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
@@ -288,7 +298,9 @@ export default function Layout({ children }: LayoutProps) {
         owner_email: '',
         owner_phone: '',
         referral_code: '',
-        outlet_type: 'dining'
+        outlet_type: 'dining',
+        is_signature: false,
+        platform_fee_percent: NORMAL_SHARE,
       })
       return
     }
@@ -328,6 +340,9 @@ export default function Layout({ children }: LayoutProps) {
           outlet_type: newRestaurantData.outlet_type || 'dining',
           // Join a named Merchant Group (optional).
           branch_group: selectedGroup || undefined,
+          // Signature (11%) vs normal (7%) tier + the (possibly edited) rate.
+          is_signature: newRestaurantData.is_signature ? 1 : 0,
+          platform_fee_percent: Number(newRestaurantData.platform_fee_percent) || NORMAL_SHARE,
           is_active: 1
         }
       })
@@ -376,7 +391,7 @@ export default function Layout({ children }: LayoutProps) {
 
         // ── Close & Navigate ────────────────────────────────────────────
         setShowCreateModal(false)
-        setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining' })
+        setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining', is_signature: false, platform_fee_percent: NORMAL_SHARE })
         setSendOnboarding(false)
         setSelectedGroup(null); setSelectedGroupLabel('')
 
@@ -1640,6 +1655,73 @@ export default function Layout({ children }: LayoutProps) {
                 placeholder="Select a group…"
               />
               <p className="text-xs text-muted-foreground">Join a merchant group so this outlet's menu can be copied to/from its siblings. Create groups in Merchant Management.</p>
+            </div>
+
+            {/* Signature tier + Success Share % ─────────────────────────────
+                Toggling Signature pre-fills the rate (11% vs 7%); the % field
+                stays editable so the admin can nudge it (e.g. 6 or 8). */}
+            <div className="space-y-2">
+              <div
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border p-3 transition-all cursor-pointer",
+                  newRestaurantData.is_signature
+                    ? "bg-amber-500/5 border-amber-200 dark:border-amber-800"
+                    : "bg-muted/30 border-border hover:bg-muted/50"
+                )}
+                onClick={() => !isCreating && setNewRestaurantData(prev => ({
+                  ...prev,
+                  is_signature: !prev.is_signature,
+                  // Pre-fill the tier's default rate on toggle (still editable).
+                  platform_fee_percent: !prev.is_signature ? SIGNATURE_SHARE : NORMAL_SHARE,
+                }))}
+              >
+                <Switch
+                  checked={newRestaurantData.is_signature}
+                  onCheckedChange={(v) => setNewRestaurantData(prev => ({
+                    ...prev,
+                    is_signature: v,
+                    platform_fee_percent: v ? SIGNATURE_SHARE : NORMAL_SHARE,
+                  }))}
+                  disabled={isCreating}
+                  className="mt-0.5 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Star className={cn("h-4 w-4 shrink-0", newRestaurantData.is_signature ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
+                    <Label className="text-sm font-semibold cursor-pointer">
+                      Signature merchant
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Flamezo-curated premium outlet — bills at {SIGNATURE_SHARE}% Success Share (normal is {NORMAL_SHARE}%). Also shows in the app's Signatures mode.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="platform_fee_percent">Success Share (%)</Label>
+                <NumberInput
+                  id="platform_fee_percent"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={newRestaurantData.platform_fee_percent}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : Number(e.target.value)
+                    setNewRestaurantData(prev => ({
+                      ...prev,
+                      platform_fee_percent: val,
+                      // Typing the Signature rate (11%) auto-activates Signature.
+                      is_signature: val === SIGNATURE_SHARE ? true : prev.is_signature,
+                    }))
+                  }}
+                  disabled={isCreating}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Auto-set to {newRestaurantData.is_signature ? `${SIGNATURE_SHARE}% (Signature)` : `${NORMAL_SHARE}% (normal)`} — edit if this merchant has a custom rate.
+                </p>
+              </div>
             </div>
 
             {/* After Creation */}
