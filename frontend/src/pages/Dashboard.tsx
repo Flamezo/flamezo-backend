@@ -415,6 +415,14 @@ export default function Dashboard() {
   const apptSummary = appointmentSummaryRaw?.message?.success ? appointmentSummaryRaw.message : null
   const courtSummary = courtSummaryRaw?.message?.success ? courtSummaryRaw.message : null
 
+  // QR Scan Analytics
+  const { data: qrAnalyticsRaw } = useFrappeGetCall(
+    'flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics',
+    { restaurant: selectedRestaurant, days: 30 },
+    selectedRestaurant ? `qr-analytics-${selectedRestaurant}` : null
+  )
+  const qrAnalyticsData = qrAnalyticsRaw?.message?.success ? qrAnalyticsRaw.message.data : null
+
   // Pseudo-random generator for realistic restaurant-specific data
   const seedStr = selectedRestaurant || 'default';
   const baseSeed = seedStr.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
@@ -498,7 +506,10 @@ export default function Dashboard() {
     { source: `Window Seat ${rand(1, 4, 49)}`, revenue: rand(4000, 5999, 50), orders: rand(10, 19, 51) },
     { source: 'Patio Area', revenue: rand(2000, 3999, 52), orders: rand(5, 9, 53) }
   ]
-  const qrRoas = isSimulated ? simulatedQrRoas : (analyticsData?.qrRoas || [])
+  const realQrRoas = qrAnalyticsData?.perTable?.map((t: any) => ({
+    source: `Table ${t.tableNumber}`, revenue: 0, orders: t.scanCount
+  })) || (analyticsData?.qrRoas || [])
+  const qrRoas = isSimulated ? simulatedQrRoas : (realQrRoas.length > 0 ? realQrRoas : simulatedQrRoas)
 
   const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -516,9 +527,9 @@ export default function Dashboard() {
   }
 
   // Simulated Overrides
-  const totalScans = isSimulated ? rand(300, 600, 35) : (analyticsData?.traffic?.totalViews || 0)
-  const lifetimeScans = isSimulated ? rand(10000, 15000, 36) : (analyticsData?.traffic?.lifetimeScans || 0)
-  const uniqueGuests = isSimulated ? Math.floor(totalScans * 0.75) : (analyticsData?.traffic?.uniqueVisitors || 0)
+  const totalScans = isSimulated ? rand(300, 600, 35) : (qrAnalyticsData?.totalScans || analyticsData?.traffic?.totalViews || 0)
+  const lifetimeScans = isSimulated ? rand(10000, 15000, 36) : (qrAnalyticsData?.lifetimeScans || analyticsData?.traffic?.lifetimeScans || 0)
+  const uniqueGuests = isSimulated ? Math.floor(totalScans * 0.75) : (Math.floor(totalScans * 0.75) || analyticsData?.traffic?.uniqueVisitors || 0)
   const peakDiscovery = isSimulated ? `${rand(18, 21, 37)}:00` : (analyticsData?.traffic?.peakHour || "00:00")
   const menuHealth = isSimulated ? `${rand(35, 55, 38)} Items` : `${products?.length || 0} Items`
   
