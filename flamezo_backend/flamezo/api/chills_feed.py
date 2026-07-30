@@ -42,6 +42,7 @@ CANDIDATE_POOL          = 500
 CANDIDATE_TTL           = 300       # 5 min
 GLOBAL_SCORES_TTL       = 900       # 15 min
 QUEUE_TTL               = 900       # 15 min per-user queue
+EMPTY_BUILD_BACKOFF_TTL = 60         # don't retry a failed personalised build for this long
 WATCHED_MAX             = 12_000    # sliding window, rotate oldest
 NEW_CONTENT_HOURS       = 48
 NEW_CONTENT_SLOTS       = [6, 16, 26]   # 0-indexed reserved positions
@@ -827,6 +828,34 @@ def _hydrate_chills_ids(chills_ids, phone):
     return [_format_chills(r, liked_set, saved_set, follow_set, offers_map) for r in ordered]
 
 
+# ── General-feed fallback (when personalisation has nothing) ──────────────────
+
+def _build_general_fallback_queue(phone):
+    """
+    Last-resort content source for a phone whose personalised queue came back
+    empty (thin catalogue, empty trending/candidate pools, or content that's
+    all outside `_get_trending_ids`'s 30-day window).
+
+    Deliberately sources from `get_chills_feed`'s plain recency query, NOT
+    `_get_trending_ids` — the latter is itself scoped to the last 30 days and
+    can be the very thing that's empty (e.g. a dev/staging catalogue seeded
+    once, weeks ago), whereas the guest-facing recency feed has no such
+    window and is confirmed to return content in that case. Still excludes
+    what this phone has already watched, with a final unfiltered fallback so
+    a user is never shown a hard-empty feed even if they've watched
+    everything currently published.
+    """
+    from flamezo_backend.flamezo.api.chills import get_chills_feed
+    _, watched_set = _get_watched_state(phone)
+
+    general = get_chills_feed(phone=phone, limit=QUEUE_SIZE * 3)
+    reels = ((general or {}).get("data") or {}).get("reels") or []
+    ids = [r["id"] for r in reels if r.get("id")]
+
+    fresh = [cid for cid in ids if cid not in watched_set]
+    return (fresh or ids)[:QUEUE_SIZE]
+
+
 # ── Public API endpoints ───────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
@@ -835,6 +864,10 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
     Main Chills feed endpoint.
     Authenticated users get personalised queue; anonymous users get trending.
     Returns next `batch_size` items and triggers async queue rebuild when low.
+
+    Falls back to general (still watched-filtered, still paginated through
+    the same per-phone queue) content whenever personalisation has nothing to
+    offer, so a phone with an empty queue never sees a blank screen.
     """
     batch_size = min(int(batch_size or 10), 20)
 
@@ -845,8 +878,17 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
     phone = phone.strip()
     queue = _cache_get(_rk("queue", phone)) or []
 
-    if not queue:
+    if not queue and not _cache_get(_rk("empty_backoff", phone)):
+        # Skip this fairly expensive rebuild (candidate snapshot, scoring,
+        # global-scores lookup) if we already know it failed very recently —
+        # avoids re-running it on every single request from a user stuck
+        # with no personalised content.
         queue = _build_and_cache_queue(phone, lat, lng)
+        if not queue:
+            _cache_set(_rk("empty_backoff", phone), True, EMPTY_BUILD_BACKOFF_TTL)
+
+    if not queue:
+        queue = _build_general_fallback_queue(phone)
 
     batch     = queue[:batch_size]
     remaining = queue[batch_size:]
@@ -865,12 +907,24 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
 
     reels = _hydrate_chills_ids(batch, phone)
 
+    # Same safety net at the batch level: if this specific slice hydrated to
+    # nothing (e.g. cached ids that are no longer published) and there's no
+    # more queue behind it, rebuild the general fallback immediately rather
+    # than returning an empty reels list.
+    if not reels and not remaining:
+        fallback_queue = _build_general_fallback_queue(phone)
+        fallback_batch = fallback_queue[:batch_size]
+        fallback_remaining = fallback_queue[batch_size:]
+        _cache_set(_rk("queue", phone), fallback_remaining, QUEUE_TTL)
+        reels = _hydrate_chills_ids(fallback_batch, phone)
+        remaining = fallback_remaining
+
     return {
         "success": True,
         "data": {
             "reels":           reels,
             "queue_remaining": len(remaining),
-            "has_more":        True,
+            "has_more":        len(remaining) > 0,
         },
     }
 
