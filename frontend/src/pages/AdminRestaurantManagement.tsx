@@ -46,6 +46,7 @@ import {
   RefreshCcw,
   Loader2,
   Store,
+  Star,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -65,6 +66,7 @@ interface Restaurant {
   is_active: number
   coins_balance: number
   platform_fee_percent: number
+  is_signature?: number
   creation: string
   modified: string
   // Razorpay Route hybrid state (May 2026)
@@ -574,7 +576,7 @@ export default function AdminRestaurantManagement() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-3">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Merchant Management</h2>
@@ -642,7 +644,7 @@ export default function AdminRestaurantManagement() {
         }
         const ring = (on: boolean) => on ? ' ring-2 ring-offset-1' : ''
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             <button
               type="button"
               className={cn(
@@ -652,8 +654,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter(null, null)}
               title="Show all restaurants (clears stat-card filters)"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
-              <p className="text-lg font-black tracking-tight">{adminStats.total}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
+                <p className="text-base font-black tracking-tight leading-none">{adminStats.total}</p>
+              </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">{adminStats.active} online · {adminStats.inactive} offline</p>
             </button>
             <button
@@ -665,8 +669,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter('is_active', 1)}
               title="Show only active restaurants"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
-              <p className="text-lg font-black tracking-tight text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
+                <p className="text-base font-black tracking-tight leading-none text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
+              </div>
               <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Live</p>
             </button>
             <button
@@ -678,8 +684,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter('has_outstanding', 'yes')}
               title="Show only restaurants with outstanding Success Share"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Owing</p>
-              <p className="text-lg font-black tracking-tight text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Owing</p>
+                <p className="text-base font-black tracking-tight leading-none text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+              </div>
               <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-0.5">{adminStats.owing} restaurants</p>
             </button>
             <button
@@ -691,8 +699,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter('throttled', 'yes')}
               title="Show only restaurants currently in cash-payment throttle"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400">Throttled</p>
-              <p className="text-lg font-black tracking-tight text-rose-700 dark:text-rose-300">{adminStats.throttled}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400">Throttled</p>
+                <p className="text-base font-black tracking-tight leading-none text-rose-700 dark:text-rose-300">{adminStats.throttled}</p>
+              </div>
               <p className="text-[10px] text-rose-700/70 dark:text-rose-400/70 mt-0.5">Cash paused (Tier 3)</p>
             </button>
             <button
@@ -704,8 +714,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter('razorpay_kyc_status', 'under_review')}
               title="Show only restaurants whose Route KYC is under review"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">KYC Pending</p>
-              <p className="text-lg font-black tracking-tight text-blue-700 dark:text-blue-300">{adminStats.kyc_pending}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">KYC Pending</p>
+                <p className="text-base font-black tracking-tight leading-none text-blue-700 dark:text-blue-300">{adminStats.kyc_pending}</p>
+              </div>
               <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 mt-0.5">{adminStats.kyc_activated} activated · {adminStats.kyc_blocked} blocked</p>
             </button>
             <button
@@ -717,8 +729,10 @@ export default function AdminRestaurantManagement() {
               onClick={() => applyStatFilter('mandate_status', 'active')}
               title="Show only restaurants with an active autopay mandate"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Mandate Active</p>
-              <p className="text-lg font-black tracking-tight text-violet-700 dark:text-violet-300">{adminStats.mandate_active}</p>
+              <div className="flex items-baseline justify-between gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Mandate Active</p>
+                <p className="text-base font-black tracking-tight leading-none text-violet-700 dark:text-violet-300">{adminStats.mandate_active}</p>
+              </div>
               <p className="text-[10px] text-violet-700/70 dark:text-violet-400/70 mt-0.5">{adminStats.mandate_missing} missing</p>
             </button>
           </div>
@@ -735,7 +749,7 @@ export default function AdminRestaurantManagement() {
             "<Field>: <selected>" so we don't need per-item prefixes. Smaller
             h-8 + tighter widths + reduced padding keeps everything on one
             row up to ~1280px and frees vertical space for the table. */}
-        <CardHeader className="py-3">
+        <CardHeader className="py-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px] max-w-[260px]">
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -824,41 +838,8 @@ export default function AdminRestaurantManagement() {
               </SelectContent>
             </Select>
 
-            {/* Success Share Tier */}
-            <Select
-              value={(filters.find((f: any) => f.fieldname === 'success_share_tier')?.value as string) || 'all'}
-              onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'success_share_tier')
-                if (v !== 'all') next.push({ fieldname: 'success_share_tier', operator: '=', value: v })
-                setFilters(next)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[124px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Share: All</SelectItem>
-                <SelectItem value="new">Share: New</SelectItem>
-                <SelectItem value="legacy">Share: Legacy 1.5%</SelectItem>
-                <SelectItem value="custom">Share: Custom</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Mandate */}
-            <Select
-              value={(filters.find((f: any) => f.fieldname === 'mandate_status')?.value as string) || 'all'}
-              onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'mandate_status')
-                if (v !== 'all') next.push({ fieldname: 'mandate_status', operator: '=', value: v })
-                setFilters(next)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[128px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Mandate: All</SelectItem>
-                <SelectItem value="active">Mandate: Active</SelectItem>
-                <SelectItem value="inactive">Mandate: Inactive</SelectItem>
-                <SelectItem value="failed">Mandate: Failed</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Share & Mandate filters hidden per admin request — the stat
+                cards above still drill into owing/mandate/throttle slices. */}
 
             {/* Route KYC */}
             <Select
@@ -880,35 +861,93 @@ export default function AdminRestaurantManagement() {
               </SelectContent>
             </Select>
 
-            {/* Throttle */}
-            <Select
-              value={(filters.find((f: any) => f.fieldname === 'throttled')?.value as string) || 'all'}
-              onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'throttled')
-                if (v !== 'all') next.push({ fieldname: 'throttled', operator: '=', value: v })
-                setFilters(next)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Throttle: All</SelectItem>
-                <SelectItem value="yes">Throttle: On</SelectItem>
-                <SelectItem value="no">Throttle: Off</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Throttle filter hidden per admin request — use the Throttled
+                stat card to view throttled merchants. */}
 
-            {/* Clear-all chip — only when any filter is applied. */}
-            {filters.length > 0 && (
+            {/* Clear-all chip — right end of the first filter line. Counts and
+                clears ONLY the dropdown filters; the All/Normal/Signature tab
+                is a separate control with its own clear (below). */}
+            {filters.filter((f: any) => f.fieldname !== 'is_signature').length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground ml-auto"
-                onClick={() => setFilters([])}
+                onClick={() => setFilters(filters.filter((f: any) => f.fieldname === 'is_signature'))}
               >
                 <XCircle className="h-3.5 w-3.5" />
-                Clear ({filters.length})
+                Clear ({filters.filter((f: any) => f.fieldname !== 'is_signature').length})
               </Button>
             )}
+
+            {/* Second line: All / Normal / Signature segmented toggle,
+                pinned right. Normal = not Signature; Signature = flag or 11%. */}
+            <div className="basis-full flex items-center gap-2 pt-1">
+              {(() => {
+                // Three-way segmented toggle: All / Normal / Signature, with a
+                // sliding indicator that animates between the three columns.
+                const sigFilter = filters.find((f: any) => f.fieldname === 'is_signature')
+                const mode = !sigFilter ? 'all' : (Number(sigFilter.value) === 1 ? 'signature' : 'normal')
+                const setMode = (m: 'all' | 'normal' | 'signature') => {
+                  const next = filters.filter(f => f.fieldname !== 'is_signature')
+                  if (m === 'signature') next.push({ fieldname: 'is_signature', operator: '=', value: 1 })
+                  else if (m === 'normal') next.push({ fieldname: 'is_signature', operator: '=', value: 0 })
+                  setFilters(next)
+                }
+                const seg = [
+                  { key: 'all' as const, label: 'All' },
+                  { key: 'normal' as const, label: 'Normal' },
+                  { key: 'signature' as const, label: 'Signature' },
+                ]
+                const activeIndex = seg.findIndex(s => s.key === mode)
+                const isSig = mode === 'signature'
+                // Column weights — Signature gets more room than All/Normal.
+                const weights = [0.82, 0.82, 1.36]
+                const total = weights.reduce((a, b) => a + b, 0)
+                const cumStart = weights.reduce<number[]>((acc, w, i) => {
+                  acc.push(i === 0 ? 0 : acc[i - 1] + weights[i - 1]); return acc
+                }, [])
+                const leftFrac = cumStart[activeIndex] / total
+                const widthFrac = weights[activeIndex] / total
+                return (
+                  <div
+                    className="ml-auto relative grid items-center rounded-lg border border-border bg-muted/30 p-0.5 w-[230px]"
+                    style={{ gridTemplateColumns: `${weights[0]}fr ${weights[1]}fr ${weights[2]}fr` }}
+                  >
+                    {/* Sliding indicator — width & offset follow the active column. */}
+                    <div
+                      className={cn(
+                        'absolute inset-y-0.5 rounded-md shadow-sm transition-all duration-300 ease-out',
+                        isSig ? 'bg-amber-500' : 'bg-background'
+                      )}
+                      style={{
+                        left: `calc(2px + ${leftFrac} * (100% - 4px))`,
+                        width: `calc(${widthFrac} * (100% - 4px))`,
+                      }}
+                    />
+                    {seg.map(s => {
+                      const active = mode === s.key
+                      const sig = s.key === 'signature'
+                      return (
+                        <button
+                          key={s.key}
+                          type="button"
+                          onClick={() => setMode(s.key)}
+                          className={cn(
+                            'relative z-10 h-7 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1',
+                            active
+                              ? (sig ? 'text-white' : 'text-foreground')
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {sig && <Star className={cn('h-3 w-3', active ? 'fill-white text-white' : 'text-amber-500')} />}
+                          {s.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -954,7 +993,15 @@ export default function AdminRestaurantManagement() {
                               aria-label={restaurant.is_active ? "Online" : "Offline"}
                             />
                             <div className="flex flex-col min-w-0">
-                              <span className="font-bold truncate">{restaurant.restaurant_name}</span>
+                              <span className="font-bold truncate flex items-center gap-1.5">
+                                {restaurant.restaurant_name}
+                                {(!!restaurant.is_signature || Math.abs(Number(restaurant.platform_fee_percent ?? 0) - 11) < 0.001) && (
+                                  <Star
+                                    className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500"
+                                    aria-label="Signature merchant"
+                                  />
+                                )}
+                              </span>
                               <span className="text-xs text-muted-foreground truncate">{restaurant.owner_email}</span>
                             </div>
                           </div>
@@ -1000,9 +1047,10 @@ export default function AdminRestaurantManagement() {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            // Show the restaurant's actual Success Share %. Most
-                            // are 3% (new default); legacy ones grandfathered at
-                            // 1.5% appear distinct so ops can spot them.
+                            // Success Share %. Legacy (grandfathered 1.5%) reads
+                            // amber; everything else emerald. Signature status is
+                            // shown by the ⭐ next to the name and edited in the
+                            // merchant details page (same control as Add Merchant).
                             const rate = Number(restaurant.platform_fee_percent ?? 0)
                             const isLegacy = Math.abs(rate - 1.5) < 0.001
                             return (
@@ -1011,7 +1059,7 @@ export default function AdminRestaurantManagement() {
                                 className={isLegacy
                                   ? 'bg-amber-50 text-amber-700 border-amber-200 font-mono'
                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200 font-mono'}
-                                title={isLegacy ? 'Grandfathered legacy rate' : 'Current default rate'}
+                                title={isLegacy ? 'Grandfathered legacy rate' : 'Current rate'}
                               >
                                 {rate}%
                               </Badge>

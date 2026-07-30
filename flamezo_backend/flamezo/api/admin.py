@@ -91,7 +91,21 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                         'mandate_status', 'razorpay_kyc_status', 'route_mode',
                         'branch_group',
                     )
-                    if fieldname in allowed_eq_fields:
+                    if fieldname == 'is_signature' and operator == '=' and str(value) in ('1', 'yes', 'true'):
+                        # Signature = the flag is set OR the merchant sits at the
+                        # 11% signature rate (typing 11% auto-activates Signature,
+                        # so legacy 11% rows are treated as Signature too).
+                        where_conditions.append(
+                            "(COALESCE(r.is_signature, 0) = 1 "
+                            "OR ABS(COALESCE(r.platform_fee_percent, 0) - 11) < 0.001)"
+                        )
+                    elif fieldname == 'is_signature' and operator == '=' and str(value) in ('0', 'no', 'false'):
+                        # Normal = the exact inverse of Signature above.
+                        where_conditions.append(
+                            "(COALESCE(r.is_signature, 0) = 0 "
+                            "AND ABS(COALESCE(r.platform_fee_percent, 0) - 11) >= 0.001)"
+                        )
+                    elif fieldname in allowed_eq_fields:
                         if operator == '=':
                             where_conditions.append(f"r.{fieldname} = %s")
                             params.append(value)
@@ -164,6 +178,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
             COALESCE(r.cash_sweep_failure_count, 0) as cash_sweep_failure_count,
             COALESCE(r.razorpay_kyc_status, '') as razorpay_kyc_status,
             COALESCE(r.route_mode, '') as route_mode,
+            COALESCE(r.is_signature, 0) as is_signature,
             COALESCE(r.outlet_type, 'dining') as outlet_type
         """
 
