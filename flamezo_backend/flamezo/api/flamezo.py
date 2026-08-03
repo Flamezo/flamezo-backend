@@ -919,7 +919,7 @@ def get_restaurant_summary(restaurant_id):
 
 # ── 7. Customer Profile Photo Upload ─────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def upload_customer_photo():
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.flamezo.upload_customer_photo
