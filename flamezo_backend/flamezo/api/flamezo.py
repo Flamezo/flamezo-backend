@@ -953,18 +953,31 @@ def upload_customer_photo():
 
 		from frappe.utils.file_manager import save_file
 
-		file_doc = save_file(
-			fname=file.filename or f"avatar_{customer_id}.jpg",
-			content=content,
-			dt="Customer",
-			dn=customer_id,
-			decode=False,
-			is_private=0,
-			folder="Home/Attachments",
-		)
+		# The custom X-Customer-Token auth does not create a real Frappe login, so
+		# this request runs as the Guest user — which cannot create File docs and
+		# would raise PermissionError (surfaced to the app as HTTP 403). We have
+		# already validated the customer session above, so elevate to a trusted
+		# user for the save only, then restore.
+		original_user = frappe.session.user
+		try:
+			frappe.set_user("Administrator")
+			frappe.flags.ignore_permissions = True
 
-		frappe.db.set_value("Customer", customer_id, "image", file_doc.file_url)
-		frappe.db.commit()
+			file_doc = save_file(
+				fname=file.filename or f"avatar_{customer_id}.jpg",
+				content=content,
+				dt="Customer",
+				dn=customer_id,
+				decode=False,
+				is_private=0,
+				folder="Home/Attachments",
+			)
+
+			frappe.db.set_value("Customer", customer_id, "image", file_doc.file_url)
+			frappe.db.commit()
+		finally:
+			frappe.flags.ignore_permissions = False
+			frappe.set_user(original_user)
 
 		return {"success": True, "file_url": file_doc.file_url}
 
@@ -976,7 +989,7 @@ def upload_customer_photo():
 # ── 8. Update Customer Profile ────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def update_profile(phone=None, full_name=None, email=None, date_of_birth=None):
+def update_profile(phone=None, full_name=None, email=None, date_of_birth=None, interests=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.flamezo.update_profile
 
@@ -1030,6 +1043,11 @@ def update_profile(phone=None, full_name=None, email=None, date_of_birth=None):
 				updates["date_of_birth"] = str(dob)
 			except Exception:
 				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
+
+		if interests is not None:
+			# Comma-separated lifestyle interest tags (mirrors register_flamezo_member).
+			if frappe.db.has_column("Customer", "interests"):
+				updates["interests"] = interests.strip()[:500]
 
 		if not updates:
 			return {"success": False, "error": {"code": "NO_FIELDS", "message": "No updatable fields provided"}}
