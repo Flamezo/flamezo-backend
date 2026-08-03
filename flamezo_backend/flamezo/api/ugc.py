@@ -419,6 +419,7 @@ def get_ugc_eligibility(restaurant_id, order_id):
 				"cashback_coins": cint(existing.cashback_coins),
 				"max_cashback": _max_cashback(existing.order_amount or order.total),
 				"templates": templates,
+				"viewer_coupon": _inline_coupon_brief(config),
 				"proof_window_open": _proof_window_open(existing),
 			})
 
