@@ -207,7 +207,7 @@ function AdminMerchantDetailsPage() {
   }
 
   // APIs
-  const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { merchant: Merchant } }>(
+  const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { restaurant: Merchant } }>(
     'flamezo_backend.flamezo.api.admin.get_restaurant_details'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
@@ -248,8 +248,10 @@ function AdminMerchantDetailsPage() {
     try {
       setLoading(true)
       const result = await getDetails({ restaurant_id: id }) as any
-      if (result?.message?.data?.merchant) {
-        const data = result.message.data.merchant
+      // Backend get_restaurant_details returns data.restaurant (field name
+      // intentionally left un-renamed); the page state is called `merchant`.
+      if (result?.message?.data?.restaurant) {
+        const data = result.message.data.restaurant
         setMerchant(data)
         setOriginalMerchant(data)
       }

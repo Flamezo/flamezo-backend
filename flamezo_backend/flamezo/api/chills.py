@@ -97,7 +97,40 @@ def _get_offers_count_map(outlet_ids):
     return {r.restaurant: r.cnt for r in rows}
 
 
-def _format_chills(c, liked_set, saved_set, follow_set, offers_map):
+def _get_outlet_ratings_map(outlet_ids):
+    """Returns {outlet_id: rating} for a list of outlets."""
+    if not outlet_ids:
+        return {}
+    placeholders = ",".join(["%s"] * len(outlet_ids))
+    rows = frappe.db.sql(
+        f"SELECT name, rating FROM `tabRestaurant` WHERE name IN ({placeholders})",
+        list(outlet_ids),
+        as_dict=True,
+    )
+    return {r.name: float(r.rating) for r in rows if r.rating}
+
+
+def _get_outlet_followers_map(outlet_ids):
+    """Returns {outlet_id: follower_count} — real count of `Chills Outlet Follow` rows per outlet."""
+    if not outlet_ids:
+        return {}
+    placeholders = ",".join(["%s"] * len(outlet_ids))
+    rows = frappe.db.sql(
+        f"""
+        SELECT outlet, COUNT(*) AS cnt
+        FROM `tabChills Outlet Follow`
+        WHERE outlet IN ({placeholders})
+        GROUP BY outlet
+        """,
+        list(outlet_ids),
+        as_dict=True,
+    )
+    return {r.outlet: r.cnt for r in rows}
+
+
+def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=None, followers_map=None):
+    rating_map = rating_map or {}
+    followers_map = followers_map or {}
     return {
         "id": c.name,
         "videoUrl": c.video_url or "",
@@ -110,6 +143,8 @@ def _format_chills(c, liked_set, saved_set, follow_set, offers_map):
             "isFollowing": c.outlet in follow_set if c.outlet else False,
             "lat": c.outlet_lat or 0,
             "lng": c.outlet_lng or 0,
+            "rating": rating_map.get(c.outlet),
+            "followersCount": followers_map.get(c.outlet, 0),
         },
         "description": c.description or "",
         "audio": c.audio or "",
@@ -204,6 +239,8 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
     liked_set, saved_set = _fetch_interaction_sets(phone, chills_ids)
     follow_set = _get_outlet_follow_set(phone) if phone else set()
     offers_map = _get_offers_count_map(outlet_ids)
+    rating_map = _get_outlet_ratings_map(outlet_ids)
+    followers_map = _get_outlet_followers_map(outlet_ids)
 
     next_cursor = None
     if has_more and items:
@@ -211,7 +248,7 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
         next_cursor = f"{last.published_at}|{last.name}"
 
     result = {
-        "reels": [_format_chills(c, liked_set, saved_set, follow_set, offers_map) for c in items],
+        "reels": [_format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map) for c in items],
         "next_cursor": next_cursor,
         "has_more": has_more,
     }
@@ -239,8 +276,11 @@ def get_chills_detail(chills_id, phone=None):
     item = rows[0]
     liked_set, saved_set = _fetch_interaction_sets(phone, [item.name])
     follow_set = _get_outlet_follow_set(phone) if phone else set()
-    offers_map = _get_offers_count_map([item.outlet] if item.outlet else [])
-    return {"success": True, "data": _format_chills(item, liked_set, saved_set, follow_set, offers_map)}
+    outlet_ids = [item.outlet] if item.outlet else []
+    offers_map = _get_offers_count_map(outlet_ids)
+    rating_map = _get_outlet_ratings_map(outlet_ids)
+    followers_map = _get_outlet_followers_map(outlet_ids)
+    return {"success": True, "data": _format_chills(item, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map)}
 
 
 # ── interactions ─────────────────────────────────────────────────────────────

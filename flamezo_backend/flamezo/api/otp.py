@@ -14,6 +14,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_or_create_customer,
 	is_phone_verified,
 	create_customer_session,
+	get_customer_from_token,
 	_find_customer_by_normalized_phone,
 )
 from flamezo_backend.flamezo.utils.otp_service import (
@@ -28,7 +29,7 @@ from flamezo_backend.flamezo.utils.otp_service import (
 
 
 @frappe.whitelist(allow_guest=True)
-def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None):
+def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None, app_signature=None):
 	"""
 	Send OTP via WhatsApp (Meta Cloud API) first, SMS (Fast2SMS) fallback.
 	Every user must verify via OTP — no skip path.
@@ -67,7 +68,7 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 					sms_key = settings.get_password("fast2sms_api_key") if settings else None
 				except Exception:
 					sms_key = None
-			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id, app_signature=app_signature):
 				used_channel = "sms"
 
 		if not used_channel:
@@ -308,6 +309,86 @@ def verify_flamezo_otp(phone, otp, token, name=None, email=None):
 		}
 	except Exception as e:
 		frappe.log_error(f"verify_flamezo_otp error: {e}", "OTP_Flamezo_Verify_Error")
+		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def change_flamezo_phone(session_token, new_phone, otp, token):
+	"""
+	Change the logged-in customer's phone number.
+
+	POST /api/method/flamezo_backend.flamezo.api.otp.change_flamezo_phone
+
+	- session_token : current session (identifies the customer)
+	- new_phone     : the number the OTP was sent to (send_flamezo_otp, purpose='phone_change')
+	- otp, token    : OTP verification for new_phone
+
+	Verifies the OTP for the new number, ensures it isn't already registered to
+	another account, repoints Customer.phone, revokes the old session and issues
+	a fresh session bound to the new number.
+	"""
+	try:
+		if not session_token:
+			return {"success": False, "error": "AUTH_REQUIRED", "message": "Authentication required"}
+
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": "SESSION_INVALID", "message": "Invalid or expired session"}
+
+		normalized = normalize_phone(new_phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": "INVALID_PHONE", "message": "Enter a valid 10-digit number."}
+
+		# Already this customer's number?
+		current_phone = frappe.db.get_value("Customer", customer_id, "phone")
+		if normalize_phone(current_phone or "") == normalized:
+			return {"success": False, "error": "SAME_NUMBER", "message": "This is already your number."}
+
+		# New number must not belong to a DIFFERENT customer.
+		other = _find_customer_by_normalized_phone(normalized)
+		if other and other != customer_id:
+			return {"success": False, "error": "PHONE_IN_USE", "message": "This number is already registered with another account."}
+
+		# ── Verify the OTP sent to the new number (mirrors verify_flamezo_otp) ──
+		cached = frappe.cache().get_value(f"otp:{normalized}:{token}")
+		if not cached:
+			return {"success": False, "error": "OTP_EXPIRED_OR_INVALID", "message": "OTP expired or invalid. Request a new one."}
+
+		attempts = cached.get("attempts", 0)
+		if attempts >= 5:
+			frappe.cache().delete_value(f"otp:{normalized}:{token}")
+			return {"success": False, "error": "MAX_ATTEMPTS_EXCEEDED", "message": "Too many failed attempts. Request a new OTP."}
+
+		if cached.get("otp") != otp:
+			cached["attempts"] = attempts + 1
+			frappe.cache().set_value(f"otp:{normalized}:{token}", cached, expires_in_sec=OTP_EXPIRY_MINUTES * 60)
+			return {"success": False, "error": "INVALID_OTP", "message": f"Invalid OTP. {5 - (attempts + 1)} attempts remaining."}
+
+		frappe.cache().delete_value(f"otp:{normalized}:{token}")
+
+		# ── Apply the change ──
+		frappe.db.set_value("Customer", customer_id, "phone", normalized)
+		if frappe.db.has_column("Customer", "mobile_no"):
+			frappe.db.set_value("Customer", customer_id, "mobile_no", normalized)
+		if frappe.db.has_column("Customer", "verified_at"):
+			frappe.db.set_value("Customer", customer_id, "verified_at", frappe.utils.now())
+		frappe.db.commit()
+
+		# ── Revoke the old session, issue a fresh one for the new number ──
+		try:
+			logout_customer(session_token)
+		except Exception:
+			pass
+		new_token = create_customer_session(phone=normalized, customer_id=customer_id)
+
+		return {
+			"success": True,
+			"phone": normalized,
+			"customer_id": customer_id,
+			"session_token": new_token,
+		}
+	except Exception as e:
+		frappe.log_error(f"change_flamezo_phone error: {e}", "OTP_Flamezo_ChangePhone_Error")
 		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
 
 

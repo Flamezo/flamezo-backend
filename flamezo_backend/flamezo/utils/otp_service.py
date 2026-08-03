@@ -95,7 +95,7 @@ def send_otp_via_whatsapp(phone: str, otp: str, restaurant_name: str = None) -> 
 		return False
 
 
-def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str = None) -> bool:
+def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str = None, app_signature: str = None) -> bool:
 	"""Send OTP via Fast2SMS. Returns True if successful."""
 	try:
 		# DLT config: prefer site_config.json (secure, server-side, not in git);
@@ -110,6 +110,8 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 
 		label = (restaurant_name or "Flamezo").strip()[:25]
 		sms_message = f"Your {label} verification code is: {otp}. Don't share this code with anyone."
+		if app_signature:
+			sms_message += f"\n\n{app_signature}"
 
 		if route == "q":
 			payload = {
@@ -118,11 +120,15 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 				"numbers": numbers
 			}
 		else:
+			variables = otp
+			if app_signature:
+				variables = f"{otp}|{app_signature}"
+			
 			payload = {
 				"route": "dlt",
 				"sender_id": sender_id,
 				"message": str(dlt_template_id),
-				"variables_values": otp,
+				"variables_values": variables,
 				"numbers": numbers
 			}
 
