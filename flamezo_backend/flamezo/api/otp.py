@@ -28,7 +28,7 @@ from flamezo_backend.flamezo.utils.otp_service import (
 
 
 @frappe.whitelist(allow_guest=True)
-def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None):
+def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None, app_signature=None):
 	"""
 	Send OTP via WhatsApp (Meta Cloud API) first, SMS (Fast2SMS) fallback.
 	Every user must verify via OTP — no skip path.
@@ -67,7 +67,7 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 					sms_key = settings.get_password("fast2sms_api_key") if settings else None
 				except Exception:
 					sms_key = None
-			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id, app_signature=app_signature):
 				used_channel = "sms"
 
 		if not used_channel:

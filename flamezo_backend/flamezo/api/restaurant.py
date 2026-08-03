@@ -7,7 +7,7 @@ API endpoints for Restaurant lookup and information
 
 import frappe
 from frappe import _
-from frappe.utils import get_url
+from frappe.utils import get_url, cint
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api, get_restaurant_context
 
 
@@ -378,6 +378,94 @@ def get_restaurant_gallery(restaurant_id):
 			}
 		}
 
+# ── Amenity bitmask decode ────────────────────────────────────────────────
+# Mirrors the Flutter app's `Amenity` class + `kAmenityDisplayOrder` +
+# `amenityHighlights()` (outlet_detail.dart) bit-for-bit. Keeping this table
+# server-side means the client never re-implements the bit-position
+# contract — a single source of truth instead of two copies that could
+# silently drift out of sync.
+_AMENITY_FLAGS = [
+	("dineIn", 1 << 0, "Dine-in"),
+	("takeout", 1 << 1, "Takeout"),
+	("delivery", 1 << 2, "Delivery"),
+	("reservable", 1 << 3, "Reservations"),
+	("outdoorSeating", 1 << 4, "Outdoor seating"),
+	("breakfast", 1 << 5, "Breakfast"),
+	("lunch", 1 << 6, "Lunch"),
+	("dinner", 1 << 7, "Dinner"),
+	("brunch", 1 << 8, "Brunch"),
+	("veg", 1 << 9, "Pure veg"),
+	("coffee", 1 << 10, "Coffee"),
+	("cocktails", 1 << 11, "Cocktails"),
+	("dessert", 1 << 12, "Dessert"),
+	("liveMusic", 1 << 13, "Live music"),
+	("kids", 1 << 14, "Kid-friendly"),
+	("groups", 1 << 15, "Good for groups"),
+	("sports", 1 << 16, "Sports screening"),
+	("restroom", 1 << 17, "Restroom"),
+	("creditCard", 1 << 18, "Credit cards"),
+	("debitCard", 1 << 19, "Debit cards"),
+	("upiNfc", 1 << 20, "UPI / NFC"),
+	("cashOnly", 1 << 21, "Cash only"),
+	("parkingFree", 1 << 22, "Free parking"),
+	("parkingPaid", 1 << 23, "Paid parking"),
+	("parkingValet", 1 << 24, "Valet parking"),
+	("parkingStreet", 1 << 25, "Street parking"),
+]
+_AMENITY_BY_KEY = {key: (flag, label) for key, flag, label in _AMENITY_FLAGS}
+
+# "Most-asked-about first" display order for the full Facilities grid —
+# mirrors `kAmenityDisplayOrder` exactly (NOT the same as bit-declaration
+# order above, which is just the canonical flag/label source of truth).
+_DISPLAY_KEY_ORDER = [
+	"dineIn", "takeout", "delivery", "reservable", "outdoorSeating", "veg",
+	"breakfast", "lunch", "dinner", "brunch", "coffee", "cocktails", "dessert",
+	"liveMusic", "kids", "groups", "sports", "upiNfc", "creditCard", "debitCard",
+	"cashOnly", "parkingValet", "parkingFree", "parkingPaid", "parkingStreet",
+	"restroom",
+]
+
+# Curated "WHAT YOU'LL LOVE" priority order — mirrors `amenityHighlights()`
+# exactly (max 4 shown, in this priority order). Labels here intentionally
+# differ from `labels` above for 3 flags (groups/upiNfc/reservable) — the
+# highlight strip uses friendlier wording than the full facilities grid,
+# matching the Dart source exactly rather than reusing `_AMENITY_BY_KEY`.
+_HIGHLIGHT_ORDER = [
+	("outdoorSeating", "Outdoor seating"),
+	("liveMusic", "Live music"),
+	("parkingValet", "Valet parking"),
+	("veg", "Pure veg"),
+	("groups", "Great for groups"),
+	("kids", "Kid-friendly"),
+	("upiNfc", "UPI accepted"),
+	("reservable", "Takes reservations"),
+]
+
+
+def _decode_amenities(mask):
+	"""Full facility grid, in the same display order as kAmenityDisplayOrder."""
+	mask = cint(mask or 0)
+	out = []
+	for key in _DISPLAY_KEY_ORDER:
+		flag, label = _AMENITY_BY_KEY[key]
+		if mask & flag:
+			out.append({"key": key, "label": label})
+	return out
+
+
+def _decode_amenity_highlights(mask):
+	"""Curated max-4 subset for the Offers tab's highlight strip."""
+	mask = cint(mask or 0)
+	out = []
+	for key, label in _HIGHLIGHT_ORDER:
+		flag, _ = _AMENITY_BY_KEY[key]
+		if mask & flag:
+			out.append({"key": key, "label": label})
+		if len(out) >= 4:
+			break
+	return out
+
+
 @frappe.whitelist(allow_guest=True)
 def get_restaurant_detail(restaurant_id):
 	"""
@@ -528,6 +616,8 @@ def get_restaurant_detail(restaurant_id):
 			"cuisines": [c.strip() for c in (r.get("cuisines") or "").split(",") if c.strip()],
 			"price_range": r.get("price_range") or "",
 			"amenities_mask": cint(r.get("amenities_mask") or 0),
+			"amenities": _decode_amenities(r.get("amenities_mask")),
+			"amenity_highlights": _decode_amenity_highlights(r.get("amenities_mask")),
 			"hours_json": json.loads(hours_raw) if hours_raw else {},
 			"is_open_now": _is_open_now_inline(hours_raw),
 			"active_offers_count": active_offers_count,

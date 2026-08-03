@@ -796,6 +796,7 @@ def _hydrate_chills_ids(chills_ids, phone):
     from flamezo_backend.flamezo.api.chills import (
         _format_chills, _fetch_interaction_sets,
         _get_outlet_follow_set, _get_offers_count_map,
+        _get_outlet_ratings_map, _get_outlet_followers_map,
     )
     if not chills_ids:
         return []
@@ -824,8 +825,10 @@ def _hydrate_chills_ids(chills_ids, phone):
     liked_set, saved_set = _fetch_interaction_sets(phone, [r.name for r in ordered])
     follow_set           = _get_outlet_follow_set(phone) if phone else set()
     offers_map           = _get_offers_count_map(outlet_ids)
+    rating_map           = _get_outlet_ratings_map(outlet_ids)
+    followers_map        = _get_outlet_followers_map(outlet_ids)
 
-    return [_format_chills(r, liked_set, saved_set, follow_set, offers_map) for r in ordered]
+    return [_format_chills(r, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map) for r in ordered]
 
 
 # ── General-feed fallback (when personalisation has nothing) ──────────────────
