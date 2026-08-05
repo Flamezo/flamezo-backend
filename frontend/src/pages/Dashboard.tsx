@@ -357,7 +357,7 @@ export default function Dashboard() {
   const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig, outletType } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [isSimulated, setIsSimulatedState] = useState(() => localStorage.getItem('demoData') === 'true')
+  const [isSimulatedRaw, setIsSimulatedState] = useState(() => localStorage.getItem('demoData') === 'true')
   const setIsSimulated = (val: boolean) => {
     localStorage.setItem('demoData', String(val))
     setIsSimulatedState(val)
@@ -367,6 +367,18 @@ export default function Dashboard() {
   const isAdvancedAnalytics = isGold // Growth Intelligence remains Gold-only
   const { formatAmountNoDecimals } = useCurrency()
   const navigate = useNavigate()
+
+  // The "Show Data" demo toggle is an internal Flamezo tool (populates the
+  // dashboard with simulated numbers for demos). Merchants must NOT see it —
+  // only Flamezo staff / admins.
+  const isInternalUser = (() => {
+    const win = window as any
+    const roles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
+    return roles.includes('Flamezo Supervisor') || roles.includes('System Manager') || roles.includes('Administrator')
+  })()
+  // Simulated demo data is only ever active for internal users, regardless of a
+  // stale `demoData` flag in a merchant's browser.
+  const isSimulated = isSimulatedRaw && isInternalUser
   
   // Fetch data
 
@@ -554,14 +566,16 @@ export default function Dashboard() {
         <div className="space-y-1">
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-full border border-border/50">
-              <Switch 
-                checked={isSimulated}
-                onCheckedChange={setIsSimulated}
-                className="data-[state=checked]:bg-primary"
-              />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Show Data</span>
-            </div>
+            {isInternalUser && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-full border border-border/50">
+                <Switch
+                  checked={isSimulated}
+                  onCheckedChange={setIsSimulated}
+                  className="data-[state=checked]:bg-primary"
+                />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Show Data</span>
+              </div>
+            )}
           </div>
           <p className="text-muted-foreground text-sm flex items-center gap-1.5">
             <Activity className="h-4 w-4 text-primary" />
