@@ -4,6 +4,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, today, cint
 
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+
 # ── Tag limits ───────────────────────────────────────────────────────────────
 MAX_NICHE_TAGS = 8
 MAX_CUSTOM_TAGS = 5
@@ -14,6 +16,15 @@ def _require_phone(phone):
     if not phone:
         frappe.throw(_("phone is required"), frappe.AuthenticationError)
     return phone.strip()
+
+
+def _require_session(phone):
+    """Mutating endpoints must be backed by a real, verified session for that
+    exact phone — not just a client-supplied string (see crowd.py/clubs.py for
+    the same pattern/rationale)."""
+    if not has_active_customer_session(phone):
+        frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+    return phone
 
 
 def _redis_key(prefix, *parts):
@@ -74,6 +85,31 @@ def _get_outlet_follow_set(phone):
         as_dict=True,
     )
     ids = [r.outlet for r in rows]
+    frappe.cache().set_value(cache_key, ids, expires_in_sec=120)
+    return set(ids)
+
+
+def _get_creator_follow_set(phone):
+    """Set of Flamezo Creator IDs the phone follows, via their Creator Club
+    membership (`clubs.follow_club`). Mirrors `_get_outlet_follow_set`'s
+    cache-then-DB pattern; invalidated from `clubs.py` on every follow toggle."""
+    if not phone:
+        return set()
+    cache_key = _redis_key("creator_follows", phone)
+    cached = frappe.cache().get_value(cache_key)
+    if cached is not None:
+        return set(cached)
+    rows = frappe.db.sql(
+        """
+        SELECT DISTINCT cc.creator
+        FROM `tabCreator Club Member` ccm
+        JOIN `tabCreator Club` cc ON cc.name = ccm.club
+        WHERE ccm.customer_phone = %s
+        """,
+        phone,
+        as_dict=True,
+    )
+    ids = [r.creator for r in rows if r.creator]
     frappe.cache().set_value(cache_key, ids, expires_in_sec=120)
     return set(ids)
 
@@ -190,6 +226,16 @@ def _fetch_interaction_sets(phone, chills_ids):
 
 # ── feed ────────────────────────────────────────────────────────────────────
 
+_CHILLS_FEED_COLUMNS = """
+    c.name, c.outlet, c.outlet_name, c.outlet_city, c.outlet_logo,
+    c.outlet_lat, c.outlet_lng, c.video_url, c.thumbnail_url,
+    c.description, c.audio, c.niche_tags, c.custom_tags,
+    c.location_name, c.location_lat, c.location_lng, c.location_radius,
+    c.likes_count, c.saves_count, c.shares_count, c.views_count,
+    c.published_at
+"""
+
+
 @frappe.whitelist(allow_guest=True)
 def get_chills_feed(phone=None, cursor=None, limit=10):
     limit = min(int(limit), 30)
@@ -212,26 +258,76 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
             pass
 
     where = " AND ".join(conditions)
-    rows = frappe.db.sql(
+
+    # "Pushed to followers" boost: only on the very first page (no cursor
+    # yet), pull in the most recent Chills from outlets/creators this phone
+    # follows, then fill the rest of the page chronologically as normal,
+    # explicitly excluding whatever was already shown via the boost.
+    #
+    # Deliberately NOT applied on later pages — the boosted set isn't a
+    # contiguous chronological window, so there's no single cursor value
+    # that could resume it correctly. Every page after the first is pure
+    # `ORDER BY published_at DESC`, exactly as before, so pagination stays
+    # exact (no skipped/duplicated items deeper in the feed). This is the
+    # standard "boost the top of the feed, chronological beyond that"
+    # pattern — it's where personalization is most visible anyway.
+    followed_rows = []
+    if phone and not cursor and limit >= 2:
+        follow_outlets = _get_outlet_follow_set(phone)
+        follow_creators = _get_creator_follow_set(phone)
+        if follow_outlets or follow_creators:
+            clauses = []
+            boost_params = []
+            if follow_outlets:
+                placeholders = ",".join(["%s"] * len(follow_outlets))
+                clauses.append(f"c.outlet IN ({placeholders})")
+                boost_params += list(follow_outlets)
+            if follow_creators:
+                placeholders = ",".join(["%s"] * len(follow_creators))
+                clauses.append(f"c.creator IN ({placeholders})")
+                boost_params += list(follow_creators)
+            # Capped at half the page (not `limit`) so at least `limit -
+            # boost_limit >= 1` slots always remain for the general
+            # chronological query below — guarantees `remaining` (and thus
+            # the next page's cursor) can never come up empty while
+            # `has_more` is true, which would otherwise silently drop
+            # whatever general content fell chronologically between the
+            # boosted items. "Mostly" per the ask, not "exclusively."
+            boost_limit = max(1, limit // 2)
+            followed_rows = frappe.db.sql(
+                f"""
+                SELECT {_CHILLS_FEED_COLUMNS}
+                FROM `tabChills` c
+                WHERE {where} AND ({" OR ".join(clauses)})
+                ORDER BY c.published_at DESC, c.name DESC
+                LIMIT %s
+                """,
+                params + boost_params + [boost_limit],
+                as_dict=True,
+            )
+
+    remaining = max(limit - len(followed_rows), 0)
+    exclude_clause = ""
+    exclude_params = []
+    if followed_rows:
+        placeholders = ",".join(["%s"] * len(followed_rows))
+        exclude_clause = f" AND c.name NOT IN ({placeholders})"
+        exclude_params = [r.name for r in followed_rows]
+
+    general_rows = frappe.db.sql(
         f"""
-        SELECT
-            c.name, c.outlet, c.outlet_name, c.outlet_city, c.outlet_logo,
-            c.outlet_lat, c.outlet_lng, c.video_url, c.thumbnail_url,
-            c.description, c.audio, c.niche_tags, c.custom_tags,
-            c.location_name, c.location_lat, c.location_lng, c.location_radius,
-            c.likes_count, c.saves_count, c.shares_count, c.views_count,
-            c.published_at
+        SELECT {_CHILLS_FEED_COLUMNS}
         FROM `tabChills` c
-        WHERE {where}
+        WHERE {where}{exclude_clause}
         ORDER BY c.published_at DESC, c.name DESC
         LIMIT %s
         """,
-        params + [limit + 1],
+        params + exclude_params + [remaining + 1],
         as_dict=True,
     )
 
-    has_more = len(rows) > limit
-    items = rows[:limit]
+    has_more = len(general_rows) > remaining
+    items = followed_rows + general_rows[:remaining]
 
     chills_ids = [c.name for c in items]
     outlet_ids = list({c.outlet for c in items if c.outlet})
@@ -242,9 +338,13 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
     rating_map = _get_outlet_ratings_map(outlet_ids)
     followers_map = _get_outlet_followers_map(outlet_ids)
 
+    # The cursor only ever tracks the chronological (general) tail — the
+    # one-off followed boost never participates in pagination math (see
+    # comment above), so it's irrelevant here even though its items are
+    # included in `items`/the response.
     next_cursor = None
-    if has_more and items:
-        last = items[-1]
+    if has_more and general_rows[:remaining]:
+        last = general_rows[:remaining][-1]
         next_cursor = f"{last.published_at}|{last.name}"
 
     result = {
@@ -359,6 +459,7 @@ def record_chills_view(chills_id, phone):
 def follow_outlet(outlet_id, phone):
     """Toggle Join/Joined on an outlet in the Chills tab."""
     phone = _require_phone(phone)
+    _require_session(phone)
     if not outlet_id:
         frappe.throw(_("outlet_id is required"))
 
@@ -367,7 +468,8 @@ def follow_outlet(outlet_id, phone):
         frappe.delete_doc("Chills Outlet Follow", exists, ignore_permissions=True)
         frappe.db.commit()
         frappe.cache().delete_value(_redis_key("outlet_follows", phone))
-        return {"success": True, "data": {"following": False, "outlet_id": outlet_id}}
+        followers_count = frappe.db.count("Chills Outlet Follow", {"outlet": outlet_id})
+        return {"success": True, "data": {"following": False, "outlet_id": outlet_id, "followers_count": followers_count}}
     else:
         doc = frappe.get_doc({
             "doctype": "Chills Outlet Follow",
@@ -377,7 +479,25 @@ def follow_outlet(outlet_id, phone):
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
         frappe.cache().delete_value(_redis_key("outlet_follows", phone))
-        return {"success": True, "data": {"following": True, "outlet_id": outlet_id}}
+        followers_count = frappe.db.count("Chills Outlet Follow", {"outlet": outlet_id})
+        return {"success": True, "data": {"following": True, "outlet_id": outlet_id, "followers_count": followers_count}}
+
+
+@frappe.whitelist(allow_guest=True)
+def is_following_outlet(outlet_id, phone=None):
+    """Single-outlet follow-status + real member count — seeds the
+    Join/Joined button and the "N Members" label on both the Chills tab and
+    the outlet detail page. Anonymous/unverified callers always see
+    `following: false` rather than erroring, so guest browsing still works;
+    `followers_count` is real either way (not gated on auth, it's public)."""
+    if not outlet_id:
+        return {"success": True, "data": {"following": False, "followers_count": 0}}
+    following = bool(
+        phone and has_active_customer_session(phone)
+        and frappe.db.exists("Chills Outlet Follow", {"outlet": outlet_id, "customer_phone": phone})
+    )
+    followers_count = frappe.db.count("Chills Outlet Follow", {"outlet": outlet_id})
+    return {"success": True, "data": {"following": following, "followers_count": followers_count}}
 
 
 # ── upload flow ──────────────────────────────────────────────────────────────

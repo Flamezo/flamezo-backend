@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -9,6 +11,24 @@ def _require_phone(phone):
     if not phone:
         frappe.throw(_("phone is required"), frappe.AuthenticationError)
     return phone.strip()
+
+
+def _require_session(phone):
+    """Mutating club endpoints must be backed by a real, verified session for
+    that exact phone — not just a client-supplied string (see crowd.py for the
+    same pattern/rationale)."""
+    if not has_active_customer_session(phone):
+        frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+    return phone
+
+
+def _optional_verified_phone(phone):
+    """For public/guest-readable listings that optionally take a phone (only
+    used to annotate 'am I following this club') — treat an unverified phone
+    as anonymous instead of hard-failing, so logged-out browsing still works."""
+    if phone and not has_active_customer_session(phone):
+        return None
+    return phone
 
 
 def _format_club(c, phone=None, member_set=None):
@@ -45,6 +65,7 @@ def _get_member_set(phone):
 
 @frappe.whitelist(allow_guest=True)
 def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
+    phone = _optional_verified_phone(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -91,6 +112,7 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
 
 @frappe.whitelist(allow_guest=True)
 def get_club_detail(club_id, phone=None):
+    phone = _optional_verified_phone(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
 
@@ -121,6 +143,7 @@ def get_club_detail(club_id, phone=None):
 @frappe.whitelist(allow_guest=True)
 def follow_club(club_id, phone):
     phone = _require_phone(phone)
+    _require_session(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
 
@@ -134,6 +157,10 @@ def follow_club(club_id, phone):
             "UPDATE `tabCreator Club` SET followers_count = GREATEST(followers_count - 1, 0) WHERE name=%s",
             club_id,
         )
+        # Bust the Chills feed's creator-follow-set cache (see
+        # chills._get_creator_follow_set) — otherwise the "pushed to
+        # followers" boost keeps using a stale follow list for up to 2 min.
+        frappe.cache().delete_value(f"chills:creator_follows:{phone}")
         return {"success": True, "data": {"following": False}}
     else:
         doc = frappe.get_doc({
@@ -147,6 +174,7 @@ def follow_club(club_id, phone):
             "UPDATE `tabCreator Club` SET followers_count = followers_count + 1 WHERE name=%s",
             club_id,
         )
+        frappe.cache().delete_value(f"chills:creator_follows:{phone}")
         return {"success": True, "data": {"following": True}}
 
 
@@ -180,6 +208,7 @@ def _format_post(p, chills_map=None):
 
 @frappe.whitelist(allow_guest=True)
 def get_club_posts(club_id, phone=None, page=1, limit=20):
+    phone = _optional_verified_phone(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
 
@@ -231,6 +260,7 @@ def get_club_posts(club_id, phone=None, page=1, limit=20):
 @frappe.whitelist(allow_guest=True)
 def get_my_clubs(phone):
     phone = _require_phone(phone)
+    _require_session(phone)
 
     rows = frappe.db.sql(
         """
