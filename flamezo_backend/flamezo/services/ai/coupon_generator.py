@@ -913,6 +913,7 @@ def generate_suggestions(
     count: int = 6,
     user_prompt: str | None = None,
     poster_base64: str | None = None,
+    require_food_cost: bool = True,
 ) -> dict[str, Any]:
     """
     Main entry point. Generates coupon suggestions using Gemini 2.5 Flash.
@@ -924,6 +925,12 @@ def generate_suggestions(
         count: Number of suggestions to generate (3–8)
         user_prompt: Optional merchant free-text request (NLP offer creation)
         poster_base64: Optional base64 poster image — read the offer(s) off it (vision)
+        require_food_cost: Gate AI generation behind complete menu food-cost data
+            (default True, for the merchant-facing Manage Offers/Coupons flow,
+            where the AI is inventing the discount amount and needs real margins
+            to keep it profit-safe). Pass False for callers that already supply
+            their own discount amount and only want the naming/copy — e.g. Boost
+            campaigns — where that economics-safety reason doesn't apply.
     """
     tone = tone if tone in TONE_DESCRIPTIONS else "attractive"
     count = max(3, min(count, 8))
@@ -931,33 +938,35 @@ def generate_suggestions(
         offer_type_filter = None
 
     # Gate: AI generation requires food cost on every active menu item so the
-    # AI can compute real margins and generate profit-safe offers.
-    try:
-        total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
-        costed = (
-            frappe.db.count(
-                "Menu Product",
-                {"restaurant": restaurant_id, "is_active": 1, "food_cost": [">", 0]},
+    # AI can compute real margins and generate profit-safe offers. Skipped when
+    # require_food_cost=False (caller already fixed the discount amount).
+    if require_food_cost:
+        try:
+            total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+            costed = (
+                frappe.db.count(
+                    "Menu Product",
+                    {"restaurant": restaurant_id, "is_active": 1, "food_cost": [">", 0]},
+                )
+                if total_active > 0
+                else 0
             )
-            if total_active > 0
-            else 0
-        )
-    except Exception:
-        # food_cost column not yet migrated — treat as fully uncovered
-        total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
-        costed = 0
+        except Exception:
+            # food_cost column not yet migrated — treat as fully uncovered
+            total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+            costed = 0
 
-    if total_active > 0 and costed < total_active:
-        missing = total_active - costed
-        plural = "s are" if missing != 1 else " is"
-        return {
-            "success": False,
-            "error_code": "FOOD_COST_REQUIRED",
-            "message": (
-                f"{missing} menu item{plural} missing food cost. "
-                f"Please set food cost for all {total_active} items in the Food Cost page before using AI generation."
-            ),
-        }
+        if total_active > 0 and costed < total_active:
+            missing = total_active - costed
+            plural = "s are" if missing != 1 else " is"
+            return {
+                "success": False,
+                "error_code": "FOOD_COST_REQUIRED",
+                "message": (
+                    f"{missing} menu item{plural} missing food cost. "
+                    f"Please set food cost for all {total_active} items in the Food Cost page before using AI generation."
+                ),
+            }
 
     # Quota check + increment
     quota = _check_and_increment_quota(restaurant_id)

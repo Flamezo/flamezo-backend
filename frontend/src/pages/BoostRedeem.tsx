@@ -74,7 +74,21 @@ export default function BoostRedeem() {
         bill_amount: billAmount ? parseFloat(billAmount) : undefined,
         redemption_method: 'Staff Entry',
       })
-      const data = res?.message?.data || res?.data
+      const body = res?.message || res
+
+      // The backend returns { success: false, error: {...} } as a normal 200
+      // response for expected failures (invalid/expired code) rather than
+      // throwing — it was being ignored here, so an invalid code crashed on
+      // `data.message` (data is undefined when there's no `data` key) and
+      // showed that JS error instead of the real "no campaign found" message.
+      if (!body?.success) {
+        const message = body?.error?.message || 'Invalid coupon code'
+        setResult({ success: false, message })
+        toast.error(message)
+        return
+      }
+
+      const data = body.data
       setResult({ success: true, message: data.message, discount: data.discount, campaign_name: data.campaign_name })
       setCode(''); setBillAmount('')
       setStats(s => ({ ...s, today: s.today + 1, total: s.total + 1 }))

@@ -26,7 +26,9 @@
   "customer_phone",
   "customer_email",
   "platform_customer",
+  "boost_campaign",
   "notes",
+  "reminder_sent",
   "section_break_timestamps",
   "confirmed_at",
   "confirmed_by",
@@ -166,9 +168,26 @@
    "read_only": 1
   },
   {
+   "fieldname": "boost_campaign",
+   "fieldtype": "Link",
+   "label": "Boost Campaign",
+   "options": "Boost Campaign",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Set when this reservation was made from a Boost coupon-claim page — links a guaranteed visit back to the ad campaign that drove it"
+  },
+  {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "reminder_sent",
+   "fieldtype": "Check",
+   "label": "Reminder Sent",
+   "default": "0",
+   "read_only": 1,
+   "description": "Set once a pre-visit WhatsApp reminder has been sent for this booking"
   },
   {
    "fieldname": "section_break_timestamps",

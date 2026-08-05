@@ -319,6 +319,9 @@ scheduler_events = {
 			# Chills: refresh candidate pool + new content + trending caches
 			"flamezo_backend.flamezo.api.chills_feed.refresh_candidates_snapshot",
 			"flamezo_backend.flamezo.tasks.ugc_tasks.dispatch_ugc_cashback_nudges",
+			# Boost — self-heal campaigns whose Meta launch job never ran
+			# (worker restart / queue drop), capped at 3 retries then Failed + alert.
+			"flamezo_backend.flamezo.tasks.boost_tasks.recover_stuck_boost_launches",
 		],
 		# Cash commission engine — Tier 2 weekly autopay sweep: Mondays
 		# 03:45 IST charges any leftover balance via mandate.
@@ -336,8 +339,11 @@ scheduler_events = {
 		],
 		# UGC Cashback — hourly: send proof-upload reminders (max 2) and expire
 		# claims whose proof window has elapsed.
+		# Boost — hourly: WhatsApp reminder ~2hrs before a Boost-linked table
+		# reservation, to cut no-shows on guaranteed-visit bookings.
 		"15 * * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.send_proof_reminders",
+			"flamezo_backend.flamezo.tasks.boost_tasks.send_boost_booking_reminders",
 		],
 		# UGC Cashback — daily 04:00: purge proof videos older than the retention
 		# window (privacy + storage), keeping the submission record for audit.

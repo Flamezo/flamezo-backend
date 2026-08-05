@@ -122,16 +122,29 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 		},
 		"age_min": int(boost_campaign.target_age_min or 18),
 		"age_max": int(boost_campaign.target_age_max or 55),
-		"targeting_automation": {"advantage_audience": 0},
+		# Advantage+ Audience: let Meta's model expand beyond the strict geo+age
+		# targeting to find additional high-converting people nearby who have a
+		# history of visiting similar local businesses. Meta's own 2026 guidance
+		# is that this reliably outperforms fully manual local targeting — we
+		# still hard-constrain the geo_locations radius above, so this can only
+		# expand who *within* that behavior profile sees the ad, not where.
+		"targeting_automation": {"advantage_audience": 1},
 	}
 
 	data = {
 		"name": f"AdSet | {boost_campaign.restaurant} | {boost_campaign.name}",
 		"campaign_id": meta_campaign_id,
 		"billing_event": "IMPRESSIONS",
-		"optimization_goal": "LINK_CLICKS",
+		# LANDING_PAGE_VIEWS instead of LINK_CLICKS: optimizes for people who
+		# actually load the coupon page, not just click (filters out accidental/
+		# bot clicks and rage-clicks that never land) — a stronger intent signal
+		# for the same objective, no extra setup required.
+		"optimization_goal": "LANDING_PAGE_VIEWS",
 		"daily_budget": str(daily_budget_paisa),
-		"bid_amount": "500",
+		# No manual bid_amount cap: a fixed low bid cap can silently throttle
+		# delivery in competitive auctions. Let Meta's automatic bidding find
+		# the real market-clearing price so the budget actually spends and reaches
+		# more people, instead of failing to clear auctions under an artificial cap.
 		"targeting": json.dumps(targeting),
 		"status": "ACTIVE",
 	}
@@ -226,10 +239,21 @@ def pause_campaign(meta_campaign_id):
 
 
 def delete_campaign(meta_campaign_id):
-	"""Delete a campaign (only for Draft/Failed that never went live)."""
+	"""Permanently delete a campaign from the Meta ad account. Raises on failure
+	so callers can tell the difference between 'deleted' and 'silently did nothing'."""
 	url = f"{_base()}/{meta_campaign_id}"
 	params = {"access_token": _token()}
-	requests.delete(url, params=params, timeout=30)
+	resp = requests.delete(url, params=params, timeout=30)
+	body = resp.json()
+	if "error" in body:
+		error_msg = body["error"].get("message", "Unknown Meta API error")
+		frappe.log_error(
+			message=f"Meta API Delete Error: {error_msg}\nCampaign: {meta_campaign_id}",
+			title="Meta Ads API Error"
+		)
+		frappe.throw(f"Meta Ads delete error: {error_msg}")
+	if not body.get("success", True):
+		frappe.throw(f"Meta Ads delete failed for campaign {meta_campaign_id}")
 
 
 # ─── Insights ──────────────────────────────────────────────────────
@@ -302,8 +326,14 @@ def launch_boost_campaign(campaign_name):
 		campaign.status = "Failed"
 		campaign.save(ignore_permissions=True)
 		frappe.db.commit()
-		frappe.log_error(
-			message=f"Campaign: {campaign_name}\nError: {str(e)}",
-			title="Boost Campaign Launch Failed"
-		)
+		error_message = f"Campaign: {campaign_name}\nRestaurant: {campaign.restaurant}\nError: {str(e)}"
+		frappe.log_error(message=error_message, title="Boost Campaign Launch Failed")
+		try:
+			from flamezo_backend.flamezo.tasks.boost_tasks import _alert_ops
+			_alert_ops(
+				subject=f"Boost campaign launch failed: {campaign.restaurant} ({campaign_name})",
+				message=error_message,
+			)
+		except Exception:
+			pass  # Alerting must never mask the original launch failure
 		raise

@@ -4,9 +4,37 @@ Scheduled tasks for Flamezo Boost campaigns.
 - sync_boost_performance: every 30 min — pull Meta insights for Live campaigns
 - check_boost_campaigns_health: daily 9 AM — alert if guarantee at risk
 - finalize_completed_boosts: midnight — complete expired campaigns, calculate guarantee
+- recover_stuck_boost_launches: every 5 min — self-heal campaigns whose Meta launch
+  job never ran (worker restart, queue drop) instead of sitting silently forever
+- send_boost_booking_reminders: hourly — WhatsApp reminder before a Boost-linked
+  table reservation, to cut no-shows on guaranteed-visit bookings
 """
 import frappe
-from frappe.utils import today, getdate, flt, now
+from datetime import datetime, timedelta
+from frappe.utils import today, getdate, flt, now, now_datetime, time_diff_in_hours
+from frappe.utils.user import get_system_managers
+
+MAX_LAUNCH_RETRIES = 3
+STUCK_AFTER_MINUTES = 15
+BOOKING_REMINDER_LEAD_MINUTES = 120
+
+
+def _alert_ops(subject, message):
+	"""Send a real email to System Managers, in addition to the Error Log entry.
+	Error Log alone was silently going unread — this ensures a human sees it."""
+	recipients = get_system_managers(only_name=False)
+	if not recipients:
+		return
+	try:
+		frappe.sendmail(
+			recipients=recipients,
+			subject=subject,
+			content=f"<pre style='font-family:monospace;white-space:pre-wrap'>{frappe.utils.escape_html(message)}</pre>",
+			now=True,
+		)
+	except Exception:
+		# Never let a notification failure break the calling job.
+		frappe.log_error(message=f"Failed to send Boost ops alert: {subject}", title="Boost Alert Email Failed")
 
 
 def sync_boost_performance():
@@ -69,14 +97,16 @@ def check_boost_campaigns_health():
 		actual = campaign.coupons_redeemed or 0
 
 		if actual < expected_by_now * 0.5:  # Less than 50% of expected
-			frappe.log_error(
-				message=(
-					f"Campaign {campaign.name} ({campaign.campaign_name}) for {campaign.restaurant}\n"
-					f"Guarantee: {campaign.guaranteed_redemptions} | Actual: {actual} | "
-					f"Expected by now: {expected_by_now}\n"
-					f"Days elapsed: {days_elapsed}/{days_total}"
-				),
-				title="Boost Campaign Guarantee At Risk"
+			message = (
+				f"Campaign {campaign.name} ({campaign.campaign_name}) for {campaign.restaurant}\n"
+				f"Guarantee: {campaign.guaranteed_redemptions} | Actual: {actual} | "
+				f"Expected by now: {expected_by_now}\n"
+				f"Days elapsed: {days_elapsed}/{days_total}"
+			)
+			frappe.log_error(message=message, title="Boost Campaign Guarantee At Risk")
+			_alert_ops(
+				subject=f"Boost campaign at risk: {campaign.restaurant} ({campaign.name})",
+				message=message,
 			)
 
 
@@ -119,3 +149,120 @@ def finalize_completed_boosts():
 			)
 
 	frappe.db.commit()
+
+
+def recover_stuck_boost_launches():
+	"""
+	Self-heal campaigns whose Meta launch job never ran — e.g. worker restart,
+	Redis flush, or a deployment during the enqueue window. Without this, a
+	campaign paid for stays stuck in "Submitted" forever with no Meta IDs, no
+	error logged, and no way for the merchant to know something went wrong.
+
+	Runs every 5 minutes:
+	- Submitted + Captured + no meta_campaign_id + paid >15 min ago → re-enqueue,
+	  up to MAX_LAUNCH_RETRIES times.
+	- Past the retry cap → mark Failed and alert ops for manual refund/relaunch.
+	"""
+	stuck = frappe.get_all("Boost Campaign",
+		filters={
+			"status": "Submitted",
+			"payment_status": "Captured",
+			"meta_campaign_id": ["in", ["", None]],
+		},
+		fields=["name", "restaurant", "paid_at", "razorpay_payment_id", "launch_retry_count"]
+	)
+
+	for row in stuck:
+		if not row.paid_at:
+			continue
+		age_hours = time_diff_in_hours(now_datetime(), row.paid_at)
+		if age_hours * 60 < STUCK_AFTER_MINUTES:
+			continue  # still within the normal launch window, not stuck yet
+
+		retry_count = row.launch_retry_count or 0
+
+		if retry_count >= MAX_LAUNCH_RETRIES:
+			frappe.db.set_value("Boost Campaign", row.name, "status", "Failed", update_modified=False)
+			message = (
+				f"Campaign {row.name} for {row.restaurant} paid (Razorpay payment "
+				f"{row.razorpay_payment_id}) but never launched on Meta after "
+				f"{retry_count} retries. Marked Failed — needs manual refund or relaunch."
+			)
+			frappe.log_error(message=message, title="Boost Launch Permanently Stuck")
+			_alert_ops(subject=f"Boost campaign stuck — needs manual action: {row.name}", message=message)
+			continue
+
+		frappe.db.set_value("Boost Campaign", row.name, "launch_retry_count", retry_count + 1, update_modified=False)
+		frappe.db.commit()
+		frappe.enqueue(
+			"flamezo_backend.flamezo.services.meta_ads.launch_boost_campaign",
+			campaign_name=row.name,
+			queue="long",
+			timeout=180,
+			is_async=True,
+			at_front=True,
+		)
+		frappe.logger().info(f"Boost campaign {row.name} re-enqueued for launch (retry {retry_count + 1}).")
+
+
+def send_boost_booking_reminders():
+	"""
+	Hourly job — WhatsApp reminder ~2 hours before a Boost-linked table
+	reservation. The reservation itself is what turns a soft "maybe I'll go"
+	coupon claim into a specific, committed visit; this reminder is what
+	actually protects that commitment from being forgotten.
+
+	Scoped to boost_campaign-linked bookings only — regular (non-Boost) table
+	bookings are untouched by this job.
+	"""
+	candidates = frappe.get_all("Table Booking",
+		filters={
+			"boost_campaign": ["is", "set"],
+			"status": ["in", ["pending", "confirmed"]],
+			"reminder_sent": 0,
+			"customer_phone": ["is", "set"],
+		},
+		fields=["name", "restaurant", "customer_name", "customer_phone", "date", "time_slot", "boost_campaign"]
+	)
+
+	if not candidates:
+		return
+
+	from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_message
+
+	now_dt = now_datetime()
+	for booking in candidates:
+		try:
+			slot_dt = datetime.combine(getdate(booking.date), datetime.strptime(booking.time_slot, "%I:%M %p").time())
+		except (ValueError, TypeError):
+			# Unparseable time_slot — skip rather than crash the whole batch.
+			continue
+
+		minutes_until = (slot_dt - now_dt).total_seconds() / 60
+		# Fire once the reservation is within the lead window and hasn't already
+		# passed — the hourly cadence means this can catch it anywhere in a
+		# ~60min band inside the 120min lead time, which is fine for a reminder.
+		if not (0 < minutes_until <= BOOKING_REMINDER_LEAD_MINUTES):
+			continue
+
+		restaurant_name = frappe.db.get_value("Restaurant", booking.restaurant, "restaurant_name") or booking.restaurant
+		coupon_code = frappe.db.get_value("Boost Campaign", booking.boost_campaign, "coupon_code")
+		message = (
+			f"Hi {booking.customer_name or ''}! Reminder: your table at {restaurant_name} "
+			f"is reserved for {booking.time_slot} today. Don't forget your offer code "
+			f"{coupon_code} at the counter. See you soon!"
+		).strip()
+
+		try:
+			sent, error = send_whatsapp_message(booking.customer_phone, message)
+		except Exception as e:
+			sent, error = False, str(e)
+
+		if sent:
+			frappe.db.set_value("Table Booking", booking.name, "reminder_sent", 1, update_modified=False)
+			frappe.db.commit()
+		else:
+			frappe.log_error(
+				message=f"Booking: {booking.name}\nPhone: {booking.customer_phone}\nError: {error}",
+				title="Boost Booking Reminder Failed"
+			)
