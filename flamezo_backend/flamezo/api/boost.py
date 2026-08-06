@@ -130,18 +130,36 @@ def check_prerequisites(restaurant_id):
 	# Location grade (simplified — based on city tier)
 	location_grade = _get_location_grade(restaurant)
 
-	# Save audit trail
-	prereq_doc = frappe.get_doc({
-		"doctype": "Boost Prerequisite Check",
-		"restaurant": restaurant_id,
-		"checked_at": now(),
-		"overall_score": score,
-		"passed": 1 if score == 100 else 0,
-		"checks": json.dumps(checks),
-		"location_grade": location_grade,
-	})
-	prereq_doc.insert(ignore_permissions=True)
-	frappe.db.commit()
+	# Save audit trail — but throttle: the wizard calls this on every render, and
+	# without a throttle the table grows unbounded with near-identical rows.
+	# Only persist a fresh row if the last one for this restaurant is stale
+	# (>5 min old) or the outcome actually changed.
+	last_check = frappe.db.get_value(
+		"Boost Prerequisite Check",
+		{"restaurant": restaurant_id},
+		["name", "checked_at", "overall_score", "location_grade"],
+		order_by="checked_at desc",
+		as_dict=True,
+	)
+	should_persist = True
+	if last_check:
+		from frappe.utils import time_diff_in_hours
+		minutes_since = time_diff_in_hours(now(), last_check.checked_at) * 60
+		unchanged = (last_check.overall_score == score and last_check.location_grade == location_grade)
+		should_persist = minutes_since >= 5 or not unchanged
+
+	if should_persist:
+		prereq_doc = frappe.get_doc({
+			"doctype": "Boost Prerequisite Check",
+			"restaurant": restaurant_id,
+			"checked_at": now(),
+			"overall_score": score,
+			"passed": 1 if score == 100 else 0,
+			"checks": json.dumps(checks),
+			"location_grade": location_grade,
+		})
+		prereq_doc.insert(ignore_permissions=True)
+		frappe.db.commit()
 
 	return {
 		"success": True,
@@ -466,18 +484,24 @@ def verify_boost_payment(campaign_id, razorpay_order_id, razorpay_payment_id, ra
 	campaign.status = "Submitted"
 	campaign.save(ignore_permissions=True)
 
+	# Fold in any unclaimed guarantee-shortfall credit from past campaigns
+	campaign.apply_pending_guarantee_credit()
+
 	# Create the linked Coupon doc (inactive until campaign goes Live)
 	_create_linked_coupon(campaign, active=False)
 
 	frappe.db.commit()
 
-	# Enqueue Meta campaign launch as background job with retry
+	# Enqueue Meta campaign launch as background job with retry.
+	# We already committed above, so enqueue immediately rather than deferring
+	# to the next commit — enqueue_after_commit here was silently relying on an
+	# implicit end-of-request commit that isn't guaranteed to fire, and is how
+	# campaigns were getting stuck in "Submitted" with no launch job ever run.
 	frappe.enqueue(
 		"flamezo_backend.flamezo.services.meta_ads.launch_boost_campaign",
 		campaign_name=campaign.name,
 		queue="long",
 		timeout=180,
-		enqueue_after_commit=True,
 		is_async=True,
 		at_front=True,
 	)
@@ -556,16 +580,60 @@ def resume_boost_campaign(campaign_id):
 
 @frappe.whitelist()
 def cancel_boost_campaign(campaign_id):
-	"""Cancel a campaign (Draft or Pending Payment only)."""
+	"""
+	Cancel/delete a campaign, at any stage, cleaning up both sides:
+
+	- Draft / Pending Payment (no payment ever captured): nothing exists on
+	  Meta and no money moved — hard-delete the record entirely.
+	- Submitted / Meta Review / Live / Paused / Failed (payment was captured,
+	  and a Meta ad may exist): pause + delete the actual ad objects from the
+	  Meta ad account, deactivate the linked coupon, and mark the backend
+	  record Cancelled (kept, not hard-deleted, since real money was charged —
+	  it's a financial record needed for reconciliation/GST/refund history).
+	"""
 	campaign = frappe.get_doc("Boost Campaign", campaign_id)
-	if campaign.status not in ("Draft", "Pending Payment"):
-		return {"success": False, "error": {"code": "INVALID_STATUS", "message": "Can only cancel Draft or Pending Payment campaigns"}}
+
+	if campaign.status in ("Cancelled", "Completed"):
+		return {"success": False, "error": {"code": "INVALID_STATUS", "message": f"Campaign is already {campaign.status}"}}
+
+	no_payment_captured = campaign.payment_status != "Captured"
+
+	if no_payment_captured:
+		# Nothing was ever paid or launched — safe to remove entirely.
+		frappe.delete_doc("Boost Campaign", campaign.name, ignore_permissions=True, force=True)
+		frappe.db.commit()
+		return {"success": True, "data": {"campaign_id": campaign_id, "status": "Deleted"}}
+
+	# Payment was captured — clean up the Meta side before cancelling the record.
+	meta_error = None
+	if campaign.meta_campaign_id:
+		from flamezo_backend.flamezo.services.meta_ads import pause_campaign, delete_campaign
+		try:
+			pause_campaign(campaign.meta_campaign_id)
+		except Exception:
+			pass  # may already be paused/inactive — not fatal
+		try:
+			delete_campaign(campaign.meta_campaign_id)
+		except Exception as e:
+			# Don't block cancellation on a Meta-side failure, but surface it —
+			# an admin needs to know the ad might still be live on Meta's side.
+			meta_error = str(e)
+			frappe.log_error(
+				message=f"Campaign: {campaign.name}\nMeta Campaign ID: {campaign.meta_campaign_id}\nError: {meta_error}",
+				title="Boost Meta Delete Failed"
+			)
+
+	if campaign.linked_coupon:
+		frappe.db.set_value("Coupon", campaign.linked_coupon, "is_active", 0)
 
 	campaign.status = "Cancelled"
 	campaign.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	return {"success": True, "data": {"campaign_id": campaign.name, "status": "Cancelled"}}
+	result = {"campaign_id": campaign.name, "status": "Cancelled"}
+	if meta_error:
+		result["warning"] = "Campaign cancelled, but removing the ad from Meta failed — an admin should verify it manually."
+	return {"success": True, "data": result}
 
 
 # ─── Performance ────────────────────────────────────────────────────
@@ -598,6 +666,7 @@ def get_boost_performance(campaign_id):
 		"campaign_id": campaign.name,
 		"campaign_name": campaign.campaign_name,
 		"status": campaign.status,
+		"payment_status": campaign.payment_status,
 		"package_tier": campaign.package_tier,
 		"budget_total": campaign.budget_total,
 		"ad_spend_allocated": campaign.ad_spend_allocated,
@@ -749,6 +818,7 @@ def claim_boost_coupon(restaurant_id, coupon_code):
 	return {
 		"success": True,
 		"data": {
+			"campaign_id": campaign.name,
 			"coupon_code": coupon_code,
 			"discount": campaign.coupon_discount,
 			"min_order": campaign.coupon_min_order,

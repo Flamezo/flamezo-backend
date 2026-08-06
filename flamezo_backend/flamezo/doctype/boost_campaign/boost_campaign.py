@@ -41,14 +41,77 @@ class BoostCampaign(Document):
 		self.coupon_valid_days = duration + 7
 
 	def _generate_unique_coupon_code(self):
-		"""Generate a unique coupon code, retrying on collision."""
+		"""
+		Try the same hyper-local AI coupon-name generator used in Manage
+		Offers/Coupons (e.g. SURTNIMAJJA for a Surat restaurant) so Boost codes
+		feel local and memorable instead of robotic (BOOST-UNVND-X7K9). Falls
+		back silently to the safe random format on any failure — a paid
+		campaign must never get blocked by an AI call.
+		"""
+		ai_code = self._try_ai_coupon_code()
+		if ai_code:
+			return ai_code
+		return self._generate_fallback_code()
+
+	def _try_ai_coupon_code(self):
+		"""
+		Note: this reuses generate_suggestions() from the Manage Offers/Coupons
+		AI feature, which increments the restaurant's monthly free AI-coupon
+		quota as a side effect (it does NOT deduct coins — that only happens in
+		the merchant-facing wrapper). So each Boost campaign consumes one of the
+		restaurant's 10 free monthly AI coupon-suggestion credits, same as if
+		they'd generated a suggestion themselves in Manage Offers/Coupons.
+		"""
+		import re
+		try:
+			from flamezo_backend.flamezo.services.ai.coupon_generator import generate_suggestions
+			result = generate_suggestions(
+				restaurant_id=self.restaurant,
+				tone="attractive",
+				# Boost coupons are always staff-entered/typed codes, never
+				# auto-applied or combo deals — "coupon" is the matching
+				# offer_type_filter value (OFFER_TYPES in coupon_generator.py),
+				# not a discount_type like "flat"/"percent".
+				offer_type_filter="coupon",
+				count=1,
+				# Boost already has a human-set discount amount (offer_amount) —
+				# we only want a name, not an AI-invented discount, so the
+				# food-cost/margin-safety gate (built for the case where the AI
+				# picks the discount itself) doesn't apply here.
+				require_food_cost=False,
+			)
+		except Exception:
+			frappe.log_error(
+				message=f"Restaurant: {self.restaurant}",
+				title="Boost AI Coupon Code Generation Failed"
+			)
+			return None
+
+		if not result.get("success"):
+			return None
+
+		for suggestion in result.get("suggestions") or []:
+			code = re.sub(r"[^A-Z0-9_-]", "", (suggestion.get("code") or "").strip().upper())
+			if len(code) >= 2 and self._coupon_code_is_unique(code):
+				return code
+		return None
+
+	def _coupon_code_is_unique(self, code):
+		if frappe.db.exists("Boost Campaign", {"coupon_code": code}):
+			return False
+		if frappe.db.exists("Coupon", {"code": code}):
+			return False
+		return True
+
+	def _generate_fallback_code(self):
+		"""Safe random code, used when AI generation is unavailable/exhausted/fails."""
 		import random
 		import string
 		restaurant_short = (self.restaurant or "XX")[:8].upper().replace("-", "")
 		for _ in range(50):
 			suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 			candidate = f"BOOST-{restaurant_short}-{suffix}"
-			if not frappe.db.exists("Boost Campaign", {"coupon_code": candidate}):
+			if self._coupon_code_is_unique(candidate):
 				return candidate
 		frappe.throw("Failed to generate unique coupon code. Please try again.")
 
@@ -116,6 +179,46 @@ class BoostCampaign(Document):
 			cpr = flt(self.cost_per_redemption) or (flt(self.amount_spent_meta) / max(self.actual_redemptions, 1))
 			self.topup_credit_amount = flt(deficit * cpr * 1.2)
 		self.save(ignore_permissions=True)
+
+	def apply_pending_guarantee_credit(self):
+		"""
+		Fold any unclaimed guarantee shortfall credit from this restaurant's past
+		completed campaigns into this campaign's actual Meta ad spend — funded by
+		Flamezo, not billed to the merchant. Call once, right after payment capture.
+		"""
+		pending = frappe.get_all("Boost Campaign",
+			filters={
+				"restaurant": self.restaurant,
+				"status": "Completed",
+				"guarantee_met": 0,
+				"topup_credit_amount": [">", 0],
+				"topup_credit_claimed": 0,
+				"name": ["!=", self.name],
+			},
+			fields=["name", "topup_credit_amount"]
+		)
+		if not pending:
+			return
+
+		credit_total = sum(flt(row.topup_credit_amount) for row in pending)
+		# Cap the bonus at 100% of this campaign's own ad spend so a large backlog
+		# of credit can't silently balloon a single campaign's Meta budget.
+		credit_total = min(credit_total, flt(self.ad_spend_allocated))
+		if credit_total <= 0:
+			return
+
+		self.ad_spend_allocated = flt(self.ad_spend_allocated) + credit_total
+		self.credit_topup_applied = credit_total
+		self.db_set("ad_spend_allocated", self.ad_spend_allocated, update_modified=False)
+		self.db_set("credit_topup_applied", self.credit_topup_applied, update_modified=False)
+
+		remaining = credit_total
+		for row in pending:
+			claim = min(remaining, flt(row.topup_credit_amount))
+			frappe.db.set_value("Boost Campaign", row.name, "topup_credit_claimed", 1, update_modified=False)
+			remaining -= claim
+			if remaining <= 0:
+				break
 
 	def mark_paused(self):
 		self.status = "Paused"

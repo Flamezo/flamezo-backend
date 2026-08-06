@@ -84,7 +84,10 @@
   "actual_redemptions",
   "column_break_guarantee",
   "guarantee_met",
-  "topup_credit_amount"
+  "topup_credit_amount",
+  "topup_credit_claimed",
+  "credit_topup_applied",
+  "launch_retry_count"
  ],
  "fields": [
   {
@@ -544,6 +547,30 @@
    "label": "Top-up Credit Amount",
    "default": "0",
    "read_only": 1
+  },
+  {
+   "fieldname": "topup_credit_claimed",
+   "fieldtype": "Check",
+   "label": "Top-up Credit Claimed",
+   "default": "0",
+   "read_only": 1,
+   "description": "Set once this campaign's unmet-guarantee credit has been folded into a later campaign's ad spend"
+  },
+  {
+   "fieldname": "credit_topup_applied",
+   "fieldtype": "Currency",
+   "label": "Credit Top-up Applied",
+   "default": "0",
+   "read_only": 1,
+   "description": "Bonus ad spend added to this campaign from a prior campaign's unmet-guarantee credit (funded by Flamezo, not billed to merchant)"
+  },
+  {
+   "fieldname": "launch_retry_count",
+   "fieldtype": "Int",
+   "label": "Launch Retry Count",
+   "default": "0",
+   "read_only": 1,
+   "description": "Number of times the Meta launch background job has been re-enqueued by the stuck-campaign recovery sweep"
   }
  ],
  "index_web_pages_for_search": 0,

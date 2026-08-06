@@ -359,7 +359,11 @@ export default function BoostNewCampaign() {
         hero_dish_name: heroDish.trim() || undefined,
         ad_image_url: adImageUrl || undefined,
       })
-      const newCampaign = res?.message?.data || res?.data
+      const body = res?.message || res
+      if (!body?.success) {
+        throw new Error(body?.error?.message || 'Failed to create campaign')
+      }
+      const newCampaign = body.data
       setCampaign(newCampaign)
       // Save campaign ID to URL so refresh preserves state
       setStepIndexRaw(3)
@@ -746,10 +750,10 @@ export default function BoostNewCampaign() {
                 )
               })}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/40">
+            <div className="space-y-6 pt-4 border-t border-border/40">
               <div className="space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Campaign Duration</Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col sm:flex-row gap-2">
                   {[
                     { days: 7, label: '7 Days', desc: 'Weekend spike test', icon: Clock },
                     { days: 14, label: '14 Days', desc: 'Optimal conversions', icon: Calendar, badge: 'Recommended' }
@@ -758,23 +762,21 @@ export default function BoostNewCampaign() {
                     const Icon = d.icon
                     return (
                       <button key={d.days} onClick={() => setDuration(d.days)}
-                        className={cn('p-4 rounded-xl border text-left transition-all duration-300 relative flex items-center gap-3 bg-card',
-                          isSelected 
-                            ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 ring-1 ring-orange-500/30 scale-[1.01]' 
+                        className={cn('flex-1 px-4 py-2.5 rounded-lg border transition-all duration-300 relative flex items-center gap-2 bg-card whitespace-nowrap',
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 ring-1 ring-orange-500/30'
                             : 'border-border/60 hover:border-orange-200 hover:bg-muted/10')}>
+                        <div className={cn('h-7 w-7 rounded-md flex items-center justify-center shrink-0',
+                          isSelected ? 'bg-orange-500 text-white' : 'bg-muted text-muted-foreground')}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-sm font-bold text-foreground">{d.label}</span>
+                        <span className="text-[10px] text-muted-foreground hidden md:inline">· {d.desc}</span>
                         {d.badge && (
-                          <span className="absolute -top-2.5 right-3 text-[8px] font-black uppercase tracking-wider bg-orange-500 text-white px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
+                          <span className="ml-auto text-[8px] font-black uppercase tracking-wider bg-orange-500 text-white px-2 py-0.5 rounded-full shadow-sm">
                             {d.badge}
                           </span>
                         )}
-                        <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0',
-                          isSelected ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/10' : 'bg-muted text-muted-foreground')}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-foreground leading-tight">{d.label}</p>
-                          <p className="text-[10px] text-muted-foreground truncate mt-0.5">{d.desc}</p>
-                        </div>
                       </button>
                     )
                   })}
@@ -782,9 +784,9 @@ export default function BoostNewCampaign() {
               </div>
               <div className="space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Targeting Radius</Label>
-                <div className="flex flex-col sm:flex-row gap-4 items-center bg-card p-4 rounded-xl border border-border/40">
+                <div className="flex flex-col md:flex-row gap-4 items-stretch bg-card p-4 rounded-xl border border-border/40">
                   {/* Buttons Grid */}
-                  <div className="grid grid-cols-1 gap-2 flex-1 w-full">
+                  <div className="grid grid-cols-1 gap-2 flex-1 w-full md:max-w-xs">
                     {[
                       { km: 5, label: '5 km Radius', desc: 'City center scale coverage' },
                       { km: 7, label: '7 km Radius', desc: 'Destination pull max range' },
@@ -794,24 +796,24 @@ export default function BoostNewCampaign() {
                       return (
                         <button key={r.km} onClick={() => setRadius(r.km)}
                           className={cn('p-3 rounded-lg border text-left transition-all duration-300 relative flex items-center gap-3 bg-card w-full',
-                            isSelected 
-                              ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 ring-1 ring-orange-500/30 scale-[1.01]' 
+                            isSelected
+                              ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 ring-1 ring-orange-500/30 scale-[1.01]'
                               : 'border-border/60 hover:border-orange-200 hover:bg-muted/10')}>
                           <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0',
                             isSelected ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/10' : 'bg-muted text-muted-foreground')}>
                             <MapPin className="h-4 w-4" />
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold text-foreground leading-tight">{r.label}</p>
-                            <p className="text-[9px] text-muted-foreground truncate mt-0.5">{r.desc}</p>
+                            <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{r.desc}</p>
                           </div>
                         </button>
                       )
                     })}
                   </div>
-                  
+
                   {/* Real Geographic Map - Leaflet Circle Radius Targeting */}
-                  <div className="h-56 w-full md:w-[340px] shrink-0 rounded-xl border border-border/40 overflow-hidden shadow-inner bg-muted/20 dark:bg-muted/5 relative">
+                  <div className="h-56 md:h-auto w-full flex-1 shrink-0 rounded-xl border border-border/40 overflow-hidden shadow-inner bg-muted/20 dark:bg-muted/5 relative">
                     <BoostRadiusMap
                       lat={restaurantDoc?.latitude ? parseFloat(restaurantDoc.latitude) : 21.1702}
                       lng={restaurantDoc?.longitude ? parseFloat(restaurantDoc.longitude) : 72.8311}

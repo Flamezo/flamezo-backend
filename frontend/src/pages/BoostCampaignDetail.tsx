@@ -163,8 +163,10 @@ export default function BoostCampaignDetail() {
               {data.status === 'Paused' && (
                 <Button size="sm" onClick={() => setShowResume(true)} className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"><Play className="h-3.5 w-3.5" /> Resume</Button>
               )}
-              {['Draft', 'Pending Payment'].includes(data.status) && (
-                <Button variant="outline" size="sm" onClick={() => setShowCancel(true)} className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" /> Cancel</Button>
+              {['Draft', 'Pending Payment', 'Submitted', 'Meta Review', 'Live', 'Paused', 'Failed'].includes(data.status) && (
+                <Button variant="outline" size="sm" onClick={() => setShowCancel(true)} className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50">
+                  <XCircle className="h-3.5 w-3.5" /> {data.payment_status === 'Captured' ? 'Cancel' : 'Delete'}
+                </Button>
               )}
               <Button variant="outline" size="sm" onClick={copyLink} className="gap-1.5"><Share2 className="h-3.5 w-3.5" /> Share Link</Button>
             </div>
@@ -308,9 +310,13 @@ export default function BoostCampaignDetail() {
       <ConfirmDialog open={showResume} onOpenChange={setShowResume} title="Resume Campaign"
         description="Your ads will resume running on Meta."
         confirmText="Resume" onConfirm={() => handleAction('resume')} loading={actionLoading} />
-      <ConfirmDialog open={showCancel} onOpenChange={setShowCancel} title="Cancel Campaign"
-        description="This will permanently cancel the campaign. This cannot be undone."
-        confirmText="Cancel Campaign" variant="destructive" onConfirm={() => handleAction('cancel')} loading={actionLoading} />
+      <ConfirmDialog open={showCancel} onOpenChange={setShowCancel}
+        title={data.payment_status === 'Captured' ? 'Cancel Campaign' : 'Delete Campaign'}
+        description={data.payment_status === 'Captured'
+          ? "This will pause and remove the ad from Meta and cancel the campaign. Payment/redemption history is kept for your records. This cannot be undone."
+          : "No payment was made for this campaign — it will be deleted entirely. This cannot be undone."}
+        confirmText={data.payment_status === 'Captured' ? 'Cancel Campaign' : 'Delete Campaign'}
+        variant="destructive" onConfirm={() => handleAction('cancel')} loading={actionLoading} />
     </div>
   )
 }
