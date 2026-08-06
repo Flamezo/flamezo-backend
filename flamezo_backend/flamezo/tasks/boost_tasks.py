@@ -228,7 +228,13 @@ def send_boost_booking_reminders():
 	if not candidates:
 		return
 
-	from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_message
+	# Official Meta WhatsApp Cloud API (Graph API) — same one OTP uses, reads
+	# whatsapp_access_token/whatsapp_phone_number_id from site_config. NOT
+	# Evolution API. Requires an APPROVED Meta template — free-form text isn't
+	# possible on this path (Meta's business-initiated-message rules).
+	from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
+
+	BOOKING_REMINDER_TEMPLATE = "flamezo_boost_booking_reminder"
 
 	now_dt = now_datetime()
 	for booking in candidates:
@@ -247,22 +253,23 @@ def send_boost_booking_reminders():
 
 		restaurant_name = frappe.db.get_value("Restaurant", booking.restaurant, "restaurant_name") or booking.restaurant
 		coupon_code = frappe.db.get_value("Boost Campaign", booking.boost_campaign, "coupon_code")
-		message = (
-			f"Hi {booking.customer_name or ''}! Reminder: your table at {restaurant_name} "
-			f"is reserved for {booking.time_slot} today. Don't forget your offer code "
-			f"{coupon_code} at the counter. See you soon!"
-		).strip()
 
 		try:
-			sent, error = send_whatsapp_message(booking.customer_phone, message)
+			# body_params map in order to the template's {{1}}, {{2}}, {{3}} —
+			# adjust to match whatever the approved template's copy actually is.
+			sent, result = send_whatsapp_cloud_message(
+				booking.customer_phone,
+				template_name=BOOKING_REMINDER_TEMPLATE,
+				body_params=[booking.customer_name or "there", restaurant_name, booking.time_slot, coupon_code],
+			)
 		except Exception as e:
-			sent, error = False, str(e)
+			sent, result = False, str(e)
 
 		if sent:
 			frappe.db.set_value("Table Booking", booking.name, "reminder_sent", 1, update_modified=False)
 			frappe.db.commit()
 		else:
 			frappe.log_error(
-				message=f"Booking: {booking.name}\nPhone: {booking.customer_phone}\nError: {error}",
+				message=f"Booking: {booking.name}\nPhone: {booking.customer_phone}\nError: {result}",
 				title="Boost Booking Reminder Failed"
 			)

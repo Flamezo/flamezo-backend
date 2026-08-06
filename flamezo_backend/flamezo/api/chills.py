@@ -438,6 +438,75 @@ def save_chills(chills_id, phone):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_saved_chills(phone, cursor=None, limit=20):
+    """Paginated list of a customer's saved Chills, most-recently-saved
+    first. Returns private data (not just a toggle mutation like
+    save_chills/like_chills), so unlike those it requires a real verified
+    session for the exact phone — same gate as follow_outlet."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    limit = min(int(limit), 30)
+
+    conditions = ["s.customer_phone=%s", "c.status='published'"]
+    params = [phone]
+
+    if cursor:
+        try:
+            cur_ts, cur_name = cursor.split("|", 1)
+            conditions.append("(s.creation < %s OR (s.creation = %s AND s.name < %s))")
+            params += [cur_ts, cur_ts, cur_name]
+        except ValueError:
+            pass
+
+    where = " AND ".join(conditions)
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT {_CHILLS_FEED_COLUMNS}, s.creation AS saved_at, s.name AS save_name
+        FROM `tabChills Save` s
+        INNER JOIN `tabChills` c ON c.name = s.chills
+        WHERE {where}
+        ORDER BY s.creation DESC, s.name DESC
+        LIMIT %s
+        """,
+        params + [limit + 1],
+        as_dict=True,
+    )
+
+    has_more = len(rows) > limit
+    items = rows[:limit]
+
+    chills_ids = [c.name for c in items]
+    outlet_ids = list({c.outlet for c in items if c.outlet})
+
+    # Every item here is, by definition, saved by this phone — but reuse
+    # the shared fetch (rather than hardcoding isSaved=True) so likes are
+    # still populated correctly per item.
+    liked_set, saved_set = _fetch_interaction_sets(phone, chills_ids)
+    follow_set = _get_outlet_follow_set(phone)
+    offers_map = _get_offers_count_map(outlet_ids)
+    rating_map = _get_outlet_ratings_map(outlet_ids)
+    followers_map = _get_outlet_followers_map(outlet_ids)
+
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = f"{last.saved_at}|{last.save_name}"
+
+    return {
+        "success": True,
+        "data": {
+            "reels": [
+                _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map)
+                for c in items
+            ],
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+        },
+    }
+
+
+@frappe.whitelist(allow_guest=True)
 def record_chills_view(chills_id, phone):
     """Idempotent per phone+chills+day. Increments views_count once per day."""
     if not chills_id:
