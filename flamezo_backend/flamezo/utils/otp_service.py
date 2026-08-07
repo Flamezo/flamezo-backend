@@ -78,7 +78,10 @@ def send_otp_via_whatsapp(phone: str, otp: str, restaurant_name: str = None) -> 
 			}
 		}
 
-		resp = requests.post(endpoint, json=payload, headers=headers, timeout=15)
+		# Short timeout: OTP delivery is on the login critical path, so a slow
+		# Meta Graph endpoint must not stall the request (was 15s → ~25s total
+		# with the SMS fallback, leaving the app stuck on "Sending...").
+		resp = requests.post(endpoint, json=payload, headers=headers, timeout=8)
 		data = resp.json() if resp.text else {}
 
 		if resp.status_code in [200, 201] and data.get("messages"):
@@ -132,7 +135,7 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 				"numbers": numbers
 			}
 
-		resp = requests.post(FAST2SMS_SMS_URL, json=payload, headers=headers, timeout=10)
+		resp = requests.post(FAST2SMS_SMS_URL, json=payload, headers=headers, timeout=7)
 		data = resp.json() if resp.text else {}
 		return resp.status_code == 200 and data.get("return", False)
 	except Exception as e:
