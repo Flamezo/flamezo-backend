@@ -37,6 +37,40 @@ import io
 from datetime import datetime, timedelta
 
 
+def _bucket_offer_groups(coupons):
+	"""
+	Buckets already-formatted coupon dicts into Auto-Applied / % Off Deals /
+	Flat Deals / Combo Offers / More Offers — mirrors the Flutter app's
+	`buildAppOfferGroups` (offer_group_utils.dart) exactly so the client can
+	render the Offers tab directly from `groups` instead of re-bucketing the
+	flat `coupons` list itself on every tab open.
+	"""
+	auto = [c for c in coupons if c["offerType"] == "auto"]
+	percent = [
+		c for c in coupons
+		if c["offerType"] not in ("auto", "combo") and (c["discountPercent"] or 0) > 0
+	]
+	flat = [
+		c for c in coupons
+		if c["offerType"] not in ("auto", "combo")
+		and not (c["discountPercent"] or 0) > 0
+		and c["discountAmount"] > 0
+	]
+	combo = [c for c in coupons if c["offerType"] == "combo"]
+
+	bucketed_ids = {c["id"] for c in (auto + percent + flat + combo)}
+	others = [c for c in coupons if c["id"] not in bucketed_ids]
+
+	groups = [
+		{"id": "auto", "label": "Auto-Applied", "offers": auto},
+		{"id": "percent", "label": "% Off Deals", "offers": percent},
+		{"id": "flat", "label": "Flat Deals", "offers": flat},
+		{"id": "combo", "label": "Combo Offers", "offers": combo},
+		{"id": "others", "label": "More Offers", "offers": others},
+	]
+	return [g for g in groups if g["offers"]]
+
+
 @frappe.whitelist(allow_guest=True)
 def get_coupons(restaurant_id, active_only=True):
 	"""
@@ -182,12 +216,18 @@ def get_coupons(restaurant_id, active_only=True):
 			claimed_today = claimed_today_map.get(coupon["id"], 0)
 			slots_remaining = max(0, daily_limit - claimed_today) if daily_limit > 0 else None
 
+			discount_type = coupon.get("type", "flat")
+			discount_value = flt(coupon["discount"])
 			coupon_data = {
 				"id": str(coupon["id"]),
 				"code": coupon["code"],
-				"discount": flt(coupon["discount"]),
+				"discount": discount_value,
+				# Split amount/percent (same shape as the applicable-offers endpoint's
+				# OfferItem.fromApiJson) so display code never has to branch on `type`.
+				"discountAmount": discount_value if discount_type != "percent" else 0,
+				"discountPercent": discount_value if discount_type == "percent" else None,
 				"minOrderAmount": flt(coupon.get("min_order_amount", 0)),
-				"type": coupon.get("type", "flat"),
+				"type": discount_type,
 				"offerType": coupon.get("offer_type", "coupon"),
 				"isActive": bool(coupon.get("is_active", False)),
 				"currentlyRedeemable": currently_redeemable,
@@ -222,11 +262,13 @@ def get_coupons(restaurant_id, active_only=True):
 				coupon_data["validUntil"] = str(coupon["valid_until"])
 
 			formatted_coupons.append(coupon_data)
-		
+
 		return {
 			"success": True,
 			"data": {
-				"coupons": formatted_coupons
+				"coupons": formatted_coupons,
+				# Pre-bucketed into the same Auto/%-Off/Flat/Combo/Others sections
+				"groups": _bucket_offer_groups(formatted_coupons),
 			}
 		}
 	except Exception as e:

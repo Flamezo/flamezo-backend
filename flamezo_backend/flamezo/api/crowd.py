@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, get_datetime, add_days
 
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -9,6 +11,27 @@ def _require_phone(phone):
     if not phone:
         frappe.throw(_("phone is required"), frappe.AuthenticationError)
     return phone.strip()
+
+
+def _require_session(phone):
+    """Every mutating/private crowd endpoint must be backed by a real, verified
+    session for that exact phone — not just a client-supplied string. Without
+    this, any caller who knows/guesses a phone number could act as that user
+    (approve/reject members, send chat messages, cancel requests, etc.)."""
+    if not has_active_customer_session(phone):
+        frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+    return phone
+
+
+def _optional_verified_phone(phone):
+    """For public/guest-readable listings that optionally take a phone (only
+    used to annotate 'have I requested this' / exclude my own crowds) — if a
+    phone is supplied but doesn't belong to an active session, treat the
+    caller as anonymous instead of hard-failing, so logged-out browsing still
+    works. Never trust an unverified phone for personalized data."""
+    if phone and not has_active_customer_session(phone):
+        return None
+    return phone
 
 
 def _format_request(r, phone=None, requested_set=None, member_status_map=None):
@@ -62,6 +85,7 @@ def _get_requested_set(phone, request_ids):
 
 @frappe.whitelist(allow_guest=True)
 def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None, gender_preference=None):
+    phone = _optional_verified_phone(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -132,6 +156,7 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
 @frappe.whitelist(allow_guest=True)
 def get_crowd_request_detail(request_id, phone=None):
     """Single Team Up with full member list — used by detail screen and chat header."""
+    phone = _optional_verified_phone(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -152,7 +177,7 @@ def get_crowd_request_detail(request_id, phone=None):
         as_dict=True,
     )
     if not rows:
-        frappe.throw(_("Team Up not found"), frappe.DoesNotExistError)
+        frappe.throw(_("Crowd not found"), frappe.DoesNotExistError)
 
     req = rows[0]
     requested_set, status_map = _get_requested_set(phone, [request_id]) if phone else (set(), {})
@@ -193,6 +218,7 @@ def create_crowd_request(phone, title, date, category=None, description=None,
                          creator_name=None, creator_image=None, expires_at=None,
                          tier=None):
     phone = _require_phone(phone)
+    _require_session(phone)
     if not title:
         frappe.throw(_("title is required"))
     if not date:
@@ -238,6 +264,7 @@ def create_crowd_request(phone, title, date, category=None, description=None,
 @frappe.whitelist(allow_guest=True)
 def request_to_join(request_id, phone, customer_name=None, intro_message=None, customer_image=None):
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -277,6 +304,7 @@ def request_to_join(request_id, phone, customer_name=None, intro_message=None, c
 @frappe.whitelist(allow_guest=True)
 def manage_join_request(request_id, member_id, action, phone):
     phone = _require_phone(phone)
+    _require_session(phone)
     if action not in ("approve", "reject"):
         frappe.throw(_("action must be 'approve' or 'reject'"))
 
@@ -304,27 +332,64 @@ def manage_join_request(request_id, member_id, action, phone):
     if member.status != "pending":
         frappe.throw(_("This join request has already been processed"))
 
-    new_status = "approved" if action == "approve" else "rejected"
-    frappe.db.set_value("Crowd Request Member", member_id, {
-        "status": new_status,
-        "responded_at": now_datetime(),
-    })
-
     if action == "approve":
-        new_count = (crowd.current_members or 1) + 1
-        update = {"current_members": new_count}
-        if new_count >= (crowd.max_members or 4):
-            update["status"] = "closed"
-        frappe.db.set_value("Crowd Request", request_id, update)
-        # Notify the approved member via push
-        if member.customer_phone:
-            frappe.enqueue(
-                "flamezo_backend.flamezo.api.crowd._send_approval_push",
-                queue="short",
-                member_phone=member.customer_phone,
-                request_id=request_id,
-                now=False,
+        # Atomically claim a capacity slot — this single UPDATE...WHERE *is*
+        # the lock. Two concurrent approvals (or an approval racing a crowd
+        # that just hit max_members) can never both succeed: whichever commits
+        # second always affects 0 rows here, so current_members can never
+        # overshoot max_members no matter how many pending members exist or
+        # how many approve calls land at once. Previously this was a plain
+        # read-current_members-then-write, which both undercounted under
+        # concurrent approvals (lost update) and let approvals continue after
+        # the crowd was already marked 'closed' for being full.
+        frappe.db.sql(
+            """
+            UPDATE `tabCrowd Request`
+            SET current_members = current_members + 1,
+                status = IF(current_members + 1 >= max_members, 'closed', status)
+            WHERE name = %s AND current_members < max_members
+            """,
+            [request_id],
+        )
+        if not frappe.db.sql("SELECT ROW_COUNT()")[0][0]:
+            frappe.throw(_("This crowd is already full"))
+
+    # Atomically transition the member out of 'pending' — the WHERE guard
+    # protects against a double-tap/duplicate call processing the same
+    # member twice (the earlier read-based check above has a race window).
+    new_status = "approved" if action == "approve" else "rejected"
+    frappe.db.sql(
+        """
+        UPDATE `tabCrowd Request Member`
+        SET status = %s, responded_at = %s
+        WHERE name = %s AND status = 'pending'
+        """,
+        [new_status, now_datetime(), member_id],
+    )
+    if not frappe.db.sql("SELECT ROW_COUNT()")[0][0]:
+        # Lost the race on the member row after already claiming a capacity
+        # slot above — give it back rather than leak a phantom seat.
+        if action == "approve":
+            frappe.db.sql(
+                """
+                UPDATE `tabCrowd Request`
+                SET current_members = GREATEST(current_members - 1, 1),
+                    status = IF(status = 'closed', 'open', status)
+                WHERE name = %s
+                """,
+                [request_id],
             )
+        frappe.throw(_("This join request has already been processed"))
+
+    if action == "approve" and member.customer_phone:
+        # Notify the approved member via push
+        frappe.enqueue(
+            "flamezo_backend.flamezo.api.crowd._send_approval_push",
+            queue="short",
+            member_phone=member.customer_phone,
+            request_id=request_id,
+            now=False,
+        )
 
     frappe.db.commit()
     return {"success": True, "data": {"member_id": member_id, "status": new_status}}
@@ -335,6 +400,7 @@ def manage_join_request(request_id, member_id, action, phone):
 @frappe.whitelist(allow_guest=True)
 def get_my_crowd_requests(phone, page=1, limit=20):
     phone = _require_phone(phone)
+    _require_session(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -360,19 +426,29 @@ def get_my_crowd_requests(phone, page=1, limit=20):
     has_more = len(rows) > limit
     requests = rows[:limit]
 
-    # Attach member list to each request
-    result = []
-    for req in requests:
-        members = frappe.db.sql(
-            """
-            SELECT name AS id, customer_phone, customer_name, customer_image, intro_message, status, responded_at
+    # Batch-fetch every request's members in one query (keyed by request id)
+    # instead of one query per request — avoids an N+1 as a creator's request
+    # count grows.
+    members_by_request = {}
+    req_ids = [req.name for req in requests]
+    if req_ids:
+        placeholders = ",".join(["%s"] * len(req_ids))
+        member_rows = frappe.db.sql(
+            f"""
+            SELECT request, name AS id, customer_phone, customer_name, customer_image,
+                   intro_message, status, responded_at
             FROM `tabCrowd Request Member`
-            WHERE request=%s
+            WHERE request IN ({placeholders})
             ORDER BY creation DESC
             """,
-            req.name,
+            req_ids,
             as_dict=True,
         )
+        for m in member_rows:
+            members_by_request.setdefault(m.request, []).append(m)
+
+    result = []
+    for req in requests:
         formatted = _format_request(req)
         formatted["members"] = [
             {
@@ -384,7 +460,7 @@ def get_my_crowd_requests(phone, page=1, limit=20):
                 "status": m.status,
                 "responded_at": str(m.responded_at) if m.responded_at else "",
             }
-            for m in members
+            for m in members_by_request.get(req.name, [])
         ]
         result.append(formatted)
 
@@ -394,6 +470,7 @@ def get_my_crowd_requests(phone, page=1, limit=20):
 @frappe.whitelist(allow_guest=True)
 def get_my_crowd_joins(phone, page=1, limit=20):
     phone = _require_phone(phone)
+    _require_session(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -434,6 +511,7 @@ def get_my_crowd_joins(phone, page=1, limit=20):
 @frappe.whitelist(allow_guest=True)
 def cancel_crowd_request(request_id, phone):
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -464,7 +542,7 @@ def _assert_chat_access(request_id, phone):
         ["name", "creator_phone", "status"], as_dict=True
     )
     if not crowd:
-        frappe.throw(_("Team Up not found"), frappe.DoesNotExistError)
+        frappe.throw(_("Crowd not found"), frappe.DoesNotExistError)
     if crowd.creator_phone == phone:
         return True
     member_status = frappe.db.get_value(
@@ -502,6 +580,7 @@ def get_messages(request_id, phone=None, before_id=None, limit=40):
     # Guest read allowed for preview; full access requires approved membership
     if phone:
         phone = _require_phone(phone)
+        _require_session(phone)
         _assert_chat_access(request_id, phone)
 
     limit = min(int(limit or 40), 100)
@@ -538,6 +617,7 @@ def get_messages(request_id, phone=None, before_id=None, limit=40):
 def send_message(request_id, phone, message=None, message_type="text", image_url=None,
                  sender_name=None, sender_image=None, sender_interests=None):
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
     if message_type == "text" and not (message or "").strip():
@@ -600,6 +680,7 @@ def send_message(request_id, phone, message=None, message_type="text", image_url
 def upload_chat_image(request_id, phone, file_content, filename, content_type="image/jpeg"):
     """Upload an image to R2 and return the public URL for use in send_message."""
     phone = _require_phone(phone)
+    _require_session(phone)
     _assert_chat_access(request_id, phone)
 
     import base64
@@ -642,6 +723,7 @@ def save_expo_push_token(phone, token):
     Tokens are stored in Redis with a 30-day TTL — no schema migration needed.
     """
     phone = _require_phone(phone)
+    _require_session(phone)
     if not token or not str(token).startswith("ExponentPushToken["):
         frappe.throw(_("Invalid Expo push token format"), frappe.ValidationError)
     frappe.cache().set_value(f"expo_push:{phone}", str(token), expires_in_sec=30 * 24 * 3600)
@@ -722,15 +804,15 @@ def _check_join_eligibility(phone, customer_name=None):
         from frappe.utils import date_diff
         age_days = date_diff(now_datetime(), str(member_creation))
         if age_days < 7:
-            frappe.throw(_("Your account must be at least 7 days old to join a Team Up."))
+            frappe.throw(_("Your account must be at least 7 days old to join a Crowd."))
 
     # 2. Name validation
     if customer_name:
         name = customer_name.strip()
         if len(name) < 2 or not re.search(r'[A-Za-z]', name):
-            frappe.throw(_("Please use your real name to join a Team Up."))
+            frappe.throw(_("Please use your real name to join a Crowd."))
         if re.match(r'^(user|guest|anon|test)\d+$', name.lower()):
-            frappe.throw(_("Please update your profile name before joining a Team Up."))
+            frappe.throw(_("Please update your profile name before joining a Crowd."))
 
     # 3. Reliability gate (only if 5+ past joins)
     stats = frappe.db.sql(
@@ -748,7 +830,7 @@ def _check_join_eligibility(phone, customer_name=None):
         if total > 0 and (attended / total) < 0.3:
             frappe.throw(_(
                 "Your reliability score is too low. "
-                "Please attend your existing Team Ups before joining new ones."
+                "Please attend your existing Crowds before joining new ones."
             ))
 
 
@@ -758,6 +840,7 @@ def _check_join_eligibility(phone, customer_name=None):
 def edit_crowd_request(request_id, phone, title=None, description=None, max_members=None):
     """Creator can edit a Team Up only if no external members have joined (current_members == 1)."""
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -770,11 +853,11 @@ def edit_crowd_request(request_id, phone, title=None, description=None, max_memb
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone != phone:
-        frappe.throw(_("Only the creator can edit this Team Up"), frappe.PermissionError)
+        frappe.throw(_("Only the creator can edit this Crowd"), frappe.PermissionError)
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("Cannot edit a completed or cancelled Team Up"))
+        frappe.throw(_("Cannot edit a completed or cancelled Crowd"))
     if (crowd.current_members or 1) > 1:
-        frappe.throw(_("Cannot edit a Team Up after members have joined"))
+        frappe.throw(_("Cannot edit a Crowd after members have joined"))
 
     updates = {}
     if title is not None:
@@ -800,6 +883,7 @@ def edit_crowd_request(request_id, phone, title=None, description=None, max_memb
 def leave_crowd_request(request_id, phone):
     """Approved member leaves a Team Up — decrements current_members and marks them 'left'."""
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -812,9 +896,9 @@ def leave_crowd_request(request_id, phone):
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone == phone:
-        frappe.throw(_("The creator cannot leave — cancel the Team Up instead"))
+        frappe.throw(_("The creator cannot leave — cancel the Crowd instead"))
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("Cannot leave a completed or cancelled Team Up"))
+        frappe.throw(_("Cannot leave a completed or cancelled Crowd"))
 
     member = frappe.db.get_value(
         "Crowd Request Member",
@@ -823,15 +907,30 @@ def leave_crowd_request(request_id, phone):
         as_dict=True,
     )
     if not member:
-        frappe.throw(_("You are not an approved member of this Team Up"), frappe.PermissionError)
+        frappe.throw(_("You are not an approved member of this Crowd"), frappe.PermissionError)
 
-    frappe.db.set_value("Crowd Request Member", member.name, "status", "left")
+    # Atomically flip the member out of 'approved' — the WHERE guard protects
+    # against a double-tap firing two concurrent leave calls for the same
+    # member (would otherwise double-decrement current_members below).
+    frappe.db.sql(
+        "UPDATE `tabCrowd Request Member` SET status = 'left' WHERE name = %s AND status = 'approved'",
+        [member.name],
+    )
+    if not frappe.db.sql("SELECT ROW_COUNT()")[0][0]:
+        frappe.throw(_("You are not an approved member of this Crowd"), frappe.PermissionError)
 
-    new_count = max(1, (crowd.current_members or 1) - 1)
-    update = {"current_members": new_count}
-    if crowd.status == "closed":
-        update["status"] = "open"
-    frappe.db.set_value("Crowd Request", request_id, update)
+    # Atomic decrement (same lost-update risk as the approve-side increment
+    # this mirrors) — never goes below 1, reopens the crowd if it was closed
+    # purely for having been full (see `manage_join_request`).
+    frappe.db.sql(
+        """
+        UPDATE `tabCrowd Request`
+        SET current_members = GREATEST(current_members - 1, 1),
+            status = IF(status = 'closed', 'open', status)
+        WHERE name = %s
+        """,
+        [request_id],
+    )
 
     frappe.db.commit()
     return {"success": True, "data": {"status": "left"}}
@@ -843,6 +942,7 @@ def leave_crowd_request(request_id, phone):
 def report_crowd_message(message_id, phone, reason="other"):
     """Report a chat message for moderator review."""
     phone = _require_phone(phone)
+    _require_session(phone)
     if not message_id:
         frappe.throw(_("message_id is required"))
 
@@ -886,6 +986,7 @@ def complete_crowd_request(request_id, phone, attended_phones=None):
     Sets attended=1 for the reliability score calculation.
     """
     phone = _require_phone(phone)
+    _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
 
@@ -898,9 +999,9 @@ def complete_crowd_request(request_id, phone, attended_phones=None):
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone != phone:
-        frappe.throw(_("Only the creator can complete this Team Up"), frappe.PermissionError)
+        frappe.throw(_("Only the creator can complete this Crowd"), frappe.PermissionError)
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("This Team Up is already completed or cancelled"))
+        frappe.throw(_("This Crowd is already completed or cancelled"))
 
     if isinstance(attended_phones, str):
         import json
@@ -934,6 +1035,7 @@ def complete_crowd_request(request_id, phone, attended_phones=None):
 def get_crowd_reliability(phone):
     """Returns the reliability score (0-100) based on past Team Up attendance."""
     phone = _require_phone(phone)
+    _require_session(phone)
     stats = frappe.db.sql(
         """
         SELECT COUNT(*) AS total, COALESCE(SUM(attended), 0) AS attended_count
@@ -957,6 +1059,7 @@ def get_crowd_requests_for_venue(outlet_id, phone=None, limit=5):
     if not outlet_id:
         frappe.throw(_("outlet_id is required"))
     limit = min(int(limit or 5), 20)
+    phone = _optional_verified_phone(phone)
 
     rows = frappe.db.sql(
         """
@@ -975,8 +1078,6 @@ def get_crowd_requests_for_venue(outlet_id, phone=None, limit=5):
     )
     for r in rows:
         r.outlet_restaurant_name = ""
-
-    phone = _require_phone(phone) if phone else None
     req_ids = [r.name for r in rows]
     requested_set, status_map = _get_requested_set(phone, req_ids)
 
@@ -994,7 +1095,7 @@ def _send_approval_push(member_phone, request_id):
         token = frappe.cache().get_value(f"expo_push:{member_phone}")
         if not token:
             return
-        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Team Up"
+        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Crowd"
         http_req.post(
             "https://exp.host/--/api/v2/push/send",
             json={

@@ -322,27 +322,44 @@ def get_outlets_for_map(
 	city=None,
 	sw_lat=None, sw_lng=None, ne_lat=None, ne_lng=None,
 	outlet_type=None,
+	search=None, has_offer=None,
+	user_lat=None, user_lon=None, radius_km=None,
 ):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_outlets_for_map
 
-	Returns lightweight markers for all active outlets in a bounding box or city.
-	Designed for the map-discovery screen — returns ONLY what's needed to render pins.
+	Returns lightweight markers for all active outlets in a bounding box, city,
+	or radius. Designed for the map-discovery screen — returns ONLY what's
+	needed to render pins, pre-filtered/pre-sorted so the client never has to
+	scan the full outlet set (search-as-you-type, category chips, and the
+	discount toggle are all query params here, not client-side `.where()`s).
 
 	Parameters:
 	  city                  — city name filter (alternative to bounding box)
 	  sw_lat, sw_lng        — south-west corner of the viewport
 	  ne_lat, ne_lng        — north-east corner of the viewport
 	  outlet_type           — comma-separated outlet types to show
+	  search                — name/cuisine substring filter (map search bar)
+	  has_offer             — only outlets with >=1 active offer/discount
+	  user_lat, user_lon    — user coords, for radius_km filter + distance_km per marker
+	  radius_km             — hard radius filter (only applies with user_lat/user_lon)
 
 	Response per marker:
-	  { id, name, logo, lat, lng, outlet_type, is_featured, active_offers_count }
+	  { id, name, logo, lat, lng, outlet_type, is_featured, active_offers_count, distance_km }
 	"""
 	try:
-		# ── Cache (5 min per city/bounds/type bucket) ─────────────────────────────
+		user_lat_f = flt(user_lat) if user_lat else None
+		user_lon_f = flt(user_lon) if user_lon else None
+		r_km = flt(radius_km) if radius_km else None
+
+		# ── Cache (5 min per bucket) ───────────────────────────────────────────────
 		lat_b = f"{round(flt(sw_lat),2)},{round(flt(ne_lat),2)}" if sw_lat else "none"
 		lon_b = f"{round(flt(sw_lng),2)},{round(flt(ne_lng),2)}" if sw_lng else "none"
-		cache_key = f"flamezo:map:{city or 'all'}:{lat_b}:{lon_b}:{outlet_type or 'all'}"
+		user_b = f"{round(user_lat_f,2)},{round(user_lon_f,2)},{r_km}" if user_lat_f else "none"
+		cache_key = (
+			f"flamezo:map:{city or 'all'}:{lat_b}:{lon_b}:{outlet_type or 'all'}:"
+			f"{search or ''}:{cint(has_offer)}:{user_b}"
+		)
 		cached = frappe.cache().get_value(cache_key)
 		if cached:
 			return json.loads(cached)
@@ -360,12 +377,27 @@ def get_outlets_for_map(
 			sql_filters.append("longitude BETWEEN %s AND %s")
 			params += [flt(sw_lat), flt(ne_lat), flt(sw_lng), flt(ne_lng)]
 
+		# Radius filter: cheap bounding-box pre-filter (index scan), exact
+		# Haversine cut applied in Python below on the smaller result set.
+		if user_lat_f and user_lon_f and r_km:
+			lat_delta = r_km / 111.0
+			lon_delta = r_km / (111.0 * math.cos(math.radians(user_lat_f)))
+			sql_filters.append("latitude  BETWEEN %s AND %s")
+			sql_filters.append("longitude BETWEEN %s AND %s")
+			params += [user_lat_f - lat_delta, user_lat_f + lat_delta,
+					   user_lon_f - lon_delta, user_lon_f + lon_delta]
+
 		if outlet_type:
 			types = [t.strip() for t in str(outlet_type).split(",") if t.strip()]
 			if types:
 				phs = ",".join(["%s"] * len(types))
 				sql_filters.append(f"outlet_type IN ({phs})")
 				params.extend(types)
+
+		if search:
+			sql_filters.append("(restaurant_name LIKE %s OR cuisines LIKE %s)")
+			like = f"%{search}%"
+			params += [like, like]
 
 		where = " AND ".join(sql_filters)
 		rows = frappe.db.sql(
@@ -390,9 +422,22 @@ def get_outlets_for_map(
 		names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(names)
 
+		# has_offer filter (post-query — reuses the same batch offers_map, still
+		# zero N+1) — only outlets with >=1 currently-valid active coupon.
+		if cint(has_offer):
+			rows = [r for r in rows if offers_map.get(r["name"], 0) > 0]
+
 		site_url = frappe.utils.get_url()
-		markers = [
-			{
+		markers = []
+		for r in rows:
+			distance_km = None
+			if user_lat_f and user_lon_f:
+				distance_km = round(
+					_haversine_km(user_lat_f, user_lon_f, flt(r["latitude"]), flt(r["longitude"])), 1
+				)
+				if r_km is not None and distance_km > r_km:
+					continue  # exact Haversine cut past the bounding-box pre-filter
+			markers.append({
 				"id": r["name"],
 				"name": r["restaurant_name"],
 				"logo": (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or ""),
@@ -401,9 +446,13 @@ def get_outlets_for_map(
 				"outlet_type": r.get("outlet_type") or "dining",
 				"is_featured": bool(r.get("is_featured")),
 				"active_offers_count": offers_map.get(r["name"], 0),
-			}
-			for r in rows
-		]
+				"distance_km": distance_km,
+			})
+
+		# Nearest-first when we know the user's location (matches the reference
+		# app's "nearest first" map behavior; distance-agnostic otherwise).
+		if user_lat_f and user_lon_f:
+			markers.sort(key=lambda m: m["distance_km"] if m["distance_km"] is not None else 99999)
 
 		result = {"success": True, "data": {"markers": markers, "total": len(markers)}}
 		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=300)
@@ -919,7 +968,7 @@ def get_restaurant_summary(restaurant_id):
 
 # ── 7. Customer Profile Photo Upload ─────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def upload_customer_photo():
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.flamezo.upload_customer_photo

@@ -974,6 +974,109 @@ def get_claimable_orders(restaurant_id, phone):
 		return _err("INTERNAL_ERROR")
 
 
+@frappe.whitelist(allow_guest=True)
+def get_claimable_orders_bulk(restaurant_ids, phone):
+	"""
+	Same eligibility logic as `get_claimable_orders`, batched across multiple
+	restaurants in a single query. Lets the wallet "Claim your cashback" feed
+	replace up to 8 sequential HTTP round-trips (one per recently-paid outlet)
+	with one call.
+	"""
+	try:
+		if isinstance(restaurant_ids, str):
+			raw_ids = [r.strip() for r in restaurant_ids.split(",") if r.strip()]
+		else:
+			raw_ids = [str(r).strip() for r in restaurant_ids if str(r).strip()]
+
+		normalized_phone = normalize_phone(phone)
+		if not normalized_phone:
+			return _err("INVALID_PHONE", "Invalid phone number")
+
+		session_token = get_customer_token()
+		if not session_token or not validate_customer_session(normalized_phone, session_token):
+			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
+
+		# Resolve + de-dupe valid restaurants, dropping any that don't exist
+		# rather than failing the whole batch.
+		resolved = {}
+		for rid in raw_ids:
+			try:
+				resolved[rid] = validate_restaurant_for_api(rid)
+			except Exception:
+				continue
+
+		if not resolved:
+			return _ok({"byRestaurant": {}})
+
+		restaurant_names = {
+			doc_id: (frappe.db.get_value("Restaurant", doc_id, "restaurant_name") or "")
+			for doc_id in set(resolved.values())
+		}
+
+		from frappe.utils import add_days, today
+		since = add_days(today(), -CLAIM_WINDOW_DAYS)
+		doc_ids = list(set(resolved.values()))
+		placeholders = ", ".join(["%s"] * len(doc_ids))
+		rows = frappe.db.sql(
+			f"""
+			SELECT name, restaurant, order_number, total, payment_status, status, creation
+			FROM `tabOrder`
+			WHERE restaurant IN ({placeholders})
+			  AND customer_phone = %s
+			  AND payment_status = 'completed'
+			  AND DATE(creation) >= %s
+			  AND order_number LIKE 'FZ-%%'
+			ORDER BY creation DESC
+			""",
+			(*doc_ids, phone, since),
+			as_dict=True,
+		)
+
+		# Only outlets with an active UGC config can surface claims.
+		active_doc_ids = {
+			doc_id for doc_id in doc_ids
+			if (config := _get_active_config(doc_id)) and _is_ugc_active(config)
+		}
+
+		by_restaurant: dict = {}
+		counts: dict = {}
+		for row in rows:
+			doc_id = row["restaurant"]
+			if doc_id not in active_doc_ids:
+				continue
+			if counts.get(doc_id, 0) >= 10:
+				continue
+			counts[doc_id] = counts.get(doc_id, 0) + 1
+
+			order_id = row["name"]
+			expires_on = add_days(row["creation"], CLAIM_WINDOW_DAYS)
+			existing = _active_submission_for_order(order_id)
+			item = {
+				"orderId": order_id,
+				"orderNumber": row["order_number"],
+				"amount": flt(row["total"]),
+				"maxCashback": _max_cashback(row["total"]),
+				"expiresOn": expires_on,
+			}
+			if existing:
+				item.update({"alreadyClaimed": True, "submissionId": existing.name, "submissionStatus": existing.status})
+			else:
+				if flt(row["total"]) < PLATFORM_MIN_ORDER:
+					continue
+				item["alreadyClaimed"] = False
+
+			# Key the response by the outlet slug the client already uses.
+			for slug, doc_id2 in resolved.items():
+				if doc_id2 == doc_id:
+					bucket = by_restaurant.setdefault(slug, {"restaurantName": restaurant_names.get(doc_id, ""), "orders": []})
+					bucket["orders"].append(item)
+
+		return _ok({"byRestaurant": by_restaurant})
+	except Exception as e:
+		frappe.log_error(f"get_claimable_orders_bulk: {e}", "UGC")
+		return _err("INTERNAL_ERROR")
+
+
 def _load_owned_submission(submission_id, restaurant, customer):
 	if not frappe.db.exists("UGC Story Submission", submission_id):
 		return None
