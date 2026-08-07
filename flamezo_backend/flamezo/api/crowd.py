@@ -177,7 +177,7 @@ def get_crowd_request_detail(request_id, phone=None):
         as_dict=True,
     )
     if not rows:
-        frappe.throw(_("Team Up not found"), frappe.DoesNotExistError)
+        frappe.throw(_("Crowd not found"), frappe.DoesNotExistError)
 
     req = rows[0]
     requested_set, status_map = _get_requested_set(phone, [request_id]) if phone else (set(), {})
@@ -542,7 +542,7 @@ def _assert_chat_access(request_id, phone):
         ["name", "creator_phone", "status"], as_dict=True
     )
     if not crowd:
-        frappe.throw(_("Team Up not found"), frappe.DoesNotExistError)
+        frappe.throw(_("Crowd not found"), frappe.DoesNotExistError)
     if crowd.creator_phone == phone:
         return True
     member_status = frappe.db.get_value(
@@ -804,15 +804,15 @@ def _check_join_eligibility(phone, customer_name=None):
         from frappe.utils import date_diff
         age_days = date_diff(now_datetime(), str(member_creation))
         if age_days < 7:
-            frappe.throw(_("Your account must be at least 7 days old to join a Team Up."))
+            frappe.throw(_("Your account must be at least 7 days old to join a Crowd."))
 
     # 2. Name validation
     if customer_name:
         name = customer_name.strip()
         if len(name) < 2 or not re.search(r'[A-Za-z]', name):
-            frappe.throw(_("Please use your real name to join a Team Up."))
+            frappe.throw(_("Please use your real name to join a Crowd."))
         if re.match(r'^(user|guest|anon|test)\d+$', name.lower()):
-            frappe.throw(_("Please update your profile name before joining a Team Up."))
+            frappe.throw(_("Please update your profile name before joining a Crowd."))
 
     # 3. Reliability gate (only if 5+ past joins)
     stats = frappe.db.sql(
@@ -830,7 +830,7 @@ def _check_join_eligibility(phone, customer_name=None):
         if total > 0 and (attended / total) < 0.3:
             frappe.throw(_(
                 "Your reliability score is too low. "
-                "Please attend your existing Team Ups before joining new ones."
+                "Please attend your existing Crowds before joining new ones."
             ))
 
 
@@ -853,11 +853,11 @@ def edit_crowd_request(request_id, phone, title=None, description=None, max_memb
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone != phone:
-        frappe.throw(_("Only the creator can edit this Team Up"), frappe.PermissionError)
+        frappe.throw(_("Only the creator can edit this Crowd"), frappe.PermissionError)
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("Cannot edit a completed or cancelled Team Up"))
+        frappe.throw(_("Cannot edit a completed or cancelled Crowd"))
     if (crowd.current_members or 1) > 1:
-        frappe.throw(_("Cannot edit a Team Up after members have joined"))
+        frappe.throw(_("Cannot edit a Crowd after members have joined"))
 
     updates = {}
     if title is not None:
@@ -896,9 +896,9 @@ def leave_crowd_request(request_id, phone):
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone == phone:
-        frappe.throw(_("The creator cannot leave — cancel the Team Up instead"))
+        frappe.throw(_("The creator cannot leave — cancel the Crowd instead"))
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("Cannot leave a completed or cancelled Team Up"))
+        frappe.throw(_("Cannot leave a completed or cancelled Crowd"))
 
     member = frappe.db.get_value(
         "Crowd Request Member",
@@ -907,7 +907,7 @@ def leave_crowd_request(request_id, phone):
         as_dict=True,
     )
     if not member:
-        frappe.throw(_("You are not an approved member of this Team Up"), frappe.PermissionError)
+        frappe.throw(_("You are not an approved member of this Crowd"), frappe.PermissionError)
 
     # Atomically flip the member out of 'approved' — the WHERE guard protects
     # against a double-tap firing two concurrent leave calls for the same
@@ -917,7 +917,7 @@ def leave_crowd_request(request_id, phone):
         [member.name],
     )
     if not frappe.db.sql("SELECT ROW_COUNT()")[0][0]:
-        frappe.throw(_("You are not an approved member of this Team Up"), frappe.PermissionError)
+        frappe.throw(_("You are not an approved member of this Crowd"), frappe.PermissionError)
 
     # Atomic decrement (same lost-update risk as the approve-side increment
     # this mirrors) — never goes below 1, reopens the crowd if it was closed
@@ -999,9 +999,9 @@ def complete_crowd_request(request_id, phone, attended_phones=None):
     if not crowd:
         frappe.throw(_("Request not found"), frappe.DoesNotExistError)
     if crowd.creator_phone != phone:
-        frappe.throw(_("Only the creator can complete this Team Up"), frappe.PermissionError)
+        frappe.throw(_("Only the creator can complete this Crowd"), frappe.PermissionError)
     if crowd.status in ("completed", "cancelled"):
-        frappe.throw(_("This Team Up is already completed or cancelled"))
+        frappe.throw(_("This Crowd is already completed or cancelled"))
 
     if isinstance(attended_phones, str):
         import json
@@ -1095,7 +1095,7 @@ def _send_approval_push(member_phone, request_id):
         token = frappe.cache().get_value(f"expo_push:{member_phone}")
         if not token:
             return
-        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Team Up"
+        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Crowd"
         http_req.post(
             "https://exp.host/--/api/v2/push/send",
             json={
