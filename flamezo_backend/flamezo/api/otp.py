@@ -200,7 +200,10 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 		otp = "".join(random.choices(string.digits, k=OTP_LENGTH))
 		used_channel = None
 
-		# 1. Meta Cloud API (WhatsApp Business) — production primary
+		# 1. Meta Cloud API (WhatsApp Business) — production primary. The provider
+		#    HTTP call has a short timeout (see otp_service) so a slow WhatsApp/SMS
+		#    endpoint can't stall this request the way it used to (~25s → the app
+		#    sat on "Sending...").
 		if channel != "sms":
 			if send_otp_via_whatsapp(normalized, otp, restaurant_name="Flamezo"):
 				used_channel = "whatsapp"

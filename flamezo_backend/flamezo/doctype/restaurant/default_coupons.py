@@ -48,7 +48,7 @@ def create_default_coupons(restaurant_name):
 			"review_reward_type": "cashback",
 			"discount_type": "flat",
 			"discount_value": 50,
-			"min_order_amount": 200,
+			"min_order_amount": 350,
 			# Works out of the box as ₹50 cashback; the merchant can switch to a
 			# Free Dish (and type its name) in the merchant Coupons form.
 			"description": "Leave us a 5-Star Google Review & get ₹50 off your bill!",

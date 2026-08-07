@@ -310,6 +310,23 @@ Extract the following information:
        2. PARENTHETICAL/SUFFIX OPTIONS: If an item name contains variations in brackets or after a dash (e.g., "Pizza (8\" / 12\")", "Pasta - Single/Sharing"), create a customization question.
        3. FOOTNOTE & SIDEBAR MODIFIERS: Look for text outside the main list like "Extras:", "Add-ons:", "Choice of Base:", or small text with prices (e.g., "+₹20 for Cheese") and link them to relevant dishes.
        4. BUNDLES & QUANTITIES: If an item has prices for different quantities (e.g., "2 pcs: 100, 4 pcs: 180"), structure this as a customization.
+       5. COMBO / PACKAGE / CELEBRATION DEALS (VERY IMPORTANT): When ONE single price
+          (e.g., "₹1999") covers a GROUP of MULTIPLE DISTINCT named items shown together
+          — a "Package", "Combo", "Meal", "Thali", "Celebration/Birthday/Kitty Package",
+          "Family Pack", "Feast", etc. (often boxed/bordered together with one big price) —
+          you MUST create EXACTLY ONE dish for the WHOLE package:
+            * name  = the package title exactly as shown (e.g., "Birthday / Kitty / Celebration Package").
+              If no title is given, name it "<price> Combo" using the currency (e.g., "₹1999 Combo").
+            * price = the single combined package price (e.g., 1999).
+            * description = list EVERY included item exactly as shown, comma-separated and prefixed
+              with "Includes: " (e.g., "Includes: 5 Classic OG Burger, 2 Exotica Pizza,
+              2 Paneer Barbeque Pizza, 2 Salted Fries & 2 Peri Peri, 2 Cheese Chilli Sandwich,
+              2 Sizzling Brownie, 10 Any Mojito").
+            * servingSize = a "Serves N" hint if implied by the quantities, else null.
+          CRITICAL RULES for packages:
+            - Do NOT create a separate dish for each included item.
+            - NEVER assign the package price (₹1999) to a single individual item.
+            - The package price applies to the WHOLE set together, not to any one item in it.
      - Logic:
        - If multiple items have the same customizations, extract them for each item.
        - Base "price" should be the lowest entry; other options should be offsets (e.g., +20, +50) or the full price if base is 0.

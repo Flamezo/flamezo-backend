@@ -16,5 +16,6 @@ flamezo_backend.flamezo.patches.clean_combo_coupon_values
 flamezo_backend.flamezo.patches.backfill_google_review_coupons
 flamezo_backend.flamezo.patches.reconnect_orphaned_route_accounts
 flamezo_backend.flamezo.patches.add_crowd_club_membership_unique_indexes
+flamezo_backend.flamezo.patches.set_google_review_min_order_350
 
 
