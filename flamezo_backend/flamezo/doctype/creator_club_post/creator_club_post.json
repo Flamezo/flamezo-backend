@@ -16,7 +16,8 @@
   "content",
   "section_break_stats",
   "likes_count",
-  "comments_count"
+  "comments_count",
+  "views_count"
  ],
  "fields": [
   {
@@ -87,6 +88,13 @@
    "fieldtype": "Int",
    "label": "Comments",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "views_count",
+   "fieldtype": "Int",
+   "label": "Views",
+   "read_only": 1
   }
  ],
  "modified": "2026-07-09 10:00:00.000000",
@@ -102,6 +110,10 @@
    "read": 1,
    "role": "System Manager",
    "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Guest"
   }
  ],
  "sort_field": "creation",
