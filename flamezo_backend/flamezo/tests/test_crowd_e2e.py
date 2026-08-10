@@ -72,13 +72,14 @@ Covers:
     - pagination: before_id returns older messages
     - system messages stored and returned correctly
     - optimistic fields present (id, sender_phone, sender_name, created_at, message_type)
-    - guest read allowed (no phone)
+    - missing phone rejected with AuthenticationError (no guest/preview read path)
     - missing request_id throws (send + get)
     - get after cancel still returns existing messages
 """
 
 import time
 import unittest
+from unittest.mock import patch
 from frappe.utils import add_days, today, get_datetime, now_datetime
 
 import frappe
@@ -94,6 +95,15 @@ _PHONE_C = "9400000003"  # joiner 2
 def _data(result: dict) -> dict:
     """Unwrap the { success, data } envelope that all crowd API functions return."""
     return result.get("data", result)
+
+
+def _verified_session():
+    """crowd.py imports `has_active_customer_session` by name (`from ...
+    customer_helpers import has_active_customer_session`), so it must be
+    patched at crowd.py's own bound name — patching the source module
+    doesn't affect an already-bound import. Matches the same convention
+    used in test_clubs_e2e.py / test_push_notifications_e2e.py."""
+    return patch("flamezo_backend.flamezo.api.crowd.has_active_customer_session", return_value=True)
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -149,9 +159,12 @@ from flamezo_backend.flamezo.api import crowd
 class TestGetCrowdRequests(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_open_requests_returned(self):
@@ -242,9 +255,12 @@ class TestGetCrowdRequests(unittest.TestCase):
 class TestCreateCrowdRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_valid_creation(self):
@@ -329,10 +345,13 @@ class TestCreateCrowdRequest(unittest.TestCase):
 class TestRequestToJoin(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_valid_join_creates_pending_member(self):
@@ -397,12 +416,15 @@ class TestRequestToJoin(unittest.TestCase):
 class TestManageJoinRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, max_members=3)
         join = _data(crowd.request_to_join(self.req.name, _PHONE_B, customer_name="Joiner B"))
         self.member_id = join["member_id"]
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_approve_sets_member_approved(self):
@@ -465,10 +487,13 @@ class TestManageJoinRequest(unittest.TestCase):
 class TestGetMyCrowdRequests(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, title="My Test Request")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_returns_creators_requests(self):
@@ -509,10 +534,13 @@ class TestGetMyCrowdRequests(unittest.TestCase):
 class TestGetMyCrowdJoins(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, title="Join Test Request")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_returns_joined_requests(self):
@@ -568,10 +596,13 @@ class TestGetMyCrowdJoins(unittest.TestCase):
 class TestCancelCrowdRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, status="open")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_cancel_sets_status_cancelled(self):
@@ -621,16 +652,21 @@ class TestCrowdChat(unittest.TestCase):
     Access model:
       - Creator can always send/read
       - Approved member can send/read
-      - Pending / non-member / unauthenticated cannot send (but CAN read, guest read allowed)
+      - Pending / non-member cannot send or read (PermissionError)
+      - No phone at all → AuthenticationError (chat content is private, no
+        guest/preview path — see the security fix in get_messages)
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         # Build a request with PHONE_B approved
         self.req, self.member_b_id = _approved_member_request()
 
     def tearDown(self):
         _cleanup_crowd()
+        self._session_patch.stop()
 
     # ── Send happy paths ──────────────────────────────────────────────────────
 
@@ -790,11 +826,13 @@ class TestCrowdChat(unittest.TestCase):
         self.assertNotIn(ids[3], returned_ids)
         self.assertNotIn(ids[4], returned_ids)
 
-    def test_guest_read_no_phone(self):
-        crowd.send_message(self.req.name, _PHONE_A, message="Public msg", sender_name="A")
-        result = _data(crowd.get_messages(request_id=self.req.name))
-        self.assertIn("messages", result)
-        self.assertGreater(len(result["messages"]), 0)
+    def test_missing_phone_rejected(self):
+        # Regression test: chat content is private — omitting `phone`
+        # entirely must never silently return message history to an
+        # unauthenticated caller (this was a real bug, fixed).
+        crowd.send_message(self.req.name, _PHONE_A, message="Private msg", sender_name="A")
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            crowd.get_messages(request_id=self.req.name)
 
     def test_approved_member_can_read(self):
         crowd.send_message(self.req.name, _PHONE_A, message="Hi", sender_name="A")
@@ -828,8 +866,8 @@ class TestCrowdChat(unittest.TestCase):
     def test_messages_persist_after_cancel(self):
         crowd.send_message(self.req.name, _PHONE_A, message="Pre-cancel msg", sender_name="A")
         crowd.cancel_crowd_request(self.req.name, _PHONE_A)
-        # Messages should still be readable (guest read)
-        result = _data(crowd.get_messages(request_id=self.req.name))
+        # Messages should still be readable by a legitimate member
+        result = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_A))
         self.assertGreater(len(result["messages"]), 0)
 
     def test_sender_name_stored(self):
@@ -851,6 +889,114 @@ class TestCrowdChat(unittest.TestCase):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# TestPollMessages — authenticated long-poll (Find Crowd's realtime upgrade)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPollMessages(unittest.TestCase):
+    """
+    poll_messages holds the request open up to ~8s, returning as soon as a
+    new message exists or the cap is hit. These tests are inherently slow
+    (two of them deliberately wait out the full ~8s timeout path) — that's
+    the real behavior being verified, not padding.
+
+    Access model is identical to get_messages/send_message (same
+    _assert_chat_access call) — deliberately NOT the Club Talks Guest-socket
+    model, since crowd chat is private. See poll_messages' docstring in
+    crowd.py for the full reasoning.
+    """
+
+    def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
+        _cleanup_crowd()
+        self.req, self.member_b_id = _approved_member_request()
+
+    def tearDown(self):
+        _cleanup_crowd()
+        self._session_patch.stop()
+
+    def test_catches_up_on_messages_sent_before_cursor(self):
+        # Real client scenario: app was backgrounded, reopens, resumes
+        # polling from the last message it saw before going away.
+        first = _data(crowd.send_message(self.req.name, _PHONE_A, message="First", sender_name="A"))
+        second = _data(crowd.send_message(self.req.name, _PHONE_A, message="Second", sender_name="A"))
+        t0 = time.monotonic()
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_A, after_id=first["id"]))
+        elapsed = time.monotonic() - t0
+        self.assertLess(elapsed, 2, "should return near-instantly, not wait")
+        self.assertFalse(result["timed_out"])
+        self.assertEqual(len(result["messages"]), 1)
+        self.assertEqual(result["messages"][0]["message"], "Second")
+
+    def test_times_out_with_empty_result_when_nothing_new(self):
+        sent = _data(crowd.send_message(self.req.name, _PHONE_A, message="Only msg", sender_name="A"))
+        t0 = time.monotonic()
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_A, after_id=sent["id"]))
+        elapsed = time.monotonic() - t0
+        self.assertGreaterEqual(elapsed, 7)
+        self.assertLessEqual(elapsed, 10)
+        self.assertTrue(result["timed_out"])
+        self.assertEqual(result["messages"], [])
+
+    def test_cursor_only_returns_messages_after_it(self):
+        first = _data(crowd.send_message(self.req.name, _PHONE_A, message="M1", sender_name="A"))
+        second = _data(crowd.send_message(self.req.name, _PHONE_A, message="M2", sender_name="A"))
+        crowd.send_message(self.req.name, _PHONE_A, message="M3", sender_name="A")
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_A, after_id=second["id"]))
+        texts = [m["message"] for m in result["messages"]]
+        self.assertEqual(texts, ["M3"])
+        self.assertNotIn("M1", texts)
+        self.assertNotIn("M2", texts)
+
+    def test_stale_after_id_does_not_dump_full_history(self):
+        crowd.send_message(self.req.name, _PHONE_A, message="Old msg", sender_name="A")
+        result = _data(crowd.poll_messages(
+            request_id=self.req.name, phone=_PHONE_A, after_id="nonexistent-message-id"
+        ))
+        self.assertTrue(result["timed_out"])
+        self.assertEqual(result["messages"], [])
+
+    def test_missing_after_id_waits_from_now(self):
+        # No cursor at all (fresh/empty chat) — must not return pre-existing
+        # history, only messages sent after the poll call started.
+        crowd.send_message(self.req.name, _PHONE_A, message="Pre-existing", sender_name="A")
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_A))
+        self.assertTrue(result["timed_out"])
+        self.assertEqual(result["messages"], [])
+
+    def test_non_member_rejected(self):
+        with self.assertRaises(frappe.exceptions.PermissionError):
+            crowd.poll_messages(request_id=self.req.name, phone=_PHONE_C)
+
+    def test_pending_member_rejected(self):
+        crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Pending C")
+        with self.assertRaises(frappe.exceptions.PermissionError):
+            crowd.poll_messages(request_id=self.req.name, phone=_PHONE_C)
+
+    def test_missing_phone_rejected(self):
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            crowd.poll_messages(request_id=self.req.name, phone=None)
+
+    def test_missing_request_id_throws(self):
+        with self.assertRaises(Exception):
+            crowd.poll_messages(request_id=None, phone=_PHONE_A)
+
+    def test_creator_can_poll(self):
+        sent = _data(crowd.send_message(self.req.name, _PHONE_A, message="Hi", sender_name="A"))
+        crowd.send_message(self.req.name, _PHONE_B, message="Reply", sender_name="B")
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_A, after_id=sent["id"]))
+        self.assertFalse(result["timed_out"])
+        self.assertEqual(result["messages"][0]["message"], "Reply")
+
+    def test_approved_member_can_poll(self):
+        sent = _data(crowd.send_message(self.req.name, _PHONE_A, message="Hi", sender_name="A"))
+        crowd.send_message(self.req.name, _PHONE_A, message="Follow-up", sender_name="A")
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_B, after_id=sent["id"]))
+        self.assertFalse(result["timed_out"])
+        self.assertEqual(result["messages"][0]["message"], "Follow-up")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TestCrowdFullFlow — end-to-end journey
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -861,9 +1007,12 @@ class TestCrowdFullFlow(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_full_journey_create_join_approve_chat_cancel(self):
@@ -938,8 +1087,10 @@ class TestCrowdFullFlow(unittest.TestCase):
         crowd.cancel_crowd_request(req_id, _PHONE_A)
         self.assertEqual(frappe.db.get_value("Crowd Request", req_id, "status"), "cancelled")
 
-        # 12. Messages still exist after cancel (read for posterity)
-        archive = _data(crowd.get_messages(request_id=req_id))
+        # 12. Messages still exist after cancel (read for posterity) — chat
+        # content is private, so a legitimate reader (the creator) must
+        # still pass their phone; there's no guest/preview path.
+        archive = _data(crowd.get_messages(request_id=req_id, phone=_PHONE_A))
         self.assertGreaterEqual(len(archive["messages"]), 2)
 
 
@@ -955,11 +1106,14 @@ class TestExpoPushToken(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         # Clean up any cached token for test phones
         frappe.cache().delete_value(f"expo_push:{_PHONE_A}")
         frappe.cache().delete_value(f"expo_push:{_PHONE_B}")
 
     def tearDown(self):
+        self._session_patch.stop()
         frappe.cache().delete_value(f"expo_push:{_PHONE_A}")
         frappe.cache().delete_value(f"expo_push:{_PHONE_B}")
 
@@ -1016,10 +1170,13 @@ class TestUploadChatImage(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, self.member_b_id = _approved_member_request()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
         # Clean up any Frappe File docs created during tests
         frappe.db.sql(
@@ -1108,11 +1265,14 @@ class TestCrowdPushIntegration(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, self.member_b_id = _approved_member_request()
         frappe.cache().set_value(f"expo_push:{_PHONE_B}", "ExponentPushToken[BBBB0000000000000000000000]")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
         frappe.cache().delete_value(f"expo_push:{_PHONE_B}")
         frappe.cache().delete_value(f"expo_push:{_PHONE_A}")
@@ -1181,10 +1341,13 @@ class TestMessageDeduplication(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, _ = _approved_member_request()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_two_sends_produce_two_unique_ids(self):
@@ -1230,9 +1393,12 @@ class TestFilterCrowdRequests(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_gender_filter_women_only(self):
@@ -1308,10 +1474,13 @@ class TestFilterCrowdRequests(unittest.TestCase):
 class TestEditCrowdRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, title="Original Title")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_creator_can_edit_title(self):
@@ -1373,10 +1542,13 @@ class TestEditCrowdRequest(unittest.TestCase):
 class TestLeaveCrowdRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, self.member_b_id = _approved_member_request()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_approved_member_can_leave(self):
@@ -1433,6 +1605,8 @@ class TestLeaveCrowdRequest(unittest.TestCase):
 class TestReportCrowdMessage(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, self.member_b_id = _approved_member_request()
         # PHONE_A sends a message to report
@@ -1442,6 +1616,7 @@ class TestReportCrowdMessage(unittest.TestCase):
         self.msg_id = send_result["id"]
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
         frappe.db.sql(
             "DELETE FROM `tabCrowd Report` WHERE reporter_phone IN (%s, %s, %s)",
@@ -1499,6 +1674,8 @@ class TestReportCrowdMessage(unittest.TestCase):
 class TestCompleteCrowdRequest(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, self.member_b_id = _approved_member_request()
         # Also approve PHONE_C
@@ -1506,6 +1683,7 @@ class TestCompleteCrowdRequest(unittest.TestCase):
         crowd.manage_join_request(self.req.name, join_c["member_id"], "approve", _PHONE_A)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_creator_can_complete(self):
@@ -1569,9 +1747,12 @@ class TestCompleteCrowdRequest(unittest.TestCase):
 class TestCrowdReliability(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_new_user_score_100(self):
@@ -1622,6 +1803,8 @@ class TestApprovalPush(unittest.TestCase):
     """
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, max_members=5)
         join = _data(crowd.request_to_join(self.req.name, _PHONE_B, customer_name="Bobby B"))
@@ -1632,6 +1815,7 @@ class TestApprovalPush(unittest.TestCase):
         )
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
         frappe.cache().delete_value(f"expo_push:{_PHONE_B}")
 
@@ -1669,9 +1853,12 @@ class TestApprovalPush(unittest.TestCase):
 class TestAutoClose(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_scheduler_closes_expired_requests(self):
@@ -1725,10 +1912,13 @@ class TestJoinEligibility(unittest.TestCase):
     _CUSTOMER_IDS = {}  # phone → Customer.name
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req = _make_request(phone=_PHONE_A, max_members=5)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
         # Remove any test Customer records we created
         for phone in (_PHONE_B, _PHONE_C):
@@ -1827,10 +2017,13 @@ class TestJoinEligibility(unittest.TestCase):
 class TestSenderInterests(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup_crowd()
         self.req, _ = _approved_member_request()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup_crowd()
 
     def test_sender_interests_stored_and_returned(self):
