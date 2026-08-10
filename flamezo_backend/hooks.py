@@ -217,6 +217,13 @@ doc_events = {
 		"before_save": "flamezo_backend.flamezo.api.customers.normalize_customer_phone_on_save",
 	},
 
+	# Setup Wizard writes logo/tagline/etc. to the Restaurant Onboarding record;
+	# push those display fields to the live Restaurant (+ Config) on every save so
+	# the logo shows up in the Branding pool / feed / app without a manual sync.
+	"Restaurant Onboarding": {
+		"on_update": "flamezo_backend.flamezo.api.onboarding.auto_sync_onboarding_display",
+	},
+
 	"Table Booking": {
 		"after_insert": "flamezo_backend.flamezo.api.customers.update_customer_last_visited",
 	},

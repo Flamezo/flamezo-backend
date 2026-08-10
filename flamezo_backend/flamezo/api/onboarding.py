@@ -446,6 +446,81 @@ def sync_onboarding_to_restaurant(name):
         return {'success': False, 'error': str(e)}
 
 
+# ── Auto-sync onboarding display/branding fields → live Restaurant ────────────
+# The Setup Wizard writes logo/tagline/etc. to the Restaurant Onboarding record,
+# but the Branding pool, discovery feed, detail page and the app all read the
+# LIVE Restaurant (+ its Restaurant Config). Previously these only synced when an
+# admin ran sync_onboarding_to_restaurant() manually, so an uploaded logo often
+# never reached the app (Branding = 0 assets, inconsistent across outlets). This
+# on_update hook copies the *display* fields straight through on every save, so
+# branding behaves like gallery/menu media (which already write to live,
+# restaurant-keyed tables). Owner/bank/legal fields intentionally stay on the
+# manual admin sync.
+_ONBOARD_RESTAURANT_DISPLAY = {'logo': 'logo', 'description': 'description'}
+_ONBOARD_CONFIG_DISPLAY = {
+    'logo': 'logo',
+    'tagline': 'tagline',
+    'subtitle': 'subtitle',
+    'description': 'description',
+}
+
+
+def auto_sync_onboarding_display(doc, method=None):
+    """doc_events on_update hook for `Restaurant Onboarding` — pushes display
+    fields (logo/tagline/subtitle/description) to the linked Restaurant + its
+    Restaurant Config so a Setup Wizard upload shows up immediately in the
+    Branding pool / feed / app. Only copies non-empty values; never clears."""
+    try:
+        restaurant = getattr(doc, 'linked_restaurant', None)
+        if not restaurant or not frappe.db.exists('Restaurant', restaurant):
+            return
+
+        r_updates = {}
+        for src, dest in _ONBOARD_RESTAURANT_DISPLAY.items():
+            value = getattr(doc, src, None)
+            if value not in (None, ''):
+                r_updates[dest] = value
+        if r_updates:
+            frappe.db.set_value('Restaurant', restaurant, r_updates)
+
+        config = frappe.db.get_value('Restaurant Config', {'restaurant': restaurant}, 'name')
+        if config:
+            c_updates = {}
+            for src, dest in _ONBOARD_CONFIG_DISPLAY.items():
+                value = getattr(doc, src, None)
+                if value not in (None, ''):
+                    c_updates[dest] = value
+            if c_updates:
+                frappe.db.set_value('Restaurant Config', config, c_updates)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), 'onboarding.auto_sync_onboarding_display')
+
+
+def backfill_onboarding_display():
+    """One-off backfill for outlets whose logo/display fields never synced
+    (Branding = 0 assets). Run once after deploy:
+
+        bench --site backend.flamezo.in execute \\
+          flamezo_backend.flamezo.api.onboarding.backfill_onboarding_display
+
+    Not whitelisted — bench-only (privileged), so no web exposure."""
+    rows = frappe.get_all(
+        'Restaurant Onboarding',
+        filters={'linked_restaurant': ['is', 'set']},
+        fields=['name'],
+    )
+    synced = 0
+    for r in rows:
+        try:
+            auto_sync_onboarding_display(frappe.get_doc('Restaurant Onboarding', r['name']))
+            synced += 1
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), 'onboarding.backfill_onboarding_display')
+    frappe.db.commit()
+    print(f'backfill_onboarding_display: synced {synced} onboarding record(s)')
+    return synced
+
+
 @frappe.whitelist(allow_guest=True)
 def upload_onboarding_media(token):
     """
