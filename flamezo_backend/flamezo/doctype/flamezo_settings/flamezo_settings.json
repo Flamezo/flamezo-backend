@@ -26,6 +26,7 @@
   "whatsapp_cloud_api_phone_id",
   "whatsapp_cloud_api_business_id",
   "order_whatsapp_template_name",
+  "table_booking_whatsapp_template_name",
   "section_marketing_costs",
   "marketing_sms_cost_per_msg",
   "marketing_sms_coins_per_msg",
@@ -168,7 +169,13 @@
    "fieldname": "order_whatsapp_template_name",
    "fieldtype": "Data",
    "label": "Order Notification Template Name",
-   "description": "Approved Meta UTILITY template used to send placed orders to restaurants (4 body params: order no, customer, fulfilment, items+total). Restaurants with Order Channel = WhatsApp receive orders via this."
+   "description": "Approved Meta UTILITY template used to send placed orders to restaurants (4 body params: order no, customer, fulfilment, items+total). Outlets with Order Channel = WhatsApp receive orders via this."
+  },
+  {
+   "fieldname": "table_booking_whatsapp_template_name",
+   "fieldtype": "Data",
+   "label": "Table Booking Lead Template Name",
+   "description": "Approved Meta UTILITY template used to alert an outlet the instant a customer requests a table (4 body params: customer name+phone, party size, date, preferred time + any notes). No table is held — this is a lead handoff, not a confirmed reservation."
   },
   {
    "fieldname": "section_marketing_costs",

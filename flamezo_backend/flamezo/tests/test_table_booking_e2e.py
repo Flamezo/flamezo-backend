@@ -43,6 +43,7 @@ Covers:
 """
 
 import unittest
+from unittest.mock import patch
 from frappe.utils import add_days, today
 
 import frappe
@@ -51,6 +52,16 @@ from flamezo_backend.flamezo.tests.utils import make_restaurant
 _PREFIX = "TEST-TBK"
 _PHONE_A = "9600000001"
 _PHONE_B = "9600000002"
+
+
+def _verified_session():
+    """table_booking_consumer.py imports has_active_customer_session by
+    name, so it must be patched at its own bound name — same convention as
+    test_crowd_e2e.py / test_clubs_e2e.py."""
+    return patch(
+        "flamezo_backend.flamezo.api.table_booking_consumer.has_active_customer_session",
+        return_value=True,
+    )
 
 
 # ── fixtures ─────────────────────────────────────────────────────────────────
@@ -93,16 +104,19 @@ from flamezo_backend.flamezo.api import table_booking_consumer as tbc
 class TestCreateTableBooking(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup()
         self.rest = _make_rest()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup()
 
     def test_valid_booking_created(self):
         result = tbc.create_table_booking(
             phone=_PHONE_A,
-            restaurant_id=self.rest.name,
+            outlet_id=self.rest.name,
             date=add_days(today(), 3),
             time_slot="19:00 – 21:00",
             number_of_diners=2,
@@ -114,7 +128,7 @@ class TestCreateTableBooking(unittest.TestCase):
     def test_booking_persisted_with_correct_fields(self):
         result = tbc.create_table_booking(
             phone=_PHONE_A,
-            restaurant_id=self.rest.name,
+            outlet_id=self.rest.name,
             date=add_days(today(), 3),
             time_slot="19:00 – 21:00",
             number_of_diners=4,
@@ -130,7 +144,7 @@ class TestCreateTableBooking(unittest.TestCase):
         with self.assertRaises(frappe.exceptions.DoesNotExistError):
             tbc.create_table_booking(
                 phone=_PHONE_A,
-                restaurant_id="REST-FAKE-9999",
+                outlet_id="REST-FAKE-9999",
                 date=add_days(today(), 2),
                 time_slot="18:00 – 20:00",
                 number_of_diners=2,
@@ -141,7 +155,7 @@ class TestCreateTableBooking(unittest.TestCase):
         with self.assertRaises(frappe.exceptions.ValidationError):
             tbc.create_table_booking(
                 phone=_PHONE_A,
-                restaurant_id=inactive.name,
+                outlet_id=inactive.name,
                 date=add_days(today(), 2),
                 time_slot="18:00 – 20:00",
                 number_of_diners=2,
@@ -151,7 +165,7 @@ class TestCreateTableBooking(unittest.TestCase):
         with self.assertRaises(frappe.exceptions.ValidationError):
             tbc.create_table_booking(
                 phone=_PHONE_A,
-                restaurant_id=self.rest.name,
+                outlet_id=self.rest.name,
                 date=add_days(today(), -1),
                 time_slot="18:00 – 20:00",
                 number_of_diners=2,
@@ -161,7 +175,7 @@ class TestCreateTableBooking(unittest.TestCase):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
                 phone=_PHONE_A,
-                restaurant_id=self.rest.name,
+                outlet_id=self.rest.name,
                 date="not-a-date",
                 time_slot="18:00 – 20:00",
                 number_of_diners=2,
@@ -170,35 +184,35 @@ class TestCreateTableBooking(unittest.TestCase):
     def test_missing_restaurant_throws(self):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
-                phone=_PHONE_A, restaurant_id=None,
+                phone=_PHONE_A, outlet_id=None,
                 date=add_days(today(), 2), time_slot="18:00", number_of_diners=2,
             )
 
     def test_missing_date_throws(self):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
-                phone=_PHONE_A, restaurant_id=self.rest.name,
+                phone=_PHONE_A, outlet_id=self.rest.name,
                 date=None, time_slot="18:00", number_of_diners=2,
             )
 
     def test_missing_time_slot_throws(self):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
-                phone=_PHONE_A, restaurant_id=self.rest.name,
+                phone=_PHONE_A, outlet_id=self.rest.name,
                 date=add_days(today(), 2), time_slot=None, number_of_diners=2,
             )
 
     def test_zero_diners_rejected(self):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
-                phone=_PHONE_A, restaurant_id=self.rest.name,
+                phone=_PHONE_A, outlet_id=self.rest.name,
                 date=add_days(today(), 2), time_slot="18:00", number_of_diners=0,
             )
 
     def test_missing_phone_throws(self):
         with self.assertRaises(Exception):
             tbc.create_table_booking(
-                phone=None, restaurant_id=self.rest.name,
+                phone=None, outlet_id=self.rest.name,
                 date=add_days(today(), 2), time_slot="18:00", number_of_diners=2,
             )
 
@@ -206,6 +220,8 @@ class TestCreateTableBooking(unittest.TestCase):
 class TestGetMyTableBookings(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup()
         self.rest = _make_rest()
         self.b1 = _make_booking(self.rest.name, phone=_PHONE_A, status="pending")
@@ -213,6 +229,7 @@ class TestGetMyTableBookings(unittest.TestCase):
         self.b_other = _make_booking(self.rest.name, phone=_PHONE_B, status="pending")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup()
 
     def test_returns_only_own_bookings(self):
@@ -257,7 +274,7 @@ class TestGetMyTableBookings(unittest.TestCase):
     def test_booking_fields_present(self):
         result = tbc.get_my_table_bookings(_PHONE_A)
         b = result["data"]["bookings"][0]
-        for field in ("id", "restaurant_name", "date", "time_slot", "number_of_diners", "status"):
+        for field in ("id", "outlet_name", "date", "time_slot", "number_of_diners", "status"):
             self.assertIn(field, b)
 
     def test_missing_phone_throws(self):
@@ -268,11 +285,14 @@ class TestGetMyTableBookings(unittest.TestCase):
 class TestGetTableBookingDetail(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup()
         self.rest = _make_rest()
         self.booking = _make_booking(self.rest.name, phone=_PHONE_A)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup()
 
     def test_returns_correct_booking(self):
@@ -283,7 +303,7 @@ class TestGetTableBookingDetail(unittest.TestCase):
     def test_all_fields_present(self):
         result = tbc.get_table_booking_detail(self.booking.name, _PHONE_A)
         b = result["data"]["booking"]
-        for field in ("id", "restaurant_name", "date", "time_slot",
+        for field in ("id", "outlet_name", "date", "time_slot",
                       "number_of_diners", "status", "customer_name"):
             self.assertIn(field, b)
 
@@ -303,10 +323,13 @@ class TestGetTableBookingDetail(unittest.TestCase):
 class TestCancelTableBooking(unittest.TestCase):
 
     def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         _cleanup()
         self.rest = _make_rest()
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup()
 
     def test_cancel_pending_booking(self):
@@ -359,3 +382,91 @@ class TestCancelTableBooking(unittest.TestCase):
         b = _make_booking(self.rest.name, phone=_PHONE_A, status="pending")
         with self.assertRaises(Exception):
             tbc.cancel_table_booking(b.name, None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestSessionEnforcement — regression tests for the missing-auth bug fix
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSessionEnforcement(unittest.TestCase):
+    """
+    Every endpoint in this module used to trust a client-supplied phone with
+    zero session verification — anyone who knew/guessed a real phone number
+    could create bookings as that person, or read/cancel their real ones.
+    These tests verify the fix without the blanket _verified_session() patch
+    the other classes use, since the whole point here is the unpatched path.
+    """
+
+    def setUp(self):
+        _cleanup()
+        self.rest = _make_rest()
+
+    def tearDown(self):
+        _cleanup()
+
+    def test_create_without_session_rejected(self):
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            tbc.create_table_booking(
+                phone=_PHONE_A, outlet_id=self.rest.name,
+                date=add_days(today(), 2), time_slot="19:00", number_of_diners=2,
+            )
+
+    def test_get_my_bookings_without_session_rejected(self):
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            tbc.get_my_table_bookings(_PHONE_A)
+
+    def test_get_detail_without_session_rejected(self):
+        with _verified_session():
+            b = _make_booking(self.rest.name, phone=_PHONE_A)
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            tbc.get_table_booking_detail(b.name, _PHONE_A)
+
+    def test_cancel_without_session_rejected(self):
+        with _verified_session():
+            b = _make_booking(self.rest.name, phone=_PHONE_A)
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            tbc.cancel_table_booking(b.name, _PHONE_A)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestCreateEnqueuesWhatsappAlert — the lead-handoff, not "booking confirmed"
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestCreateEnqueuesWhatsappAlert(unittest.TestCase):
+    """Confirms create_table_booking actually fires the merchant alert job —
+    this is the entire point of the lead-handoff model; a booking that never
+    notifies the outlet is exactly the silent-no-op bug this replaces."""
+
+    def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
+        _cleanup()
+        self.rest = _make_rest()
+
+    def tearDown(self):
+        self._session_patch.stop()
+        _cleanup()
+
+    def test_create_enqueues_dispatch_job(self):
+        with patch("frappe.enqueue") as mock_enqueue:
+            result = tbc.create_table_booking(
+                phone=_PHONE_A, outlet_id=self.rest.name,
+                date=add_days(today(), 2), time_slot="19:00", number_of_diners=2,
+            )
+        mock_enqueue.assert_called_once()
+        call = mock_enqueue.call_args
+        self.assertEqual(
+            call.args[0] if call.args else call.kwargs.get("method"),
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_whatsapp",
+        )
+        self.assertEqual(call.kwargs.get("booking_name"), result["data"]["booking_id"])
+
+    def test_status_is_pending_not_confirmed(self):
+        # The customer must never be told anything is confirmed — nothing
+        # was ever held. "pending" here means "not yet noted by the outlet
+        # in their own dashboard," not "awaiting your table."
+        result = tbc.create_table_booking(
+            phone=_PHONE_A, outlet_id=self.rest.name,
+            date=add_days(today(), 2), time_slot="19:00", number_of_diners=2,
+        )
+        self.assertEqual(result["data"]["status"], "pending")
