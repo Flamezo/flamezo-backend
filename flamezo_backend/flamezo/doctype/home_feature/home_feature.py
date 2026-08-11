@@ -44,7 +44,7 @@ class HomeFeature(Document):
 			if existing:
 				frappe.throw(
 					_(
-						"Home Feature {0} is already configured for restaurant {1}. "
+						"Home Feature {0} is already configured for outlet {1}. "
 						"Edit the existing record instead of creating a duplicate."
 					).format(self.feature_id, self.restaurant)
 				)

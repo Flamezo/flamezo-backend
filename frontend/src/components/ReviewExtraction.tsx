@@ -8,10 +8,10 @@ import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 
 interface ReviewExtractionProps {
-  restaurantId: string
+  outletId: string
 }
 
-export default function ReviewExtraction({ restaurantId }: ReviewExtractionProps) {
+export default function ReviewExtraction({ outletId }: ReviewExtractionProps) {
   const [processing, setProcessing] = useState(false)
 
   // Get latest extraction for this restaurant
@@ -19,11 +19,11 @@ export default function ReviewExtraction({ restaurantId }: ReviewExtractionProps
     'Menu Image Extractor',
     {
       fields: ['name', 'restaurant', 'extraction_status', 'extraction_log', 'total_batches', 'completed_batches', 'creation', 'modified'],
-      filters: restaurantId ? [['restaurant', '=', restaurantId]] : undefined,
+      filters: outletId ? [['restaurant', '=', outletId]] : undefined,
       orderBy: { field: 'creation', order: 'desc' },
       limit: 1
     },
-    restaurantId ? `menu-extraction-${restaurantId}` : null
+    outletId ? `menu-extraction-${outletId}` : null
   )
 
   const latestExtraction = extractions?.[0]

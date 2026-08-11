@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetDoc, useFrappePostCall } from '@/lib/frappe'
 import { useState, useEffect, useMemo } from 'react'
 import { Globe, MapPin, MousePointer2, Phone, Search, Sparkles, Star, ShieldAlert } from 'lucide-react'
@@ -13,29 +13,29 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 
 export default function GoogleGrowth() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedOutlet, isGold } = useOutlet()
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<any>(null)
 
-  const { data: restaurant, isLoading: loadingDoc } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', {
-    enabled: !!selectedRestaurant
+  const { data: restaurant, isLoading: loadingDoc } = useFrappeGetDoc('Restaurant', selectedOutlet || '', {
+    enabled: !!selectedOutlet
   })
 
   const { call: fetchInsights } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.fetch_google_insights')
   const { call: getAuthUrl } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.get_google_auth_url')
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       setLoading(true)
-      fetchInsights({ restaurant_id: selectedRestaurant })
+      fetchInsights({ outlet_id: selectedOutlet })
         .then((res: any) => setInsights(res.message))
         .finally(() => setLoading(false))
     }
-  }, [selectedRestaurant, fetchInsights])
+  }, [selectedOutlet, fetchInsights])
 
   const handleConnect = async () => {
     try {
-      const res = await getAuthUrl({ restaurant_id: selectedRestaurant })
+      const res = await getAuthUrl({ outlet_id: selectedOutlet })
       if (res.message?.auth_url) {
         window.open(res.message.auth_url, '_blank')
         toast.info("Opening Google Authorization...")

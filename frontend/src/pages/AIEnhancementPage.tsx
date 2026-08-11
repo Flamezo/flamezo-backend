@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeGetDoc } from 'frappe-react-sdk'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
 import {
@@ -26,7 +26,7 @@ import { AiRechargeModal } from '@/components/AiRechargeModal'
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AIEnhancementPage() {
-  const { selectedRestaurant, restaurants } = useRestaurant()
+  const { selectedOutlet, outlets } = useOutlet()
   const [aiMode, setAiMode] = useState<'enhance' | 'generate'>('enhance')
   const [includeBranding, setIncludeBranding] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -42,9 +42,9 @@ export default function AIEnhancementPage() {
   const [selectedProduct, setSelectedProduct] = useState<string>('')
   const { data: products } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name'],
-    filters: [['restaurant', '=', selectedRestaurant]],
+    filters: [['restaurant', '=', selectedOutlet]],
     limit: 1000
-  }, `ai-products-${selectedRestaurant}`)
+  }, `ai-products-${selectedOutlet}`)
 
   const { data: productDoc, mutate: mutateProduct, isLoading: isProductLoading } = useFrappeGetDoc('Menu Product', selectedProduct, {
     enabled: !!selectedProduct,
@@ -72,10 +72,10 @@ export default function AIEnhancementPage() {
 
   // Fetch coin balance
   const fetchCoins = useCallback(async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setCoinLoading(true)
     try {
-      const res = await getBillingInfo({ restaurant: selectedRestaurant })
+      const res = await getBillingInfo({ restaurant: selectedOutlet })
       if (res.message) {
         const balance = res.message.coins_balance ?? 0
         setCoinBalance(balance)
@@ -87,7 +87,7 @@ export default function AIEnhancementPage() {
     } finally {
       setCoinLoading(false)
     }
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   // Sync coins when updated from other components (like global recharge)
   useEffect(() => {
@@ -151,7 +151,7 @@ export default function AIEnhancementPage() {
         for (let i = 0; i < numVariants; i++) {
           try {
             const res = await enqueueEnhancement({
-              restaurant: selectedRestaurant,
+              restaurant: selectedOutlet,
               owner_doctype: 'Menu Product',
               owner_name: selectedProduct,
               mode: 'generate',
@@ -192,7 +192,7 @@ export default function AIEnhancementPage() {
               for (let i = 0; i < numVariants; i++) {
                 try {
                   const res = await enqueueEnhancement({
-                    restaurant: selectedRestaurant,
+                    restaurant: selectedOutlet,
                     owner_doctype: 'Menu Product',
                     owner_name: selectedProduct,
                     original_image_url: fileUrl,
@@ -354,7 +354,7 @@ export default function AIEnhancementPage() {
 
 
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 
@@ -467,7 +467,7 @@ export default function AIEnhancementPage() {
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1.5"
                 >
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  Include {restaurants.find(r => r.restaurant_id === selectedRestaurant)?.restaurant_name || 'Restaurant'} branding
+                  Include {outlets.find(r => r.outlet_id === selectedOutlet)?.outlet_name || 'Restaurant'} branding
                 </label>
                 <p className="text-[10px] text-muted-foreground">
                    Included free.
@@ -731,7 +731,7 @@ export default function AIEnhancementPage() {
       <AiRechargeModal
         open={showRechargeModal}
         onClose={() => setShowRechargeModal(false)}
-        restaurant={selectedRestaurant}
+        restaurant={selectedOutlet}
         onSuccess={fetchCoins}
       />
 

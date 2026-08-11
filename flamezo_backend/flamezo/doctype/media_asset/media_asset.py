@@ -54,8 +54,8 @@ class MediaAsset(Document):
 		
 		if owner_restaurant and owner_restaurant != self.restaurant:
 			frappe.throw(
-				f"Restaurant mismatch: Media Asset restaurant '{self.restaurant}' "
-				f"does not match owner document restaurant '{owner_restaurant}'"
+				f"Outlet mismatch: Media Asset outlet '{self.restaurant}' "
+				f"does not match owner document outlet '{owner_restaurant}'"
 			)
 	
 	@retry_on_deadlock()

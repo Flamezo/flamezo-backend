@@ -113,7 +113,7 @@ class TestGetCourts(unittest.TestCase):
 
     def test_returns_only_active_courts(self):
         from flamezo_backend.flamezo.api.courts import get_courts
-        res = get_courts(restaurant_id=self.restaurant)
+        res = get_courts(outlet_id=self.restaurant)
         self.assertTrue(res["success"], res)
         names = [c["name"] for c in res["data"]]
         self.assertIn("Court A", names)
@@ -121,7 +121,7 @@ class TestGetCourts(unittest.TestCase):
 
     def test_court_fields_complete(self):
         from flamezo_backend.flamezo.api.courts import get_courts
-        res = get_courts(restaurant_id=self.restaurant)
+        res = get_courts(outlet_id=self.restaurant)
         court = res["data"][0]
         required_keys = ["id", "name", "sport_type", "slot_duration_minutes",
                          "price_per_slot", "consumer_fee", "opening_time",
@@ -155,7 +155,7 @@ class TestGetCourtAvailability(unittest.TestCase):
         from flamezo_backend.flamezo.api.courts import get_court_availability
         date = add_days(today(), 1)
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             date=str(date),
         )
@@ -174,7 +174,7 @@ class TestGetCourtAvailability(unittest.TestCase):
         _make_court_booking(self.restaurant, self.court, date=date,
                             start="09:00:00", end="10:00:00", status="Confirmed")
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             date=str(date),
         )
@@ -188,7 +188,7 @@ class TestGetCourtAvailability(unittest.TestCase):
         _make_court_booking(self.restaurant, self.court, date=date,
                             start="09:00:00", end="10:00:00", status="Cancelled")
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             date=str(date),
         )
@@ -198,7 +198,7 @@ class TestGetCourtAvailability(unittest.TestCase):
     def test_past_date_blocked(self):
         from flamezo_backend.flamezo.api.courts import get_court_availability
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             date=add_days(today(), -1),
         )
@@ -208,7 +208,7 @@ class TestGetCourtAvailability(unittest.TestCase):
     def test_beyond_advance_booking_window_blocked(self):
         from flamezo_backend.flamezo.api.courts import get_court_availability
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             date=add_days(today(), 30),  # court has advance_booking_days=7
         )
@@ -233,7 +233,7 @@ class TestGetCourtAvailability(unittest.TestCase):
             if check.weekday() != 0:  # 0 = Monday
                 break
         res = get_court_availability(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=closed_court,
             date=str(check),
         )
@@ -263,7 +263,7 @@ class TestCreateCourtBooking(unittest.TestCase):
 
         date = add_days(today(), 1)
         res = create_court_booking(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             booking_date=str(date),
             start_time="09:00",
@@ -293,7 +293,7 @@ class TestCreateCourtBooking(unittest.TestCase):
         _make_court_booking(self.restaurant, self.court, date=date,
                             start="09:00:00", end="10:00:00", status="Confirmed")
         res = create_court_booking(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             booking_date=str(date),
             start_time="09:00",
@@ -307,7 +307,7 @@ class TestCreateCourtBooking(unittest.TestCase):
         from flamezo_backend.flamezo.api.courts import create_court_booking
         date = add_days(today(), 1)
         res = create_court_booking(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             booking_date=str(date),
             start_time="14:00",  # court closes at 12:00
@@ -320,7 +320,7 @@ class TestCreateCourtBooking(unittest.TestCase):
     def test_past_date_blocked(self):
         from flamezo_backend.flamezo.api.courts import create_court_booking
         res = create_court_booking(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_id=self.court,
             booking_date=add_days(today(), -1),
             start_time="09:00",
@@ -494,7 +494,7 @@ class TestMerchantCourtManagement(unittest.TestCase):
         target = add_days(today(), 1)
         _make_court_booking(self.restaurant, self.court, date=target)
         _make_court_booking(self.restaurant, self.court, date=add_days(today(), 3))
-        res = get_court_bookings(restaurant_id=self.restaurant, date=str(target))
+        res = get_court_bookings(outlet_id=self.restaurant, date=str(target))
         self.assertTrue(res["success"])
         for b in res["data"]["bookings"]:
             self.assertEqual(b["booking_date"], str(target))
@@ -504,7 +504,7 @@ class TestMerchantCourtManagement(unittest.TestCase):
         target = add_days(today(), 2)
         _make_court_booking(self.restaurant, self.court, date=target, status="Confirmed", payment_status="Paid", slot_price=300, consumer_fee=20)
         _make_court_booking(self.restaurant, self.court, date=target, status="Cancelled", payment_status="Pending")
-        res = get_court_booking_summary(restaurant_id=self.restaurant, date=str(target))
+        res = get_court_booking_summary(outlet_id=self.restaurant, date=str(target))
         self.assertTrue(res["success"], res)
         data = res["data"]
         self.assertEqual(data["by_status"]["Confirmed"], 1)
@@ -515,21 +515,21 @@ class TestMerchantCourtManagement(unittest.TestCase):
     def test_mark_completed(self):
         from flamezo_backend.flamezo.api.courts import mark_court_completed
         b = _make_court_booking(self.restaurant, self.court, status="Confirmed")
-        res = mark_court_completed(booking_id=b, restaurant_id=self.restaurant)
+        res = mark_court_completed(booking_id=b, outlet_id=self.restaurant)
         self.assertTrue(res["success"])
         self.assertEqual(frappe.db.get_value("Court Booking", b, "status"), "Completed")
 
     def test_mark_no_show(self):
         from flamezo_backend.flamezo.api.courts import mark_court_no_show
         b = _make_court_booking(self.restaurant, self.court, status="Confirmed")
-        res = mark_court_no_show(booking_id=b, restaurant_id=self.restaurant)
+        res = mark_court_no_show(booking_id=b, outlet_id=self.restaurant)
         self.assertTrue(res["success"])
         self.assertEqual(frappe.db.get_value("Court Booking", b, "status"), "No Show")
 
     def test_save_court_create(self):
         from flamezo_backend.flamezo.api.courts import save_court
         res = save_court(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_data={
                 "court_name": "New Court",
                 "sport_type": "Squash",
@@ -551,7 +551,7 @@ class TestMerchantCourtManagement(unittest.TestCase):
         from flamezo_backend.flamezo.api.courts import delete_court
         _make_court_booking(self.restaurant, self.court, status="Confirmed",
                             date=add_days(today(), 1))
-        res = delete_court(restaurant_id=self.restaurant, court_id=self.court)
+        res = delete_court(outlet_id=self.restaurant, court_id=self.court)
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "HAS_BOOKINGS")
 
@@ -559,7 +559,7 @@ class TestMerchantCourtManagement(unittest.TestCase):
         from flamezo_backend.flamezo.api.courts import delete_court, save_court
         # Create a fresh court with no bookings
         res = save_court(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             court_data={
                 "court_name": "Temp Court",
                 "sport_type": "Badminton",
@@ -572,14 +572,14 @@ class TestMerchantCourtManagement(unittest.TestCase):
             },
         )
         court_id = res["data"]["court_id"]
-        del_res = delete_court(restaurant_id=self.restaurant, court_id=court_id)
+        del_res = delete_court(outlet_id=self.restaurant, court_id=court_id)
         self.assertTrue(del_res["success"])
         self.assertFalse(frappe.db.exists("Court", court_id))
 
     def test_cross_restaurant_court_access_blocked(self):
         from flamezo_backend.flamezo.api.courts import mark_court_completed
         b = _make_court_booking(self.restaurant, self.court, status="Confirmed")
-        res = mark_court_completed(booking_id=b, restaurant_id=self.other)
+        res = mark_court_completed(booking_id=b, outlet_id=self.other)
         self.assertFalse(res["success"])
 
 

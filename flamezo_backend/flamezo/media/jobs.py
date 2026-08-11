@@ -235,7 +235,7 @@ def process_image_asset(asset, raw_file_path, temp_dir):
 		if variant_path:
 			# Generate object key for variant
 			variant_object_key = generate_object_key(
-				restaurant_id=asset.restaurant,
+				outlet_id=asset.restaurant,
 				owner_doctype=asset.owner_doctype,
 				owner_name=asset.owner_name,
 				media_role=asset.media_role,
@@ -320,7 +320,7 @@ def process_video_asset(asset, source_path, temp_dir):
 	if video_720p_path:
 		# Upload video variant
 		video_object_key = generate_object_key(
-			restaurant_id=asset.restaurant,
+			outlet_id=asset.restaurant,
 			owner_doctype=asset.owner_doctype,
 			owner_name=asset.owner_name,
 			media_role=asset.media_role,
@@ -357,7 +357,7 @@ def process_video_asset(asset, source_path, temp_dir):
 	if poster_path:
 		# Upload poster
 		poster_object_key = generate_object_key(
-			restaurant_id=asset.restaurant,
+			outlet_id=asset.restaurant,
 			owner_doctype=asset.owner_doctype,
 			owner_name=asset.owner_name,
 			media_role=asset.media_role,

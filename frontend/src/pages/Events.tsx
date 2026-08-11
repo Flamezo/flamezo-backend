@@ -27,7 +27,7 @@ import {
 import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink, Sparkles } from 'lucide-react'
 import EventAIModal, { type AIEvent } from '@/components/events/EventAIModal'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -44,7 +44,7 @@ import { Upload, X } from 'lucide-react'
 
 
 export default function Events() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedOutlet, isGold } = useOutlet()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
   // AI-generated event used to pre-fill the create dialog (same shape the dialog
@@ -56,8 +56,8 @@ export default function Events() {
   const [eventToDelete, setEventToDelete] = useState<{ name: string; title: string } | null>(null)
 
   const initialFilters = useMemo(() => {
-    if (!selectedRestaurant) return []
-    const f: FilterCondition[] = [{ fieldname: 'restaurant', operator: '=', value: selectedRestaurant }]
+    if (!selectedOutlet) return []
+    const f: FilterCondition[] = [{ fieldname: 'restaurant', operator: '=', value: selectedOutlet }]
 
     if (filterType === 'active') {
       f.push({ fieldname: 'is_active', operator: '=', value: 1 })
@@ -66,7 +66,7 @@ export default function Events() {
     }
 
     return f
-  }, [selectedRestaurant, filterType])
+  }, [selectedOutlet, filterType])
 
   const {
     data: events,
@@ -86,7 +86,7 @@ export default function Events() {
     searchFields: ['title', 'category', 'description', 'location'],
     orderBy: { field: 'creation', order: 'desc' },
     initialPageSize: 12,
-    debugId: `events-${selectedRestaurant}-${filterType}`
+    debugId: `events-${selectedOutlet}-${filterType}`
   })
 
   const { call: createEvent } = useFrappePostCall('frappe.client.insert')
@@ -116,7 +116,7 @@ export default function Events() {
         doc: {
           doctype: 'Event',
           ...mappedData,
-          restaurant: selectedRestaurant,
+          restaurant: selectedOutlet,
         }
       })
       toast.success('Event created successfully')
@@ -164,7 +164,7 @@ export default function Events() {
   }
 
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -426,7 +426,7 @@ export default function Events() {
       <EventAIModal
         open={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
-        restaurantId={selectedRestaurant || ''}
+        outletId={selectedOutlet || ''}
         onUseEvent={(ev) => { setAiPrefilledEvent(ev); setIsCreateDialogOpen(true) }}
       />
 
@@ -462,7 +462,7 @@ export default function Events() {
 }
 
 function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -542,13 +542,13 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedRestaurant) return
+    if (!file || !selectedOutlet) return
 
     setIsUploading(true)
     try {
       const result = await uploadToR2({
         ownerDoctype: 'Restaurant',
-        ownerName: selectedRestaurant,
+        ownerName: selectedOutlet,
         mediaRole: 'event_image',
         file,
       })

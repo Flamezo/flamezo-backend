@@ -3,7 +3,7 @@
 
 """
 API endpoints for Coupons
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -72,14 +72,14 @@ def _bucket_offer_groups(coupons):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_coupons(restaurant_id, active_only=True):
+def get_coupons(outlet_id, active_only=True):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.coupons.get_coupons
 	Get all available coupons for a restaurant
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Build filters
 		filters = {"restaurant": restaurant}
@@ -387,7 +387,7 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 	}
 
 @frappe.whitelist(allow_guest=True)
-def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, cart_items=None, phone=None):
+def validate_coupon(outlet_id, coupon_code, cart_total=0, customer_id=None, cart_items=None, phone=None):
 	"""API wrapper for get_coupon_details.
 
 	Coupons are a Savings-Corner feature — gated behind verification. Requires
@@ -396,7 +396,7 @@ def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, 
 	alone, but we still reject if the token is missing/invalid.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Verification gate. Two paths:
 		#   1. Modern client: passes phone + token → strict phone/token match check.
@@ -460,13 +460,13 @@ def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, 
 
 
 @frappe.whitelist()
-def export_coupons(restaurant_id):
+def export_coupons(outlet_id):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.coupons.export_coupons
 	Export all coupons for a restaurant as a CSV file download.
 	Enables multi-outlet replication and backup.
 	"""
-	restaurant = validate_restaurant_for_api(restaurant_id)
+	restaurant = validate_restaurant_for_api(outlet_id)
 
 	coupons = frappe.get_all(
 		"Coupon",
@@ -497,20 +497,20 @@ def export_coupons(restaurant_id):
 		writer.writerow(row)
 
 	csv_bytes = output.getvalue().encode("utf-8")
-	frappe.local.response.filename = f"coupons_{restaurant_id}.csv"
+	frappe.local.response.filename = f"coupons_{outlet_id}.csv"
 	frappe.local.response.filecontent = csv_bytes
 	frappe.local.response.type = "download"
 
 
 @frappe.whitelist()
-def import_coupons(restaurant_id, csv_content, overwrite_existing=False):
+def import_coupons(outlet_id, csv_content, overwrite_existing=False):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.import_coupons
 	Bulk-import coupons from CSV content string.
 	Skips rows with duplicate codes unless overwrite_existing=True.
 	Returns counts of created / updated / skipped rows.
 	"""
-	restaurant = validate_restaurant_for_api(restaurant_id)
+	restaurant = validate_restaurant_for_api(outlet_id)
 
 	created = updated = skipped = 0
 	errors = []
@@ -584,7 +584,7 @@ def import_coupons(restaurant_id, csv_content, overwrite_existing=False):
 
 
 @frappe.whitelist()
-def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_filter=None, count=6,
+def generate_coupon_suggestions(outlet_id, tone="attractive", offer_type_filter=None, count=6,
 	user_prompt=None, poster_base64=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.generate_coupon_suggestions
@@ -599,7 +599,7 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 	After quota: costs 2 wallet coins per generation.
 
 	Args:
-		restaurant_id: Restaurant identifier
+		outlet_id: Outlet identifier
 		tone: "calm" | "attractive" | "aggressive"
 		offer_type_filter: Optional offer type to restrict generation to
 		count: Number of suggestions (3–8)
@@ -607,7 +607,7 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 		poster_base64: Optional base64 offer-poster image (vision mode)
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		require_plan(restaurant, ["GOLD"])
 
 		count = max(3, min(int(count or 6), 8))
@@ -641,7 +641,7 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 
 		# Run generation (this increments quota internally)
 		result = generate_suggestions(
-			restaurant_id=restaurant,
+			outlet_id=restaurant,
 			tone=tone,
 			offer_type_filter=offer_type_filter,
 			count=count,
@@ -686,13 +686,13 @@ def generate_coupon_suggestions(restaurant_id, tone="attractive", offer_type_fil
 
 
 @frappe.whitelist()
-def get_ai_coupon_quota(restaurant_id):
+def get_ai_coupon_quota(outlet_id):
 	"""
 	GET quota status for AI coupon generation without consuming a generation.
 	Returns used/limit/resets_on/free_remaining/coins_per_paid.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		from flamezo_backend.flamezo.services.ai.coupon_generator import (
 			_check_quota_status, FREE_MONTHLY_QUOTA,
 		)
@@ -711,7 +711,7 @@ def get_ai_coupon_quota(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=None, order_type=None):
+def get_applicable_offers(outlet_id, cart_items, cart_total, customer_id=None, order_type=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.get_applicable_offers
 	Get ALL offers (both eligible and ineligible) with detailed reasons
@@ -724,7 +724,7 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Production Auth: Prioritize identity from session token for secure usage limit checks
 		token = get_customer_token()
@@ -1152,13 +1152,13 @@ def get_applicable_offers(restaurant_id, cart_items, cart_total, customer_id=Non
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def set_offer_pin(restaurant_id, pin):
+def set_offer_pin(outlet_id, pin):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.set_offer_pin
 	Merchant sets/updates their 4-digit offer verification PIN.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		pin = str(pin).strip()
 		if not pin.isdigit() or len(pin) != 4:
@@ -1174,13 +1174,13 @@ def set_offer_pin(restaurant_id, pin):
 
 
 @frappe.whitelist()
-def get_offer_pin_status(restaurant_id):
+def get_offer_pin_status(outlet_id):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.coupons.get_offer_pin_status
 	Returns whether a PIN is set. Never returns the PIN value itself.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		stored = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		return {"success": True, "data": {"is_set": bool(stored)}}
 	except Exception as e:
@@ -1192,7 +1192,7 @@ def get_offer_pin_status(restaurant_id):
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def claim_offer_with_pin(restaurant_id, coupon_id, pin):
+def claim_offer_with_pin(outlet_id, coupon_id, pin):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.claim_offer_with_pin
 
@@ -1201,7 +1201,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 	Returns the claim ID so the frontend can reference it later.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Require logged-in customer
 		token = get_customer_token()
@@ -1218,7 +1218,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 		# Validate PIN
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
-			return {"success": False, "error": {"code": "PIN_NOT_SET", "message": "This restaurant has not set up offer verification"}}
+			return {"success": False, "error": {"code": "PIN_NOT_SET", "message": "This outlet has not set up offer verification"}}
 
 		if str(pin).strip() != stored_pin:
 			return {"success": False, "error": {"code": "INVALID_PIN", "message": "Incorrect PIN — please try again"}}
@@ -1248,7 +1248,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 			},
 		)
 		if existing_lock:
-			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant in the last 4 hours"}}
+			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this outlet in the last 4 hours"}}
 
 		# Lifetime check for Google Review offers — one-time once actually USED (paid).
 		# An unpaid prior claim doesn't block: the 4-hour lock above already prevents
@@ -1312,7 +1312,7 @@ def claim_offer_with_pin(restaurant_id, coupon_id, pin):
 
 
 @frappe.whitelist(allow_guest=True)
-def claim_offer(restaurant_id, coupon_id):
+def claim_offer(outlet_id, coupon_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.claim_offer
 
@@ -1321,7 +1321,7 @@ def claim_offer(restaurant_id, coupon_id):
 	Once claimed, they cannot switch to another offer for the same visit.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		token = get_customer_token()
 		if not token:
@@ -1356,7 +1356,7 @@ def claim_offer(restaurant_id, coupon_id):
 			},
 		)
 		if existing_lock:
-			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this restaurant. Visit again to claim another."}}
+			return {"success": False, "error": {"code": "ALREADY_CLAIMED", "message": "You've already claimed an offer at this outlet. Visit again to claim another."}}
 
 		# Google Review offers are one-time once actually USED (a paid claim) — mirrors
 		# claim_offer_with_pin. An unpaid prior claim doesn't block (the 4-hour lock
@@ -1416,14 +1416,14 @@ def claim_offer(restaurant_id, coupon_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_active_offer_claim(restaurant_id):
+def get_active_offer_claim(outlet_id):
 	"""
 	Returns the customer's active (unpaid) Offer Claim for this restaurant
 	within the last 4 hours, if any. Used by the pay-bill page to auto-select
 	the claimed offer without depending on URL params or localStorage.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		token = get_customer_token()
 		if not token:
 			return {"success": True, "data": {"claim": None}}
@@ -1465,17 +1465,17 @@ def get_active_offer_claim(restaurant_id):
 
 
 @frappe.whitelist()
-def mark_claim_paid(restaurant_id, claim_id, payment_id, paid_amount):
+def mark_claim_paid(outlet_id, claim_id, payment_id, paid_amount):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.mark_claim_paid
 	Called from the payment webhook / verify_payment flow to mark a claim as paid.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		claim = frappe.get_doc("Offer Claim", claim_id)
 		if claim.restaurant != restaurant:
-			return {"success": False, "error": {"code": "FORBIDDEN", "message": "Claim does not belong to this restaurant"}}
+			return {"success": False, "error": {"code": "FORBIDDEN", "message": "Claim does not belong to this outlet"}}
 
 		claim.is_paid = 1
 		claim.paid_amount = flt(paid_amount)
@@ -1495,7 +1495,7 @@ def mark_claim_paid(restaurant_id, claim_id, payment_id, paid_amount):
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_offer_claims_analytics(restaurant_id, period="30d", coupon_id=None):
+def get_offer_claims_analytics(outlet_id, period="30d", coupon_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.coupons.get_offer_claims_analytics
 
@@ -1505,7 +1505,7 @@ def get_offer_claims_analytics(restaurant_id, period="30d", coupon_id=None):
 	  - recent_claims: last 50 individual claim records
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Resolve date range
 		period_map = {"7d": 7, "30d": 30, "90d": 90, "all": None}
@@ -1606,7 +1606,7 @@ def _mask_phone(phone: str) -> str:
 
 
 @frappe.whitelist(allow_guest=True)
-def apply_coupon(restaurant_id, coupon_code, order_id, discount_amount=0, customer_id=None, phone=None):
+def apply_coupon(outlet_id, coupon_code, order_id, discount_amount=0, customer_id=None, phone=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.coupons.apply_coupon
 
@@ -1618,10 +1618,10 @@ def apply_coupon(restaurant_id, coupon_code, order_id, discount_amount=0, custom
 	this automatically; this endpoint covers web orders (0% fee path).
 	"""
 	try:
-		if not restaurant_id or not coupon_code or not order_id:
-			return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id, coupon_code and order_id are required"}}
+		if not outlet_id or not coupon_code or not order_id:
+			return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id, coupon_code and order_id are required"}}
 
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Resolve coupon by code
 		coupon_name = frappe.db.get_value("Coupon", {"restaurant": restaurant, "code": coupon_code}, "name")

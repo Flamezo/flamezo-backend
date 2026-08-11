@@ -1,7 +1,7 @@
 import { SetStateAction, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,7 @@ interface BillingInfo {
 export default function AutopaySetupPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { selectedRestaurant, restaurants } = useRestaurant()
+  const { selectedOutlet, outlets } = useOutlet()
 
   const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -78,13 +78,13 @@ export default function AutopaySetupPage() {
     'flamezo_backend.flamezo.api.payments.confirm_mandate_setup'
   )
 
-  const activeRes = restaurants.find(r => r.name === selectedRestaurant)
+  const activeRes = outlets.find(r => r.name === selectedOutlet)
 
   const loadInfo = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
     try {
-      const res = await getInfo({ restaurant: selectedRestaurant })
+      const res = await getInfo({ restaurant: selectedOutlet })
       if (res.message) {
         setBillingInfo(res.message)
         setEnabled(res.message.auto_recharge_enabled)
@@ -100,7 +100,7 @@ export default function AutopaySetupPage() {
 
   useEffect(() => {
     loadInfo()
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   // Auto-trigger recharge modal if buy=true is in the URL
   useEffect(() => {
@@ -113,11 +113,11 @@ export default function AutopaySetupPage() {
   }, [searchParams, setSearchParams])
 
   const handleSaveSettings = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setIsUpdating(true)
     try {
       await updateSettings({
-        restaurant: selectedRestaurant,
+        restaurant: selectedOutlet,
         enabled,
         threshold: parseFloat(threshold),
         amount: parseFloat(amount)
@@ -146,8 +146,8 @@ export default function AutopaySetupPage() {
       if (!loaded) throw new Error('Razorpay failed to load')
 
       const res = await createTokenOrder({
-        restaurant_id: selectedRestaurant,
-        customer_name: activeRes?.restaurant_name || activeRes?.name,
+        outlet_id: selectedOutlet,
+        customer_name: activeRes?.outlet_name || activeRes?.name,
         customer_email: (activeRes as any)?.owner_email || ''
       })
 
@@ -165,7 +165,7 @@ export default function AutopaySetupPage() {
           // Verify signature and save token immediately
           try {
             const confirmRes = await confirmMandate({
-              restaurant_id: selectedRestaurant,
+              outlet_id: selectedOutlet,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: razorpay_subscription_id, // Pass sub_id as order_id ref
               razorpay_signature: response.razorpay_signature,
@@ -502,7 +502,7 @@ export default function AutopaySetupPage() {
       <AiRechargeModal
         open={showRecharge}
         onClose={() => setShowRecharge(false)}
-        restaurant={selectedRestaurant!}
+        restaurant={selectedOutlet!}
         onSuccess={loadInfo}
       />
     </div>

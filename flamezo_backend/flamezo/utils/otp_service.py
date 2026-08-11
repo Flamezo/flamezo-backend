@@ -20,7 +20,7 @@ OTP_RESEND_COOLDOWN = 30
 OTP_MAX_PER_HOUR = 3
 
 
-def send_otp_via_whatsapp(phone: str, otp: str, restaurant_name: str = None) -> bool:
+def send_otp_via_whatsapp(phone: str, otp: str, outlet_name: str = None) -> bool:
 	"""
 	Send OTP via Meta Cloud API (WhatsApp Business).
 	Uses the 'verify_code_1' authentication template: "{{code}} is your verification code."
@@ -98,7 +98,7 @@ def send_otp_via_whatsapp(phone: str, otp: str, restaurant_name: str = None) -> 
 		return False
 
 
-def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str = None, app_signature: str = None) -> bool:
+def send_otp_via_sms(api_key: str, numbers: str, otp: str, outlet_name: str = None, app_signature: str = None) -> bool:
 	"""Send OTP via Fast2SMS. Returns True if successful."""
 	try:
 		# DLT config: prefer site_config.json (secure, server-side, not in git);
@@ -111,7 +111,7 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 
 		headers = {"authorization": api_key, "Content-Type": "application/json"}
 
-		label = (restaurant_name or "Flamezo").strip()[:25]
+		label = (outlet_name or "Flamezo").strip()[:25]
 		sms_message = f"Your {label} verification code is: {otp}. Don't share this code with anyone."
 		if app_signature:
 			sms_message += f"\n\n{app_signature}"
@@ -144,7 +144,7 @@ def send_otp_via_sms(api_key: str, numbers: str, otp: str, restaurant_name: str 
 
 
 # Legacy — kept for backwards compatibility during migration
-def send_otp_via_evolution_api(url: str, api_key: str, instance: str, phone: str, otp: str, restaurant_name: str = None) -> bool:
+def send_otp_via_evolution_api(url: str, api_key: str, instance: str, phone: str, otp: str, outlet_name: str = None) -> bool:
 	"""DEPRECATED: Use send_otp_via_whatsapp (Meta Cloud API) instead."""
 	try:
 		if not url or not api_key or not instance:
@@ -162,7 +162,7 @@ def send_otp_via_evolution_api(url: str, api_key: str, instance: str, phone: str
 			"Content-Type": "application/json"
 		}
 
-		label = (restaurant_name or "Flamezo").strip()[:25]
+		label = (outlet_name or "Flamezo").strip()[:25]
 		payload = {
 			"number": to,
 			"text": f"Your {label} verification code is: {otp}. Don't share this code with anyone."

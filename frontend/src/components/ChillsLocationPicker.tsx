@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { MapPin, Navigation, Building2, X, Search, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -133,7 +133,7 @@ async function fetchPlaceDetails(placeId: string, apiKey: string, signal?: Abort
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ChillsLocationPicker({ value, onChange, outletName, outletLat, outletLng }: Props) {
-  const { googleMapsApiKey } = useRestaurant()
+  const { googleMapsApiKey } = useOutlet()
   const apiKey = (googleMapsApiKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '') as string
 
   const [query, setQuery] = useState('')

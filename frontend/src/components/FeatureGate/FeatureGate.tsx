@@ -11,7 +11,7 @@ import { LockedFeature } from './LockedFeature';
 
 interface FeatureGateProps {
   feature: FeatureKey;
-  restaurantId?: string;
+  outletId?: string;
   children: React.ReactNode;
   fallback?: React.ReactNode;
   showLockedUI?: boolean;
@@ -19,12 +19,12 @@ interface FeatureGateProps {
 
 export function FeatureGate({
   feature,
-  restaurantId,
+  outletId,
   children,
   fallback,
   showLockedUI = true,
 }: FeatureGateProps) {
-  const { access, loading } = useFeatureGate(feature, restaurantId);
+  const { access, loading } = useFeatureGate(feature, outletId);
 
   if (loading) {
     return null;

@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useState, useEffect } from 'react'
 import { Star, Sparkles, Send, ChevronRight, Crown } from 'lucide-react'
@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 
 export default function GoogleGrowthReviews() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedOutlet, isGold } = useOutlet()
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
@@ -22,13 +22,13 @@ export default function GoogleGrowthReviews() {
   const { call: postReply } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.post_review_reply')
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       setLoading(true)
-      fetchReviews({ restaurant_id: selectedRestaurant })
+      fetchReviews({ outlet_id: selectedOutlet })
         .then((res: any) => setReviews(res.message || []))
         .finally(() => setLoading(false))
     }
-  }, [selectedRestaurant, fetchReviews])
+  }, [selectedOutlet, fetchReviews])
 
   const handleGenerateReply = async (review: any) => {
     if (!isGold) {
@@ -41,7 +41,7 @@ export default function GoogleGrowthReviews() {
       const res = await generateReply({ 
         review_text: review.comment, 
         rating: review.rating,
-        restaurant_id: selectedRestaurant
+        outlet_id: selectedOutlet
       })
       if (res.message?.success) {
         setReplies(prev => ({ ...prev, [review.reviewId]: res.message.reply }))
@@ -62,7 +62,7 @@ export default function GoogleGrowthReviews() {
 
     try {
       const res = await postReply({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         review_name: review.name, // This is the full Google resource name
         reply_text: replyText
       })

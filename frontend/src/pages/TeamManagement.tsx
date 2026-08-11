@@ -1,10 +1,10 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import StaffMembersList from '@/components/StaffMembersList'
 import { Badge } from '@/components/ui/badge'
 import { Crown, Users, Lock } from 'lucide-react'
 
 export default function TeamManagement() {
-  const { selectedRestaurant, isAdmin } = useRestaurant()
+  const { selectedOutlet, isAdmin } = useOutlet()
 
   if (!isAdmin) {
     return (
@@ -80,8 +80,8 @@ export default function TeamManagement() {
         </div>
       </div>
 
-      {selectedRestaurant ? (
-        <StaffMembersList restaurantId={selectedRestaurant} />
+      {selectedOutlet ? (
+        <StaffMembersList outletId={selectedOutlet} />
       ) : (
         <div className="text-center text-muted-foreground py-10">
           Select an outlet to manage its team.

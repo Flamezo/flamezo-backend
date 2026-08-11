@@ -8,7 +8,8 @@
  "field_order": [
   "club",
   "customer_phone",
-  "joined_at"
+  "joined_at",
+  "notify_new_posts"
  ],
  "fields": [
   {
@@ -30,6 +31,12 @@
    "fieldname": "joined_at",
    "fieldtype": "Datetime",
    "label": "Joined At"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_new_posts",
+   "fieldtype": "Check",
+   "label": "Notify On New Posts"
   }
  ],
  "modified": "2026-07-09 10:00:00.000000",

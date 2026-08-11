@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, Users, Clock, CheckCircle, XCircle, AlertCircle, Search, ChevronLeft, ChevronRight, Phone, StickyNote, ChevronDown } from 'lucide-react'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -37,7 +37,7 @@ interface Booking {
 const SELECTED_DATE_KEY = 'flamezo_backend-bookings-selected-date'
 
 export default function Bookings() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [showPastBookings, setShowPastBookings] = useState(false)
@@ -72,11 +72,11 @@ export default function Bookings() {
   }, [selectedDate])
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       loadBookings()
       if (!searchQuery) loadMonthlyBookings()
     }
-  }, [selectedRestaurant, selectedDate, statusFilter, showPastBookings, searchQuery])
+  }, [selectedOutlet, selectedDate, statusFilter, showPastBookings, searchQuery])
 
   // Format date without timezone conversion
   const formatDateForAPI = (date: Date): string => {
@@ -87,7 +87,7 @@ export default function Bookings() {
   }
 
   const loadBookings = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     
     try {
       setLoading(true)
@@ -107,7 +107,7 @@ export default function Bookings() {
       }
 
       const response = await fetchBookings({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         date_from,
         date_to,
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -134,14 +134,14 @@ export default function Bookings() {
   }
 
   const loadMonthlyBookings = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     
     try {
       const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
       const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0)
       
       const response = await fetchBookings({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         date_from: formatDateForAPI(startOfMonth),
         date_to: formatDateForAPI(endOfMonth),
         limit: 1000
@@ -198,7 +198,7 @@ export default function Bookings() {
   }
 
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
 
     try {
       let response
@@ -207,26 +207,26 @@ export default function Bookings() {
         case 'confirmed':
           response = await confirmBookingAPI({
             booking_id: bookingId,
-            restaurant_id: selectedRestaurant
+            outlet_id: selectedOutlet
           })
           break
         case 'rejected':
           response = await rejectBookingAPI({
             booking_id: bookingId,
-            restaurant_id: selectedRestaurant,
+            outlet_id: selectedOutlet,
             reason: 'Rejected by staff'
           })
           break
         case 'completed':
           response = await markCompletedAPI({
             booking_id: bookingId,
-            restaurant_id: selectedRestaurant
+            outlet_id: selectedOutlet
           })
           break
         case 'no-show':
           response = await markNoShowAPI({
             booking_id: bookingId,
-            restaurant_id: selectedRestaurant
+            outlet_id: selectedOutlet
           })
           break
         default:
@@ -256,7 +256,7 @@ export default function Bookings() {
     totalDiners: filteredBookings.reduce((sum, b) => sum + b.numberOfDiners, 0)
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

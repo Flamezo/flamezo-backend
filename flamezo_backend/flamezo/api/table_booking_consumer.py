@@ -2,18 +2,33 @@
 # For license information, please see license.txt
 
 """
-Consumer-facing Dining Table Booking API.
+Consumer-facing Table Booking API — a LEAD HANDOFF, not a reservation.
+
+No table is ever held and no availability/capacity check happens at
+creation. Placing a "booking" here just alerts the outlet over WhatsApp
+that a customer intends to visit (name, phone, party size, date, preferred
+time, notes) — the outlet manages their own floor exactly like a phone
+call or walk-in, with zero obligation and zero no-show risk, since nothing
+was ever promised to the customer as confirmed. See dispatch_table_booking
+_whatsapp() in utils/table_booking_whatsapp.py for the actual alert.
+
+The `status` field (pending/confirmed/rejected/...) still exists for the
+outlet's own record-keeping in their dashboard (Bookings.tsx) — it is
+deliberately never surfaced to the customer as a promise ("confirmed"
+there means "the outlet marked this as noted," not "your table is held").
 
 Endpoints:
-  - create_table_booking   — book a table at a restaurant
+  - create_table_booking   — let an outlet know you're coming
   - get_my_table_bookings  — list all bookings by this phone (paginated)
-  - cancel_table_booking   — cancel a pending/confirmed booking
+  - cancel_table_booking   — let the outlet know your plans changed
   - get_table_booking_detail — single booking detail
 """
 
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, today, getdate
+
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -22,6 +37,16 @@ def _require_phone(phone):
     if not phone:
         frappe.throw(_("phone is required"), frappe.AuthenticationError)
     return phone.strip()
+
+
+def _require_session(phone):
+    """Every endpoint here touches personal booking data — a client-supplied
+    phone alone is not identity. Without this, anyone who knows/guesses a
+    phone number could create bookings as that person, or read/cancel their
+    real ones (same class of bug found and fixed in crowd.py/clubs.py)."""
+    if not has_active_customer_session(phone):
+        frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+    return phone
 
 
 def _fmt_time(t):
@@ -37,9 +62,9 @@ def _format_booking(b):
     return {
         "id": b.name,
         "booking_number": b.booking_number or b.name,
-        "restaurant_id": b.restaurant_id or "",
-        "restaurant_name": b.restaurant_name or "",
-        "restaurant_city": b.city or "",
+        "outlet_id": b.restaurant_id or "",
+        "outlet_name": b.restaurant_name or "",
+        "outlet_city": b.city or "",
         "date": str(b.date) if b.date else "",
         "time_slot": b.time_slot or "",
         "number_of_diners": b.number_of_diners or 0,
@@ -58,24 +83,28 @@ def _format_booking(b):
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def create_table_booking(phone, restaurant_id, date, time_slot, number_of_diners,
+def create_table_booking(phone, outlet_id, date, time_slot, number_of_diners,
                          customer_name=None, notes=None):
     """
     POST .../table_booking_consumer.create_table_booking
 
-    Books a dining table at a restaurant.
-    - phone: customer phone (required)
-    - restaurant_id: restaurant name/ID (required)
-    - date: booking date YYYY-MM-DD (required)
-    - time_slot: e.g. "19:00 – 21:00" (required)
+    Lets an outlet know a customer intends to visit — NOT a reservation, no
+    table is held. The outlet gets an instant WhatsApp alert; the customer
+    gets told "the outlet's been notified," never "confirmed."
+
+    - phone: customer phone (required, must have an active verified session)
+    - outlet_id: outlet name/ID (required)
+    - date: intended visit date YYYY-MM-DD (required)
+    - time_slot: free-text preferred time, e.g. "Tonight, around 8" (required)
     - number_of_diners: integer (required)
     - customer_name: display name (optional, defaults to phone)
-    - notes: special requests (optional)
+    - notes: anything else the outlet should know (optional)
     """
     phone = _require_phone(phone)
+    _require_session(phone)
 
-    if not restaurant_id:
-        frappe.throw(_("restaurant_id is required"))
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
     if not date:
         frappe.throw(_("date is required"))
     if not time_slot:
@@ -83,17 +112,17 @@ def create_table_booking(phone, restaurant_id, date, time_slot, number_of_diners
     if not number_of_diners or int(number_of_diners) < 1:
         frappe.throw(_("number_of_diners must be at least 1"))
 
-    # Validate restaurant exists and accepts bookings
-    restaurant = frappe.db.get_value(
+    # Validate outlet exists and accepts bookings
+    outlet = frappe.db.get_value(
         "Restaurant",
-        restaurant_id,
+        outlet_id,
         ["name", "restaurant_name", "city", "is_active"],
         as_dict=True,
     )
-    if not restaurant:
-        frappe.throw(_("Restaurant not found"), frappe.DoesNotExistError)
-    if not restaurant.is_active:
-        frappe.throw(_("Restaurant is not accepting bookings"))
+    if not outlet:
+        frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
+    if not outlet.is_active:
+        frappe.throw(_("Outlet is not accepting bookings"))
 
     # Reject past dates
     try:
@@ -106,7 +135,7 @@ def create_table_booking(phone, restaurant_id, date, time_slot, number_of_diners
 
     doc = frappe.get_doc({
         "doctype": "Table Booking",
-        "restaurant": restaurant_id,
+        "restaurant": outlet_id,
         "customer_phone": phone,
         "customer_name": customer_name or phone,
         "date": date,
@@ -117,6 +146,15 @@ def create_table_booking(phone, restaurant_id, date, time_slot, number_of_diners
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
+
+    # Best-effort, enqueued — the WhatsApp alert to the outlet must never
+    # block or fail the customer's request, same convention as order alerts
+    # (order_whatsapp.py::dispatch_order_whatsapp).
+    frappe.enqueue(
+        "flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_whatsapp",
+        queue="short",
+        booking_name=doc.name,
+    )
 
     return {
         "success": True,
@@ -137,6 +175,7 @@ def get_my_table_bookings(phone, page=1, limit=20, status=None):
     Optionally filter by status (Pending, Confirmed, Completed, Cancelled, Rejected).
     """
     phone = _require_phone(phone)
+    _require_session(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -192,6 +231,7 @@ def get_table_booking_detail(booking_id, phone):
     Phone must match booking's customer_phone.
     """
     phone = _require_phone(phone)
+    _require_session(phone)
     if not booking_id:
         frappe.throw(_("booking_id is required"))
 
@@ -223,10 +263,13 @@ def cancel_table_booking(booking_id, phone):
     """
     POST .../table_booking_consumer.cancel_table_booking
 
-    Cancels a Pending or Confirmed booking.
+    Lets the outlet know a customer's plans changed. Since nothing was ever
+    held, this is a courtesy notice, not the release of a resource — still
+    worth telling the outlet so they don't wonder if the customer's coming.
     Only the booking's owner phone can cancel.
     """
     phone = _require_phone(phone)
+    _require_session(phone)
     if not booking_id:
         frappe.throw(_("booking_id is required"))
 

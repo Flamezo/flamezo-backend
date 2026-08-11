@@ -3,7 +3,7 @@
 
 """
 API endpoints for Games/Experience Lounge
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -13,14 +13,14 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 
 
 @frappe.whitelist(allow_guest=True)
-def get_games(restaurant_id, featured=None, category=None):
+def get_games(outlet_id, featured=None, category=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.games.get_games
 	Get all games available in the experience lounge
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Build filters
 		filters = {"restaurant": restaurant, "is_active": 1}

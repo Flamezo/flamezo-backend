@@ -3,7 +3,7 @@
 
 """
 API endpoints for Offers
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -14,14 +14,14 @@ from flamezo_backend.flamezo.media.utils import format_media_field
 
 
 @frappe.whitelist(allow_guest=True)
-def get_offers(restaurant_id, featured=None, category=None, active_only=True):
+def get_offers(outlet_id, featured=None, category=None, active_only=True):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.offers.get_offers
-	Get all active offers for a restaurant
+	Get all active offers for an outlet
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Build filters (Frappe get_all: dict for simple eq, or list-of-lists for conditions)
 		today_date = today()
@@ -117,14 +117,14 @@ def get_offers(restaurant_id, featured=None, category=None, active_only=True):
 
 
 @frappe.whitelist(allow_guest=True)
-def create_offer(restaurant_id, title, description=None, discount=None, valid_until=None, category=None, featured=False, is_active=True, image_src=None, image_alt=None, valid_from=None, valid_to=None):
+def create_offer(outlet_id, title, description=None, discount=None, valid_until=None, category=None, featured=False, is_active=True, image_src=None, image_alt=None, valid_from=None, valid_to=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.offers.create_offer
 	Create a new offer (Public API - no authentication required)
 	"""
 	try:
-		# Validate restaurant exists (no user access check)
-		restaurant = validate_restaurant_for_api(restaurant_id, None)
+		# Validate outlet exists (no user access check)
+		restaurant = validate_restaurant_for_api(outlet_id, None)
 		
 		# Create offer
 		offer_doc = frappe.get_doc({

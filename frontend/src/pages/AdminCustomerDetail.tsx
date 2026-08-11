@@ -91,7 +91,7 @@ function UGCDetailDialog({ ugc, open, onClose }: { ugc: any | null; open: boolea
             <Video className="w-4 h-4 text-primary" /> UGC Submission
           </DialogTitle>
           <DialogDescription>
-            {ugc.restaurant_name} · <Badge variant="secondary" className={cn('text-[10px]', statusColor(ugc.status))}>{ugc.status}</Badge>
+            {ugc.outlet_name} · <Badge variant="secondary" className={cn('text-[10px]', statusColor(ugc.status))}>{ugc.status}</Badge>
           </DialogDescription>
         </DialogHeader>
 
@@ -235,7 +235,7 @@ export default function AdminCustomerDetail() {
     setAdjusting(true)
     try {
       const res: any = await adjustLoyalty({
-        customer_id: customerId, restaurant_id: adjRestaurant,
+        customer_id: customerId, outlet_id: adjRestaurant,
         coins: parseInt(adjCoins), reason: adjReason, transaction_type: adjType,
       })
       if (res.message?.success) {
@@ -278,7 +278,7 @@ export default function AdminCustomerDetail() {
   const visitedRestaurants = [...new Map(
     (loyalty?.entries || [])
       .filter((e: any) => e.restaurant)
-      .map((e: any) => [e.restaurant, e.restaurant_name || e.restaurant])
+      .map((e: any) => [e.restaurant, e.outlet_name || e.restaurant])
   ).entries()] as [string, string][]
 
 
@@ -444,7 +444,7 @@ export default function AdminCustomerDetail() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs">{e.reason}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{e.restaurant_name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{e.outlet_name}</TableCell>
                             <TableCell className="font-semibold">
                               <span className={e.transaction_type === 'Earn' ? 'text-green-600' : 'text-rose-600'}>
                                 {e.transaction_type === 'Earn' ? '+' : '−'}₹{e.coins}
@@ -565,7 +565,7 @@ export default function AdminCustomerDetail() {
                         <TableRow key={u.name}
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => setUgcDialogItem(u)}>
-                          <TableCell className="text-sm font-medium">{u.restaurant_name}</TableCell>
+                          <TableCell className="text-sm font-medium">{u.outlet_name}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className={cn('text-[10px]',
                               u.status === 'credited'  ? 'text-green-700 bg-green-50 border-green-200' :

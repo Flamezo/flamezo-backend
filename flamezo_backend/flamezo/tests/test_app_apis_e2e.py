@@ -82,7 +82,7 @@ class TestGetAllRestaurants(unittest.TestCase):
     def test_required_card_fields_present(self):
         r = self._call(city="Surat", limit=5)
         for item in r["data"]["outlets"]:
-            for field in ("id", "restaurant_name", "outlet_type",
+            for field in ("id", "outlet_name", "outlet_type",
                           "city", "latitude", "longitude"):
                 self.assertIn(field, item, f"Missing field '{field}' in card")
 
@@ -258,7 +258,7 @@ class TestGetPointsLedger(unittest.TestCase):
     def test_entry_shape(self):
         r = self._call()
         entry = r["data"]["entries"][0]
-        for field in ("type", "points", "posting_date", "restaurant_name"):
+        for field in ("type", "points", "posting_date", "outlet_name"):
             self.assertIn(field, entry, f"Missing ledger field: {field}")
 
     def test_pagination_has_more(self):
@@ -294,9 +294,9 @@ class TestGetRestaurantSummary(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
 
-    def _call(self, restaurant_id):
-        from flamezo_backend.flamezo.api.flamezo import get_restaurant_summary
-        return get_restaurant_summary(restaurant_id=restaurant_id)
+    def _call(self, outlet_id):
+        from flamezo_backend.flamezo.api.flamezo import get_outlet_summary
+        return get_outlet_summary(outlet_id=outlet_id)
 
     def test_araku_summary_success(self):
         r = self._call(DINING_ID)
@@ -306,7 +306,7 @@ class TestGetRestaurantSummary(unittest.TestCase):
         r = self._call(DINING_ID)
         self.assertTrue(r["success"], msg=str(r))
         data = r["data"]
-        for field in ("id", "restaurant_name", "outlet_type", "city"):
+        for field in ("id", "outlet_name", "outlet_type", "city"):
             self.assertIn(field, data)
 
     def test_wellness_outlet_summary(self):
@@ -359,9 +359,9 @@ class TestGetRestaurantDetail(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
 
-    def _call(self, restaurant_id):
-        from flamezo_backend.flamezo.api.restaurant import get_restaurant_detail
-        return get_restaurant_detail(restaurant_id=restaurant_id)
+    def _call(self, outlet_id):
+        from flamezo_backend.flamezo.api.outlet import get_outlet_detail
+        return get_outlet_detail(outlet_id=outlet_id)
 
     def test_araku_detail_success(self):
         r = self._call(DINING_ID)
@@ -371,7 +371,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         r = self._call(DINING_ID)
         self.assertTrue(r["success"], msg=str(r))
         data = r["data"]
-        for field in ("id", "restaurant_name", "outlet_type", "city"):
+        for field in ("id", "outlet_name", "outlet_type", "city"):
             self.assertIn(field, data, f"Missing detail field: {field}")
 
     def test_wellness_detail_outlet_type(self):
@@ -399,9 +399,9 @@ class TestGetCatalogue(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
 
-    def _call(self, restaurant_id):
+    def _call(self, outlet_id):
         from flamezo_backend.flamezo.api.catalogue import get_catalogue
-        return get_catalogue(restaurant_id=restaurant_id)
+        return get_catalogue(outlet_id=outlet_id)
 
     def test_wellness_catalogue_success(self):
         r = self._call(WELLNESS_ID)
@@ -460,9 +460,9 @@ class TestGetCatalogueItem(unittest.TestCase):
         cls.item_id = result.name if result else None
         cls.item_name = result.item_name if result else None
 
-    def _call(self, item_id, restaurant_id=WELLNESS_ID):
+    def _call(self, item_id, outlet_id=WELLNESS_ID):
         from flamezo_backend.flamezo.api.catalogue import get_catalogue_item
-        return get_catalogue_item(item_id=item_id, restaurant_id=restaurant_id)
+        return get_catalogue_item(item_id=item_id, outlet_id=outlet_id)
 
     def test_item_fetch_success(self):
         if not self.item_id:
@@ -555,7 +555,7 @@ class TestCreateTableBooking(unittest.TestCase):
             frappe.db.delete("Table Booking", name)
         frappe.db.commit()
 
-    def _call(self, restaurant_id=DINING_ID, diners=2, date=None, time_slot="7:00 PM – 9:30 PM",
+    def _call(self, outlet_id=DINING_ID, diners=2, date=None, time_slot="7:00 PM – 9:30 PM",
               phone=None):
         from flamezo_backend.flamezo.api.bookings import create_table_booking
         customer_info = None
@@ -564,7 +564,7 @@ class TestCreateTableBooking(unittest.TestCase):
         with patch(_BOOKING_TOKEN, return_value="tok"), \
              patch(_BOOKING_SESSION, return_value=True):
             return create_table_booking(
-                restaurant_id=restaurant_id,
+                outlet_id=outlet_id,
                 number_of_diners=diners,
                 date=date or add_days(today(), 5),
                 time_slot=time_slot,
@@ -595,7 +595,7 @@ class TestCreateTableBooking(unittest.TestCase):
         self._created.append(r["data"]["booking"]["id"])
 
     def test_invalid_restaurant_returns_error(self):
-        r = self._call(restaurant_id="fake-restaurant-xyz")
+        r = self._call(outlet_id="fake-restaurant-xyz")
         self.assertFalse(r["success"])
 
     def test_past_date_rejected(self):
@@ -611,10 +611,10 @@ class TestGetAvailableTimeSlots(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
 
-    def _call(self, restaurant_id=DINING_ID, date=None, **kw):
+    def _call(self, outlet_id=DINING_ID, date=None, **kw):
         from flamezo_backend.flamezo.api.bookings import get_available_time_slots
         return get_available_time_slots(
-            restaurant_id=restaurant_id,
+            outlet_id=outlet_id,
             date=date or add_days(today(), 7),
             **kw,
         )
@@ -641,7 +641,7 @@ class TestGetAvailableTimeSlots(unittest.TestCase):
             self.assertTrue(len(str(slots[0])) > 0)
 
     def test_invalid_restaurant(self):
-        r = self._call(restaurant_id="nonexistent-rest-id")
+        r = self._call(outlet_id="nonexistent-rest-id")
         self.assertFalse(r["success"])
 
 
@@ -715,7 +715,7 @@ class TestCreateAppointment(unittest.TestCase):
             frappe.db.delete("Service Appointment", name)
         frappe.db.commit()
 
-    def _call(self, restaurant_id=WELLNESS_ID, **kw):
+    def _call(self, outlet_id=WELLNESS_ID, **kw):
         from flamezo_backend.flamezo.api.appointments import create_appointment
         defaults = dict(
             customer_name="Test Booker",
@@ -724,7 +724,7 @@ class TestCreateAppointment(unittest.TestCase):
             appointment_time="11:00:00",
         )
         defaults.update(kw)
-        return create_appointment(restaurant_id=restaurant_id, **defaults)
+        return create_appointment(outlet_id=outlet_id, **defaults)
 
     def test_create_wellness_appointment(self):
         r = self._call()
@@ -738,12 +738,12 @@ class TestCreateAppointment(unittest.TestCase):
         self._created.append(r["data"]["appointment_id"])
 
     def test_create_fitness_appointment(self):
-        r = self._call(restaurant_id=FITNESS_ID)
+        r = self._call(outlet_id=FITNESS_ID)
         self.assertTrue(r["success"])
         self._created.append(r["data"]["appointment_id"])
 
     def test_create_fashion_appointment(self):
-        r = self._call(restaurant_id=FASHION_ID)
+        r = self._call(outlet_id=FASHION_ID)
         self.assertTrue(r["success"])
         self._created.append(r["data"]["appointment_id"])
 
@@ -760,7 +760,7 @@ class TestCreateAppointment(unittest.TestCase):
         self.assertFalse(r["success"])
 
     def test_invalid_restaurant_fails(self):
-        r = self._call(restaurant_id="invalid-restaurant-xyz")
+        r = self._call(outlet_id="invalid-restaurant-xyz")
         self.assertFalse(r["success"])
 
 
@@ -774,9 +774,9 @@ class TestGetCourts(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
 
-    def _call(self, restaurant_id=COURT_ID):
+    def _call(self, outlet_id=COURT_ID):
         from flamezo_backend.flamezo.api.courts import get_courts
-        return get_courts(restaurant_id=restaurant_id)
+        return get_courts(outlet_id=outlet_id)
 
     def test_success(self):
         r = self._call()
@@ -798,12 +798,12 @@ class TestGetCourts(unittest.TestCase):
             self.assertIn(field, court, f"Missing court field: {field}")
 
     def test_other_sports_court_outlet(self):
-        r = self._call(restaurant_id="surat-badminton")
+        r = self._call(outlet_id="surat-badminton")
         self.assertTrue(r["success"])
         self.assertGreater(len(r["data"]), 0)
 
     def test_invalid_outlet(self):
-        r = self._call(restaurant_id="fake-court-xyz")
+        r = self._call(outlet_id="fake-court-xyz")
         self.assertFalse(r["success"])
 
 
@@ -820,7 +820,7 @@ class TestGetCourtAvailability(unittest.TestCase):
     def _call(self, date=None, court_id=None):
         from flamezo_backend.flamezo.api.courts import get_court_availability
         return get_court_availability(
-            restaurant_id=COURT_ID,
+            outlet_id=COURT_ID,
             court_id=court_id or self.court_id,
             date=date or add_days(today(), 2),
         )
@@ -1579,7 +1579,7 @@ class TestTableBookingConsumerCreate(unittest.TestCase):
         from flamezo_backend.flamezo.api.table_booking_consumer import create_table_booking
         defaults = dict(
             phone=self._BOOKING_PHONE,
-            restaurant_id=DINING_ID,
+            outlet_id=DINING_ID,
             date="2027-06-01",
             time_slot="19:00 – 21:00",
             number_of_diners=2,
@@ -1607,7 +1607,7 @@ class TestTableBookingConsumerCreate(unittest.TestCase):
 
     def test_invalid_restaurant_fails(self):
         try:
-            r = self._call(restaurant_id="nonexistent-xyz")
+            r = self._call(outlet_id="nonexistent-xyz")
             self.assertFalse(r.get("success", True))
         except Exception:
             pass
@@ -1634,7 +1634,7 @@ class TestTableBookingConsumerGetMy(unittest.TestCase):
         frappe.db.commit()
         from flamezo_backend.flamezo.api.table_booking_consumer import create_table_booking
         create_table_booking(
-            phone=cls._BOOKING_PHONE, restaurant_id=DINING_ID,
+            phone=cls._BOOKING_PHONE, outlet_id=DINING_ID,
             date="2027-07-15", time_slot="12:00 – 14:00", number_of_diners=4,
         )
 
@@ -1678,7 +1678,7 @@ class TestTableBookingConsumerDetail(unittest.TestCase):
         frappe.db.commit()
         from flamezo_backend.flamezo.api.table_booking_consumer import create_table_booking
         r = create_table_booking(
-            phone=cls._BOOKING_PHONE, restaurant_id=DINING_ID,
+            phone=cls._BOOKING_PHONE, outlet_id=DINING_ID,
             date="2027-08-10", time_slot="20:00 – 22:00", number_of_diners=3,
         )
         cls.booking_id = r["data"]["booking_id"]
@@ -1725,7 +1725,7 @@ class TestTableBookingConsumerCancel(unittest.TestCase):
         frappe.db.commit()
         from flamezo_backend.flamezo.api.table_booking_consumer import create_table_booking
         r = create_table_booking(
-            phone=cls._BOOKING_PHONE, restaurant_id=DINING_ID,
+            phone=cls._BOOKING_PHONE, outlet_id=DINING_ID,
             date="2027-09-05", time_slot="13:00 – 15:00", number_of_diners=2,
         )
         cls.booking_id = r["data"]["booking_id"]
@@ -1861,9 +1861,9 @@ class TestAddresses(unittest.TestCase):
 class TestRestaurantGallery(unittest.TestCase):
     """restaurant.get_restaurant_gallery"""
 
-    def _call(self, restaurant_id=DINING_ID):
-        from flamezo_backend.flamezo.api.restaurant import get_restaurant_gallery
-        return get_restaurant_gallery(restaurant_id=restaurant_id)
+    def _call(self, outlet_id=DINING_ID):
+        from flamezo_backend.flamezo.api.outlet import get_outlet_gallery
+        return get_outlet_gallery(outlet_id=outlet_id)
 
     def test_returns_success(self):
         r = self._call()
@@ -1874,7 +1874,7 @@ class TestRestaurantGallery(unittest.TestCase):
         self.assertIsInstance(r["data"]["items"], list)
 
     def test_invalid_restaurant_fails(self):
-        r = self._call(restaurant_id="nonexistent-gallery-xyz")
+        r = self._call(outlet_id="nonexistent-gallery-xyz")
         self.assertFalse(r.get("success", True))
 
     def test_gallery_item_has_url_field(self):
@@ -2134,11 +2134,11 @@ class TestPricingCompliance(unittest.TestCase):
     not a merchant Success Share — verified via DB field.
     """
 
-    def _get_platform_fee(self, restaurant_id, payment_source):
+    def _get_platform_fee(self, outlet_id, payment_source):
         """Drive create_payment_order up to fee calculation, capture result."""
         import math
         import frappe as _frappe
-        outlet_type = _frappe.db.get_value("Restaurant", restaurant_id, "outlet_type") or "dining"
+        outlet_type = _frappe.db.get_value("Restaurant", outlet_id, "outlet_type") or "dining"
         if payment_source == "app":
             pct = 8.0 if outlet_type == "sports_venue" else 7.0
         else:

@@ -17,7 +17,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetDoc, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -90,12 +90,12 @@ const BUSINESS_TYPES: { value: string; label: string; hint: string }[] = [
 
 export default function RouteKycPage() {
   const navigate = useNavigate()
-  const { selectedRestaurant, payments, refreshConfig } = useRestaurant()
+  const { selectedOutlet, payments, refreshConfig } = useOutlet()
 
   // Hydrate the form with whatever's already on the Restaurant doc so owners
   // can come back to edit / resubmit if Razorpay asks for clarification.
   const { data: restaurantDoc, mutate: reloadDoc, isLoading: docLoading } =
-    useFrappeGetDoc<RestaurantDoc>('Restaurant', selectedRestaurant || '')
+    useFrappeGetDoc<RestaurantDoc>('Restaurant', selectedOutlet || '')
 
   const [form, setForm] = useState<FormFields>({
     legal_name: '',
@@ -118,8 +118,8 @@ export default function RouteKycPage() {
   // Review". Only refreshes the view when the status actually changed.
   const { call: syncKyc } = useFrappePostCall<{ success: boolean; kyc_status?: string; synced?: boolean }>('flamezo_backend.flamezo.api.commission.sync_route_kyc_status')
   useEffect(() => {
-    if (!selectedRestaurant) return
-    syncKyc({ restaurant_id: selectedRestaurant })
+    if (!selectedOutlet) return
+    syncKyc({ outlet_id: selectedOutlet })
       .then((res: any) => {
         if (res?.message?.synced) {
           reloadDoc()
@@ -128,13 +128,13 @@ export default function RouteKycPage() {
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const handleSync = async () => {
-    if (!selectedRestaurant || syncing) return
+    if (!selectedOutlet || syncing) return
     setSyncing(true)
     try {
-      const res: any = await syncKyc({ restaurant_id: selectedRestaurant })
+      const res: any = await syncKyc({ outlet_id: selectedOutlet })
       const data = res?.message ?? res
       if (data?.synced) {
         await Promise.all([reloadDoc(), refreshConfig?.()])
@@ -231,8 +231,8 @@ export default function RouteKycPage() {
     !!form.bank_holder_name &&
     Object.keys(fieldErrors).length === 0
 
-  // Status: prefer the freshest value from RestaurantContext.payments (which
-  // reads from get_restaurant_config and refreshes on save). Fall back to
+  // Status: prefer the freshest value from OutletContext.payments (which
+  // reads from get_outlet_config and refreshes on save). Fall back to
   // the doc query while context is hydrating.
   const kycStatus =
     (payments?.razorpayKycStatus as string) ||
@@ -241,11 +241,11 @@ export default function RouteKycPage() {
   const linkedAccountId = restaurantDoc?.razorpay_account_id || ''
 
   const handleSubmit = async () => {
-    if (!isComplete || submitting || !selectedRestaurant) return
+    if (!isComplete || submitting || !selectedOutlet) return
     setSubmitting(true)
     try {
       const res = await submitKyc({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         legal_name: form.legal_name.trim(),
         business_type: form.business_type,
         pan_number: form.pan_number.trim().toUpperCase(),

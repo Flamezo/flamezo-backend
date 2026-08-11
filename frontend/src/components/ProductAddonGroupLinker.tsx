@@ -10,7 +10,7 @@
  */
 import { useState, useMemo } from 'react'
 import { useFrappeGetCall } from 'frappe-react-sdk'
-import { useRestaurant } from '../contexts/RestaurantContext'
+import { useOutlet } from '../contexts/OutletContext'
 import { useCurrency } from '../hooks/useCurrency'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -56,15 +56,15 @@ interface Props {
   value?: AddonGroupLink[]
   onChange?: (links: AddonGroupLink[]) => void
   disabled?: boolean
-  restaurantId?: string  // Pass explicitly from product form when context may not be ready
+  outletId?: string  // Pass explicitly from product form when context may not be ready
 }
 
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export default function ProductAddonGroupLinker({ value = [], onChange, disabled, restaurantId: propRestaurantId }: Props) {
-  const { selectedRestaurant } = useRestaurant()
-  const restaurantId = propRestaurantId || selectedRestaurant
+export default function ProductAddonGroupLinker({ value = [], onChange, disabled, outletId: propRestaurantId }: Props) {
+  const { selectedOutlet } = useOutlet()
+  const outletId = propRestaurantId || selectedOutlet
   const { formatAmountNoDecimals } = useCurrency()
 
 
@@ -79,16 +79,16 @@ export default function ProductAddonGroupLinker({ value = [], onChange, disabled
   // Fetch all products for copy dialog
   const { data: allProductsData, isLoading: productsLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.products.get_products',
-    { restaurant_id: restaurantId, include_inactive: 1, limit: 500 },
-    isCopyDialogOpen && restaurantId ? `copy-ag-products-${restaurantId}` : null
+    { outlet_id: outletId, include_inactive: 1, limit: 500 },
+    isCopyDialogOpen && outletId ? `copy-ag-products-${outletId}` : null
   )
 
   // Fetch all addon groups (with items) — needed for expanded preview AND link dialog
   const hasLinkedGroups = (Array.isArray(value) ? value : []).length > 0
   const { data: allGroupsData, isLoading: groupsLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.addon_groups.get_addon_groups',
-    restaurantId ? { restaurant_id: restaurantId, include_items: 1 } : undefined,
-    (isLinkDialogOpen || hasLinkedGroups) && restaurantId ? `link-ag-groups-${restaurantId}` : null
+    outletId ? { outlet_id: outletId, include_items: 1 } : undefined,
+    (isLinkDialogOpen || hasLinkedGroups) && outletId ? `link-ag-groups-${outletId}` : null
   )
 
   // Build a lookup of group details by ID for inline preview

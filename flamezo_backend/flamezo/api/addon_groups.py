@@ -1,8 +1,8 @@
 """
-Addon Groups API — CRUD for managing addon groups at the restaurant level.
+Addon Groups API — CRUD for managing addon groups at the outlet level.
 
 Endpoints:
-  GET    /api/v1/addon-groups           — List addon groups for a restaurant
+  GET    /api/v1/addon-groups           — List addon groups for an outlet
   POST   /api/v1/addon-groups           — Create addon group
   GET    /api/v1/addon-groups/:id       — Get single addon group
   PUT    /api/v1/addon-groups/:id       — Update addon group
@@ -18,10 +18,10 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 
 
 @frappe.whitelist()
-def get_addon_groups(restaurant_id, status=None, group_type=None, include_items=1):
-    """GET /api/v1/addon-groups — List all addon groups for a restaurant."""
+def get_addon_groups(outlet_id, status=None, group_type=None, include_items=1):
+    """GET /api/v1/addon-groups — List all addon groups for an outlet."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
 
         filters = {"restaurant": restaurant}
         if status:
@@ -73,12 +73,12 @@ def get_addon_groups(restaurant_id, status=None, group_type=None, include_items=
 
 
 @frappe.whitelist()
-def create_addon_group(restaurant_id, group_name, group_type="addon", items=None,
+def create_addon_group(outlet_id, group_name, group_type="addon", items=None,
                        is_required=0, min_selections=0, max_selections=0,
                        display_order=0, status="Active"):
     """POST /api/v1/addon-groups — Create a new addon group."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
 
         if isinstance(items, str):
             items = json.loads(items)
@@ -110,10 +110,10 @@ def create_addon_group(restaurant_id, group_name, group_type="addon", items=None
 
 
 @frappe.whitelist()
-def get_addon_group(restaurant_id, group_id):
+def get_addon_group(outlet_id, group_id):
     """GET /api/v1/addon-groups/:id — Get single addon group with items and linked products."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         group_name = _resolve_group(group_id, restaurant)
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
@@ -152,10 +152,10 @@ def get_addon_group(restaurant_id, group_id):
 
 
 @frappe.whitelist()
-def update_addon_group(restaurant_id, group_id, **kwargs):
+def update_addon_group(outlet_id, group_id, **kwargs):
     """PUT /api/v1/addon-groups/:id — Update addon group."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         group_name = _resolve_group(group_id, restaurant)
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
@@ -191,10 +191,10 @@ def update_addon_group(restaurant_id, group_id, **kwargs):
 
 
 @frappe.whitelist()
-def delete_addon_group(restaurant_id, group_id):
+def delete_addon_group(outlet_id, group_id):
     """DELETE /api/v1/addon-groups/:id — Delete addon group (unlinks from all products)."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         group_name = _resolve_group(group_id, restaurant)
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
@@ -212,10 +212,10 @@ def delete_addon_group(restaurant_id, group_id):
 
 
 @frappe.whitelist()
-def link_addon_group_to_products(restaurant_id, group_id, product_ids, display_order=0):
+def link_addon_group_to_products(outlet_id, group_id, product_ids, display_order=0):
     """POST /api/v1/addon-groups/:id/link — Link/unlink addon group to products."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         group_name = _resolve_group(group_id, restaurant)
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
@@ -260,10 +260,10 @@ def link_addon_group_to_products(restaurant_id, group_id, product_ids, display_o
 
 
 @frappe.whitelist()
-def toggle_addon_item_stock(restaurant_id, group_id, item_id, in_stock):
+def toggle_addon_item_stock(outlet_id, group_id, item_id, in_stock):
     """POST /api/v1/addon-groups/:groupId/items/:itemId/stock — Toggle item stock."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         group_name = _resolve_group(group_id, restaurant)
         if not group_name:
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}

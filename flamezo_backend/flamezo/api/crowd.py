@@ -1,8 +1,10 @@
+import time
+
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, get_datetime, add_days
 
-from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -577,11 +579,14 @@ def get_messages(request_id, phone=None, before_id=None, limit=40):
     if not request_id:
         frappe.throw(_("request_id is required"))
 
-    # Guest read allowed for preview; full access requires approved membership
-    if phone:
-        phone = _require_phone(phone)
-        _require_session(phone)
-        _assert_chat_access(request_id, phone)
+    # Chat content is private (creator + approved members only) — unlike the
+    # public listing endpoints in this file, there is no guest/preview path
+    # here. A previous version skipped this check entirely when `phone` was
+    # simply omitted from the request, which let anyone read a crowd's full
+    # chat history unauthenticated.
+    phone = _require_phone(phone)
+    _require_session(phone)
+    _assert_chat_access(request_id, phone)
 
     limit = min(int(limit or 40), 100)
     filters = {"request_id": request_id}
@@ -613,6 +618,81 @@ def get_messages(request_id, phone=None, before_id=None, limit=40):
     }
 
 
+_POLL_MAX_WAIT_SECONDS = 8  # hard server-side cap, ignores any client-requested value
+_POLL_CHECK_INTERVAL_SECONDS = 1
+
+
+@frappe.whitelist(allow_guest=True)
+def poll_messages(request_id, phone, after_id=None):
+    """Long-poll for new messages — holds the request open until either a
+    new message arrives or ~8s elapses, then returns (empty on timeout).
+    The client immediately re-issues the call either way, giving near-instant
+    delivery without a persistent socket connection.
+
+    Deliberately NOT built on Frappe's socketio (unlike Club Talks' realtime
+    — see clubs.py::_publish_post_update): that mechanism only works because
+    club posts are intentionally Guest-readable, so any anonymous socket can
+    safely join the room. Crowd chat is private (creator + approved members
+    only, see _assert_chat_access) — Frappe's socketio server has no way to
+    authenticate a socket as a specific customer (phone+token auth, not a
+    real Frappe User session), so Guest-gating this doctype the same way
+    would let ANY anonymous caller listen live to any crowd's private chat.
+    This endpoint reuses the exact same per-request session+membership check
+    as every other private chat call instead — no new privilege model.
+
+    8s cap is deliberate, not arbitrary: this server runs on a small, fixed
+    pool of synchronous Gunicorn workers shared by the entire app (not just
+    chat) — an open long-poll ties up a full worker for its whole duration,
+    so the wait is capped low to bound worst-case worker occupation at
+    current traffic, not the classic 25-30s long-poll window.
+    """
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not request_id:
+        frappe.throw(_("request_id is required"))
+    _assert_chat_access(request_id, phone)
+
+    # Cursor on the built-in `creation` field (datetime(6), microsecond
+    # precision) rather than the custom `created_at` field (second
+    # precision, per the same collision this codebase's own tests already
+    # work around with sleep(1) between sends) — a burst of messages sent
+    # within the same second must never be skipped by the poll cursor.
+    after_creation = None
+    if after_id:
+        after_creation = frappe.db.get_value("Crowd Chat Message", after_id, "creation")
+    if not after_creation:
+        # No cursor, or a stale/deleted after_id — anchor to "now" so we
+        # never accidentally dump full history instead of just what's new.
+        after_creation = now_datetime()
+
+    deadline = time.monotonic() + _POLL_MAX_WAIT_SECONDS
+    while True:
+        messages = frappe.get_all(
+            "Crowd Chat Message",
+            filters={"request_id": request_id, "creation": (">", after_creation)},
+            fields=["name", "request_id", "sender_phone", "sender_name", "sender_image",
+                    "sender_interests", "message_type", "message", "image_url", "is_system",
+                    "created_at", "creation"],
+            order_by="creation asc",
+            limit_page_length=100,
+        )
+        if messages:
+            return {
+                "success": True,
+                "data": {"messages": [_format_message(m) for m in messages], "timed_out": False},
+            }
+
+        if time.monotonic() >= deadline:
+            return {"success": True, "data": {"messages": [], "timed_out": True}}
+
+        # End the read transaction before sleeping so the next check starts
+        # a fresh snapshot — otherwise MySQL's default REPEATABLE READ
+        # isolation would keep this loop seeing the same snapshot for its
+        # entire duration and never notice another request's committed insert.
+        frappe.db.commit()
+        time.sleep(_POLL_CHECK_INTERVAL_SECONDS)
+
+
 @frappe.whitelist(allow_guest=True)
 def send_message(request_id, phone, message=None, message_type="text", image_url=None,
                  sender_name=None, sender_image=None, sender_interests=None):
@@ -627,11 +707,23 @@ def send_message(request_id, phone, message=None, message_type="text", image_url
 
     _assert_chat_access(request_id, phone)
 
-    # Fetch sender profile if not supplied
-    if not sender_name:
-        sender_name = frappe.db.get_value("Flamezo Member", phone, "customer_name") or ""
-    if not sender_image:
-        sender_image = frappe.db.get_value("Flamezo Member", phone, "profile_photo") or ""
+    # Fetch sender profile if not supplied — "Flamezo Member" doesn't exist
+    # as a doctype anywhere in this codebase (confirmed: no matching .json
+    # under any app), so this always silently failed and fell through to ""
+    # every single call. Never hit in practice since the Flutter client
+    # always passes sender_name/sender_image explicitly, but real callers
+    # (e.g. a future API integration) would get blank sender info. Fixed to
+    # query the real Customer doctype, keyed by `phone` (not `name` — a
+    # Customer's `name` is `f"Customer {phone}"`, not the bare phone).
+    if not sender_name or not sender_image:
+        normalized = normalize_phone(phone)
+        profile = frappe.db.get_value(
+            "Customer", {"phone": normalized}, ["customer_name", "image"], as_dict=True
+        )
+        if not sender_name:
+            sender_name = (profile.customer_name if profile else None) or ""
+        if not sender_image:
+            sender_image = (profile.image if profile else None) or ""
 
     doc = frappe.get_doc({
         "doctype":           "Crowd Chat Message",
@@ -732,14 +824,24 @@ def save_expo_push_token(phone, token):
 
 def _send_crowd_chat_push(request_id, sender_phone, sender_name, message_preview):
     """
-    Background-enqueued helper. Sends an Expo push notification to every
-    approved member and the creator of this crowd request (except the sender).
-    Uses the Expo Push API (free, no Firebase config needed).
-    """
-    try:
-        import requests as http_req
+    Background-enqueued helper. Notifies every approved member and the
+    creator of this crowd request (except the sender) via two independent
+    channels:
 
-        # Collect all phones that should be notified
+      1. `create_notification()` — the real pipeline (Flamezo Notification
+         row + native FCM push via push_notifications.push_to_customer,
+         see clubs.py's identical use for new-post/comment notifications).
+         This is the one that actually reaches a phone today.
+      2. The legacy Expo push path below — kept as-is, best-effort, in case
+         any pre-Flutter-rewrite client install still has a live Expo token
+         registered. Never wired to a real device in the current app (no
+         `expo-notifications` in this Flutter codebase at all), effectively
+         inert going forward, but harmless to leave running.
+    """
+    body = message_preview[:200] if message_preview and message_preview.strip() else "📷 Photo"
+    title = sender_name or "Crowd Chat"
+
+    try:
         members = frappe.get_all(
             "Crowd Request Member",
             filters={"request": request_id, "status": "approved"},
@@ -755,16 +857,53 @@ def _send_crowd_chat_push(request_id, sender_phone, sender_name, message_preview
         if not phones:
             return
 
-        # Fetch Expo push tokens from Redis
+        from flamezo_backend.flamezo.api.notifications_consumer import create_notification
+        for phone in phones:
+            try:
+                create_notification(
+                    phone, title, body,
+                    notification_type="crowd",
+                    reference_doctype="Crowd Request",
+                    reference_name=request_id,
+                    deep_link=f"/crowd/{request_id}",
+                )
+            except Exception:
+                # One recipient's failure must never block the others.
+                pass
+    except Exception as e:
+        frappe.log_error(f"Crowd chat notification failed: {str(e)}", "Crowd Push")
+
+    _send_crowd_chat_push_expo_legacy(request_id, sender_phone, title, body)
+
+
+def _send_crowd_chat_push_expo_legacy(request_id, sender_phone, title, body):
+    """Legacy Expo push path — see _send_crowd_chat_push's docstring."""
+    try:
+        import requests as http_req
+
+        members = frappe.get_all(
+            "Crowd Request Member",
+            filters={"request": request_id, "status": "approved"},
+            fields=["customer_phone"],
+        )
+        creator_phone = frappe.db.get_value("Crowd Request", request_id, "creator_phone")
+
+        phones = {m.customer_phone for m in members}
+        if creator_phone:
+            phones.add(creator_phone)
+        phones.discard(sender_phone)
+
+        if not phones:
+            return
+
         messages = []
         for phone in phones:
             token = frappe.cache().get_value(f"expo_push:{phone}")
             if not token:
                 continue
-            body = message_preview[:200] if message_preview and message_preview.strip() else "📷 Photo"
             messages.append({
                 "to":    token,
-                "title": sender_name or "Crowd Chat",
+                "title": title,
                 "body":  body,
                 "data":  {"request_id": request_id, "screen": "crowdChat"},
                 "sound": "default",
@@ -781,7 +920,7 @@ def _send_crowd_chat_push(request_id, sender_phone, sender_name, message_preview
             timeout=8,
         )
     except Exception as e:
-        frappe.log_error(f"Crowd chat push failed: {str(e)}", "Crowd Push")
+        frappe.log_error(f"Crowd chat legacy Expo push failed: {str(e)}", "Crowd Push")
 
 
 # ── Eligibility gate ───────────────────────────────────────────────────────────

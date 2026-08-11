@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,7 +24,7 @@ interface ThemeStatusResponse {
 }
 
 export default function AIMenuThemeBackgroundPage() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [status, setStatus] = useState<ThemeStatusResponse | null>(null)
   const [isTogglingEnabled, setIsTogglingEnabled] = useState(false)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
@@ -41,9 +41,9 @@ export default function AIMenuThemeBackgroundPage() {
   const { call: setMainWallpaper } = useFrappePostCall('flamezo_backend.flamezo.api.ai_media.set_main_menu_theme_wallpaper')
 
   const fetchStatus = useCallback(async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
-      const res: any = await getThemeStatus({ restaurant: selectedRestaurant })
+      const res: any = await getThemeStatus({ restaurant: selectedOutlet })
       const payload = res?.message || res
       if (payload?.success) {
         setStatus(payload)
@@ -51,19 +51,19 @@ export default function AIMenuThemeBackgroundPage() {
     } catch (error: any) {
       toast.error('Failed to load background status', { description: getFrappeError(error) })
     }
-  }, [getThemeStatus, selectedRestaurant])
+  }, [getThemeStatus, selectedOutlet])
 
   useEffect(() => {
     fetchStatus()
   }, [fetchStatus])
 
   const handleToggleBackground = async () => {
-    if (!selectedRestaurant || isTogglingEnabled) return
+    if (!selectedOutlet || isTogglingEnabled) return
     const isEnabled = status?.enabled ?? true
     const nextEnabled = !isEnabled
     setIsTogglingEnabled(true)
     try {
-      await setThemeBackgroundEnabled({ restaurant: selectedRestaurant, enabled: nextEnabled ? 1 : 0 })
+      await setThemeBackgroundEnabled({ restaurant: selectedOutlet, enabled: nextEnabled ? 1 : 0 })
       toast.success(nextEnabled ? 'App background enabled' : 'App background disabled')
       await fetchStatus()
     } catch (error: any) {
@@ -75,7 +75,7 @@ export default function AIMenuThemeBackgroundPage() {
 
   const handleFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedRestaurant) return
+    if (!file || !selectedOutlet) return
 
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image too large (max 5MB)')
@@ -88,7 +88,7 @@ export default function AIMenuThemeBackgroundPage() {
       try {
         const base64 = reader.result as string
         await uploadWallpaper({
-          restaurant: selectedRestaurant,
+          restaurant: selectedOutlet,
           filedata: base64,
           filename: file.name,
           index: index
@@ -105,10 +105,10 @@ export default function AIMenuThemeBackgroundPage() {
   }
 
   const handleDelete = async (index: number) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setDeletingIndex(index)
     try {
-      await deleteWallpaper({ restaurant: selectedRestaurant, index })
+      await deleteWallpaper({ restaurant: selectedOutlet, index })
       toast.success(`Wallpaper ${index + 1} removed`)
       await fetchStatus()
     } catch (error: any) {
@@ -119,10 +119,10 @@ export default function AIMenuThemeBackgroundPage() {
   }
 
   const handleSetMain = async (index: number) => {
-    if (!selectedRestaurant || status?.wallpapers[index] === '') return
+    if (!selectedOutlet || status?.wallpapers[index] === '') return
     setSettingMainIndex(index)
     try {
-      await setMainWallpaper({ restaurant: selectedRestaurant, index })
+      await setMainWallpaper({ restaurant: selectedOutlet, index })
       toast.success(`Wallpaper ${index + 1} set as main`)
       await fetchStatus()
     } catch (error: any) {
@@ -132,7 +132,7 @@ export default function AIMenuThemeBackgroundPage() {
     }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 

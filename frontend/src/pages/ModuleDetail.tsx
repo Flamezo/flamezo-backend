@@ -8,7 +8,7 @@ import { ArrowLeft, Edit, Trash2, QrCode, Download, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 export default function ModuleDetail() {
   const { confirm, ConfirmDialogComponent } = useConfirm()
@@ -18,7 +18,7 @@ export default function ModuleDetail() {
   const { data: doc, isLoading } = useFrappeGetDoc(doctype || '', docname || '')
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
   const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf')
 
@@ -187,7 +187,7 @@ export default function ModuleDetail() {
         doctype={doctype || ''}
         docname={docname}
         mode={mode}
-        initialData={selectedRestaurant ? { restaurant: selectedRestaurant } : {}}
+        initialData={selectedOutlet ? { restaurant: selectedOutlet } : {}}
         readOnlyFields={['restaurant']}
         onSave={() => {
           setMode('view')

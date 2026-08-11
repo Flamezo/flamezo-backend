@@ -154,9 +154,9 @@ Apply the same creativity and authenticity for **{city}**.
 """
 
 
-def _infer_cuisine(restaurant_name: str, categories: list[str]) -> str:
+def _infer_cuisine(outlet_name: str, categories: list[str]) -> str:
     """Infer cuisine type from name and categories for richer prompt context."""
-    text = (restaurant_name + " " + " ".join(categories)).lower()
+    text = (outlet_name + " " + " ".join(categories)).lower()
     if any(k in text for k in ["pizza", "pasta", "italian", "spaghetti"]):
         return "Italian / Western"
     if any(k in text for k in ["sushi", "japanese", "ramen", "nigiri"]):
@@ -184,11 +184,11 @@ def _get_price_tier(avg_price: float) -> str:
         return "luxury (avg ₹{:.0f}/item — suggest min orders ₹1000–₹2000)".format(avg_price)
 
 
-def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
+def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
     """Fetch all relevant restaurant data for the AI prompt."""
     restaurant = frappe.db.get_value(
         "Restaurant",
-        restaurant_id,
+        outlet_id,
         [
             "restaurant_name", "city", "state", "currency",
             "enable_dine_in",
@@ -198,12 +198,12 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
         as_dict=True,
     )
     if not restaurant:
-        frappe.throw(f"Restaurant {restaurant_id} not found")
+        frappe.throw(f"Outlet {outlet_id} not found")
 
     # Menu items — sorted by price desc to surface premium items first
     menu_items = frappe.get_all(
         "Menu Product",
-        filters={"restaurant": restaurant_id, "is_active": 1},
+        filters={"restaurant": outlet_id, "is_active": 1},
         fields=[
             "product_name", "price", "original_price", "food_cost",
             "category_name", "main_category", "is_vegetarian",
@@ -216,7 +216,7 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
     # Existing active coupons — pass code + description so AI avoids semantic duplicates
     existing_coupons = frappe.get_all(
         "Coupon",
-        filters={"restaurant": restaurant_id, "is_active": 1},
+        filters={"restaurant": outlet_id, "is_active": 1},
         fields=["code", "description", "discount_type", "discount_value"],
         limit=50,
     )
@@ -292,13 +292,13 @@ def _get_restaurant_context(restaurant_id: str) -> dict[str, Any]:
     }
 
 
-def _check_quota_status(restaurant_id: str) -> dict[str, Any]:
+def _check_quota_status(outlet_id: str) -> dict[str, Any]:
     """
     Read-only quota check — does NOT increment.
     Returns {"used": int, "limit": int, "free_remaining": int, "resets_on": str}
     """
     restaurant = frappe.db.get_value(
-        "Restaurant", restaurant_id,
+        "Restaurant", outlet_id,
         ["ai_coupon_generations_this_month", "ai_coupon_quota_reset_month"],
         as_dict=True,
     )
@@ -318,13 +318,13 @@ def _check_quota_status(restaurant_id: str) -> dict[str, Any]:
     }
 
 
-def _check_and_increment_quota(restaurant_id: str) -> dict[str, Any]:
+def _check_and_increment_quota(outlet_id: str) -> dict[str, Any]:
     """
     Check monthly quota and increment if within limit.
     Returns {"allowed": bool, "used": int, "limit": int, "free_remaining": int, "resets_on": str}
     """
     restaurant = frappe.db.get_value(
-        "Restaurant", restaurant_id,
+        "Restaurant", outlet_id,
         ["ai_coupon_generations_this_month", "ai_coupon_quota_reset_month"],
         as_dict=True,
     )
@@ -338,7 +338,7 @@ def _check_and_increment_quota(restaurant_id: str) -> dict[str, Any]:
 
     if reset_month != current_month:
         used = 0
-        frappe.db.set_value("Restaurant", restaurant_id, {
+        frappe.db.set_value("Restaurant", outlet_id, {
             "ai_coupon_generations_this_month": 0,
             "ai_coupon_quota_reset_month": current_month,
         }, update_modified=False)
@@ -350,9 +350,9 @@ def _check_and_increment_quota(restaurant_id: str) -> dict[str, Any]:
                 "free_remaining": 0, "resets_on": resets_on}
 
     new_used = used + 1
-    frappe.db.set_value("Restaurant", restaurant_id, {
+    frappe.db.set_value("Restaurant", outlet_id, {
         "ai_coupon_generations_this_month": new_used,
-        "total_ai_generations": (frappe.db.get_value("Restaurant", restaurant_id, "total_ai_generations") or 0) + 1,
+        "total_ai_generations": (frappe.db.get_value("Restaurant", outlet_id, "total_ai_generations") or 0) + 1,
     }, update_modified=False)
     frappe.db.commit()
 
@@ -907,7 +907,7 @@ def _compute_offer_economics(s: dict, econ_map: dict | None, avg_margin_pct: flo
 
 
 def generate_suggestions(
-    restaurant_id: str,
+    outlet_id: str,
     tone: str = "attractive",
     offer_type_filter: str | None = None,
     count: int = 6,
@@ -919,7 +919,7 @@ def generate_suggestions(
     Main entry point. Generates coupon suggestions using Gemini 2.5 Flash.
 
     Args:
-        restaurant_id: Frappe restaurant name/ID
+        outlet_id: Frappe outlet (Restaurant doctype) name/ID
         tone: "calm" | "attractive" | "aggressive"
         offer_type_filter: Optional — restrict to one offer_type
         count: Number of suggestions to generate (3–8)
@@ -942,18 +942,18 @@ def generate_suggestions(
     # require_food_cost=False (caller already fixed the discount amount).
     if require_food_cost:
         try:
-            total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+            total_active = frappe.db.count("Menu Product", {"restaurant": outlet_id, "is_active": 1})
             costed = (
                 frappe.db.count(
                     "Menu Product",
-                    {"restaurant": restaurant_id, "is_active": 1, "food_cost": [">", 0]},
+                    {"restaurant": outlet_id, "is_active": 1, "food_cost": [">", 0]},
                 )
                 if total_active > 0
                 else 0
             )
         except Exception:
             # food_cost column not yet migrated — treat as fully uncovered
-            total_active = frappe.db.count("Menu Product", {"restaurant": restaurant_id, "is_active": 1})
+            total_active = frappe.db.count("Menu Product", {"restaurant": outlet_id, "is_active": 1})
             costed = 0
 
         if total_active > 0 and costed < total_active:
@@ -969,7 +969,7 @@ def generate_suggestions(
             }
 
     # Quota check + increment
-    quota = _check_and_increment_quota(restaurant_id)
+    quota = _check_and_increment_quota(outlet_id)
     if not quota["allowed"]:
         return {
             "success": False,
@@ -999,7 +999,7 @@ def generate_suggestions(
                 poster_list = [s]
         poster_list = [p for p in poster_list if p][:3]  # cap at 3 images
 
-    context = _get_restaurant_context(restaurant_id)
+    context = _get_outlet_context(outlet_id)
     prompt = _build_prompt(
         context, tone, offer_type_filter, count,
         user_prompt=user_prompt, from_poster=bool(poster_list),
@@ -1030,8 +1030,8 @@ def generate_suggestions(
         raw_text = response.text.strip()
     except Exception as e:
         # Roll back quota increment since generation failed
-        used = int(frappe.db.get_value("Restaurant", restaurant_id, "ai_coupon_generations_this_month") or 1)
-        frappe.db.set_value("Restaurant", restaurant_id,
+        used = int(frappe.db.get_value("Restaurant", outlet_id, "ai_coupon_generations_this_month") or 1)
+        frappe.db.set_value("Restaurant", outlet_id,
             {"ai_coupon_generations_this_month": max(used - 1, 0)}, update_modified=False)
         frappe.db.commit()
         return handle_ai_error(e)
@@ -1039,7 +1039,7 @@ def generate_suggestions(
     # Parse JSON
     suggestions_raw = _extract_json_array(raw_text)
     if suggestions_raw is None:
-        logger.error(f"[coupon_generator] JSON parse failed for {restaurant_id}. Raw snippet: {raw_text[:300]}")
+        logger.error(f"[coupon_generator] JSON parse failed for {outlet_id}. Raw snippet: {raw_text[:300]}")
         return {
             "success": False,
             "error_code": "PARSE_ERROR",
@@ -1095,7 +1095,7 @@ def generate_suggestions(
         suggestions.append(cleaned)
 
     if not suggestions:
-        logger.error(f"[coupon_generator] All suggestions invalid for {restaurant_id}. Raw: {raw_text[:300]}")
+        logger.error(f"[coupon_generator] All suggestions invalid for {outlet_id}. Raw: {raw_text[:300]}")
         return {
             "success": False,
             "error_code": "NO_VALID_SUGGESTIONS",

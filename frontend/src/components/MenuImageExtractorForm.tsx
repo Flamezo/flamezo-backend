@@ -25,8 +25,8 @@ import {
 
 interface MenuImageExtractorFormProps {
   docname?: string
-  restaurantId?: string
-  restaurantName?: string
+  outletId?: string
+  outletName?: string
   onComplete?: (data: any) => void
   onClose?: () => void
 }
@@ -55,8 +55,8 @@ const STEPPER_STEPS = [
 
 export default function MenuImageExtractorForm({
   docname,
-  restaurantId,
-  restaurantName: initialRestaurantName,
+  outletId,
+  outletName: initialRestaurantName,
   onComplete,
   onClose
 }: MenuImageExtractorFormProps) {
@@ -66,7 +66,7 @@ export default function MenuImageExtractorForm({
   const [isSaving, setIsSaving] = useState(false)
   const [hasUploadedImages, setHasUploadedImages] = useState(false)
 
-  const [restaurantName, setRestaurantName] = useState(initialRestaurantName || '')
+  const [outletName, setRestaurantName] = useState(initialRestaurantName || '')
   const autoDescriptions = true
 
   const [liveStatus, setLiveStatus] = useState<ExtractionStatus | null>(null)
@@ -117,7 +117,7 @@ export default function MenuImageExtractorForm({
       } else if (extractionDocName) {
         setActiveStep('images')
       }
-      if (extractionDoc.restaurant_name && !restaurantName) setRestaurantName(extractionDoc.restaurant_name)
+      if (extractionDoc.restaurant_name && !outletName) setRestaurantName(extractionDoc.restaurant_name)
     }
   }, [extractionDoc?.name])
 
@@ -194,14 +194,14 @@ export default function MenuImageExtractorForm({
   }, [extractionDocName, activeStep, liveStatus?.status])
 
   const handleStart = async () => {
-    if (!restaurantId) return
+    if (!outletId) return
     setIsSaving(true)
     try {
       const result = await insertDoc({
         doctype: 'Menu Image Extractor',
         doc_data: {
-          restaurant: restaurantId,
-          restaurant_name: restaurantName,
+          restaurant: outletId,
+          restaurant_name: outletName,
           generate_descriptions: autoDescriptions ? 1 : 0
         }
       })
@@ -324,7 +324,7 @@ export default function MenuImageExtractorForm({
           </DialogTitle>
           <DialogDescription className="text-sm">
             Upload photos of your physical menu — we'll extract categories, dishes, and prices
-            {restaurantName ? <> for <span className="text-foreground font-medium">{restaurantName}</span></> : ''}.
+            {outletName ? <> for <span className="text-foreground font-medium">{outletName}</span></> : ''}.
           </DialogDescription>
         </DialogHeader>
 
@@ -359,7 +359,7 @@ export default function MenuImageExtractorForm({
                   <Input
                     id="restaurant-name"
                     placeholder="e.g. The Gourmet Yard"
-                    value={restaurantName}
+                    value={outletName}
                     onChange={(e) => setRestaurantName(e.target.value)}
                     className="h-10"
                   />
@@ -593,7 +593,7 @@ export default function MenuImageExtractorForm({
           {activeStep === 'setup' && (
             <Button
               onClick={handleStart}
-              disabled={isSaving || !restaurantName}
+              disabled={isSaving || !outletName}
               className="min-w-[140px]"
             >
               {isSaving ? (

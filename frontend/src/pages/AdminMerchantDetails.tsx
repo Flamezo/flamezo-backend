@@ -172,7 +172,7 @@ function AdminMerchantDetailsPage() {
     if (!id) return
     try {
       setIsGeneratingPhotos(true)
-      const result = await generateBulkPhotos({ restaurant_id: id }) as any
+      const result = await generateBulkPhotos({ outlet_id: id }) as any
       if (result?.message?.success) {
         toast.success('Bulk photo generation started!', {
           description: 'Background worker is now generating Fal.ai photos for all products without media.'
@@ -191,7 +191,7 @@ function AdminMerchantDetailsPage() {
     if (!id) return
     try {
       setIsGeneratingLegacy(true)
-      const result = await generateLegacyContent({ restaurant_id: id }) as any
+      const result = await generateLegacyContent({ outlet_id: id }) as any
       if (result?.message?.success) {
         toast.success('Legacy content successfully generated!', {
           description: 'A premium 10/10 story has been crafted for this merchant.'
@@ -208,13 +208,13 @@ function AdminMerchantDetailsPage() {
 
   // APIs
   const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { restaurant: Merchant } }>(
-    'flamezo_backend.flamezo.api.admin.get_restaurant_details'
+    'flamezo_backend.flamezo.api.admin.get_outlet_details'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.admin_update_restaurant_settings'
+    'flamezo_backend.flamezo.api.admin.admin_update_outlet_settings'
   )
   const { call: onboardOwner } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.admin_onboard_restaurant_owner'
+    'flamezo_backend.flamezo.api.admin.admin_onboard_outlet_owner'
   )
   const { call: createManualLink } = useFrappePostCall<{
     success: boolean,
@@ -247,8 +247,8 @@ function AdminMerchantDetailsPage() {
     if (!id) return
     try {
       setLoading(true)
-      const result = await getDetails({ restaurant_id: id }) as any
-      // Backend get_restaurant_details returns data.restaurant (field name
+      const result = await getDetails({ outlet_id: id }) as any
+      // Backend get_outlet_details returns data.restaurant (field name
       // intentionally left un-renamed); the page state is called `merchant`.
       if (result?.message?.data?.restaurant) {
         const data = result.message.data.restaurant
@@ -293,7 +293,7 @@ function AdminMerchantDetailsPage() {
     try {
       setSaving(true)
       const result = await updateSettings({
-        restaurant_id: id,
+        outlet_id: id,
         updates
       }) as any
       if (result?.message?.success) {
@@ -322,7 +322,7 @@ function AdminMerchantDetailsPage() {
     try {
       setIsOnboarding(true)
       const result = await onboardOwner({
-        restaurant_id: id,
+        outlet_id: id,
         owner_name: onboardName,
         owner_email: onboardEmail
       }) as any
@@ -482,8 +482,8 @@ function AdminMerchantDetailsPage() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
                 <MenuImageExtractorForm 
-                  restaurantId={merchant.name} 
-                  restaurantName={merchant.restaurant_name}
+                  outletId={merchant.name} 
+                  outletName={merchant.restaurant_name}
                   onComplete={() => {
                       toast.success('Catalogue extraction complete!')
                   }}
@@ -1213,7 +1213,7 @@ function AdminMerchantDetailsPage() {
                             try {
                               setIsGeneratingRecharge(true)
                               const res = await createManualLink({
-                                restaurant_id: id,
+                                outlet_id: id,
                                 amount: manualRechargeAmount
                               }) as any
                               if (res?.message?.success) {

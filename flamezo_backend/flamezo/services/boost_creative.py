@@ -2,7 +2,7 @@
 AI-powered ad copy generation for Flamezo Boost campaigns.
 
 Uses Gemini 2.5 Flash (already configured in site_config) to fill
-template placeholders with restaurant-specific content. The template
+template placeholders with outlet-specific content. The template
 structure is fixed (proven hooks) — AI only personalises the fill.
 """
 import frappe
@@ -18,7 +18,7 @@ def _get_gemini_model():
 	return genai.GenerativeModel("gemini-2.0-flash")
 
 
-def generate_ad_copy(restaurant_id, template_id, hero_dish_name=None, offer_amount=0):
+def generate_ad_copy(outlet_id, template_id, hero_dish_name=None, offer_amount=0):
 	"""
 	Generate ad copy (primary_text + headline) using template + AI.
 
@@ -29,18 +29,18 @@ def generate_ad_copy(restaurant_id, template_id, hero_dish_name=None, offer_amou
 			"offer_description": str
 		}
 	"""
-	# Fetch restaurant data
-	restaurant = frappe.get_doc("Restaurant", restaurant_id)
-	restaurant_name = restaurant.restaurant_name or restaurant_id
+	# Fetch outlet data
+	restaurant = frappe.get_doc("Restaurant", outlet_id)
+	outlet_name = restaurant.restaurant_name or outlet_id
 	area = restaurant.city or "your area"
-	cuisine = _get_cuisine(restaurant_id)
+	cuisine = _get_cuisine(outlet_id)
 
 	# Fetch template
 	template = frappe.get_doc("Boost Template", template_id)
 
 	# Simple placeholder fill first
 	placeholders = {
-		"restaurant": restaurant_name,
+		"restaurant": outlet_name,
 		"dish": hero_dish_name or "our special",
 		"area": area,
 		"offer": str(int(offer_amount)),
@@ -68,17 +68,17 @@ def generate_ad_copy(restaurant_id, template_id, hero_dish_name=None, offer_amou
 		}
 
 	# Fallback: use AI to generate from scratch
-	return _ai_generate(restaurant_name, area, cuisine, hero_dish_name,
+	return _ai_generate(outlet_name, area, cuisine, hero_dish_name,
 						offer_amount, template, offer_description)
 
 
-def _ai_generate(restaurant_name, area, cuisine, hero_dish, offer_amount, template, offer_desc):
+def _ai_generate(outlet_name, area, cuisine, hero_dish, offer_amount, template, offer_desc):
 	"""Use Gemini to generate ad copy when template fill isn't sufficient."""
 	model = _get_gemini_model()
 
 	prompt = f"""Generate a Meta (Instagram/Facebook) ad copy for a restaurant.
 
-Restaurant: {restaurant_name}
+Restaurant: {outlet_name}
 Location: {area}
 Cuisine: {cuisine}
 {"Hero Dish: " + hero_dish if hero_dish else ""}
@@ -114,17 +114,17 @@ Return ONLY valid JSON:
 		frappe.log_error(f"Gemini ad copy generation failed: {str(e)}", "Boost Creative AI Error")
 		# Return template-filled version as fallback
 		return {
-			"primary_text": f"Get ₹{int(offer_amount)} off at {restaurant_name}. Visit us in {area}!",
+			"primary_text": f"Get ₹{int(offer_amount)} off at {outlet_name}. Visit us in {area}!",
 			"headline": f"₹{int(offer_amount)} off now",
 			"offer_description": offer_desc,
 		}
 
 
-def _get_cuisine(restaurant_id):
-	"""Get cuisine type from restaurant's menu categories."""
+def _get_cuisine(outlet_id):
+	"""Get cuisine type from outlet's menu categories."""
 	categories = frappe.db.get_all(
 		"Menu Category",
-		filters={"restaurant": restaurant_id},
+		filters={"restaurant": outlet_id},
 		fields=["category_name"],
 		limit=3,
 	)

@@ -8,7 +8,7 @@ class CatalogueItem(Document):
 		if self.category:
 			cat_restaurant = frappe.db.get_value("Catalogue Category", self.category, "restaurant")
 			if cat_restaurant and cat_restaurant != self.restaurant:
-				frappe.throw("Category does not belong to this restaurant.")
+				frappe.throw("Category does not belong to this outlet.")
 
 		# Ensure only one sub_item row is marked primary in item_media
 		primary_count = sum(1 for m in (self.item_media or []) if m.is_primary)

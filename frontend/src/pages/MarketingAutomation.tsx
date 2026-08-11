@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -80,7 +80,7 @@ const PRESET_TEMPLATES = [
 
 
 export default function MarketingAutomation() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [triggers, setTriggers] = useState<Trigger[]>([])
   const [loading, setLoading] = useState(true)
   const [editTrigger, setEditTrigger] = useState<Partial<Trigger> | null>(null)
@@ -97,9 +97,9 @@ export default function MarketingAutomation() {
   const { call: deleteTriggerApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.delete_trigger')
 
   const load = () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
-    fetchTriggers({ restaurant_id: selectedRestaurant }).then((res: any) => {
+    fetchTriggers({ outlet_id: selectedOutlet }).then((res: any) => {
       if (res?.message?.success) {
         setTriggers(res.message.data || [])
       }
@@ -108,12 +108,12 @@ export default function MarketingAutomation() {
     .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [selectedRestaurant])
+  useEffect(() => { load() }, [selectedOutlet])
 
   const handleToggle = async (trigger: Trigger) => {
     try {
       await saveTriggerApi({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         trigger_data: { name: trigger.name, is_active: trigger.is_active ? 0 : 1 }
       })
       toast.success(trigger.is_active ? 'Trigger paused' : 'Trigger activated')
@@ -128,7 +128,7 @@ export default function MarketingAutomation() {
     }
     setSaving(true)
     try {
-      await saveTriggerApi({ restaurant_id: selectedRestaurant, trigger_data: editTrigger })
+      await saveTriggerApi({ outlet_id: selectedOutlet, trigger_data: editTrigger })
       toast.success('Trigger saved!')
       setEditTrigger(null)
       load()

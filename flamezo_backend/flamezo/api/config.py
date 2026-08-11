@@ -3,7 +3,7 @@
 
 """
 API endpoints for Restaurant Configuration
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -48,13 +48,13 @@ def _get_user_role_for_restaurant(user, restaurant):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_config(restaurant_id):
+def get_outlet_config(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.config.get_restaurant_config
-	Get restaurant branding, configuration, and settings
+	GET /api/method/flamezo_backend.flamezo.api.config.get_outlet_config
+	Get outlet branding, configuration, and settings
 	"""
 	try:
-		cache_key = f"restaurant_config:{restaurant_id}"
+		cache_key = f"outlet_config:{outlet_id}"
 		# Cache full response for guests (60s TTL)
 		if frappe.session.user == "Guest":
 			cached = frappe.cache().get_value(cache_key)
@@ -62,10 +62,10 @@ def get_restaurant_config(restaurant_id):
 				return json.loads(cached)
 
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, allow_inactive=True)
-		
+		restaurant = validate_restaurant_for_api(outlet_id, allow_inactive=True)
+
 		# Get restaurant context
-		restaurant_context = get_restaurant_context(restaurant_id)
+		restaurant_context = get_restaurant_context(outlet_id)
 		
 		# Get or create restaurant config
 		config = frappe.db.get_value(
@@ -451,13 +451,13 @@ def get_restaurant_config(restaurant_id):
 
 		# Try to include Home Feature images (menu, book-table, legacy, offers-events, dine-play)
 		try:
-			cache_key = f"restaurant_config:{restaurant_id}"
-			features_cache_key = f"home_features:{restaurant_id}"
+			cache_key = f"outlet_config:{outlet_id}"
+			features_cache_key = f"home_features:{outlet_id}"
 			cached_features = frappe.cache().get_value(features_cache_key)
 			if cached_features:
 				features_resp = json.loads(cached_features)
 			else:
-				features_resp = get_home_features(restaurant_id)
+				features_resp = get_home_features(outlet_id)
 				if isinstance(features_resp, dict) and features_resp.get("success"):
 					frappe.cache().set_value(features_cache_key, json.dumps(features_resp), expires_in_sec=600)
 
@@ -484,7 +484,7 @@ def get_restaurant_config(restaurant_id):
 			"data": response_data
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_config: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_config: {str(e)}")
 		return {
 			"success": False,
 			"error": {
@@ -495,14 +495,14 @@ def get_restaurant_config(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_home_features(restaurant_id):
+def get_home_features(outlet_id):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.config.get_home_features
 	Get configuration for which features to display on the home page
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get home features (include 'name' for Media Asset lookup)
 		features = frappe.get_all(
@@ -578,7 +578,7 @@ def get_home_features(restaurant_id):
 			as_dict=True
 		) or {}
 		
-		# Fallback to 1 (enabled) if config not yet created, matching get_restaurant_config fallback behavior
+		# Fallback to 1 (enabled) if config not yet created, matching get_outlet_config fallback behavior
 		enable_table_booking = bool(global_config.get("enable_table_booking", 1))
 		enable_banquet_booking = bool(global_config.get("enable_banquet_booking", 1))
 		enable_events = True
@@ -681,14 +681,14 @@ def get_home_features(restaurant_id):
 
 
 @frappe.whitelist()
-def update_home_features(restaurant_id, features):
+def update_home_features(outlet_id, features):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.config.update_home_features
 	Update home features configuration (Admin only)
 	"""
 	try:
 		# Validate restaurant access
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Parse features if string
 		if isinstance(features, str):
@@ -762,7 +762,7 @@ def update_home_features(restaurant_id, features):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_filters(restaurant_id):
+def get_filters(outlet_id):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.config.get_filters
 	Get filter configurations for menu products
@@ -770,7 +770,7 @@ def get_filters(restaurant_id):
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		cache_key = f"filters_cache:{restaurant}"
 		cached = frappe.cache().get_value(cache_key)
@@ -850,14 +850,14 @@ def get_filters(restaurant_id):
 
 
 @frappe.whitelist()
-def update_order_settings(restaurant_id, settings):
+def update_order_settings(outlet_id, settings):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.config.update_order_settings
 	Update multiple order-related settings in a single transaction
 	"""
 	try:
 		# Validate restaurant access
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Parse settings if string
 		if isinstance(settings, str):
@@ -903,7 +903,7 @@ def update_order_settings(restaurant_id, settings):
 	except Exception as e:
 		import traceback
 		error_trace = traceback.format_exc()
-		frappe.log_error(f"Error in update_order_settings for restaurant {restaurant_id}: {error_trace}", "Order Settings Update Error")
+		frappe.log_error(f"Error in update_order_settings for outlet {outlet_id}: {error_trace}", "Order Settings Update Error")
 		
 		# Extract a clean error message if possible
 		error_msg = str(e)

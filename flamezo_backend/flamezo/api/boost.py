@@ -1,7 +1,7 @@
 """
 Flamezo Boost — Ad campaign management API.
 
-Restaurant owners create, pay for, and monitor Meta ad campaigns that drive
+Outlet owners create, pay for, and monitor Meta ad campaigns that drive
 walk-in customers via coupon redemption tracking.
 """
 import frappe
@@ -14,13 +14,13 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 # ─── Prerequisites ──────────────────────────────────────────────────
 
 @frappe.whitelist()
-def check_prerequisites(restaurant_id):
+def check_prerequisites(outlet_id):
 	"""
 	Run all prerequisite checks for Boost eligibility.
 	Returns score (0-100), individual check results, and location grade.
 	"""
-	restaurant_id = validate_restaurant_for_api(restaurant_id)
-	restaurant = frappe.get_doc("Restaurant", restaurant_id)
+	outlet_id = validate_restaurant_for_api(outlet_id)
+	restaurant = frappe.get_doc("Restaurant", outlet_id)
 
 	checks = []
 
@@ -40,9 +40,9 @@ def check_prerequisites(restaurant_id):
 		SELECT COUNT(DISTINCT pm.name) FROM `tabProduct Media` pm
 		INNER JOIN `tabMenu Product` mp ON pm.parent = mp.name
 		WHERE mp.restaurant = %s
-	""", (restaurant_id,))[0][0] or 0
-	# Also count Media Assets linked to this restaurant
-	media_count = frappe.db.count("Media Asset", filters={"restaurant": restaurant_id}) or 0
+	""", (outlet_id,))[0][0] or 0
+	# Also count Media Assets linked to this outlet
+	media_count = frappe.db.count("Media Asset", filters={"restaurant": outlet_id}) or 0
 	total_photos = photo_count + media_count
 	checks.append({
 		"check": "min_photos",
@@ -53,7 +53,7 @@ def check_prerequisites(restaurant_id):
 
 	# 3. Complete menu with prices (min 15 items)
 	menu_count = frappe.db.count("Menu Product", filters={
-		"restaurant": restaurant_id,
+		"restaurant": outlet_id,
 		"is_active": 1
 	}) or 0
 	checks.append({
@@ -85,7 +85,7 @@ def check_prerequisites(restaurant_id):
 	checks.append({
 		"check": "active_subscription",
 		"label": "Active Flamezo subscription",
-		"passed": True,  # All restaurants are GOLD now
+		"passed": True,  # All outlets are GOLD now
 		"details": "GOLD plan active"
 	})
 
@@ -100,10 +100,10 @@ def check_prerequisites(restaurant_id):
 
 	# 9. Owner WhatsApp verified
 	# Check if any Restaurant User has a verified phone
-	has_owner = frappe.db.count("Restaurant User", filters={"restaurant": restaurant_id}) > 0
+	has_owner = frappe.db.count("Restaurant User", filters={"restaurant": outlet_id}) > 0
 	checks.append({
 		"check": "owner_verified",
-		"label": "Restaurant owner verified",
+		"label": "Outlet owner verified",
 		"passed": has_owner,
 		"details": "Owner account exists" if has_owner else "No owner account"
 	})
@@ -111,7 +111,7 @@ def check_prerequisites(restaurant_id):
 	# 10. Staff coupon training (check if any Boost Coupon Redemption exists = trained)
 	# For first-time: auto-pass (training happens in wizard)
 	past_campaigns = frappe.db.count("Boost Campaign", filters={
-		"restaurant": restaurant_id,
+		"restaurant": outlet_id,
 		"status": ["in", ["Live", "Completed"]]
 	})
 	training_done = past_campaigns > 0
@@ -132,11 +132,11 @@ def check_prerequisites(restaurant_id):
 
 	# Save audit trail — but throttle: the wizard calls this on every render, and
 	# without a throttle the table grows unbounded with near-identical rows.
-	# Only persist a fresh row if the last one for this restaurant is stale
+	# Only persist a fresh row if the last one for this outlet is stale
 	# (>5 min old) or the outcome actually changed.
 	last_check = frappe.db.get_value(
 		"Boost Prerequisite Check",
-		{"restaurant": restaurant_id},
+		{"restaurant": outlet_id},
 		["name", "checked_at", "overall_score", "location_grade"],
 		order_by="checked_at desc",
 		as_dict=True,
@@ -151,7 +151,7 @@ def check_prerequisites(restaurant_id):
 	if should_persist:
 		prereq_doc = frappe.get_doc({
 			"doctype": "Boost Prerequisite Check",
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"checked_at": now(),
 			"overall_score": score,
 			"passed": 1 if score == 100 else 0,
@@ -208,12 +208,12 @@ def get_boost_templates():
 # ─── Campaign CRUD ──────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_boost_overview(restaurant_id):
+def get_boost_overview(outlet_id):
 	"""Dashboard overview: active campaigns, totals, ROI."""
-	validate_restaurant_for_api(restaurant_id)
+	validate_restaurant_for_api(outlet_id)
 
 	campaigns = frappe.get_all("Boost Campaign",
-		filters={"restaurant": restaurant_id},
+		filters={"restaurant": outlet_id},
 		fields=["name", "campaign_name", "status", "package_tier", "budget_total",
 				"impressions", "reach", "link_clicks", "coupons_claimed",
 				"coupons_redeemed", "amount_spent_meta", "cost_per_redemption",
@@ -240,14 +240,14 @@ def get_boost_overview(restaurant_id):
 
 
 @frappe.whitelist()
-def create_boost_campaign(restaurant_id, template_id, package_tier,
+def create_boost_campaign(outlet_id, template_id, package_tier,
 						   campaign_duration, geo_radius_km, offer_amount,
 						   hero_dish_name=None, ad_image_url=None):
 	"""
 	Create a draft Boost Campaign. Generates AI ad copy and linked coupon.
 	"""
-	restaurant_id = validate_restaurant_for_api(restaurant_id)
-	restaurant = frappe.get_doc("Restaurant", restaurant_id)
+	outlet_id = validate_restaurant_for_api(outlet_id)
+	restaurant = frappe.get_doc("Restaurant", outlet_id)
 	offer_amount = flt(offer_amount)
 
 	if offer_amount <= 0:
@@ -255,12 +255,12 @@ def create_boost_campaign(restaurant_id, template_id, package_tier,
 
 	# Generate AI ad copy
 	from flamezo_backend.flamezo.services.boost_creative import generate_ad_copy
-	copy = generate_ad_copy(restaurant_id, template_id, hero_dish_name, offer_amount)
+	copy = generate_ad_copy(outlet_id, template_id, hero_dish_name, offer_amount)
 
 	# Create campaign doc
 	campaign = frappe.get_doc({
 		"doctype": "Boost Campaign",
-		"restaurant": restaurant_id,
+		"restaurant": outlet_id,
 		"campaign_name": f"{restaurant.restaurant_name} — {frappe.db.get_value('Boost Template', template_id, 'template_name') or template_id}",
 		"status": "Draft",
 		"package_tier": package_tier,
@@ -448,7 +448,7 @@ def create_boost_payment(campaign_id):
 			"currency": "INR",
 			"key_id": config["key_id"],
 			"campaign_id": campaign.name,
-			"restaurant": campaign.restaurant,
+			"outlet_id": campaign.restaurant,
 		}
 	}
 
@@ -701,11 +701,11 @@ def get_boost_performance(campaign_id):
 
 
 @frappe.whitelist()
-def get_boost_campaigns(restaurant_id, status=None):
-	"""List all campaigns for a restaurant, optionally filtered by status."""
-	validate_restaurant_for_api(restaurant_id)
+def get_boost_campaigns(outlet_id, status=None):
+	"""List all campaigns for an outlet, optionally filtered by status."""
+	validate_restaurant_for_api(outlet_id)
 
-	filters = {"restaurant": restaurant_id}
+	filters = {"restaurant": outlet_id}
 	if status:
 		filters["status"] = status
 
@@ -724,13 +724,13 @@ def get_boost_campaigns(restaurant_id, status=None):
 # ─── Coupon Redemption (Staff) ──────────────────────────────────────
 
 @frappe.whitelist()
-def redeem_boost_coupon(restaurant_id, coupon_code, bill_amount=None,
+def redeem_boost_coupon(outlet_id, coupon_code, bill_amount=None,
 						redemption_method="Staff Entry"):
 	"""
-	Staff redeems a Boost coupon at the restaurant.
+	Staff redeems a Boost coupon at the outlet.
 	Creates a Boost Coupon Redemption record and increments campaign counter.
 	"""
-	validate_restaurant_for_api(restaurant_id)
+	validate_restaurant_for_api(outlet_id)
 	coupon_code = (coupon_code or "").strip().upper()
 
 	if not coupon_code:
@@ -739,7 +739,7 @@ def redeem_boost_coupon(restaurant_id, coupon_code, bill_amount=None,
 	# Find the active Boost Campaign with this code
 	campaign = frappe.db.get_value("Boost Campaign",
 		filters={
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"coupon_code": coupon_code,
 			"status": ["in", ["Live", "Completed"]],
 		},
@@ -754,7 +754,7 @@ def redeem_boost_coupon(restaurant_id, coupon_code, bill_amount=None,
 	redemption = frappe.get_doc({
 		"doctype": "Boost Coupon Redemption",
 		"boost_campaign": campaign.name,
-		"restaurant": restaurant_id,
+		"restaurant": outlet_id,
 		"coupon_code": coupon_code,
 		"redeemed_at": now(),
 		"redemption_method": redemption_method,
@@ -777,17 +777,17 @@ def redeem_boost_coupon(restaurant_id, coupon_code, bill_amount=None,
 # ─── Public Coupon Claim (Customer) ─────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def claim_boost_coupon(restaurant_id, coupon_code):
+def claim_boost_coupon(outlet_id, coupon_code):
 	"""
 	Public endpoint — customer lands here from Meta ad.
-	Returns coupon details + restaurant info for the claim page.
+	Returns coupon details + outlet info for the claim page.
 	"""
 	coupon_code = (coupon_code or "").strip().upper()
 
 	# Find campaign
 	campaign = frappe.db.get_value("Boost Campaign",
 		filters={
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"coupon_code": coupon_code,
 			"status": ["in", ["Live", "Completed"]],
 		},
@@ -799,8 +799,8 @@ def claim_boost_coupon(restaurant_id, coupon_code):
 	if not campaign:
 		return {"success": False, "error": {"code": "INVALID_CODE", "message": "This offer is no longer available"}}
 
-	# Get restaurant info
-	restaurant = frappe.db.get_value("Restaurant", restaurant_id,
+	# Get outlet info
+	restaurant = frappe.db.get_value("Restaurant", outlet_id,
 		fieldname=["restaurant_name", "address", "city", "latitude", "longitude"],
 		as_dict=True
 	)
@@ -823,11 +823,11 @@ def claim_boost_coupon(restaurant_id, coupon_code):
 			"discount": campaign.coupon_discount,
 			"min_order": campaign.coupon_min_order,
 			"valid_until": str(valid_until),
-			"restaurant_name": restaurant.restaurant_name if restaurant else restaurant_id,
-			"restaurant_address": restaurant.address if restaurant else "",
-			"restaurant_city": restaurant.city if restaurant else "",
-			"restaurant_lat": restaurant.latitude if restaurant else None,
-			"restaurant_lng": restaurant.longitude if restaurant else None,
+			"outlet_name": restaurant.restaurant_name if restaurant else outlet_id,
+			"outlet_address": restaurant.address if restaurant else "",
+			"outlet_city": restaurant.city if restaurant else "",
+			"outlet_lat": restaurant.latitude if restaurant else None,
+			"outlet_lng": restaurant.longitude if restaurant else None,
 			"offer_description": f"Flat ₹{int(campaign.offer_amount)} off (min order ₹{int(campaign.coupon_min_order or 0)})",
 		}
 	}

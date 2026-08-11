@@ -16,7 +16,7 @@ class RestaurantTable(Document):
 				"name": ["!=", self.name]
 			})
 			if existing:
-				frappe.throw(f"Table number {self.table_number} already exists for this restaurant")
+				frappe.throw(f"Table number {self.table_number} already exists for this outlet")
 		
 		# Validate capacity
 		if self.capacity < 1:

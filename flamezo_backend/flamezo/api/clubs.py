@@ -1,8 +1,11 @@
+import uuid
+
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, today
 
-from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
+from flamezo_backend.flamezo.utils import redis_counters as rc
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -11,6 +14,27 @@ def _require_phone(phone):
     if not phone:
         frappe.throw(_("phone is required"), frappe.AuthenticationError)
     return phone.strip()
+
+
+def _publish_post_update(post_id, event_type, payload):
+    """Live-update push for a club post's likes/comments — joined via the
+    stock `doc_subscribe("Creator Club Post", post_id)` realtime room (see
+    the Guest-read permission row on that DocType). Callers always call this
+    right after their own explicit `frappe.db.commit()`, so this emits
+    immediately rather than via `after_commit=True` — that flag schedules
+    the emit for the *next* commit, and since ours already happened, it
+    would silently never fire. Best-effort: a Redis/socketio hiccup must
+    never fail the underlying mutation, same rationale as crowd.py's
+    `send_message` realtime publish."""
+    try:
+        frappe.publish_realtime(
+            "club_post_update",
+            {"type": event_type, "post_id": post_id, **payload},
+            doctype="Creator Club Post",
+            docname=post_id,
+        )
+    except Exception:
+        pass
 
 
 def _require_session(phone):
@@ -47,6 +71,15 @@ def _format_club(c, phone=None, member_set=None):
         "creator_id": c.creator or "",
         "creator_name": c.creator_display_name or "",
         "creator_image": c.creator_profile_image or "",
+        # True only for the exact phone that owns this club's Flamezo
+        # Creator record — gates the post composer / pin / delete controls.
+        # Never trust a client-side flag for this; always resolved here.
+        # Normalized on both sides — Flamezo Creator.customer_phone is
+        # sometimes seeded with a +91 prefix while session/Customer phones
+        # never carry one; a raw string compare silently locks out the real
+        # admin (caught via real-device testing, not the unit tests, since
+        # those used one identical literal for both sides).
+        "is_admin": bool(phone) and normalize_phone(phone) == normalize_phone(c.creator_phone),
     }
 
 
@@ -88,7 +121,8 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
                cc.category, cc.tier, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image
+               fc.profile_image AS creator_profile_image,
+               fc.customer_phone AS creator_phone
         FROM `tabCreator Club` cc
         LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
         WHERE {where}
@@ -119,7 +153,8 @@ def get_club_detail(club_id, phone=None):
     rows = frappe.db.sql(
         """
         SELECT cc.*, fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image, fc.creator_tier AS creator_tier
+               fc.profile_image AS creator_profile_image, fc.creator_tier AS creator_tier,
+               fc.customer_phone AS creator_phone
         FROM `tabCreator Club` cc
         LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
         WHERE cc.name=%s AND cc.is_active=1
@@ -135,7 +170,29 @@ def get_club_detail(club_id, phone=None):
     result = _format_club(club, phone, member_set)
     result["creator_tier"] = club.creator_tier or "Spark"
     result["recent_posts"] = frappe.db.count("Creator Club Post", {"club": club_id})
+    result["notify_new_posts"] = bool(
+        phone
+        and frappe.db.get_value(
+            "Creator Club Member", {"club": club_id, "customer_phone": phone}, "notify_new_posts"
+        )
+    )
     return {"success": True, "data": result}
+
+
+@frappe.whitelist(allow_guest=True)
+def toggle_club_notifications(club_id, phone):
+    """Member-only — the bell only means anything once you're actually
+    getting this club's posts in the first place (see `follow_club`)."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    member = frappe.db.get_value("Creator Club Member", {"club": club_id, "customer_phone": phone}, "name")
+    if not member:
+        frappe.throw(_("Join this club to get notified of new posts."), frappe.ValidationError)
+    current = frappe.db.get_value("Creator Club Member", member, "notify_new_posts")
+    new_value = 0 if current else 1
+    frappe.db.set_value("Creator Club Member", member, "notify_new_posts", new_value)
+    frappe.db.commit()
+    return {"success": True, "data": {"notify_new_posts": bool(new_value)}}
 
 
 # ── follow / unfollow ────────────────────────────────────────────────────────
@@ -180,7 +237,8 @@ def follow_club(club_id, phone):
 
 # ── club posts ────────────────────────────────────────────────────────────────
 
-def _format_post(p, chills_map=None):
+def _format_post(p, chills_map=None, liked_set=None, views_map=None):
+    liked_set = liked_set or set()
     post = {
         "id": p.name,
         "club_id": p.club,
@@ -188,6 +246,8 @@ def _format_post(p, chills_map=None):
         "content": p.content or "",
         "likes_count": p.likes_count or 0,
         "comments_count": p.comments_count or 0,
+        "views_count": (views_map or {}).get(p.name, getattr(p, "views_count", 0) or 0),
+        "is_liked": p.name in liked_set,
         "created_at": str(p.creation) if p.creation else "",
     }
     if p.post_type == "image":
@@ -206,8 +266,41 @@ def _format_post(p, chills_map=None):
     return post
 
 
+def _get_post_like_set(phone, post_ids):
+    if not phone or not post_ids:
+        return set()
+    placeholders = ",".join(["%s"] * len(post_ids))
+    rows = frappe.db.sql(
+        f"""
+        SELECT post FROM `tabCreator Club Post Like`
+        WHERE customer_phone=%s AND post IN ({placeholders})
+        """,
+        [phone] + post_ids,
+        as_dict=True,
+    )
+    return {r.post for r in rows}
+
+
+def _club_creator_phone(club_id):
+    """Resolves the phone that owns `club_id`'s Flamezo Creator record —
+    the single source of truth for admin/ownership checks on that club.
+    Normalized (bare 10-digit) — Flamezo Creator.customer_phone isn't always
+    stored that way (some rows carry a +91 prefix), unlike every other
+    phone source in this app."""
+    club_creator = frappe.db.get_value("Creator Club", club_id, "creator")
+    if not club_creator:
+        return None
+    raw = frappe.db.get_value("Flamezo Creator", club_creator, "customer_phone")
+    return normalize_phone(raw) if raw else None
+
+
+def _require_club_admin(club_id, phone):
+    if normalize_phone(phone) != _club_creator_phone(club_id):
+        frappe.throw(_("Only this club's creator can do that."), frappe.PermissionError)
+
+
 @frappe.whitelist(allow_guest=True)
-def get_club_posts(club_id, phone=None, page=1, limit=20):
+def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
     phone = _optional_verified_phone(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
@@ -219,15 +312,22 @@ def get_club_posts(club_id, phone=None, page=1, limit=20):
     if not frappe.db.exists("Creator Club", {"name": club_id, "is_active": 1}):
         frappe.throw(_("Club not found"), frappe.DoesNotExistError)
 
+    conditions = ["club=%s"]
+    params = [club_id]
+    if post_type:
+        conditions.append("post_type=%s")
+        params.append(post_type)
+    where = " AND ".join(conditions)
+
     rows = frappe.db.sql(
-        """
-        SELECT name, club, post_type, reel, image_url, content, likes_count, comments_count, creation
+        f"""
+        SELECT name, club, post_type, reel, image_url, content, likes_count, comments_count, views_count, creation
         FROM `tabCreator Club Post`
-        WHERE club=%s
+        WHERE {where}
         ORDER BY creation DESC
         LIMIT %s OFFSET %s
         """,
-        [club_id, limit + 1, offset],
+        params + [limit + 1, offset],
         as_dict=True,
     )
 
@@ -250,11 +350,351 @@ def get_club_posts(club_id, phone=None, page=1, limit=20):
         )
         chills_map = {c.name: c for c in chills_rows}
 
+    liked_set = _get_post_like_set(phone, [p.name for p in posts])
+    views_map = rc.get_counts(
+        "club_post_views", [p.name for p in posts],
+        {p.name: p.views_count or 0 for p in posts},
+    )
+
     return {"success": True, "data": {
-        "posts": [_format_post(p, chills_map) for p in posts],
+        "posts": [_format_post(p, chills_map, liked_set, views_map) for p in posts],
         "page": page,
         "has_more": has_more,
+        "is_admin": bool(phone) and normalize_phone(phone) == _club_creator_phone(club_id),
     }}
+
+
+@frappe.whitelist(allow_guest=True)
+def record_club_post_view(post_id, phone=None):
+    """Idempotent per phone+post+day — mirrors `chills.record_chills_view`
+    exactly (same dedup mechanism, same Redis-buffered counter infra via
+    `redis_counters.py`). Guest views are deduped per-device would need a
+    device id we don't have here, so anonymous calls fall back to a shared
+    'anon' bucket for the day — same tradeoff Chills already makes."""
+    if not post_id:
+        return {"success": True, "data": {"ok": False}}
+    if not frappe.db.exists("Creator Club Post", post_id):
+        return {"success": True, "data": {"ok": False}}
+    site = getattr(frappe.local, "site", "default")
+    cache_key = f"{site}:club_post:view:{post_id}:{phone or 'anon'}:{today()}"
+    if frappe.cache().get(cache_key):
+        return {"success": True, "data": {"ok": False, "reason": "already_counted"}}
+    frappe.cache().set(cache_key, 1, ex=86400)
+    rc.bump_count("club_post_views", post_id, 1)
+    return {"success": True, "data": {"ok": True}}
+
+
+# ── club post mutations ──────────────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def create_club_post(club_id, phone, post_type, content=None, image_key=None, reel_id=None):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not club_id:
+        frappe.throw(_("club_id is required"))
+    if post_type not in ("chills", "image", "text"):
+        frappe.throw(_("Invalid post_type"))
+
+    club = frappe.db.get_value("Creator Club", {"name": club_id, "is_active": 1}, ["name", "creator"], as_dict=True)
+    if not club:
+        frappe.throw(_("Club not found"), frappe.DoesNotExistError)
+    _require_club_admin(club_id, phone)
+
+    image_url = None
+    if post_type == "text" and not (content and content.strip()):
+        frappe.throw(_("content is required for a text post"))
+    if post_type == "image":
+        if not image_key:
+            frappe.throw(_("image_key is required for an image post"))
+        from flamezo_backend.flamezo.utils.r2_storage import object_exists, public_url
+        if not object_exists(image_key):
+            frappe.throw(_("Image not found on storage. Please upload first."))
+        image_url = public_url(image_key)
+    if post_type == "chills" and not reel_id:
+        frappe.throw(_("reel_id is required for a chills post"))
+    if post_type == "chills" and not frappe.db.exists("Chills", reel_id):
+        frappe.throw(_("Chills not found"), frappe.DoesNotExistError)
+
+    doc = frappe.get_doc({
+        "doctype": "Creator Club Post",
+        "club": club_id,
+        "creator": club.creator,
+        "post_type": post_type,
+        "content": (content or "").strip(),
+        "image_url": image_url,
+        "reel": reel_id if post_type == "chills" else None,
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    # Fanned out off the request path — a club can have thousands of
+    # members, each notification insert + push send is its own DB/HTTP
+    # round trip, and none of that should block the admin's "post" tap.
+    frappe.enqueue(
+        "flamezo_backend.flamezo.api.clubs._notify_club_members_new_post",
+        queue="short",
+        post_id=doc.name,
+        club_id=club_id,
+    )
+
+    chills_map = {}
+    if post_type == "chills":
+        chills_map = {reel_id: frappe.db.get_value(
+            "Chills", reel_id,
+            ["name", "video_url", "thumbnail_url", "description", "likes_count", "views_count"],
+            as_dict=True,
+        )}
+    return {"success": True, "data": _format_post(doc, chills_map)}
+
+
+def _notify_club_members_new_post(post_id, club_id):
+    """Background job (see `create_club_post`) — one in-app + push
+    notification per member who has `notify_new_posts` enabled."""
+    from flamezo_backend.flamezo.api.notifications_consumer import create_notification
+
+    club_name = frappe.db.get_value("Creator Club", club_id, "club_name") or "a club you follow"
+    content = frappe.db.get_value("Creator Club Post", post_id, "content") or ""
+    preview = content[:80] if content else "Tap to view the new post"
+
+    members = frappe.db.sql_list(
+        "SELECT customer_phone FROM `tabCreator Club Member` WHERE club=%s AND notify_new_posts=1",
+        club_id,
+    )
+    for phone in members:
+        create_notification(
+            phone,
+            title=f"New post in {club_name}",
+            body=preview,
+            notification_type="club",
+            reference_doctype="Creator Club Post",
+            reference_name=post_id,
+            deep_link=f"/club/{club_id}",
+        )
+
+
+@frappe.whitelist(allow_guest=True)
+def delete_club_post(post_id, phone):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not post_id:
+        frappe.throw(_("post_id is required"))
+
+    club_id = frappe.db.get_value("Creator Club Post", post_id, "club")
+    if not club_id:
+        frappe.throw(_("Post not found"), frappe.DoesNotExistError)
+    _require_club_admin(club_id, phone)
+
+    for like_id in frappe.db.sql_list(
+        "SELECT name FROM `tabCreator Club Post Like` WHERE post=%s", post_id
+    ):
+        frappe.delete_doc("Creator Club Post Like", like_id, ignore_permissions=True)
+    frappe.delete_doc("Creator Club Post", post_id, ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "data": {"id": post_id}}
+
+
+@frappe.whitelist(allow_guest=True)
+def like_club_post(post_id, phone):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not post_id:
+        frappe.throw(_("post_id is required"))
+
+    if not frappe.db.exists("Creator Club Post", post_id):
+        frappe.throw(_("Post not found"), frappe.DoesNotExistError)
+
+    exists = frappe.db.exists("Creator Club Post Like", {"post": post_id, "customer_phone": phone})
+    if exists:
+        frappe.delete_doc("Creator Club Post Like", exists, ignore_permissions=True)
+        frappe.db.sql(
+            "UPDATE `tabCreator Club Post` SET likes_count = GREATEST(likes_count - 1, 0) WHERE name=%s",
+            post_id,
+        )
+        frappe.db.commit()
+        likes_count = frappe.db.get_value("Creator Club Post", post_id, "likes_count")
+        _publish_post_update(post_id, "like", {"likes_count": likes_count})
+        return {"success": True, "data": {"liked": False, "id": post_id}}
+    else:
+        doc = frappe.get_doc({"doctype": "Creator Club Post Like", "post": post_id, "customer_phone": phone})
+        doc.insert(ignore_permissions=True)
+        frappe.db.sql(
+            "UPDATE `tabCreator Club Post` SET likes_count = likes_count + 1 WHERE name=%s",
+            post_id,
+        )
+        frappe.db.commit()
+        likes_count = frappe.db.get_value("Creator Club Post", post_id, "likes_count")
+        _publish_post_update(post_id, "like", {"likes_count": likes_count})
+        return {"success": True, "data": {"liked": True, "id": post_id}}
+
+
+# ── club post comments ───────────────────────────────────────────────────────
+
+def _format_comment(c):
+    return {
+        "id": c.name,
+        "post_id": c.post,
+        "author_id": c.customer_phone,
+        "author_name": c.customer_name or "",
+        "content": c.content or "",
+        "created_at": str(c.creation) if c.creation else "",
+    }
+
+
+def _customer_display_name(phone):
+    name = frappe.db.get_value("Customer", {"phone": phone}, "customer_name")
+    return name or f"Customer {phone}"
+
+
+@frappe.whitelist(allow_guest=True)
+def get_club_post_comments(post_id, phone=None, cursor=None, limit=20):
+    """Keyset-paginated, oldest → newest. `cursor` is the name of the oldest
+    comment already loaded by the client; passing it fetches the next page of
+    older comments. Returns ascending order either way so the client can
+    render/prepend directly without re-sorting."""
+    phone = _optional_verified_phone(phone)
+    if not post_id:
+        frappe.throw(_("post_id is required"))
+    if not frappe.db.exists("Creator Club Post", post_id):
+        frappe.throw(_("Post not found"), frappe.DoesNotExistError)
+
+    limit = min(int(limit), 50)
+    conditions = ["post=%s"]
+    params = [post_id]
+
+    if cursor:
+        cursor_creation = frappe.db.get_value("Creator Club Post Comment", cursor, "creation")
+        if cursor_creation:
+            conditions.append("(creation < %s OR (creation = %s AND name < %s))")
+            params += [cursor_creation, cursor_creation, cursor]
+
+    where = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT name, post, customer_phone, customer_name, content, creation
+        FROM `tabCreator Club Post Comment`
+        WHERE {where}
+        ORDER BY creation DESC, name DESC
+        LIMIT %s
+        """,
+        params + [limit + 1],
+        as_dict=True,
+    )
+
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = page[-1].name if has_more and page else None
+    page.reverse()  # oldest → newest for direct rendering
+
+    return {"success": True, "data": {
+        "comments": [_format_comment(c) for c in page],
+        "has_more": has_more,
+        "next_cursor": next_cursor,
+    }}
+
+
+@frappe.whitelist(allow_guest=True)
+def create_club_post_comment(post_id, phone, content):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not post_id:
+        frappe.throw(_("post_id is required"))
+    content = (content or "").strip()
+    if not content:
+        frappe.throw(_("content is required"))
+    if len(content) > 1000:
+        frappe.throw(_("Comment is too long"))
+
+    post_club = frappe.db.get_value("Creator Club Post", post_id, "club")
+    if not post_club:
+        frappe.throw(_("Post not found"), frappe.DoesNotExistError)
+
+    doc = frappe.get_doc({
+        "doctype": "Creator Club Post Comment",
+        "post": post_id,
+        "customer_phone": phone,
+        "customer_name": _customer_display_name(phone),
+        "content": content,
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.sql(
+        "UPDATE `tabCreator Club Post` SET comments_count = comments_count + 1 WHERE name=%s",
+        post_id,
+    )
+    frappe.db.commit()
+    comments_count = frappe.db.get_value("Creator Club Post", post_id, "comments_count")
+    _publish_post_update(
+        post_id,
+        "comment_added",
+        {"comments_count": comments_count, "comment": _format_comment(doc)},
+    )
+
+    # Notify the club admin (the post's only possible author — see
+    # `_require_club_admin` in `create_club_post`) unless they're commenting
+    # on their own post.
+    admin_phone = _club_creator_phone(post_club)
+    if admin_phone and normalize_phone(phone) != admin_phone:
+        from flamezo_backend.flamezo.api.notifications_consumer import create_notification
+        create_notification(
+            admin_phone,
+            title=f"{doc.customer_name or 'Someone'} commented on your post",
+            body=content[:80],
+            notification_type="club",
+            reference_doctype="Creator Club Post",
+            reference_name=post_id,
+            deep_link=f"/club/{post_club}",
+        )
+
+    return {"success": True, "data": _format_comment(doc)}
+
+
+@frappe.whitelist(allow_guest=True)
+def delete_club_post_comment(comment_id, phone):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not comment_id:
+        frappe.throw(_("comment_id is required"))
+
+    row = frappe.db.get_value(
+        "Creator Club Post Comment", comment_id, ["post", "customer_phone"], as_dict=True
+    )
+    if not row:
+        frappe.throw(_("Comment not found"), frappe.DoesNotExistError)
+
+    is_author = normalize_phone(phone) == normalize_phone(row.customer_phone)
+    is_admin = normalize_phone(phone) == _club_creator_phone(
+        frappe.db.get_value("Creator Club Post", row.post, "club")
+    )
+    if not (is_author or is_admin):
+        frappe.throw(_("You can only delete your own comments."), frappe.PermissionError)
+
+    frappe.delete_doc("Creator Club Post Comment", comment_id, ignore_permissions=True)
+    frappe.db.sql(
+        "UPDATE `tabCreator Club Post` SET comments_count = GREATEST(comments_count - 1, 0) WHERE name=%s",
+        row.post,
+    )
+    frappe.db.commit()
+    comments_count = frappe.db.get_value("Creator Club Post", row.post, "comments_count")
+    _publish_post_update(
+        row.post,
+        "comment_deleted",
+        {"comments_count": comments_count, "comment_id": comment_id},
+    )
+    return {"success": True, "data": {"id": comment_id}}
+
+
+# ── club post image upload ───────────────────────────────────────────────────
+
+@frappe.whitelist()
+def request_club_post_upload(club_id, filename, content_type, phone):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    _require_club_admin(club_id, phone)
+    from flamezo_backend.flamezo.utils.r2_storage import generate_presigned_put
+
+    ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else "jpg"
+    object_key = f"club-posts/{club_id}/{uuid.uuid4()}.{ext}"
+    upload_url = generate_presigned_put(object_key, content_type, expires=3600)
+    return {"success": True, "data": {"upload_url": upload_url, "object_key": object_key, "expires_in": 3600}}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -267,7 +707,8 @@ def get_my_clubs(phone):
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
                cc.category, cc.tier, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image
+               fc.profile_image AS creator_profile_image,
+               fc.customer_phone AS creator_phone
         FROM `tabCreator Club Member` ccm
         JOIN `tabCreator Club` cc ON cc.name = ccm.club
         LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator

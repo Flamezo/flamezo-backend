@@ -82,7 +82,7 @@ class TableBooking(Document):
 
 		table = frappe.get_doc("Restaurant Table", assigned_table)
 		if table.restaurant != self.restaurant:
-			frappe.throw(f"Table {assigned_table} does not belong to this restaurant")
+			frappe.throw(f"Table {assigned_table} does not belong to this outlet")
 		
 		# Check if table has sufficient capacity
 		if table.capacity < self.number_of_diners:

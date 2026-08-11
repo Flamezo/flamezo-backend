@@ -29,13 +29,13 @@ import { Search, Loader2, Store, CheckCircle2, Copy } from 'lucide-react'
  * directly (the emailed copy may not arrive in every environment).
  *
  * Modular by design (per the Flamezo modular-components rule): it fetches its
- * own restaurant list and owns all its state.
+ * own outlet list and owns all its state.
  */
 
-interface RestaurantRow {
+interface OutletRow {
   name: string
-  restaurant_id?: string
-  restaurant_name?: string
+  outlet_id?: string
+  outlet_name?: string
   owner_email?: string
   city?: string
 }
@@ -56,7 +56,7 @@ type AssignResult = {
 type AccessUser = {
   user: string
   count: number
-  branches: { name: string; restaurant_name: string; role: string }[]
+  branches: { name: string; outlet_name: string; role: string }[]
 }
 
 type AssignSummary = {
@@ -79,13 +79,13 @@ export function BranchAccessDialog({ open, onOpenChange, onAssigned }: BranchAcc
   // When set, the dialog shows the result panel instead of the form.
   const [summary, setSummary] = useState<AssignSummary | null>(null)
 
-  // Self-contained: pull the full restaurant list once the dialog opens.
-  const { data: restaurantsData, isLoading } = useFrappeGetCall<{
-    message: { success: boolean; data?: { restaurants: RestaurantRow[] } }
+  // Self-contained: pull the full outlet list once the dialog opens.
+  const { data: outletsData, isLoading } = useFrappeGetCall<{
+    message: { success: boolean; data?: { restaurants: OutletRow[] } }
   }>(
-    'flamezo_backend.flamezo.api.admin.get_all_restaurants',
+    'flamezo_backend.flamezo.api.admin.get_all_outlets',
     { page: 1, page_size: 500 },
-    open ? 'branch-access-restaurants' : null,
+    open ? 'branch-access-outlets' : null,
   )
 
   const { call: assignOwner } = useFrappePostCall(
@@ -105,28 +105,28 @@ export function BranchAccessDialog({ open, onOpenChange, onAssigned }: BranchAcc
     [accessData],
   )
 
-  const restaurants = useMemo<RestaurantRow[]>(
-    () => restaurantsData?.message?.data?.restaurants || [],
-    [restaurantsData],
+  const outlets = useMemo<OutletRow[]>(
+    () => outletsData?.message?.data?.restaurants || [],
+    [outletsData],
   )
 
   // Map docname -> display name so the result panel can show friendly labels.
   const nameOf = useMemo(() => {
     const m: Record<string, string> = {}
-    for (const r of restaurants) m[r.name] = r.restaurant_name || r.name
+    for (const r of outlets) m[r.name] = r.outlet_name || r.name
     return m
-  }, [restaurants])
+  }, [outlets])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return restaurants
-    return restaurants.filter(
+    if (!q) return outlets
+    return outlets.filter(
       (r) =>
-        (r.restaurant_name || '').toLowerCase().includes(q) ||
-        (r.restaurant_id || '').toLowerCase().includes(q) ||
+        (r.outlet_name || '').toLowerCase().includes(q) ||
+        (r.outlet_id || '').toLowerCase().includes(q) ||
         (r.city || '').toLowerCase().includes(q),
     )
-  }, [restaurants, query])
+  }, [outlets, query])
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -357,10 +357,10 @@ export function BranchAccessDialog({ open, onOpenChange, onAssigned }: BranchAcc
                         />
                         <div className="min-w-0">
                           <div className="text-sm font-medium truncate">
-                            {r.restaurant_name || r.name}
+                            {r.outlet_name || r.name}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {[r.restaurant_id, r.city].filter(Boolean).join(' · ')}
+                            {[r.outlet_id, r.city].filter(Boolean).join(' · ')}
                           </div>
                         </div>
                       </label>
@@ -381,7 +381,7 @@ export function BranchAccessDialog({ open, onOpenChange, onAssigned }: BranchAcc
                         <div className="min-w-0">
                           <div className="text-sm font-medium truncate">{u.user}</div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {u.branches.map((b) => b.restaurant_name).join(', ')}
+                            {u.branches.map((b) => b.outlet_name).join(', ')}
                           </div>
                         </div>
                         <Badge

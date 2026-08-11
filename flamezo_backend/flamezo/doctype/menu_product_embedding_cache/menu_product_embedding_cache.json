@@ -17,7 +17,7 @@
   {
    "fieldname": "restaurant",
    "fieldtype": "Link",
-   "label": "Restaurant",
+   "label": "Outlet",
    "options": "Restaurant",
    "reqd": 1,
    "search_index": 1

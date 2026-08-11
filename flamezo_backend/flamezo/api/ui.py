@@ -112,24 +112,24 @@ def get_user_permissions(doctype):
 
 
 @frappe.whitelist()
-def get_user_restaurants():
-	"""Get restaurants that the current user has permission to access"""
+def get_user_outlets():
+	"""Get outlets that the current user has permission to access"""
 	try:
 		from flamezo_backend.flamezo.utils.permissions import get_user_restaurant_ids
-		
+
 		user = frappe.session.user
 		restaurant_ids = get_user_restaurant_ids(user)
-		
+
 		if not restaurant_ids:
 			return {
 				'restaurants': []
 			}
-		
+
 		# Get restaurant details - using ignore_permissions for the IDs we already verified
 		restaurants = frappe.get_all(
 			"Restaurant",
 			filters={"name": ["in", restaurant_ids]},
-			fields=["name", "restaurant_id", "restaurant_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
+			fields=["name", "restaurant_id as outlet_id", "restaurant_name as outlet_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
 			order_by="creation desc",
 			ignore_permissions=True
 		)
@@ -153,28 +153,28 @@ def get_user_restaurants():
 
 
 @frappe.whitelist()
-def get_restaurant_setup_progress(restaurant_id):
-	"""Get setup progress for a restaurant - check which steps are completed"""
+def get_outlet_setup_progress(outlet_id):
+	"""Get setup progress for an outlet - check which steps are completed"""
 	try:
 		from flamezo_backend.flamezo.utils.permissions import validate_restaurant_access
-		
+
 		# Validate user has access
-		if not validate_restaurant_access(frappe.session.user, restaurant_id):
-			frappe.throw("You don't have permission to access this restaurant")
-		
+		if not validate_restaurant_access(frappe.session.user, outlet_id):
+			frappe.throw("You don't have permission to access this outlet")
+
 		progress = {
-			'restaurant': frappe.db.exists("Restaurant", restaurant_id),
-			'config': frappe.db.exists("Restaurant Config", {"restaurant": restaurant_id}),
-			'users': frappe.db.exists("Restaurant User", {"restaurant": restaurant_id}),
-			'categories': frappe.db.exists("Menu Category", {"restaurant": restaurant_id}),
-			'products': frappe.db.exists("Menu Product", {"restaurant": restaurant_id}),
-			'offers': frappe.db.exists("Offer", {"restaurant": restaurant_id}),
-			'coupons': frappe.db.exists("Coupon", {"restaurant": restaurant_id}),
-			'events': frappe.db.exists("Event", {"restaurant": restaurant_id}),
-			'games': frappe.db.exists("Game", {"restaurant": restaurant_id}),
-			'home_features': frappe.db.exists("Home Feature", {"restaurant": restaurant_id}),
-			'table_booking': frappe.db.exists("Table Booking", {"restaurant": restaurant_id}),
-			'banquet_booking': frappe.db.exists("Banquet Booking", {"restaurant": restaurant_id}),
+			'restaurant': frappe.db.exists("Restaurant", outlet_id),
+			'config': frappe.db.exists("Restaurant Config", {"restaurant": outlet_id}),
+			'users': frappe.db.exists("Restaurant User", {"restaurant": outlet_id}),
+			'categories': frappe.db.exists("Menu Category", {"restaurant": outlet_id}),
+			'products': frappe.db.exists("Menu Product", {"restaurant": outlet_id}),
+			'offers': frappe.db.exists("Offer", {"restaurant": outlet_id}),
+			'coupons': frappe.db.exists("Coupon", {"restaurant": outlet_id}),
+			'events': frappe.db.exists("Event", {"restaurant": outlet_id}),
+			'games': frappe.db.exists("Game", {"restaurant": outlet_id}),
+			'home_features': frappe.db.exists("Home Feature", {"restaurant": outlet_id}),
+			'table_booking': frappe.db.exists("Table Booking", {"restaurant": outlet_id}),
+			'banquet_booking': frappe.db.exists("Banquet Booking", {"restaurant": outlet_id}),
 		}
 		
 		return progress
@@ -300,21 +300,18 @@ def get_setup_wizard_steps(restaurant=None):
 		},
 	]
 
-	from flamezo_backend.flamezo.utils.feature_gate import FEATURE_PLAN_MAP
-	
+	# Single-tier model: every feature is available on GOLD, so no filtering
+	# is needed — all steps are always included.
 	filtered_steps = []
 	for step in all_steps:
-		feature = step.get('feature')
-		if not feature:
+		if not step.get('feature'):
 			filtered_steps.append(step)
 			continue
-			
-		required_plans = FEATURE_PLAN_MAP.get(feature, ['GOLD'])
-		if plan_type in required_plans:
-			step_copy = step.copy()
-			step_copy['required_plans'] = required_plans
-			filtered_steps.append(step_copy)
-			
+
+		step_copy = step.copy()
+		step_copy['required_plans'] = ['GOLD']
+		filtered_steps.append(step_copy)
+
 	return {
 		'steps': filtered_steps
 	}

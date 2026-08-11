@@ -10,12 +10,12 @@ Consumer endpoints (guest allowed):
   cancel_appointment(appointment_id, phone, reason)
 
 Merchant endpoints (auth required):
-  get_appointment_requests(restaurant_id, status, date, page, limit)
-  confirm_appointment(appointment_id, restaurant_id)
-  reject_appointment(appointment_id, restaurant_id, reason)
-  mark_appointment_completed(appointment_id, restaurant_id)
-  mark_appointment_no_show(appointment_id, restaurant_id)
-  get_appointment_summary(restaurant_id, date)
+  get_appointment_requests(outlet_id, status, date, page, limit)
+  confirm_appointment(appointment_id, outlet_id)
+  reject_appointment(appointment_id, outlet_id, reason)
+  mark_appointment_completed(appointment_id, outlet_id)
+  mark_appointment_no_show(appointment_id, outlet_id)
+  get_appointment_summary(outlet_id, date)
 """
 
 import frappe
@@ -25,9 +25,9 @@ from frappe.utils import cint, flt, getdate, today, now_datetime
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _resolve_restaurant(restaurant_id):
-	name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
-	return name or frappe.db.get_value("Restaurant", restaurant_id, "name")
+def _resolve_restaurant(outlet_id):
+	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
+	return name or frappe.db.get_value("Restaurant", outlet_id, "name")
 
 
 def _assert_restaurant_access(restaurant_name):
@@ -38,7 +38,7 @@ def _assert_restaurant_access(restaurant_name):
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
-		frappe.throw(_("Access denied to this restaurant."), frappe.PermissionError)
+		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
 
 
 def _assert_appointment_belongs_to_restaurant(appointment_name, restaurant_name):
@@ -74,7 +74,7 @@ def _format_appointment(appt):
 
 @frappe.whitelist(allow_guest=True)
 def create_appointment(
-	restaurant_id=None,
+	outlet_id=None,
 	customer_name=None,
 	customer_phone=None,
 	appointment_date=None,
@@ -91,15 +91,15 @@ def create_appointment(
 	Creates a new service appointment request (status: Pending).
 	No payment — merchant confirms manually.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	if not customer_name or not customer_phone:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "customer_name and customer_phone are required"}}
 	if not appointment_date or not appointment_time:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_date and appointment_time are required"}}
 
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
@@ -232,7 +232,7 @@ def cancel_appointment(appointment_id=None, phone=None, reason=None):
 
 @frappe.whitelist()
 def get_appointment_requests(
-	restaurant_id=None,
+	outlet_id=None,
 	status=None,
 	date=None,
 	page=1,
@@ -244,10 +244,10 @@ def get_appointment_requests(
 	Merchant view — list all appointments for a restaurant.
 	Filterable by status and date.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -299,8 +299,8 @@ def get_appointment_requests(
 
 # ── Merchant: status transitions ──────────────────────────────────────────────
 
-def _merchant_status_change(appointment_id, restaurant_id, new_status, extra_fields=None):
-	restaurant_name = _resolve_restaurant(restaurant_id)
+def _merchant_status_change(appointment_id, outlet_id, new_status, extra_fields=None):
+	restaurant_name = _resolve_restaurant(outlet_id)
 	if not restaurant_name:
 		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 	_assert_restaurant_access(restaurant_name)
@@ -317,12 +317,12 @@ def _merchant_status_change(appointment_id, restaurant_id, new_status, extra_fie
 
 
 @frappe.whitelist()
-def confirm_appointment(appointment_id=None, restaurant_id=None):
+def confirm_appointment(appointment_id=None, outlet_id=None):
 	"""Confirm a pending appointment."""
-	if not appointment_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and restaurant_id are required"}}
+	if not appointment_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and outlet_id are required"}}
 	try:
-		return _merchant_status_change(appointment_id, restaurant_id, "Confirmed",
+		return _merchant_status_change(appointment_id, outlet_id, "Confirmed",
 			{"confirmed_at": now_datetime()})
 	except Exception as e:
 		frappe.log_error(f"appointments.confirm_appointment error: {e}")
@@ -330,12 +330,12 @@ def confirm_appointment(appointment_id=None, restaurant_id=None):
 
 
 @frappe.whitelist()
-def reject_appointment(appointment_id=None, restaurant_id=None, reason=None):
+def reject_appointment(appointment_id=None, outlet_id=None, reason=None):
 	"""Cancel a pending appointment from merchant side."""
-	if not appointment_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and restaurant_id are required"}}
+	if not appointment_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and outlet_id are required"}}
 	try:
-		return _merchant_status_change(appointment_id, restaurant_id, "Cancelled",
+		return _merchant_status_change(appointment_id, outlet_id, "Cancelled",
 			{"cancelled_by": "merchant", "cancellation_reason": reason or ""})
 	except Exception as e:
 		frappe.log_error(f"appointments.reject_appointment error: {e}")
@@ -343,12 +343,12 @@ def reject_appointment(appointment_id=None, restaurant_id=None, reason=None):
 
 
 @frappe.whitelist()
-def mark_appointment_completed(appointment_id=None, restaurant_id=None):
+def mark_appointment_completed(appointment_id=None, outlet_id=None):
 	"""Mark a confirmed appointment as completed."""
-	if not appointment_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and restaurant_id are required"}}
+	if not appointment_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and outlet_id are required"}}
 	try:
-		return _merchant_status_change(appointment_id, restaurant_id, "Completed",
+		return _merchant_status_change(appointment_id, outlet_id, "Completed",
 			{"completed_at": now_datetime()})
 	except Exception as e:
 		frappe.log_error(f"appointments.mark_appointment_completed error: {e}")
@@ -356,12 +356,12 @@ def mark_appointment_completed(appointment_id=None, restaurant_id=None):
 
 
 @frappe.whitelist()
-def mark_appointment_no_show(appointment_id=None, restaurant_id=None):
+def mark_appointment_no_show(appointment_id=None, outlet_id=None):
 	"""Mark a confirmed appointment as no-show."""
-	if not appointment_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and restaurant_id are required"}}
+	if not appointment_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and outlet_id are required"}}
 	try:
-		return _merchant_status_change(appointment_id, restaurant_id, "No Show")
+		return _merchant_status_change(appointment_id, outlet_id, "No Show")
 	except Exception as e:
 		frappe.log_error(f"appointments.mark_appointment_no_show error: {e}")
 		return {"success": False, "error": {"code": "ERROR", "message": str(e)}}
@@ -370,17 +370,17 @@ def mark_appointment_no_show(appointment_id=None, restaurant_id=None):
 # ── Merchant: daily summary ───────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_appointment_summary(restaurant_id=None, date=None):
+def get_appointment_summary(outlet_id=None, date=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.appointments.get_appointment_summary
 
 	Returns appointment counts by status for a given date (default: today).
 	Used for the merchant dashboard day-view header.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useDataTable } from '@/hooks/useDataTable'
 import { Card, CardContent } from '@/components/ui/card'
@@ -172,13 +172,13 @@ const mockFlaggedData = [
 ]
 
 export default function UGCApprovals() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [tab, setTab] = useState<Tab>('verify')
-  const [demoMode, setDemoMode] = useState(selectedRestaurant === 'unvind')
+  const [demoMode, setDemoMode] = useState(selectedOutlet === 'unvind')
 
   useEffect(() => {
-    setDemoMode(selectedRestaurant === 'unvind')
-  }, [selectedRestaurant])
+    setDemoMode(selectedOutlet === 'unvind')
+  }, [selectedOutlet])
   const [reviewing, setReviewing] = useState<any | null>(null)
   const [viewCount, setViewCount] = useState('')
   const [busy, setBusy] = useState(false)
@@ -189,23 +189,23 @@ export default function UGCApprovals() {
   const [pinError, setPinError] = useState('')
   const pinInputRef = useRef<HTMLInputElement>(null)
 
-  const params = selectedRestaurant ? { restaurant_id: selectedRestaurant } : {}
+  const params = selectedOutlet ? { outlet_id: selectedOutlet } : {}
 
   const verifyQ = useDataTable({
     customEndpoint: 'flamezo_backend.flamezo.api.ugc.list_pending_story_verifications',
     customParams: params, initialPageSize: 20,
-    debugId: `ugc-verify-${selectedRestaurant}`,
+    debugId: `ugc-verify-${selectedOutlet}`,
   })
   const flaggedQ = useDataTable({
     customEndpoint: 'flamezo_backend.flamezo.api.ugc.list_flagged_ugc',
     customParams: params, initialPageSize: 20,
-    debugId: `ugc-flagged-${selectedRestaurant}`,
+    debugId: `ugc-flagged-${selectedOutlet}`,
   })
 
   const { data: funnelRes } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_funnel',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant, days: 30 } : undefined,
-    selectedRestaurant ? `ugc-funnel-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet, days: 30 } : undefined,
+    selectedOutlet ? `ugc-funnel-${selectedOutlet}` : undefined,
   )
 
   const { call: verifyStory } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.verify_ugc_story')
@@ -233,7 +233,7 @@ export default function UGCApprovals() {
     setBusy(true)
     setPinError('')
     try {
-      const res: any = await verifyStoryWithPin({ restaurant_id: selectedRestaurant, submission_id: pinTarget.name, pin })
+      const res: any = await verifyStoryWithPin({ outlet_id: selectedOutlet, submission_id: pinTarget.name, pin })
       const body = res?.message || res
       if (body?.success) {
         toast.success('Story verified — customer can now upload their view count')
@@ -261,7 +261,7 @@ export default function UGCApprovals() {
     if (action === 'reject' && notes === '') return
     setBusy(true)
     try {
-      const res: any = await verifyStory({ restaurant_id: selectedRestaurant, submission_id: sub.name, action, notes })
+      const res: any = await verifyStory({ outlet_id: selectedOutlet, submission_id: sub.name, action, notes })
       const body = res?.message || res
       if (body?.success) {
         toast.success(action === 'approve' ? 'Story verified — customer can upload views tomorrow' : 'Story rejected')
@@ -286,7 +286,7 @@ export default function UGCApprovals() {
     setBusy(true)
     try {
       const res: any = await reviewUgc({
-        restaurant_id: selectedRestaurant, submission_id: reviewing.name, action,
+        outlet_id: selectedOutlet, submission_id: reviewing.name, action,
         view_count: action === 'approve' ? Number(viewCount) : undefined, notes,
       })
       const body = res?.message || res
@@ -297,7 +297,7 @@ export default function UGCApprovals() {
     } catch (e: any) { toast.error(e.message) } finally { setBusy(false) }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Select an outlet.</div>
   }
 
@@ -308,7 +308,7 @@ export default function UGCApprovals() {
           <h1 className="text-3xl font-bold tracking-tight">UGC Approvals</h1>
           <p className="text-muted-foreground mt-1">Verify customers' stories in person, then resolve any view-counts the AI couldn't auto-approve.</p>
         </div>
-        {selectedRestaurant === 'unvind' && (
+        {selectedOutlet === 'unvind' && (
           <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
             <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
             <button

@@ -29,7 +29,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall } from '@/lib/frappe'
 
 interface CustomizationOption {
@@ -77,7 +77,7 @@ export default function CustomizationQuestionsTable({
 }: CustomizationQuestionsTableProps) {
 
   const { formatAmountNoDecimals } = useCurrency()
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set())
   const [editingQuestion, setEditingQuestion] = useState<number | null>(null)
   const [editingOption, setEditingOption] = useState<{ questionIndex: number; optionIndex: number } | null>(null)
@@ -89,8 +89,8 @@ export default function CustomizationQuestionsTable({
   // Fetch products with customizations for the copy dialog
   const { data: allProductsData, isLoading: productsLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.products.get_products',
-    { restaurant_id: selectedRestaurant, include_inactive: 1, limit: 500 },
-    isCopyDialogOpen && selectedRestaurant ? `copy-customizations-products-${selectedRestaurant}` : null
+    { outlet_id: selectedOutlet, include_inactive: 1, limit: 500 },
+    isCopyDialogOpen && selectedOutlet ? `copy-customizations-products-${selectedOutlet}` : null
   )
 
   // Filter to only products that have customizations

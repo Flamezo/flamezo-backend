@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useFrappeGetCall, useFrappePostCall, useFrappeGetDocList } from '@/lib/frappe'
-import { useRestaurant } from '../contexts/RestaurantContext'
+import { useOutlet } from '../contexts/OutletContext'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -49,7 +49,7 @@ interface RecommendationsResponse {
 }
 
 export default function RecommendationsEngine() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
   // Track which products are expanded; default is all collapsed
@@ -63,8 +63,8 @@ export default function RecommendationsEngine() {
     mutate
   } = useFrappeGetCall<RecommendationsResponse>(
     'flamezo_backend.flamezo.api.recommendations.get_recommendations_tree',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `recommendations-tree-${selectedRestaurant}` : null
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `recommendations-tree-${selectedOutlet}` : null
   )
 
   const { call: runEngine, loading: running } = useFrappePostCall(
@@ -79,11 +79,11 @@ export default function RecommendationsEngine() {
     'Menu Product',
     {
       fields: ['product_id', 'product_name', 'category_name', 'main_category'],
-      filters: selectedRestaurant ? ({ restaurant: selectedRestaurant, is_active: 1 } as any) : undefined,
+      filters: selectedOutlet ? ({ restaurant: selectedOutlet, is_active: 1 } as any) : undefined,
       limit: 500,
       orderBy: { field: 'product_name', order: 'asc' } as any
     },
-    selectedRestaurant ? `recommendation-products-${selectedRestaurant}` : null
+    selectedOutlet ? `recommendation-products-${selectedOutlet}` : null
   )
 
   const allProducts: { product_id: string; product_name: string; category_name?: string; main_category?: string }[] =
@@ -118,10 +118,10 @@ export default function RecommendationsEngine() {
   }, [products, searchTerm])
 
   const handleSaveRecommendations = async (product: ProductWithRecommendations, newIds: string[]) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       await updateRecs({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         source_product_id: product.id,
         recommendation_ids: newIds,
       } as any)
@@ -157,13 +157,13 @@ export default function RecommendationsEngine() {
   }
 
   useEffect(() => {
-    if (!selectedRestaurant) {
+    if (!selectedOutlet) {
       toast.info('Please select an outlet to manage recommendations.')
     }
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const handleRunEngine = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
 
     const hasExisting = recommendationRun >= 1
     if (hasExisting) {
@@ -178,7 +178,7 @@ export default function RecommendationsEngine() {
     }
 
     try {
-      const resp = await runEngine({ restaurant_id: selectedRestaurant })
+      const resp = await runEngine({ outlet_id: selectedOutlet })
       if ((resp as any)?.message?.success) {
         toast.success('Recommendations generated successfully for this outlet.')
       } else {
@@ -236,7 +236,7 @@ export default function RecommendationsEngine() {
             <Button
               size="sm"
               onClick={handleRunEngine}
-              disabled={!selectedRestaurant || running}
+              disabled={!selectedOutlet || running}
             >
               {running && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {recommendationRun >= 1 ? 'Re-run Engine' : 'Run Recommendation Engine'}

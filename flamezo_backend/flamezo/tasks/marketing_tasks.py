@@ -63,7 +63,7 @@ def fire_triggers():
     )
 
     settings = frappe.get_single("Flamezo Settings")
-    restaurant_name_cache = {}
+    outlet_name_cache = {}
 
     for trigger in active_triggers:
         # Only scheduled-type triggers here; On Order Complete is handled via hook
@@ -72,7 +72,7 @@ def fire_triggers():
         try:
             customers_to_fire = _get_trigger_customers(trigger)
             for customer in customers_to_fire:
-                _fire_single_trigger(trigger, customer, settings, restaurant_name_cache)
+                _fire_single_trigger(trigger, customer, settings, outlet_name_cache)
         except Exception as e:
             frappe.log_error(f"Trigger fire failed for {trigger.name}: {str(e)}", "Marketing Task")
 
@@ -151,7 +151,7 @@ def dispatch_campaign_task(campaign_id):
         opted_out = _get_opted_out_phones(campaign.restaurant)
         customers = [c for c in customers if c.get("phone") not in opted_out]
 
-        restaurant_name = (
+        outlet_name = (
             frappe.db.get_value("Restaurant", campaign.restaurant, "restaurant_name")
             or campaign.restaurant
         )
@@ -180,7 +180,7 @@ def dispatch_campaign_task(campaign_id):
                     message = _resolve_template(
                         campaign.message_template,
                         customer_name=customer.get("customer_name") or "Valued Customer",
-                        restaurant_name=restaurant_name,
+                        restaurant_name=outlet_name,
                         loyalty_balance=_get_loyalty_balance(customer.get("customer"), campaign.restaurant),
                         coupon_code=campaign.coupon_code or ""
                     )
@@ -432,7 +432,7 @@ def _get_trigger_customers(trigger):
     return []
 
 
-def _fire_single_trigger(trigger, customer, settings, restaurant_name_cache):
+def _fire_single_trigger(trigger, customer, settings, outlet_name_cache):
     """
     Sends one trigger message with full idempotency check.
     Idempotency window: Birthday = 365 days, others = 30 days.
@@ -458,16 +458,16 @@ def _fire_single_trigger(trigger, customer, settings, restaurant_name_cache):
         )
         return
 
-    # Resolve restaurant name
-    if trigger.restaurant not in restaurant_name_cache:
-        restaurant_name_cache[trigger.restaurant] = (
+    # Resolve outlet name
+    if trigger.restaurant not in outlet_name_cache:
+        outlet_name_cache[trigger.restaurant] = (
             frappe.db.get_value("Restaurant", trigger.restaurant, "restaurant_name") or trigger.restaurant
         )
 
     message = _resolve_template(
         trigger.message_template,
         customer_name=customer.get("customer_name") or "Valued Customer",
-        restaurant_name=restaurant_name_cache[trigger.restaurant],
+        restaurant_name=outlet_name_cache[trigger.restaurant],
         loyalty_balance=_get_loyalty_balance(customer.get("customer"), trigger.restaurant),
         coupon_code=trigger.coupon_code or ""
     )
@@ -887,7 +887,7 @@ def generate_daily_seo_blog():
         keywords_dishes = [{"item_name": name} for name in dish_names_list]
         
         dynamic_keywords = gen.generate_dynamic_keywords(
-            restaurant_name=res_name,
+            outlet_name=res_name,
             location=location_slug,
             dishes=keywords_dishes,
             cuisine=cuisine

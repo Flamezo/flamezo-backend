@@ -1136,8 +1136,8 @@ def process_extracted_data(data, extractor_doc):
 		# Validate restaurant exists
 		if not frappe.db.exists("Restaurant", restaurant):
 			frappe.throw(
-				_("Selected restaurant '{0}' does not exist. Please select a valid restaurant.").format(restaurant),
-				title=_("Invalid Restaurant")
+				_("Selected outlet '{0}' does not exist. Please select a valid outlet.").format(restaurant),
+				title=_("Invalid Outlet")
 			)
 	
 	# Fallback: Try to find restaurant by restaurant_name (for backward compatibility)
@@ -1151,8 +1151,8 @@ def process_extracted_data(data, extractor_doc):
 	
 	if not restaurant:
 		frappe.throw(
-			_("Restaurant is required. Please select a restaurant from the Restaurant field."),
-			title=_("Restaurant Required")
+			_("Outlet is required. Please select an outlet from the Restaurant field."),
+			title=_("Outlet Required")
 		)
 	
 	# Extract data sections
@@ -1767,7 +1767,7 @@ def generate_recommendations(docname):
 		
 		# Get restaurant
 		if not doc.restaurant:
-			frappe.throw(_("Restaurant is required to generate recommendations."))
+			frappe.throw(_("Outlet is required to generate recommendations."))
 		
 		restaurant = doc.restaurant
 		
@@ -1785,7 +1785,7 @@ def generate_recommendations(docname):
 		)
 		
 		if not products:
-			frappe.throw(_("No active products found for this restaurant. Please create products first."))
+			frappe.throw(_("No active products found for this outlet. Please create products first."))
 		
 		# Get categories
 		categories = frappe.get_all(

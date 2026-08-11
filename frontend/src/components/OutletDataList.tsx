@@ -9,13 +9,13 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-interface RestaurantDataListProps {
+interface OutletDataListProps {
   doctype: string
-  restaurantId: string
+  outletId: string
   titleField: string
 }
 
-export default function RestaurantDataList({ doctype, restaurantId, titleField }: RestaurantDataListProps) {
+export default function OutletDataList({ doctype, outletId, titleField }: OutletDataListProps) {
   const { permissions } = usePermissions(doctype)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -25,11 +25,11 @@ export default function RestaurantDataList({ doctype, restaurantId, titleField }
     doctype,
     {
       fields: ['name', titleField, 'creation', 'modified'],
-      filters: [['restaurant', '=', restaurantId]],
+      filters: [['restaurant', '=', outletId]],
       orderBy: { field: 'modified', order: 'desc' },
       limit: 100
     },
-    restaurantId ? `${doctype}-${restaurantId}` : null
+    outletId ? `${doctype}-${outletId}` : null
   )
 
   if (isLoading) {
@@ -59,7 +59,7 @@ export default function RestaurantDataList({ doctype, restaurantId, titleField }
 
       {items.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground border rounded-md">
-          <p>No {doctype.replace(/_/g, ' ')} found for this restaurant.</p>
+          <p>No {doctype.replace(/_/g, ' ')} found for this outlet.</p>
           {permissions.create && (
             <Button
               variant="outline"
@@ -127,12 +127,12 @@ export default function RestaurantDataList({ doctype, restaurantId, titleField }
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create {doctype.replace(/_/g, ' ')}</DialogTitle>
-              <DialogDescription>Fill in the details to create a new {doctype.replace(/_/g, ' ')} for this restaurant.</DialogDescription>
+              <DialogDescription>Fill in the details to create a new {doctype.replace(/_/g, ' ')} for this outlet.</DialogDescription>
             </DialogHeader>
             <DynamicForm
               doctype={doctype}
               mode="create"
-              initialData={{ restaurant: restaurantId }}
+              initialData={{ restaurant: outletId }}
               onSave={() => {
                 setShowCreateDialog(false)
                 mutate()

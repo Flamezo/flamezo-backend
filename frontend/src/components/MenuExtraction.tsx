@@ -12,17 +12,17 @@ import EditableExtractedDishesTable from './EditableExtractedDishesTable'
 import { useConfirm } from '@/hooks/useConfirm'
 
 interface MenuExtractionProps {
-  restaurantId: string
+  outletId: string
   onExtractionComplete?: (data: any) => void
   onNavigateToReview?: () => void
 }
 
-export default function MenuExtraction({ restaurantId, onExtractionComplete, onNavigateToReview }: MenuExtractionProps) {
+export default function MenuExtraction({ outletId, onExtractionComplete, onNavigateToReview }: MenuExtractionProps) {
   const { confirm, ConfirmDialogComponent } = useConfirm()
   // Get selected document from localStorage or use latest
   const [selectedDocName, setSelectedDocName] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(`menu-extraction-${restaurantId}`)
+      const stored = localStorage.getItem(`menu-extraction-${outletId}`)
       return stored || null
     }
     return null
@@ -33,11 +33,11 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
     'Menu Image Extractor',
     {
       fields: ['name', 'restaurant', 'extraction_status', 'creation', 'modified'],
-      filters: { restaurant: restaurantId },
+      filters: { restaurant: outletId },
       orderBy: { field: 'creation', order: 'desc' },
       limit: 100
     },
-    restaurantId ? `menu-extractions-list-${restaurantId}` : null
+    outletId ? `menu-extractions-list-${outletId}` : null
   )
 
   // Get the selected extraction document
@@ -62,9 +62,9 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
     if (!selectedDocName && extractions && extractions.length > 0) {
       const latest = extractions[0]
       setSelectedDocName(latest.name)
-      localStorage.setItem(`menu-extraction-${restaurantId}`, latest.name)
+      localStorage.setItem(`menu-extraction-${outletId}`, latest.name)
     }
-  }, [extractions, selectedDocName, restaurantId])
+  }, [extractions, selectedDocName, outletId])
 
   // Auto-refresh if processing or pending approval (to catch when extraction completes)
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
 
   const handleSelectDocument = (docName: string) => {
     setSelectedDocName(docName)
-    localStorage.setItem(`menu-extraction-${restaurantId}`, docName)
+    localStorage.setItem(`menu-extraction-${outletId}`, docName)
   }
 
   const handleExtract = async () => {
@@ -228,7 +228,7 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
                 onValueChange={(value) => {
                   if (value === 'new') {
                     setSelectedDocName(null)
-                    localStorage.removeItem(`menu-extraction-${restaurantId}`)
+                    localStorage.removeItem(`menu-extraction-${outletId}`)
                   } else {
                     handleSelectDocument(value)
                   }
@@ -264,10 +264,10 @@ export default function MenuExtraction({ restaurantId, onExtractionComplete, onN
             doctype="Menu Image Extractor"
             docname={selectedDocName || undefined}
             mode={selectedDocName ? 'edit' : 'create'}
-            initialData={{ restaurant: restaurantId }}
+            initialData={{ restaurant: outletId }}
             onSave={(data) => {
               setSelectedDocName(data.name)
-              localStorage.setItem(`menu-extraction-${restaurantId}`, data.name)
+              localStorage.setItem(`menu-extraction-${outletId}`, data.name)
               refreshExtraction()
               toast.success('Document saved successfully')
             }}

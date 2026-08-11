@@ -15,5 +15,5 @@ class MonthlyRevenueLedger(Document):
 		})
 		
 		if existing:
-			frappe.throw(f"Monthly Revenue Ledger already exists for {self.restaurant} in {self.month}")
+			frappe.throw(f"Monthly Revenue Ledger already exists for outlet {self.restaurant} in {self.month}")
 	

@@ -56,7 +56,7 @@ def assign_user_to_restaurant(user, restaurant, role="Restaurant Staff", is_defa
 	"""Assign user to restaurant (creates Restaurant User + User Permission)"""
 	# Check if Restaurant User already exists
 	if frappe.db.exists("Restaurant User", {"user": user, "restaurant": restaurant}):
-		frappe.throw(_("User is already assigned to this restaurant"))
+		frappe.throw(_("User is already assigned to this outlet"))
 	
 	# Create Restaurant User
 	restaurant_user = frappe.get_doc({

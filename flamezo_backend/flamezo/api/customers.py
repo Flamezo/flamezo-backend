@@ -21,26 +21,26 @@ from flamezo_backend.flamezo.utils.roles import is_supervisor, is_global_admin
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def get_customer_by_phone(phone, restaurant_id):
+def get_customer_by_phone(phone, outlet_id):
 	"""
-	Fetch customer details by phone and restaurant.
-	Returns customer info (id, phone, name, email, verified, lastVisited at this restaurant).
-	Secure access: 
-	- Admin/Staff with restaurant access
+	Fetch customer details by phone and outlet.
+	Returns customer info (id, phone, name, email, verified, lastVisited at this outlet).
+	Secure access:
+	- Admin/Staff with outlet access
 	- Customers with valid X-Customer-Token matching the phone number
 	"""
 	try:
-		restaurant = restaurant_id
+		restaurant = outlet_id
 		normalized = normalize_phone(phone)
 		if not normalized or len(normalized) != 10:
 			return {"success": False, "error": "Invalid phone number"}
 
 		# 1. Authorization Check
 		is_authorized = False
-		
+
 		# Check if User is a System User (Admin/Staff)
 		if frappe.session.user != "Guest":
-			restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+			restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 			restaurant_ids = get_user_restaurant_ids(frappe.session.user)
 			if is_supervisor() or restaurant in restaurant_ids:
 				is_authorized = True
@@ -160,9 +160,9 @@ def normalize_order_phone_on_save(doc, event=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_customer_profile(customer_id, restaurant_id=None):
+def get_customer_profile(customer_id, outlet_id=None):
 	"""
-	Admin: Get customer profile. If restaurant_id is provided, limit to that restaurant.
+	Admin: Get customer profile. If outlet_id is provided, limit to that outlet.
 	System Manager or Supervisor only.
 	"""
 	if not is_supervisor():
@@ -181,8 +181,8 @@ def get_customer_profile(customer_id, restaurant_id=None):
 			order_fields.extend(["customer_rating", "customer_feedback"])
             
 		order_filters = {"platform_customer": customer_id}
-		if restaurant_id:
-			order_filters["restaurant"] = restaurant_id
+		if outlet_id:
+			order_filters["restaurant"] = outlet_id
             
 		orders = frappe.get_all(
 			"Order",
@@ -198,8 +198,8 @@ def get_customer_profile(customer_id, restaurant_id=None):
 
 		# Table bookings
 		tb_filters = {"platform_customer": customer_id}
-		if restaurant_id:
-			tb_filters["restaurant"] = restaurant_id
+		if outlet_id:
+			tb_filters["restaurant"] = outlet_id
             
 		table_bookings = frappe.get_all(
 			"Table Booking",
@@ -215,8 +215,8 @@ def get_customer_profile(customer_id, restaurant_id=None):
 
 		# Banquet bookings
 		bb_filters = {"platform_customer": customer_id}
-		if restaurant_id:
-			bb_filters["restaurant"] = restaurant_id
+		if outlet_id:
+			bb_filters["restaurant"] = outlet_id
             
 		banquet_bookings = frappe.get_all(
 			"Banquet Booking",
@@ -234,8 +234,8 @@ def get_customer_profile(customer_id, restaurant_id=None):
 		for rest_id in all_rests:
 			rest_name = frappe.db.get_value("Restaurant", rest_id, "restaurant_name") or rest_id
 			restaurants.append({
-				"restaurant_id": rest_id,
-				"restaurant_name": rest_name,
+				"outlet_id": rest_id,
+				"outlet_name": rest_name,
 				"orders": order_by_rest.get(rest_id, []),
 				"tableBookings": tb_by_rest.get(rest_id, []),
 				"banquetBookings": bb_by_rest.get(rest_id, [])
@@ -262,12 +262,12 @@ def get_customer_profile(customer_id, restaurant_id=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
+def get_outlet_customers(outlet_id, search=None, page=1, page_size=20):
 	"""
-	Restaurant: Get customers who have orders/bookings at this restaurant only. Supports search (name, phone), pagination.
+	Outlet: Get customers who have orders/bookings at this outlet only. Supports search (name, phone), pagination.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		restaurant_ids = get_user_restaurant_ids(frappe.session.user)
 		if not is_supervisor() and restaurant not in restaurant_ids:
 			return {"success": False, "error": "Permission denied"}
@@ -440,7 +440,7 @@ def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 		
 		return {"success": True, "data": {"customers": final_customers, "isAdmin": is_admin, "totalCount": total_count}}
 	except Exception as e:
-		frappe.log_error(f"get_restaurant_customers error: {e}", f"Customer_API_{restaurant_id}")
+		frappe.log_error(f"get_outlet_customers error: {e}", f"Customer_API_{outlet_id}")
 		return {"success": False, "error": str(e)}
 
 
@@ -546,9 +546,9 @@ def update_customer_profile(**kwargs):
 		return {"success": False, "error": "Internal server error"}
 
 @frappe.whitelist()
-def unlock_customer_data(restaurant_id, customer_id):
+def unlock_customer_data(outlet_id, customer_id):
 	"""
-	Unlocks a customer's profile and phone number for a restaurant.
-	Since all restaurants now run on the unified tier, customer data is always unlocked.
+	Unlocks a customer's profile and phone number for an outlet.
+	Since all outlets now run on the unified tier, customer data is always unlocked.
 	"""
 	return {"success": True, "message": "Customer data accessible."}

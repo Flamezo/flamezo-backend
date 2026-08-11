@@ -7,7 +7,7 @@ Cost: ZERO — FCM is free forever. No per-message charges.
 
 Architecture:
   - Customer browsers subscribe → endpoint stored on tabCustomer (push_endpoint JSON)
-  - Merchant (dashboard) browsers subscribe → endpoints stored on tabRestaurant Config
+  - Merchant (dashboard) browsers subscribe → endpoints stored on tabRestaurant Config (per outlet)
   - When order status changes → frappe.enqueue this module's send_* helpers
   - FCM HTTP v1 bearer token is obtained via Google service-account OAuth2 (cached 55 min)
 
@@ -22,7 +22,9 @@ Setup (one-time, Flamezo admin):
 import frappe
 import json
 import time
+from frappe import _
 from frappe.utils import cstr
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FCM token helpers
@@ -181,7 +183,7 @@ def _send_fcm_message(fcm_token: str, title: str, body: str, data: dict = None, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
+def save_customer_subscription(outlet_id, fcm_token, customer_phone=None):
     """
     Saves a customer's FCM token so we can push order status updates to them.
     Called from ONO menu after browser grants notification permission.
@@ -190,14 +192,18 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
         if not fcm_token:
             return {"success": False, "error": "No FCM token provided"}
 
-        restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+        outlet_id = outlet_id.lower() if outlet_id else outlet_id
 
         if customer_phone:
-            from flamezo_backend.flamezo.utils.customer_helpers import normalize_phone
             normalized = normalize_phone(str(customer_phone))
 
             # Find or create customer record
-            customer = frappe.db.get_value("Customer", {"normalized_phone": normalized}, "name")
+            # NOTE: was querying a "normalized_phone" column that doesn't exist
+            # on Customer (only "phone" does) — every call with customer_phone
+            # set has always silently failed to find a match and returned
+            # {"success": False} without ever storing a token. Confirmed via
+            # frappe.db.has_column and zero real rows in push_fcm_tokens.
+            customer = frappe.db.get_value("Customer", {"phone": normalized}, "name")
             if customer:
                 # Store token on Customer doc — push_fcm_tokens is a JSON list field
                 existing_raw = frappe.db.get_value("Customer", customer, "push_fcm_tokens") or "[]"
@@ -216,7 +222,7 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
         # Also store anonymously keyed by the token itself in a cache table
         # Use frappe.cache() for ephemeral storage (no extra doctype needed)
         frappe.cache().set_value(
-            f"push_token:{restaurant_id}:{fcm_token[:32]}",
+            f"push_token:{outlet_id}:{fcm_token[:32]}",
             fcm_token,
             expires_in_sec=30 * 24 * 3600  # 30 days
         )
@@ -228,7 +234,7 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
 
 
 @frappe.whitelist()
-def save_merchant_subscription(restaurant_id, fcm_token):
+def save_merchant_subscription(outlet_id, fcm_token):
     """
     Saves a merchant's FCM token so new order alerts reach the dashboard even when
     the browser tab is in the background.
@@ -238,17 +244,17 @@ def save_merchant_subscription(restaurant_id, fcm_token):
         if not fcm_token:
             return {"success": False, "error": "No FCM token provided"}
 
-        restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+        outlet_id = outlet_id.lower() if outlet_id else outlet_id
 
         config = frappe.db.get_value(
             "Restaurant Config",
-            {"restaurant": restaurant_id},
+            {"restaurant": outlet_id},
             ["name", "merchant_push_tokens"],
             as_dict=True
         )
 
         if not config:
-            return {"success": False, "error": "Restaurant config not found"}
+            return {"success": False, "error": "Outlet config not found"}
 
         existing_raw = config.get("merchant_push_tokens") or "[]"
         try:
@@ -258,7 +264,7 @@ def save_merchant_subscription(restaurant_id, fcm_token):
 
         if fcm_token not in tokens:
             tokens.append(fcm_token)
-            tokens = tokens[-10:]  # Max 10 devices per restaurant
+            tokens = tokens[-10:]  # Max 10 devices per outlet
             frappe.db.set_value(
                 "Restaurant Config",
                 config.name,
@@ -274,15 +280,14 @@ def save_merchant_subscription(restaurant_id, fcm_token):
 
 
 @frappe.whitelist(allow_guest=True)
-def remove_customer_subscription(fcm_token, restaurant_id=None, customer_phone=None):
+def remove_customer_subscription(fcm_token, outlet_id=None, customer_phone=None):
     """
     Removes a customer FCM token (on unsubscribe or token rotation).
     """
     try:
         if customer_phone:
-            from flamezo_backend.flamezo.utils.customer_helpers import normalize_phone
             normalized = normalize_phone(str(customer_phone))
-            customer = frappe.db.get_value("Customer", {"normalized_phone": normalized}, "name")
+            customer = frappe.db.get_value("Customer", {"phone": normalized}, "name")
             if customer:
                 existing_raw = frappe.db.get_value("Customer", customer, "push_fcm_tokens") or "[]"
                 try:
@@ -297,6 +302,104 @@ def remove_customer_subscription(fcm_token, restaurant_id=None, customer_phone=N
     except Exception as e:
         frappe.log_error(f"Error removing push subscription: {str(e)}", "Push Notifications")
         return {"success": False, "error": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mobile app (Flutter) push token registration — same `push_fcm_tokens` field
+# as the web-push functions above (a device/browser token is a token; FCM's
+# send API doesn't care where it came from), but properly session-gated
+# unlike the loosely-guarded `*_customer_subscription` pair, matching the
+# `_require_session` convention used everywhere else in the app's own API.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _require_phone(phone):
+    if not phone:
+        frappe.throw(_("phone is required"), frappe.AuthenticationError)
+    return phone.strip()
+
+
+def _require_session(phone):
+    if not has_active_customer_session(phone):
+        frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+    return phone
+
+
+@frappe.whitelist(allow_guest=True)
+def register_mobile_push_token(phone, fcm_token):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not fcm_token:
+        frappe.throw(_("fcm_token is required"))
+
+    normalized = normalize_phone(phone)
+    customer = frappe.db.get_value("Customer", {"phone": normalized}, "name")
+    if not customer:
+        frappe.throw(_("Customer not found"), frappe.DoesNotExistError)
+
+    existing_raw = frappe.db.get_value("Customer", customer, "push_fcm_tokens") or "[]"
+    try:
+        tokens = json.loads(existing_raw)
+    except Exception:
+        tokens = []
+
+    if fcm_token not in tokens:
+        tokens.append(fcm_token)
+        tokens = tokens[-5:]  # max 5 devices per customer
+        frappe.db.set_value("Customer", customer, "push_fcm_tokens", json.dumps(tokens))
+        frappe.db.commit()
+
+    return {"success": True, "data": {"ok": True}}
+
+
+@frappe.whitelist(allow_guest=True)
+def unregister_mobile_push_token(phone, fcm_token):
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not fcm_token:
+        return {"success": True, "data": {"ok": False}}
+
+    normalized = normalize_phone(phone)
+    customer = frappe.db.get_value("Customer", {"phone": normalized}, "name")
+    if not customer:
+        return {"success": True, "data": {"ok": False}}
+
+    existing_raw = frappe.db.get_value("Customer", customer, "push_fcm_tokens") or "[]"
+    try:
+        tokens = json.loads(existing_raw)
+    except Exception:
+        tokens = []
+    tokens = [t for t in tokens if t != fcm_token]
+    frappe.db.set_value("Customer", customer, "push_fcm_tokens", json.dumps(tokens))
+    frappe.db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+def push_to_customer(phone, title, body, data=None):
+    """Best-effort push to every device a customer has registered (web +
+    mobile tokens live in the same `push_fcm_tokens` list) — prunes any
+    token FCM reports as unregistered/expired (404/410) as it goes. Never
+    raises — a push failure must never break whatever real action (a new
+    comment, a new post) triggered it."""
+    try:
+        normalized = normalize_phone(phone)
+        customer = frappe.db.get_value("Customer", {"phone": normalized}, "name")
+        if not customer:
+            return
+        raw = frappe.db.get_value("Customer", customer, "push_fcm_tokens") or "[]"
+        tokens = json.loads(raw) if raw else []
+        if not tokens:
+            return
+        stale = []
+        for tok in tokens:
+            result = _send_fcm_message(tok, title, body, data=data)
+            if result == "unregistered":
+                stale.append(tok)
+        if stale:
+            remaining = [t for t in tokens if t not in stale]
+            frappe.db.set_value("Customer", customer, "push_fcm_tokens", json.dumps(remaining))
+            frappe.db.commit()
+    except Exception:
+        pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -346,7 +449,7 @@ def send_order_status_push_to_customer(order_name: str):
             "order_id": order.order_id or order.name,
             "order_number": str(order_num),
             "status": order.status,
-            "restaurant_id": order.restaurant,
+            "outlet_id": order.restaurant,
         }
 
         stale_tokens = []
@@ -388,12 +491,12 @@ def send_new_order_push_to_merchant(order_name: str):
     """
     try:
         order = frappe.get_doc("Order", order_name)
-        restaurant_id = order.restaurant
+        outlet_id = order.restaurant
 
         # Fetch merchant tokens from Restaurant Config
         config = frappe.db.get_value(
             "Restaurant Config",
-            {"restaurant": restaurant_id},
+            {"restaurant": outlet_id},
             "merchant_push_tokens"
         )
 
@@ -428,7 +531,7 @@ def send_new_order_push_to_merchant(order_name: str):
             "type": "new_order",
             "order_id": order.order_id or order.name,
             "order_number": str(order_num),
-            "restaurant_id": restaurant_id,
+            "outlet_id": outlet_id,
         }
 
         stale_tokens = []
@@ -447,7 +550,7 @@ def send_new_order_push_to_merchant(order_name: str):
         if stale_tokens:
             config_name = frappe.db.get_value(
                 "Restaurant Config",
-                {"restaurant": restaurant_id},
+                {"restaurant": outlet_id},
                 "name"
             )
             if config_name:

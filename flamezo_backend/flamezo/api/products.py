@@ -26,18 +26,18 @@ from collections import defaultdict
 def invalidate_product_cache(doc, method=None):
 	"""Invalidates caches associated with a Menu Product when updated"""
 	import time
-	restaurant_id = doc.get("restaurant") or doc.get("restaurant_id")
-	if restaurant_id:
-		frappe.cache().delete_key(f"top_picks:{restaurant_id}")
-		frappe.cache().delete_key(f"chef_special:{restaurant_id}")
+	outlet_id = doc.get("restaurant") or doc.get("outlet_id")
+	if outlet_id:
+		frappe.cache().delete_key(f"top_picks:{outlet_id}")
+		frappe.cache().delete_key(f"chef_special:{outlet_id}")
 		# Bump version keys so all paginated product + category caches become stale
 		ts = str(int(time.time()))
-		frappe.cache().set_value(f"products_v:{restaurant_id}", ts, expires_in_sec=7200)
-		frappe.cache().set_value(f"cats_v:{restaurant_id}", ts, expires_in_sec=7200)
+		frappe.cache().set_value(f"products_v:{outlet_id}", ts, expires_in_sec=7200)
+		frappe.cache().set_value(f"cats_v:{outlet_id}", ts, expires_in_sec=7200)
 
 
 @frappe.whitelist(allow_guest=True)
-def get_top_picks(restaurant_id):
+def get_top_picks(outlet_id):
 	"""
 	GET /api/v1/top-picks
 	Optimized Top Picks API with Caching and Priority Selection.
@@ -49,10 +49,10 @@ def get_top_picks(restaurant_id):
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Use cache for performance
-		cache_key = f"top_picks:{restaurant_id}"
+		cache_key = f"top_picks:{outlet_id}"
 		cached_response = frappe.cache().get_value(cache_key)
 		if cached_response:
 			return json.loads(cached_response)
@@ -107,7 +107,7 @@ def get_top_picks(restaurant_id):
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
@@ -123,7 +123,7 @@ def get_top_picks(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_chef_special(restaurant_id):
+def get_chef_special(outlet_id):
 	"""
 	GET — Chef's Special list. ALWAYS returns a usable list (min 5 when the menu has
 	enough active items): the merchant's explicitly tagged 'chef-special' items first,
@@ -137,9 +137,9 @@ def get_chef_special(restaurant_id):
 	Media-prioritized + cached + stable (no randomness).
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
-		cache_key = f"chef_special:{restaurant_id}"
+		cache_key = f"chef_special:{outlet_id}"
 		cached_response = frappe.cache().get_value(cache_key)
 		if cached_response:
 			return json.loads(cached_response)
@@ -191,7 +191,7 @@ def get_chef_special(restaurant_id):
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
@@ -207,15 +207,15 @@ def get_chef_special(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_products(restaurant_id, category=None, type=None, vegetarian=None, search=None, page=1, limit=50, include_inactive=0):
+def get_products(outlet_id, category=None, type=None, vegetarian=None, search=None, page=1, limit=50, include_inactive=0):
 	"""
 	GET /api/v1/products
 	Get all products/dishes with filters and pagination
-	Requires restaurant_id for SaaS multi-tenancy
+	Requires outlet_id for SaaS multi-tenancy
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# ── Redis cache (skip for search queries — unbounded key space) ──
 		page = cint(page) or 1
@@ -382,7 +382,7 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
@@ -700,15 +700,15 @@ def format_product_from_row_minimal(product_row, media_rows=None, has_customizat
 
 
 @frappe.whitelist(allow_guest=True)
-def get_product(restaurant_id, product_id):
+def get_product(outlet_id, product_id):
 	"""
 	GET /api/v1/products/:productId
 	Get single product by ID
-	Requires restaurant_id for SaaS multi-tenancy
+	Requires outlet_id for SaaS multi-tenancy
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Resolve product name if it's a slug/ID
 		actual_product_id = get_product_from_id(product_id, restaurant)
@@ -732,7 +732,7 @@ def get_product(restaurant_id, product_id):
 				"success": False,
 				"error": {
 					"code": "PRODUCT_NOT_FOUND",
-					"message": f"Product {product_id} not found for restaurant {restaurant_id}"
+					"message": f"Product {product_id} not found for restaurant {outlet_id}"
 				}
 			}
 		
@@ -763,7 +763,7 @@ def get_product(restaurant_id, product_id):
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
@@ -922,13 +922,13 @@ def format_product(product_doc):
 	return product
 
 @frappe.whitelist(allow_guest=True)
-def get_product_by_slug(restaurant_id, slug):
+def get_product_by_slug(outlet_id, slug):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.products.get_product_by_slug
 	Get single product by SEO slug
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Find product by slug
 		product = frappe.db.get_value(
@@ -947,7 +947,7 @@ def get_product_by_slug(restaurant_id, slug):
 			}
 		
 		# Reuse get_product logic
-		return get_product(restaurant_id, product)
+		return get_product(outlet_id, product)
 		
 	except Exception as e:
 		frappe.log_error(f"Error in get_product_by_slug: {str(e)}")
@@ -1022,7 +1022,7 @@ def _apply_price_rule(current, mode, value, direction, round_to):
 
 @frappe.whitelist()
 def bulk_update_prices(
-	restaurant_id,
+	outlet_id,
 	mode,
 	value,
 	direction="increase",
@@ -1050,7 +1050,7 @@ def bulk_update_prices(
 	dry_run:   if truthy, only return a preview — nothing is written
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 
 		mode = (mode or "").strip().lower()
 		direction = (direction or "increase").strip().lower()

@@ -54,7 +54,7 @@ class Coupon(Document):
 		existing = frappe.db.exists("Coupon", filters)
 		if existing:
 			frappe.throw(
-				f"Coupon code <b>{self.code}</b> already exists for this restaurant.",
+				f"Coupon code <b>{self.code}</b> already exists for this outlet.",
 				title="Duplicate Coupon Code"
 			)
 

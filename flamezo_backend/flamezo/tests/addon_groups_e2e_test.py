@@ -459,7 +459,7 @@ def test_api_create_addon_group(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group
 
     result = create_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_name=f"{TEST_PREFIX}API Sauces",
         group_type="addon",
         items=json.dumps([
@@ -479,7 +479,7 @@ def test_api_create_addon_group(rest):
 def test_api_list_addon_groups(rest):
     from flamezo_backend.flamezo.api.addon_groups import get_addon_groups
 
-    result = get_addon_groups(restaurant_id=rest.restaurant_id)
+    result = get_addon_groups(outlet_id=rest.restaurant_id)
     _assert(result.get("success"), "T22: API list addon groups")
     _assert(len(result.get("data", [])) >= 3, "T22: At least 3 groups", f"count: {len(result.get('data', []))}")
 
@@ -489,7 +489,7 @@ def test_api_update_addon_group(rest):
 
     # Create one to update
     cr = create_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_name=f"{TEST_PREFIX}API Update Test",
         group_type="addon",
         items=json.dumps([{"name": "Item A", "price": 10}])
@@ -498,7 +498,7 @@ def test_api_update_addon_group(rest):
 
     group_id = cr["data"]["groupId"]
     result = update_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_id=group_id,
         group_name=f"{TEST_PREFIX}API Updated Name",
         is_required=1,
@@ -518,7 +518,7 @@ def test_api_link_to_products(rest, product1, product2):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, link_addon_group_to_products
 
     cr = create_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_name=f"{TEST_PREFIX}API Link Test",
         group_type="addon",
         items=json.dumps([{"name": "Test Item", "price": 5}])
@@ -526,7 +526,7 @@ def test_api_link_to_products(rest, product1, product2):
     _assert(cr.get("success"), "T24: Pre-condition — group created for linking")
 
     result = link_addon_group_to_products(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_id=cr["data"]["groupId"],
         product_ids=json.dumps([product1.product_id, product2.product_id])
     )
@@ -538,7 +538,7 @@ def test_api_toggle_stock(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, toggle_addon_item_stock
 
     cr = create_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_name=f"{TEST_PREFIX}API Stock Test",
         group_type="addon",
         items=json.dumps([{"name": "Stockable Item", "price": 10, "id": "stockable"}])
@@ -547,7 +547,7 @@ def test_api_toggle_stock(rest):
 
     item_id = cr["data"]["items"][0]["itemId"]
     result = toggle_addon_item_stock(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_id=cr["data"]["groupId"],
         item_id=item_id,
         in_stock=0
@@ -563,7 +563,7 @@ def test_api_delete_addon_group(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, delete_addon_group
 
     cr = create_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_name=f"{TEST_PREFIX}API Delete Test",
         group_type="addon",
         items=json.dumps([{"name": "Deletable", "price": 0}])
@@ -571,7 +571,7 @@ def test_api_delete_addon_group(rest):
     _assert(cr.get("success"), "T26: Pre-condition — group created for delete")
 
     result = delete_addon_group(
-        restaurant_id=rest.restaurant_id,
+        outlet_id=rest.restaurant_id,
         group_id=cr["data"]["groupId"]
     )
     _assert(result.get("success"), "T26: API delete addon group")

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useFrappeGetDocList } from 'frappe-react-sdk'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { Loader2, Image as ImageIcon, Download, Eye, ArrowLeft, Calendar, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,16 +14,16 @@ import {
 import { format } from 'date-fns'
 
 export default function AIGalleryPage() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   const { data: generations, isLoading } = useFrappeGetDocList('AI Image Generation', {
     fields: ['name', 'creation', 'owner_name', 'original_image_url', 'enhanced_image_url'],
-    filters: [['restaurant', '=', selectedRestaurant || ''], ['status', '=', 'Completed']],
+    filters: [['restaurant', '=', selectedOutlet || ''], ['status', '=', 'Completed']],
     orderBy: { field: 'creation', order: 'desc' },
     limit: 50
-  }, selectedRestaurant ? undefined : null)
+  }, selectedOutlet ? undefined : null)
 
   const handleDownload = async (url: string, name: string) => {
     // Use the backend proxy to bypass CORS and force download
@@ -43,7 +43,7 @@ export default function AIGalleryPage() {
     setShowPreviewModal(true)
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 

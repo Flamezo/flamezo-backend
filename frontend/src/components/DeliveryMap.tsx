@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 interface DeliveryMapProps {
   pickupLocation?: { lat: number; lng: number }
   dropLocation?: { lat: number; lng: number }
   riderLocation?: { lat: number; lng: number }
   riderLastUpdated?: string
-  restaurantName?: string
+  outletName?: string
 }
 
 declare global {
@@ -21,7 +21,7 @@ export default function DeliveryMap({
   dropLocation, 
   riderLocation, 
   riderLastUpdated,
-  restaurantName 
+  outletName 
 }: DeliveryMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
@@ -29,7 +29,7 @@ export default function DeliveryMap({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const { googleMapsApiKey } = useRestaurant()
+  const { googleMapsApiKey } = useOutlet()
   const activeMapsKey = googleMapsApiKey || (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function DeliveryMap({
     }
 
     if (pickupLocation) {
-      updateMarker('pickup', pickupLocation, restaurantName || 'Restaurant', '#3B82F6')
+      updateMarker('pickup', pickupLocation, outletName || 'Restaurant', '#3B82F6')
     }
 
     if (dropLocation) {
@@ -150,7 +150,7 @@ export default function DeliveryMap({
           {pickupLocation && (
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-blue-500 border border-white" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{restaurantName || 'Restaurant'}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{outletName || 'Restaurant'}</span>
             </div>
           )}
           {dropLocation && (

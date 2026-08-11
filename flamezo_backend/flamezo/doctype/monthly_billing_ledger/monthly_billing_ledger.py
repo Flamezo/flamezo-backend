@@ -12,7 +12,7 @@ class MonthlyBillingLedger(Document):
             "name": ("!=", self.name)
         })
         if existing:
-            frappe.throw(f"Monthly Billing Ledger already exists for {self.restaurant} in {self.billing_month}")
+            frappe.throw(f"Monthly Billing Ledger already exists for outlet {self.restaurant} in {self.billing_month}")
 
     def before_save(self):
         # Calculate fee and final amount if totals are present

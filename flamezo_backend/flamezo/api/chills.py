@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import now_datetime, today, cint
 
 from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+from flamezo_backend.flamezo.utils import redis_counters as rc
 
 # ── Tag limits ───────────────────────────────────────────────────────────────
 MAX_NICHE_TAGS = 8
@@ -164,9 +165,10 @@ def _get_outlet_followers_map(outlet_ids):
     return {r.outlet: r.cnt for r in rows}
 
 
-def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=None, followers_map=None):
+def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=None, followers_map=None, counts_map=None):
     rating_map = rating_map or {}
     followers_map = followers_map or {}
+    counts = (counts_map or {}).get(c.name, {})
     return {
         "id": c.name,
         "videoUrl": c.video_url or "",
@@ -192,10 +194,12 @@ def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=N
             "lng": float(getattr(c, "location_lng", None) or 0),
             "radius": int(getattr(c, "location_radius", None) or 0),
         } if getattr(c, "location_name", None) else None,
-        "likes": c.likes_count or 0,
-        "saves": c.saves_count or 0,
-        "shares": c.shares_count or 0,
-        "views": c.views_count or 0,
+        # Redis-authoritative (see redis_counters.py) — `c.*_count` is only
+        # the fallback for an item that predates the backfill.
+        "likes": counts.get("likes", c.likes_count or 0),
+        "saves": counts.get("saves", c.saves_count or 0),
+        "shares": counts.get("shares", c.shares_count or 0),
+        "views": counts.get("views", c.views_count or 0),
         "isLiked": c.name in liked_set,
         "isSaved": c.name in saved_set,
         "offersCount": offers_map.get(c.outlet, 0) if c.outlet else 0,
@@ -204,24 +208,32 @@ def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=N
 
 
 def _fetch_interaction_sets(phone, chills_ids):
+    """Redis-authoritative (see redis_counters.py) — no DB round-trip here
+    once `backfill_from_db()` has run. Degrades to "nothing liked/saved"
+    rather than erroring if Redis is unreachable."""
     if not phone or not chills_ids:
         return set(), set()
-    placeholders = ",".join(["%s"] * len(chills_ids))
-    liked = {
-        r[0]
-        for r in frappe.db.sql(
-            f"SELECT chills FROM `tabChills Like` WHERE customer_phone=%s AND chills IN ({placeholders})",
-            [phone] + list(chills_ids),
-        )
-    }
-    saved = {
-        r[0]
-        for r in frappe.db.sql(
-            f"SELECT chills FROM `tabChills Save` WHERE customer_phone=%s AND chills IN ({placeholders})",
-            [phone] + list(chills_ids),
-        )
-    }
+    liked = rc.members_for("chills_likes", chills_ids, phone)
+    saved = rc.members_for("chills_saves", chills_ids, phone)
     return liked, saved
+
+
+def _fetch_counts_map(items):
+    """Batched Redis likes/saves/views for a list of Chills rows — each
+    dict falls back to that row's own DB column if Redis has no entry yet."""
+    ids = [c.name for c in items]
+    likes_fallback = {c.name: c.likes_count or 0 for c in items}
+    saves_fallback = {c.name: c.saves_count or 0 for c in items}
+    views_fallback = {c.name: c.views_count or 0 for c in items}
+    shares_fallback = {c.name: getattr(c, "shares_count", 0) or 0 for c in items}
+    likes = rc.get_counts("chills_likes", ids, likes_fallback)
+    saves = rc.get_counts("chills_saves", ids, saves_fallback)
+    views = rc.get_counts("chills_views", ids, views_fallback)
+    shares = rc.get_counts("chills_shares", ids, shares_fallback)
+    return {
+        i: {"likes": likes.get(i, 0), "saves": saves.get(i, 0), "views": views.get(i, 0), "shares": shares.get(i, 0)}
+        for i in ids
+    }
 
 
 # ── feed ────────────────────────────────────────────────────────────────────
@@ -337,6 +349,7 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
     offers_map = _get_offers_count_map(outlet_ids)
     rating_map = _get_outlet_ratings_map(outlet_ids)
     followers_map = _get_outlet_followers_map(outlet_ids)
+    counts_map = _fetch_counts_map(items)
 
     # The cursor only ever tracks the chronological (general) tail — the
     # one-off followed boost never participates in pagination math (see
@@ -348,7 +361,7 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
         next_cursor = f"{last.published_at}|{last.name}"
 
     result = {
-        "reels": [_format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map) for c in items],
+        "reels": [_format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map, counts_map) for c in items],
         "next_cursor": next_cursor,
         "has_more": has_more,
     }
@@ -375,12 +388,13 @@ def get_chills_detail(chills_id, phone=None):
 
     item = rows[0]
     liked_set, saved_set = _fetch_interaction_sets(phone, [item.name])
+    counts_map = _fetch_counts_map([item])
     follow_set = _get_outlet_follow_set(phone) if phone else set()
     outlet_ids = [item.outlet] if item.outlet else []
     offers_map = _get_offers_count_map(outlet_ids)
     rating_map = _get_outlet_ratings_map(outlet_ids)
     followers_map = _get_outlet_followers_map(outlet_ids)
-    return {"success": True, "data": _format_chills(item, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map)}
+    return {"success": True, "data": _format_chills(item, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map, counts_map)}
 
 
 # ── interactions ─────────────────────────────────────────────────────────────
@@ -390,25 +404,25 @@ def like_chills(chills_id, phone):
     phone = _require_phone(phone)
     if not chills_id:
         frappe.throw(_("chills_id is required"))
+    if not frappe.db.exists("Chills", chills_id):
+        frappe.throw(_("Chills not found"), frappe.DoesNotExistError)
 
-    exists = frappe.db.exists("Chills Like", {"chills": chills_id, "customer_phone": phone})
-    if exists:
-        frappe.delete_doc("Chills Like", exists, ignore_permissions=True)
-        frappe.db.sql(
-            "UPDATE `tabChills` SET likes_count = GREATEST(likes_count - 1, 0) WHERE name=%s",
-            chills_id,
-        )
-        frappe.db.commit()
-        return {"success": True, "data": {"liked": False, "id": chills_id}}
-    else:
-        doc = frappe.get_doc({"doctype": "Chills Like", "chills": chills_id, "customer_phone": phone})
-        doc.insert(ignore_permissions=True)
-        frappe.db.sql(
-            "UPDATE `tabChills` SET likes_count = likes_count + 1 WHERE name=%s",
-            chills_id,
-        )
-        frappe.db.commit()
-        return {"success": True, "data": {"liked": True, "id": chills_id}}
+    # Redis is authoritative for the toggle + live count (see
+    # redis_counters.py) — no synchronous DB write on the hot path. The
+    # durable `Chills Like` row is reconciled by a queued background job,
+    # and the counter column by the periodic flush job (hooks.py).
+    liked = rc.toggle_member("chills_likes", chills_id, phone)
+    rc.bump_count("chills_likes", chills_id, 1 if liked else -1)
+    frappe.enqueue(
+        "flamezo_backend.flamezo.utils.redis_counters.persist_toggle",
+        queue="short",
+        join_doctype="Chills Like",
+        join_parent_field="chills",
+        item_id=chills_id,
+        phone=phone,
+        active=liked,
+    )
+    return {"success": True, "data": {"liked": liked, "id": chills_id}}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -416,25 +430,21 @@ def save_chills(chills_id, phone):
     phone = _require_phone(phone)
     if not chills_id:
         frappe.throw(_("chills_id is required"))
+    if not frappe.db.exists("Chills", chills_id):
+        frappe.throw(_("Chills not found"), frappe.DoesNotExistError)
 
-    exists = frappe.db.exists("Chills Save", {"chills": chills_id, "customer_phone": phone})
-    if exists:
-        frappe.delete_doc("Chills Save", exists, ignore_permissions=True)
-        frappe.db.sql(
-            "UPDATE `tabChills` SET saves_count = GREATEST(saves_count - 1, 0) WHERE name=%s",
-            chills_id,
-        )
-        frappe.db.commit()
-        return {"success": True, "data": {"saved": False, "id": chills_id}}
-    else:
-        doc = frappe.get_doc({"doctype": "Chills Save", "chills": chills_id, "customer_phone": phone})
-        doc.insert(ignore_permissions=True)
-        frappe.db.sql(
-            "UPDATE `tabChills` SET saves_count = saves_count + 1 WHERE name=%s",
-            chills_id,
-        )
-        frappe.db.commit()
-        return {"success": True, "data": {"saved": True, "id": chills_id}}
+    saved = rc.toggle_member("chills_saves", chills_id, phone)
+    rc.bump_count("chills_saves", chills_id, 1 if saved else -1)
+    frappe.enqueue(
+        "flamezo_backend.flamezo.utils.redis_counters.persist_toggle",
+        queue="short",
+        join_doctype="Chills Save",
+        join_parent_field="chills",
+        item_id=chills_id,
+        phone=phone,
+        active=saved,
+    )
+    return {"success": True, "data": {"saved": saved, "id": chills_id}}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -487,6 +497,7 @@ def get_saved_chills(phone, cursor=None, limit=20):
     offers_map = _get_offers_count_map(outlet_ids)
     rating_map = _get_outlet_ratings_map(outlet_ids)
     followers_map = _get_outlet_followers_map(outlet_ids)
+    counts_map = _fetch_counts_map(items)
 
     next_cursor = None
     if has_more and items:
@@ -497,7 +508,7 @@ def get_saved_chills(phone, cursor=None, limit=20):
         "success": True,
         "data": {
             "reels": [
-                _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map)
+                _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map, counts_map)
                 for c in items
             ],
             "next_cursor": next_cursor,
@@ -508,7 +519,10 @@ def get_saved_chills(phone, cursor=None, limit=20):
 
 @frappe.whitelist(allow_guest=True)
 def record_chills_view(chills_id, phone):
-    """Idempotent per phone+chills+day. Increments views_count once per day."""
+    """Idempotent per phone+chills+day. Increments views_count once per day.
+    The counter itself is Redis-buffered (see redis_counters.py) — the
+    per-day dedup key below is a separate, unrelated Redis entry, already
+    the right pattern, just no longer feeding a synchronous DB write."""
     if not chills_id:
         return {"success": True, "data": {"ok": False}}
     site = getattr(frappe.local, "site", "default")
@@ -516,11 +530,7 @@ def record_chills_view(chills_id, phone):
     if frappe.cache().get(cache_key):
         return {"success": True, "data": {"ok": False, "reason": "already_counted"}}
     frappe.cache().set(cache_key, 1, ex=86400)
-    frappe.db.sql(
-        "UPDATE `tabChills` SET views_count = views_count + 1 WHERE name=%s",
-        chills_id,
-    )
-    frappe.db.commit()
+    rc.bump_count("chills_views", chills_id, 1)
     return {"success": True, "data": {"ok": True}}
 
 
@@ -717,19 +727,27 @@ def get_outlet_active_coupons(outlet_id):
 # ── shares ────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def increment_shares(chills_id):
-    """Atomically increment shares_count on a Chills document."""
+def increment_shares(chills_id, phone=None):
+    """Redis-buffered (see redis_counters.py) and — unlike before — actually
+    deduped: previously this had NO idempotency guard at all, so a retried
+    request or a double-tap silently double-counted every time. When a
+    phone is available (the normal case), dedupe once per phone+chills+
+    minute, same shape as record_chills_view's per-day dedup. Anonymous
+    callers fall back to a short per-chills cooldown — coarser, but still
+    catches the common double-tap case."""
     if not chills_id:
         frappe.throw(_("chills_id is required"))
+    if not frappe.db.exists("Chills", chills_id):
+        frappe.throw(_("Chills not found"), frappe.DoesNotExistError)
 
-    frappe.db.sql(
-        "UPDATE `tabChills` SET shares_count = shares_count + 1 WHERE name=%s",
-        chills_id,
-    )
-    frappe.db.commit()
+    site = getattr(frappe.local, "site", "default")
+    dedup_key = f"{site}:chills:share:{chills_id}:{phone}" if phone else f"{site}:chills:share_anon:{chills_id}"
+    if frappe.cache().get(dedup_key):
+        return {"success": True, "data": {"shares": rc.get_count("chills_shares", chills_id), "deduped": True}}
+    frappe.cache().set(dedup_key, 1, ex=60)
 
-    new_count = frappe.db.get_value("Chills", chills_id, "shares_count") or 0
-    return {"success": True, "data": {"shares": new_count}}
+    rc.bump_count("chills_shares", chills_id, 1)
+    return {"success": True, "data": {"shares": rc.get_count("chills_shares", chills_id)}}
 
 
 # ── merchant dashboard endpoints ─────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { useFrappeGetDoc, useFrappePostCall } from '@/lib/frappe';
 import RazorpayCheckout from '../components/RazorpayCheckout';
 import { OTPVerification } from '../components/OTPVerification';
 import AddressAutocomplete from '../components/ui/AddressAutocomplete';
-import { useRestaurant } from '../contexts/RestaurantContext';
+import { useOutlet } from '../contexts/OutletContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -45,7 +45,7 @@ interface PricingResult {
 }
 
 const Payment: React.FC = () => {
-  const { restaurantId } = useParams<{ restaurantId: string }>();
+  const { outletId } = useParams<{ outletId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -72,11 +72,11 @@ const Payment: React.FC = () => {
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
 
-  const { restaurantConfig, billingInfo } = useRestaurant();
-  const verifyMyUser = restaurantConfig?.settings?.verifyMyUser === true;
+  const { outletConfig, billingInfo } = useOutlet();
+  const verifyMyUser = outletConfig?.settings?.verifyMyUser === true;
 
   // API calls
-  const { data: restaurant } = useFrappeGetDoc('Restaurant', restaurantId);
+  const { data: restaurant } = useFrappeGetDoc('Restaurant', outletId);
   
   const { call: getCartItems } = useFrappePostCall<PricingResult>(
     'flamezo_backend.flamezo.api.cart.get_cart'
@@ -87,14 +87,14 @@ const Payment: React.FC = () => {
 
   // Load cart items when restaurant or delivery location changes
   useEffect(() => {
-    if (restaurantId) {
+    if (outletId) {
       loadCartItems();
     }
-  }, [restaurantId, deliveryLat, deliveryLng]);
+  }, [outletId, deliveryLat, deliveryLng]);
 
   const loadCartItems = async () => {
     try {
-      const params: any = { restaurant_id: restaurantId };
+      const params: any = { restaurant_id: outletId };
       if (deliveryLat && deliveryLng) {
         params.latitude = deliveryLat;
         params.longitude = deliveryLng;
@@ -182,7 +182,7 @@ const Payment: React.FC = () => {
     toast.success('Payment successful!');
     
     // Navigate to order confirmation page
-    navigate(`/restaurant/${restaurantId}/order/${orderId}`, {
+    navigate(`/restaurant/${outletId}/order/${orderId}`, {
       state: { paymentId, success: true }
     });
   };
@@ -199,7 +199,7 @@ const Payment: React.FC = () => {
     } else if (showOTPStep) {
       setShowOTPStep(false);
     } else {
-      navigate(`/restaurant/${restaurantId}/menu`);
+      navigate(`/restaurant/${outletId}/menu`);
     }
   };
 
@@ -227,7 +227,7 @@ const Payment: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => navigate(`/restaurant/${restaurantId}/menu`)}
+                onClick={() => navigate(`/restaurant/${outletId}/menu`)}
                 className="w-full"
               >
                 Browse Catalogue
@@ -334,8 +334,8 @@ const Payment: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <OTPVerification
-                    restaurantId={restaurantId!}
-                    restaurantName={restaurant.restaurant_name}
+                    outletId={outletId!}
+                    outletName={restaurant.restaurant_name}
                     phone={customerPhone}
                     name={customerName}
                     email={customerEmail}
@@ -439,7 +439,7 @@ const Payment: React.FC = () => {
               </Card>
             ) : (
               <RazorpayCheckout
-                restaurantId={restaurantId!}
+                outletId={outletId!}
                 orderItems={orderItems}
                 totalAmount={totalAmount}
                 customerName={customerName}

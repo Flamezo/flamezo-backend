@@ -38,7 +38,7 @@ class MenuCategory(Document):
 		# Verify the parent belongs to the same restaurant
 		parent_restaurant = frappe.db.get_value("Menu Category", self.parent_category, "restaurant")
 		if parent_restaurant != self.restaurant:
-			frappe.throw(_("Parent category must belong to the same restaurant."))
+			frappe.throw(_("Parent category must belong to the same outlet."))
 
 		# The parent itself must NOT already have a parent (max 2 levels: parent → sub)
 		grandparent = frappe.db.get_value("Menu Category", self.parent_category, "parent_category")

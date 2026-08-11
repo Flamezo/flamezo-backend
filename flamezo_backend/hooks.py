@@ -294,7 +294,7 @@ scheduler_events = {
 		],
 		# Google Growth: fetch insights daily
         "0 1 * * *": [
-            "flamezo_backend.flamezo.api.google_business.fetch_all_restaurant_insights"
+            "flamezo_backend.flamezo.api.google_business.fetch_all_outlet_insights"
         ],
 		# Loyalty: grant birthday bonus coins at 08:00 IST daily
 		"0 8 * * *": [
@@ -318,6 +318,10 @@ scheduler_events = {
 			"flamezo_backend.flamezo.tasks.extraction_recovery.recover_stuck_extractions",
 			# Chills: refresh candidate pool + new content + trending caches
 			"flamezo_backend.flamezo.api.chills_feed.refresh_candidates_snapshot",
+			# Redis-buffered counters (likes/saves/views/shares) — reads are
+			# already immediately consistent via Redis; this just keeps the
+			# durable MySQL columns in sync for reporting/backups.
+			"flamezo_backend.flamezo.utils.redis_counters.flush_all",
 			"flamezo_backend.flamezo.tasks.ugc_tasks.dispatch_ugc_cashback_nudges",
 			# Boost — self-heal campaigns whose Meta launch job never ran
 			# (worker restart / queue drop), capped at 3 retries then Failed + alert.

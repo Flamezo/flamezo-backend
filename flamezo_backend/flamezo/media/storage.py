@@ -45,16 +45,16 @@ def get_r2_client():
 	)
 
 
-def generate_object_key(restaurant_id, owner_doctype, owner_name, media_role, media_id, filename, variant=None):
+def generate_object_key(outlet_id, owner_doctype, owner_name, media_role, media_id, filename, variant=None):
 	"""
 	Generate object key for R2 storage
-	
+
 	Optimized format (removed bucket name and env prefix):
-	  restaurants/{restaurant_id}/menu_product/{product_id}/{media_id}/{variant}.webp
-	  restaurants/{restaurant_id}/menu_product/{product_id}/{media_id}/raw.{ext}
-	
+	  restaurants/{outlet_id}/menu_product/{product_id}/{media_id}/{variant}.webp
+	  restaurants/{outlet_id}/menu_product/{product_id}/{media_id}/raw.{ext}
+
 	Old format (too long):
-	  flamezo_backend-prod/prod/restaurants/{restaurant_id}/menu_product/{owner_name}/{media_role}/{media_id}/variants/{variant}
+	  flamezo_backend-prod/prod/restaurants/{outlet_id}/menu_product/{owner_name}/{media_role}/{media_id}/variants/{variant}
 	"""
 	# Map doctypes to folder names
 	doctype_map = {
@@ -62,22 +62,22 @@ def generate_object_key(restaurant_id, owner_doctype, owner_name, media_role, me
 		'Restaurant': 'restaurant',
 		'Restaurant Config': 'restaurant_config'
 	}
-	
+
 	doctype_folder = doctype_map.get(owner_doctype, 'other')
-	
+
 	# Sanitize IDs (remove special chars, keep alphanumeric and hyphens)
 	import re
-	restaurant_safe = re.sub(r'[^a-z0-9-]', '', restaurant_id.lower())
+	outlet_safe = re.sub(r'[^a-z0-9-]', '', outlet_id.lower())
 	owner_safe = re.sub(r'[^a-z0-9-]', '', owner_name.lower())
-	
-	# Build path: restaurants/{restaurant}/{doctype}/{owner}/{media_id}/{variant}
+
+	# Build path: restaurants/{outlet}/{doctype}/{owner}/{media_id}/{variant}
 	ext = filename.split('.')[-1] if '.' in filename else 'jpg'
 	if variant:
 		# Use .jpg for variants to match user preference and avoid mismatch mapping
-		return f"restaurants/{restaurant_safe}/{doctype_folder}/{owner_safe}/{media_id}/{variant}.{ext}"
+		return f"restaurants/{outlet_safe}/{doctype_folder}/{owner_safe}/{media_id}/{variant}.{ext}"
 	else:
 		# Raw: restaurants/unvind/menu_product/burger/med_abc123/raw.jpg
-		return f"restaurants/{restaurant_safe}/{doctype_folder}/{owner_safe}/{media_id}/raw.{ext}"
+		return f"restaurants/{outlet_safe}/{doctype_folder}/{owner_safe}/{media_id}/raw.{ext}"
 
 
 def generate_signed_upload_url(object_key, content_type, expiration=600):

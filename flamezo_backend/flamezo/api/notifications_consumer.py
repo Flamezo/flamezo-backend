@@ -44,6 +44,22 @@ def create_notification(customer_phone, title, body, notification_type="general"
         doc.insert(ignore_permissions=True)
         # Invalidate unread count cache
         frappe.cache().delete_value(f"notif:count:{customer_phone}")
+
+        # Best-effort push — a delivery failure must never affect the
+        # notification row itself (already durably created above).
+        try:
+            from flamezo_backend.flamezo.api.push_notifications import push_to_customer
+            push_to_customer(
+                customer_phone, title, body or "",
+                data={
+                    "notification_id": doc.name,
+                    "type": notification_type,
+                    "deep_link": deep_link or "",
+                },
+            )
+        except Exception:
+            pass
+
         return doc.name
     except Exception as e:
         frappe.log_error(f"create_notification failed: {e}")

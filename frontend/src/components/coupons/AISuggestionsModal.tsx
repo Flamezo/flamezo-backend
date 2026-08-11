@@ -70,7 +70,7 @@ export type InputMode = 'auto' | 'prompt' | 'poster'
 interface AISuggestionsModalProps {
   open: boolean
   onClose: () => void
-  restaurantId: string
+  outletId: string
   onUseSuggestion: (suggestion: AISuggestion) => void
   onSaveAll?: (suggestions: AISuggestion[]) => Promise<void>
   walletBalance?: number
@@ -326,7 +326,7 @@ function SuggestionCard({
 export function AISuggestionsModal({
   open,
   onClose,
-  restaurantId,
+  outletId,
   onUseSuggestion,
   onSaveAll,
   walletBalance = 0,
@@ -425,7 +425,7 @@ export function AISuggestionsModal({
     }
     try {
       const res = await generateSuggestions({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         tone,
         offer_type_filter: offerTypeFilter === 'any' ? null : offerTypeFilter,
         count: 6,

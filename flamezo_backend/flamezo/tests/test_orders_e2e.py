@@ -156,10 +156,10 @@ class TestGetMyOrders(unittest.TestCase):
         other = _make_restaurant("GMO02")
         _make_order(other, _PHONE, status="completed")
         try:
-            res = get_my_orders(phone=_PHONE, restaurant_id=self.restaurant)
+            res = get_my_orders(phone=_PHONE, outlet_id=self.restaurant)
             self.assertTrue(res["success"])
             for o in res["data"]["orders"]:
-                self.assertEqual(o["restaurant_id"], self.restaurant)
+                self.assertEqual(o["outlet_id"], self.restaurant)
         finally:
             _cleanup(other)
 
@@ -169,13 +169,13 @@ class TestGetMyOrders(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "MISSING_PARAM")
 
-    def test_response_includes_restaurant_name(self):
+    def test_response_includes_outlet_name(self):
         from flamezo_backend.flamezo.api.orders import get_my_orders
         res = get_my_orders(phone=_PHONE)
         self.assertTrue(res["success"])
         for o in res["data"]["orders"]:
-            self.assertIn("restaurant_name", o)
-            self.assertTrue(len(o["restaurant_name"]) > 0)
+            self.assertIn("outlet_name", o)
+            self.assertTrue(len(o["outlet_name"]) > 0)
 
 
 class TestGetOrderDetail(unittest.TestCase):
@@ -223,11 +223,11 @@ class TestGetOrderDetail(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "NOT_FOUND")
 
-    def test_includes_restaurant_info(self):
+    def test_includes_outlet_info(self):
         from flamezo_backend.flamezo.api.orders import get_order_detail
         res = get_order_detail(order_id=self.order_name, phone=_PHONE)
-        self.assertIn("restaurant_name", res["data"])
-        self.assertTrue(len(res["data"]["restaurant_name"]) > 0)
+        self.assertIn("outlet_name", res["data"])
+        self.assertTrue(len(res["data"]["outlet_name"]) > 0)
 
 
 class TestGetOrderStatus(unittest.TestCase):

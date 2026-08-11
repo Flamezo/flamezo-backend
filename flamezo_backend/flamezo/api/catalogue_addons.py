@@ -2,11 +2,11 @@
 Catalogue Addons API — link/unlink Addon Groups to Catalogue Items.
 
 Endpoints:
-  GET    get_item_addons(restaurant_id, item_id)
-  POST   link_addon_to_item(restaurant_id, item_id, addon_group_id, display_order)
-  DELETE unlink_addon_from_item(restaurant_id, item_id, addon_group_id)
-  POST   toggle_item_addon_enabled(restaurant_id, item_id, addon_group_id, is_enabled)
-  POST   reorder_item_addons(restaurant_id, item_id, order)
+  GET    get_item_addons(outlet_id, item_id)
+  POST   link_addon_to_item(outlet_id, item_id, addon_group_id, display_order)
+  DELETE unlink_addon_from_item(outlet_id, item_id, addon_group_id)
+  POST   toggle_item_addon_enabled(outlet_id, item_id, addon_group_id, is_enabled)
+  POST   reorder_item_addons(outlet_id, item_id, order)
 """
 import frappe
 import json
@@ -59,10 +59,10 @@ def _build_addon_list(doc):
 
 
 @frappe.whitelist()
-def get_item_addons(restaurant_id, item_id):
+def get_item_addons(outlet_id, item_id):
     """GET — return all addon groups linked to a catalogue item."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         doc = _get_catalogue_item(item_id, restaurant)
         return {"success": True, "data": _build_addon_list(doc)}
     except frappe.DoesNotExistError:
@@ -73,10 +73,10 @@ def get_item_addons(restaurant_id, item_id):
 
 
 @frappe.whitelist()
-def link_addon_to_item(restaurant_id, item_id, addon_group_id, display_order=0):
+def link_addon_to_item(outlet_id, item_id, addon_group_id, display_order=0):
     """POST — link an Addon Group to a Catalogue Item."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         doc = _get_catalogue_item(item_id, restaurant)
 
         # Validate addon group belongs to restaurant
@@ -105,10 +105,10 @@ def link_addon_to_item(restaurant_id, item_id, addon_group_id, display_order=0):
 
 
 @frappe.whitelist()
-def unlink_addon_from_item(restaurant_id, item_id, addon_group_id):
+def unlink_addon_from_item(outlet_id, item_id, addon_group_id):
     """DELETE — remove an Addon Group link from a Catalogue Item."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         doc = _get_catalogue_item(item_id, restaurant)
 
         rows_to_remove = [
@@ -131,10 +131,10 @@ def unlink_addon_from_item(restaurant_id, item_id, addon_group_id):
 
 
 @frappe.whitelist()
-def toggle_item_addon_enabled(restaurant_id, item_id, addon_group_id, is_enabled):
+def toggle_item_addon_enabled(outlet_id, item_id, addon_group_id, is_enabled):
     """POST — toggle is_enabled on a linked Addon Group row."""
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         doc = _get_catalogue_item(item_id, restaurant)
 
         found = False
@@ -157,13 +157,13 @@ def toggle_item_addon_enabled(restaurant_id, item_id, addon_group_id, is_enabled
 
 
 @frappe.whitelist()
-def reorder_item_addons(restaurant_id, item_id, order):
+def reorder_item_addons(outlet_id, item_id, order):
     """POST — bulk-update display_order on linked addon group rows.
 
     order: [{"addon_group_id": "<child row name>", "display_order": int}, ...]
     """
     try:
-        restaurant = validate_restaurant_for_api(restaurant_id)
+        restaurant = validate_restaurant_for_api(outlet_id)
         doc = _get_catalogue_item(item_id, restaurant)
 
         if isinstance(order, str):
