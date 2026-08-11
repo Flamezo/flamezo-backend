@@ -33,7 +33,7 @@ import { AISuggestionsModal, type AISuggestion, type InputMode } from '@/compone
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
@@ -256,7 +256,7 @@ const TEMPLATES: CouponTemplate[] = [
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Coupons() {
-  const { selectedRestaurant, isGold, restaurant } = useRestaurant()
+  const { selectedOutlet, isGold, restaurant } = useOutlet()
   const { formatAmountNoDecimals } = useCurrency()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<any>(null)
@@ -270,8 +270,8 @@ export default function Coupons() {
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
 
   const initialFilters = useMemo(() => {
-    if (!selectedRestaurant) return []
-    const f: any[] = [{ fieldname: 'restaurant', operator: '=', value: selectedRestaurant }]
+    if (!selectedOutlet) return []
+    const f: any[] = [{ fieldname: 'restaurant', operator: '=', value: selectedOutlet }]
     if (filterType === 'active') {
       f.push({ fieldname: 'is_active', operator: '=', value: 1 })
     } else if (filterType === 'inactive') {
@@ -280,7 +280,7 @@ export default function Coupons() {
       f.push({ fieldname: 'offer_type', operator: '=', value: filterType })
     }
     return f
-  }, [selectedRestaurant, filterType])
+  }, [selectedOutlet, filterType])
 
   const {
     data: coupons,
@@ -304,7 +304,7 @@ export default function Coupons() {
     orderBy: { field: 'creation', order: 'desc' },
     initialPageSize: 12,
     searchFields: ['name', 'code', 'description'],
-    debugId: `coupons-${selectedRestaurant}`,
+    debugId: `coupons-${selectedOutlet}`,
   })
 
   const { call: createCoupon } = useFrappePostCall('frappe.client.insert')
@@ -318,7 +318,7 @@ export default function Coupons() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateCoupon = async (formData: any) => {
-    await createCoupon({ doc: { doctype: 'Coupon', ...formData, restaurant: selectedRestaurant } })
+    await createCoupon({ doc: { doctype: 'Coupon', ...formData, restaurant: selectedOutlet } })
     // Await mutate so the list is refreshed before the dialog closes
     await mutate()
     setIsCreateDialogOpen(false)
@@ -414,7 +414,7 @@ export default function Coupons() {
             // Frappe Date fields reject '' — send null when the AI didn't set a date
             valid_from: form.valid_from || null,
             valid_until: form.valid_until || null,
-            restaurant: selectedRestaurant,
+            restaurant: selectedOutlet,
           },
         })
         saved++
@@ -454,7 +454,7 @@ export default function Coupons() {
   const handleOpenAIModal = async (openMode: InputMode = 'auto') => {
     setAiGateLoading(true)
     try {
-      const res = await checkFoodCostCoverage({ restaurant_id: selectedRestaurant })
+      const res = await checkFoodCostCoverage({ outlet_id: selectedOutlet })
       const payload = res?.message ?? res
       const data = payload?.data
       if (!payload?.success) {
@@ -493,7 +493,7 @@ export default function Coupons() {
 
   // ── Guards ────────────────────────────────────────────────────────────────
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="p-6">
         <EmptyState icon={AlertCircle} title="Select an Outlet"
@@ -586,7 +586,7 @@ export default function Coupons() {
             </div>
 
             {/* Claims analytics */}
-            <ClaimsAnalyticsCard restaurantId={selectedRestaurant} noCard />
+            <ClaimsAnalyticsCard outletId={selectedOutlet} noCard />
           </div>
         </DialogContent>
       </Dialog>
@@ -837,7 +837,7 @@ export default function Coupons() {
       <AISuggestionsModal
         open={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
-        restaurantId={selectedRestaurant!}
+        outletId={selectedOutlet!}
         initialMode={aiModalMode}
         onUseSuggestion={handleUseAISuggestion}
         onSaveAll={handleSaveAllAISuggestions}
@@ -939,7 +939,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
   onSave: (data: any) => Promise<void>
 }) {
   const { formatAmountNoDecimals } = useCurrency()
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [saving, setSaving] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [selectedPoolProducts, setSelectedPoolProducts] = useState<string[]>([])
@@ -949,7 +949,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
 
   const { data: productsData } = useFrappeGetDocList('Menu Product', {
     fields: ['product_id', 'product_name', 'category_name', 'main_category'],
-    filters: selectedRestaurant ? ({ restaurant: selectedRestaurant, is_active: 1 } as any) : undefined,
+    filters: selectedOutlet ? ({ restaurant: selectedOutlet, is_active: 1 } as any) : undefined,
     limit: 500,
     orderBy: { field: 'product_name', order: 'asc' } as any,
   })
@@ -1073,11 +1073,11 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
   }
 
   const handleGenerateImage = async () => {
-    if (!selectedRestaurant || !coupon?.name) return
+    if (!selectedOutlet || !coupon?.name) return
     setGeneratingImage(true)
     try {
       const res = await enqueueEnhancement({
-        restaurant: selectedRestaurant,
+        restaurant: selectedOutlet,
         owner_doctype: 'Coupon',
         owner_name: coupon.name,
         mode: 'generate',
@@ -1658,7 +1658,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
 
 // ─── Claims Analytics Card ────────────────────────────────────────────────────
 
-function ClaimsAnalyticsCard({ restaurantId, noCard }: { restaurantId: string; noCard?: boolean }) {
+function ClaimsAnalyticsCard({ outletId, noCard }: { outletId: string; noCard?: boolean }) {
   const [period, setPeriod] = useState('30d')
   const [showDetails, setShowDetails] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -1669,16 +1669,16 @@ function ClaimsAnalyticsCard({ restaurantId, noCard }: { restaurantId: string; n
   )
 
   const load = async (p = period) => {
-    if (!restaurantId) return
+    if (!outletId) return
     setLoading(true)
     try {
-      const res = await fetchAnalytics({ restaurant_id: restaurantId, period: p })
+      const res = await fetchAnalytics({ outlet_id: outletId, period: p })
       const payload = (res as any)?.message ?? res
       if (payload?.success) setAnalytics(payload.data)
     } catch { /* silent */ } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [restaurantId, period])
+  useEffect(() => { load() }, [outletId, period])
 
   const summary = analytics?.summary
   const byCoupon: any[] = analytics?.byCoupon || []

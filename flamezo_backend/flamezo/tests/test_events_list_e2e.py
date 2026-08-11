@@ -10,15 +10,15 @@ Covers:
     - Response shape: all required fields present
     - Restaurant info (restaurantName, restaurantCity) in consumer mode
 
-  Consumer mode (no restaurant_id):
+  Consumer mode (no outlet_id):
     - Aggregates events from all active restaurants
     - Inactive restaurant's events are excluded
     - Events from multiple active restaurants all appear
 
-  Restaurant-scoped mode (with restaurant_id):
+  Restaurant-scoped mode (with outlet_id):
     - Returns events for that restaurant only
     - Other restaurants' events excluded
-    - Invalid restaurant_id returns error
+    - Invalid outlet_id returns error
 
   Filters:
     - featured=True returns only featured events
@@ -31,7 +31,7 @@ Covers:
     - No active events returns empty list
     - Inactive event (is_active=0) excluded
     - recurring events included in upcoming_only mode
-    - Non-existent restaurant_id returns error
+    - Non-existent outlet_id returns error
 """
 
 import unittest
@@ -87,7 +87,7 @@ from flamezo_backend.flamezo.api import events as events_api
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestGetEventsConsumerMode(unittest.TestCase):
-    """get_events() with no restaurant_id — cross-restaurant discovery."""
+    """get_events() with no outlet_id — cross-restaurant discovery."""
 
     def setUp(self):
         _cleanup()
@@ -121,9 +121,9 @@ class TestGetEventsConsumerMode(unittest.TestCase):
         self.assertTrue(result["success"])
         events = result["data"]["events"]
         evt = next(e for e in events if e["title"] == "Event Alpha")
-        self.assertIn("restaurantName", evt)
-        self.assertIn("restaurantCity", evt)
-        self.assertTrue(len(evt["restaurantName"]) > 0)
+        self.assertIn("outletName", evt)
+        self.assertIn("outletCity", evt)
+        self.assertTrue(len(evt["outletName"]) > 0)
 
     def test_inactive_restaurant_events_excluded(self):
         inactive_rest = _make_restaurant("RINACTIVE", is_active=0)
@@ -168,7 +168,7 @@ class TestGetEventsConsumerMode(unittest.TestCase):
 
 
 class TestGetEventsRestaurantMode(unittest.TestCase):
-    """get_events(restaurant_id=...) — scoped to a single outlet."""
+    """get_events(outlet_id=...) — scoped to a single outlet."""
 
     def setUp(self):
         _cleanup()
@@ -181,20 +181,20 @@ class TestGetEventsRestaurantMode(unittest.TestCase):
         _cleanup()
 
     def test_only_that_restaurant_events_returned(self):
-        result = events_api.get_events(restaurant_id=self.rest1)
+        result = events_api.get_events(outlet_id=self.rest1)
         self.assertTrue(result["success"], result)
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertIn("RS01 Event A", titles)
         self.assertNotIn("RS02 Event B", titles)
 
     def test_invalid_restaurant_returns_error(self):
-        result = events_api.get_events(restaurant_id="NONEXISTENT-9999")
+        result = events_api.get_events(outlet_id="NONEXISTENT-9999")
         self.assertFalse(result["success"])
 
     def test_restaurant_with_no_events_returns_empty_list(self):
         empty_rest = _make_restaurant("RS03")
         try:
-            result = events_api.get_events(restaurant_id=empty_rest)
+            result = events_api.get_events(outlet_id=empty_rest)
             self.assertTrue(result["success"])
             self.assertEqual(result["data"]["events"], [])
         finally:
@@ -218,21 +218,21 @@ class TestGetEventsFilters(unittest.TestCase):
         _cleanup()
 
     def test_featured_filter_returns_only_featured(self):
-        result = events_api.get_events(restaurant_id=self.rest, featured=True)
+        result = events_api.get_events(outlet_id=self.rest, featured=True)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertIn("Filter Featured", titles)
         self.assertNotIn("Filter Upcoming", titles)
 
     def test_featured_false_excludes_featured(self):
-        result = events_api.get_events(restaurant_id=self.rest, featured=False)
+        result = events_api.get_events(outlet_id=self.rest, featured=False)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertNotIn("Filter Featured", titles)
         self.assertIn("Filter Upcoming", titles)
 
     def test_category_filter_narrows_results(self):
-        result = events_api.get_events(restaurant_id=self.rest, category="wellness")
+        result = events_api.get_events(outlet_id=self.rest, category="wellness")
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertIn("Filter Wellness", titles)
@@ -240,26 +240,26 @@ class TestGetEventsFilters(unittest.TestCase):
         self.assertNotIn("Filter Featured", titles)
 
     def test_upcoming_only_excludes_past(self):
-        result = events_api.get_events(restaurant_id=self.rest, upcoming_only=True)
+        result = events_api.get_events(outlet_id=self.rest, upcoming_only=True)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertNotIn("Filter Past", titles)
 
     def test_upcoming_only_true_includes_recurring(self):
-        result = events_api.get_events(restaurant_id=self.rest, upcoming_only=True)
+        result = events_api.get_events(outlet_id=self.rest, upcoming_only=True)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertIn("Filter Recurring", titles)
 
     def test_upcoming_only_false_includes_past(self):
-        result = events_api.get_events(restaurant_id=self.rest, upcoming_only=False)
+        result = events_api.get_events(outlet_id=self.rest, upcoming_only=False)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertIn("Filter Past", titles)
 
     def test_upcoming_only_default_is_true(self):
         # Default call should not include past events
-        result = events_api.get_events(restaurant_id=self.rest)
+        result = events_api.get_events(outlet_id=self.rest)
         self.assertTrue(result["success"])
         titles = [e["title"] for e in result["data"]["events"]]
         self.assertNotIn("Filter Past", titles)
@@ -297,14 +297,14 @@ class TestGetEventsResponseShape(unittest.TestCase):
         _cleanup()
 
     def test_non_recurring_block_is_false(self):
-        result = events_api.get_events(restaurant_id=self.rest)
+        result = events_api.get_events(outlet_id=self.rest)
         self.assertTrue(result["success"])
         evt = next(e for e in result["data"]["events"] if e["title"] == "Shape Test Event")
         self.assertIn("recurring", evt)
         self.assertFalse(evt["recurring"]["repeatThisEvent"])
 
     def test_recurring_block_includes_weekdays(self):
-        result = events_api.get_events(restaurant_id=self.rest)
+        result = events_api.get_events(outlet_id=self.rest)
         self.assertTrue(result["success"])
         evt = next(e for e in result["data"]["events"] if e["title"] == "Shape Recurring")
         self.assertTrue(evt["recurring"]["repeatThisEvent"])
@@ -315,7 +315,7 @@ class TestGetEventsResponseShape(unittest.TestCase):
         self.assertNotIn("Tuesday", weekdays)
 
     def test_featured_flag_is_bool(self):
-        result = events_api.get_events(restaurant_id=self.rest)
+        result = events_api.get_events(outlet_id=self.rest)
         self.assertTrue(result["success"])
         evt = next(e for e in result["data"]["events"] if e["title"] == "Shape Test Event")
         self.assertIsInstance(evt["featured"], bool)
@@ -338,7 +338,7 @@ class TestGetEventsResponseShape(unittest.TestCase):
         special.insert(ignore_permissions=True)
         frappe.db.commit()
 
-        result = events_api.get_events(restaurant_id=self.rest)
+        result = events_api.get_events(outlet_id=self.rest)
         self.assertTrue(result["success"])
         evt = next(e for e in result["data"]["events"] if e["title"] == "Shape Links Event")
         self.assertIn("google_maps_link", evt)

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useFrappeGetDocList, useFrappeGetCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 const FALLBACK_SYMBOLS: Record<string, string> = {
   'USD': '$',
@@ -16,24 +16,24 @@ const FALLBACK_SYMBOLS: Record<string, string> = {
 }
 
 /**
- * Hook to get currency symbol for the selected restaurant.
- * Uses restaurantConfig from get_restaurant_config API as primary source (avoids SWR cache).
+ * Hook to get currency symbol for the selected outlet.
+ * Uses outletConfig from get_outlet_config API as primary source (avoids SWR cache).
  * Fallback to direct DocType fetch when config not yet loaded.
  */
 export function useCurrency() {
-  const { selectedRestaurant, restaurantConfig } = useRestaurant()
-  const pricing = restaurantConfig?.pricing
+  const { selectedOutlet, outletConfig } = useOutlet()
+  const pricing = outletConfig?.pricing
 
   // Fallback: fetch only the currency field when pricing not from context (avoids fetching huge docs)
   const { data: configList } = useFrappeGetDocList('Restaurant Config', {
-    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['currency'],
     limit: 1,
   })
   const configData = configList?.[0] || null
 
   const { data: restaurantList } = useFrappeGetDocList('Restaurant', {
-    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['currency'],
     limit: 1,
   })

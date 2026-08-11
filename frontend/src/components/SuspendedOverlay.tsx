@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface SuspendedOverlayProps {
-  restaurantName: string
+  outletName: string
   reason?: string
 }
 
 export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
-  restaurantName,
+  outletName,
   reason = 'Your account has been suspended due to a billing issue. Please clear dues and contact support to reactivate.',
 }) => {
   return (
@@ -23,7 +23,7 @@ export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
             </div>
             <CardTitle className="text-2xl font-black tracking-tight uppercase">Account Suspended</CardTitle>
             <CardDescription className="text-base font-medium">
-              {restaurantName}
+              {outletName}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">

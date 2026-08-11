@@ -7,7 +7,7 @@ Cost: ZERO — FCM is free forever. No per-message charges.
 
 Architecture:
   - Customer browsers subscribe → endpoint stored on tabCustomer (push_endpoint JSON)
-  - Merchant (dashboard) browsers subscribe → endpoints stored on tabRestaurant Config
+  - Merchant (dashboard) browsers subscribe → endpoints stored on tabRestaurant Config (per outlet)
   - When order status changes → frappe.enqueue this module's send_* helpers
   - FCM HTTP v1 bearer token is obtained via Google service-account OAuth2 (cached 55 min)
 
@@ -183,7 +183,7 @@ def _send_fcm_message(fcm_token: str, title: str, body: str, data: dict = None, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
+def save_customer_subscription(outlet_id, fcm_token, customer_phone=None):
     """
     Saves a customer's FCM token so we can push order status updates to them.
     Called from ONO menu after browser grants notification permission.
@@ -192,7 +192,7 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
         if not fcm_token:
             return {"success": False, "error": "No FCM token provided"}
 
-        restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+        outlet_id = outlet_id.lower() if outlet_id else outlet_id
 
         if customer_phone:
             normalized = normalize_phone(str(customer_phone))
@@ -222,7 +222,7 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
         # Also store anonymously keyed by the token itself in a cache table
         # Use frappe.cache() for ephemeral storage (no extra doctype needed)
         frappe.cache().set_value(
-            f"push_token:{restaurant_id}:{fcm_token[:32]}",
+            f"push_token:{outlet_id}:{fcm_token[:32]}",
             fcm_token,
             expires_in_sec=30 * 24 * 3600  # 30 days
         )
@@ -234,7 +234,7 @@ def save_customer_subscription(restaurant_id, fcm_token, customer_phone=None):
 
 
 @frappe.whitelist()
-def save_merchant_subscription(restaurant_id, fcm_token):
+def save_merchant_subscription(outlet_id, fcm_token):
     """
     Saves a merchant's FCM token so new order alerts reach the dashboard even when
     the browser tab is in the background.
@@ -244,17 +244,17 @@ def save_merchant_subscription(restaurant_id, fcm_token):
         if not fcm_token:
             return {"success": False, "error": "No FCM token provided"}
 
-        restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+        outlet_id = outlet_id.lower() if outlet_id else outlet_id
 
         config = frappe.db.get_value(
             "Restaurant Config",
-            {"restaurant": restaurant_id},
+            {"restaurant": outlet_id},
             ["name", "merchant_push_tokens"],
             as_dict=True
         )
 
         if not config:
-            return {"success": False, "error": "Restaurant config not found"}
+            return {"success": False, "error": "Outlet config not found"}
 
         existing_raw = config.get("merchant_push_tokens") or "[]"
         try:
@@ -264,7 +264,7 @@ def save_merchant_subscription(restaurant_id, fcm_token):
 
         if fcm_token not in tokens:
             tokens.append(fcm_token)
-            tokens = tokens[-10:]  # Max 10 devices per restaurant
+            tokens = tokens[-10:]  # Max 10 devices per outlet
             frappe.db.set_value(
                 "Restaurant Config",
                 config.name,
@@ -280,7 +280,7 @@ def save_merchant_subscription(restaurant_id, fcm_token):
 
 
 @frappe.whitelist(allow_guest=True)
-def remove_customer_subscription(fcm_token, restaurant_id=None, customer_phone=None):
+def remove_customer_subscription(fcm_token, outlet_id=None, customer_phone=None):
     """
     Removes a customer FCM token (on unsubscribe or token rotation).
     """
@@ -449,7 +449,7 @@ def send_order_status_push_to_customer(order_name: str):
             "order_id": order.order_id or order.name,
             "order_number": str(order_num),
             "status": order.status,
-            "restaurant_id": order.restaurant,
+            "outlet_id": order.restaurant,
         }
 
         stale_tokens = []
@@ -491,12 +491,12 @@ def send_new_order_push_to_merchant(order_name: str):
     """
     try:
         order = frappe.get_doc("Order", order_name)
-        restaurant_id = order.restaurant
+        outlet_id = order.restaurant
 
         # Fetch merchant tokens from Restaurant Config
         config = frappe.db.get_value(
             "Restaurant Config",
-            {"restaurant": restaurant_id},
+            {"restaurant": outlet_id},
             "merchant_push_tokens"
         )
 
@@ -531,7 +531,7 @@ def send_new_order_push_to_merchant(order_name: str):
             "type": "new_order",
             "order_id": order.order_id or order.name,
             "order_number": str(order_num),
-            "restaurant_id": restaurant_id,
+            "outlet_id": outlet_id,
         }
 
         stale_tokens = []
@@ -550,7 +550,7 @@ def send_new_order_push_to_merchant(order_name: str):
         if stale_tokens:
             config_name = frappe.db.get_value(
                 "Restaurant Config",
-                {"restaurant": restaurant_id},
+                {"restaurant": outlet_id},
                 "name"
             )
             if config_name:

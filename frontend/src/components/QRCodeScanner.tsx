@@ -10,15 +10,15 @@ import { toast } from 'sonner'
 import { useFrappePostCall } from '@/lib/frappe'
 
 interface QRCodeScannerProps {
-  onScan: (tableNumber: number, restaurantId: string) => void
-  restaurantId: string
+  onScan: (tableNumber: number, outletId: string) => void
+  outletId: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 type ScanState = 'idle' | 'scanning' | 'success' | 'error'
 
-export default function QRCodeScanner({ onScan, restaurantId, open, onOpenChange }: QRCodeScannerProps) {
+export default function QRCodeScanner({ onScan, outletId, open, onOpenChange }: QRCodeScannerProps) {
   const [manualInput, setManualInput] = useState('')
   const [scanState, setScanState] = useState<ScanState>('idle')
   const [scanMessage, setScanMessage] = useState('')
@@ -131,9 +131,9 @@ export default function QRCodeScanner({ onScan, restaurantId, open, onOpenChange
       const response: any = await parseQrCode({ qr_data: qrDataValue.trim() })
 
       if (response?.message?.success && response?.message?.data) {
-        const { restaurantId: parsedId, tableNumber } = response.message.data
+        const { outletId: parsedId, tableNumber } = response.message.data
 
-        if (parsedId !== restaurantId) {
+        if (parsedId !== outletId) {
           setScanState('error')
           setScanMessage(`QR code belongs to a different restaurant (${parsedId})`)
           toast.error('Wrong Restaurant', {
@@ -178,7 +178,7 @@ export default function QRCodeScanner({ onScan, restaurantId, open, onOpenChange
     // If just a number, treat as table number for this restaurant
     const asNum = parseInt(input, 10)
     if (!isNaN(asNum) && String(asNum) === input) {
-      handleParseQrCode(`${restaurantId}/${asNum}`)
+      handleParseQrCode(`${outletId}/${asNum}`)
     } else {
       handleParseQrCode(input)
     }

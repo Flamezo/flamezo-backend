@@ -3,7 +3,7 @@
 
 """
 API endpoints for Table and Banquet Bookings
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -25,7 +25,7 @@ import json
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def create_table_booking(restaurant_id, number_of_diners, date, time_slot, customer_info=None, session_id=None, boost_campaign=None):
+def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_info=None, session_id=None, boost_campaign=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.create_table_booking
 	Create a new table reservation
@@ -37,8 +37,8 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 	as before.
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Parse customer_info if string
 		if isinstance(customer_info, str):
@@ -66,7 +66,7 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 		if not user and not session_id:
 			session_id = frappe.session.get("session_id")
 
-		# Validate the Boost campaign belongs to this restaurant before linking —
+		# Validate the Boost campaign belongs to this outlet before linking —
 		# never blocks the booking, just silently drops a mismatched/bad reference.
 		if boost_campaign and frappe.db.get_value("Boost Campaign", boost_campaign, "restaurant") != restaurant:
 			boost_campaign = None
@@ -129,16 +129,16 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def get_table_bookings(restaurant_id, status=None, date_from=None, date_to=None, page=1, limit=20, session_id=None, admin_mode=False):
+def get_table_bookings(outlet_id, status=None, date_from=None, date_to=None, page=1, limit=20, session_id=None, admin_mode=False):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.bookings.get_table_bookings
 	Get user's table bookings or all bookings in admin mode
 	"""
 	try:
-		# Validate restaurant (allow guest access for public bookings)
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user if admin_mode else None)
+		# Validate outlet (allow guest access for public bookings)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user if admin_mode else None)
 		
-		# Security: If admin_mode is requested, verify user has restaurant access
+		# Security: If admin_mode is requested, verify user has outlet access
 		if admin_mode:
 			from flamezo_backend.flamezo.utils.permissions import validate_restaurant_access
 			if not validate_restaurant_access(frappe.session.user, restaurant):
@@ -263,16 +263,16 @@ def get_table_bookings(restaurant_id, status=None, date_from=None, date_to=None,
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def get_available_time_slots(restaurant_id, date, number_of_diners=None):
+def get_available_time_slots(outlet_id, date, number_of_diners=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.bookings.get_available_time_slots
 	Get available time slots for table booking on a specific date
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
-		# Default time slots (can be configured per restaurant)
+		# Default time slots (can be configured per outlet)
 		all_slots = [
 			"11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM",
 			"2:00 PM", "2:30 PM", "6:00 PM", "6:30 PM", "7:00 PM", "7:30 PM",
@@ -316,14 +316,14 @@ def get_available_time_slots(restaurant_id, date, number_of_diners=None):
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, time_slot, customer_info=None, session_id=None):
+def create_banquet_booking(outlet_id, number_of_guests, event_type, date, time_slot, customer_info=None, session_id=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.create_banquet_booking
 	Create a new banquet/event booking
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Parse customer_info if string
 		if isinstance(customer_info, str):
@@ -409,14 +409,14 @@ def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, ti
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')  # This is for public/client checking their own banquet bookings
-def get_banquet_bookings(restaurant_id, status=None, event_type=None, date_from=None, date_to=None, page=1, limit=20, session_id=None):
+def get_banquet_bookings(outlet_id, status=None, event_type=None, date_from=None, date_to=None, page=1, limit=20, session_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.bookings.get_banquet_bookings
 	Get user's banquet bookings
 	"""
 	try:
-		# Validate restaurant (allow guest access for public bookings)
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet (allow guest access for public bookings)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get user
 		user = frappe.session.user if frappe.session.user != "Guest" else None
@@ -510,14 +510,14 @@ def get_banquet_bookings(restaurant_id, status=None, event_type=None, date_from=
 
 
 @frappe.whitelist(allow_guest=True)
-def get_banquet_available_time_slots(restaurant_id, date, number_of_guests=None, event_type=None):
+def get_banquet_available_time_slots(outlet_id, date, number_of_guests=None, event_type=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.bookings.get_banquet_available_time_slots
 	Get available time slots for banquet booking on a specific date
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Default time slots for banquets (typically fewer slots)
 		all_slots = [
@@ -561,23 +561,23 @@ def get_banquet_available_time_slots(restaurant_id, date, number_of_guests=None,
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def confirm_booking(booking_id, restaurant_id, assigned_table=None):
+def confirm_booking(booking_id, outlet_id, assigned_table=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.confirm_booking
 	Confirm a pending booking (staff only)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Get booking
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
-		# Verify booking belongs to this restaurant
+		# Verify booking belongs to this outlet
 		if booking.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this restaurant"}
+				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
 			}
 		
 		# Check if already confirmed
@@ -618,23 +618,23 @@ def confirm_booking(booking_id, restaurant_id, assigned_table=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def reject_booking(booking_id, restaurant_id, reason=None):
+def reject_booking(booking_id, outlet_id, reason=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.reject_booking
 	Reject a pending booking (staff only)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Get booking
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
-		# Verify booking belongs to this restaurant
+		# Verify booking belongs to this outlet
 		if booking.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this restaurant"}
+				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
 			}
 		
 		# Update status
@@ -664,31 +664,31 @@ def reject_booking(booking_id, restaurant_id, reason=None):
 
 
 @frappe.whitelist()
-def reassign_table(booking_id, restaurant_id, new_table_id):
+def reassign_table(booking_id, outlet_id, new_table_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.reassign_table
 	Reassign a booking to a different table (staff only)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Get booking
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
-		# Verify booking belongs to this restaurant
+		# Verify booking belongs to this outlet
 		if booking.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this restaurant"}
+				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
 			}
 		
-		# Verify new table belongs to restaurant
+		# Verify new table belongs to outlet
 		table = frappe.get_doc("Restaurant Table", new_table_id)
 		if table.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_TABLE", "message": "Table does not belong to this restaurant"}
+				"error": {"code": "INVALID_TABLE", "message": "Table does not belong to this outlet"}
 			}
 		
 		# Update table assignment
@@ -716,23 +716,23 @@ def reassign_table(booking_id, restaurant_id, new_table_id):
 
 
 @frappe.whitelist()
-def mark_no_show(booking_id, restaurant_id):
+def mark_no_show(booking_id, outlet_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.mark_no_show
 	Mark a booking as no-show (staff only)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Get booking
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
-		# Verify booking belongs to this restaurant
+		# Verify booking belongs to this outlet
 		if booking.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this restaurant"}
+				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
 			}
 		
 		# Update status
@@ -758,23 +758,23 @@ def mark_no_show(booking_id, restaurant_id):
 
 
 @frappe.whitelist()
-def mark_completed(booking_id, restaurant_id):
+def mark_completed(booking_id, outlet_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.mark_completed
 	Mark a booking as completed (staff only)
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Get booking
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
-		# Verify booking belongs to this restaurant
+		# Verify booking belongs to this outlet
 		if booking.restaurant != restaurant:
 			return {
 				"success": False,
-				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this restaurant"}
+				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
 			}
 		
 		# Update status
@@ -801,14 +801,14 @@ def mark_completed(booking_id, restaurant_id):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_admin_bookings(restaurant_id, date_from=None, date_to=None, status=None, page=1, limit=50, search_query=None):
+def get_admin_bookings(outlet_id, date_from=None, date_to=None, status=None, page=1, limit=50, search_query=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.bookings.get_admin_bookings
-	Get all bookings for restaurant admin dashboard
+	Get all bookings for outlet admin dashboard
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Build filters
 		filters = {"restaurant": restaurant}
@@ -929,14 +929,14 @@ def get_admin_bookings(restaurant_id, date_from=None, date_to=None, status=None,
 
 
 @frappe.whitelist()
-def get_restaurant_tables(restaurant_id):
+def get_outlet_tables(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.bookings.get_restaurant_tables
-	Get all tables for a restaurant
+	GET /api/method/flamezo_backend.flamezo.api.bookings.get_outlet_tables
+	Get all tables for an outlet
 	"""
 	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		# Validate outlet
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get all tables
 		tables = frappe.get_all(
@@ -975,7 +975,7 @@ def get_restaurant_tables(restaurant_id):
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_tables: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_tables: {str(e)}")
 		return {
 			"success": False,
 			"error": {"code": "FETCH_ERROR", "message": str(e)}
@@ -985,9 +985,9 @@ def get_restaurant_tables(restaurant_id):
 @frappe.whitelist(allow_guest=True)
 def get_all_customer_bookings(phone, limit=50):
 	"""
-	Cross-restaurant UPCOMING bookings for a verified customer — all types:
+	Cross-outlet UPCOMING bookings for a verified customer — all types:
 	  Table Booking, Banquet Booking, Service Appointment, Court Booking.
-	No restaurant_id — powers the consumer Activity badge/list ecosystem-wide.
+	No outlet_id — powers the consumer Activity badge/list ecosystem-wide.
 	"""
 	try:
 		from flamezo_backend.flamezo.utils.customer_helpers import (
@@ -1056,14 +1056,14 @@ def get_all_customer_bookings(phone, limit=50):
 		appt_rows     = _fetch_appointments()
 		court_rows    = _fetch_court_bookings()
 
-		# Gather all restaurant IDs for a single meta fetch
+		# Gather all outlet IDs for a single meta fetch
 		all_rows = table_rows + banquet_rows + appt_rows + court_rows
-		rest_ids = list({r.get("restaurant") for r in all_rows if r.get("restaurant")})
+		outlet_ids = list({r.get("restaurant") for r in all_rows if r.get("restaurant")})
 		meta = {}
-		if rest_ids:
+		if outlet_ids:
 			for m in frappe.get_all(
 				"Restaurant",
-				filters={"name": ["in", rest_ids]},
+				filters={"name": ["in", outlet_ids]},
 				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
 			):
 				meta[m["name"]] = m
@@ -1073,8 +1073,8 @@ def get_all_customer_bookings(phone, limit=50):
 			return {
 				"id": r.get("name"),
 				"type": btype,
-				"restaurantId": r.get("restaurant"),
-				"restaurantName": m.get("restaurant_name") or r.get("restaurant"),
+				"outletId": r.get("restaurant"),
+				"outletName": m.get("restaurant_name") or r.get("restaurant"),
 				"city": m.get("city") or "",
 				"logo": m.get("logo") or "",
 				"outlet_type": m.get("outlet_type") or "",

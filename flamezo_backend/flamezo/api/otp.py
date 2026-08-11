@@ -29,7 +29,7 @@ from flamezo_backend.flamezo.utils.otp_service import (
 
 
 @frappe.whitelist(allow_guest=True)
-def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None, channel=None, app_signature=None):
+def send_otp(outlet_id, phone, purpose="verification", outlet_name=None, channel=None, app_signature=None):
 	"""
 	Send OTP via WhatsApp (Meta Cloud API) first, SMS (Fast2SMS) fallback.
 	Every user must verify via OTP — no skip path.
@@ -56,7 +56,7 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 
 		# 1. Meta Cloud API (WhatsApp Business) — production primary
 		if channel != "sms":
-			if send_otp_via_whatsapp(normalized, otp, restaurant_name=restaurant_name or restaurant_id):
+			if send_otp_via_whatsapp(normalized, otp, outlet_name=outlet_name or outlet_id):
 				used_channel = "whatsapp"
 
 		# 2. Fallback to SMS if WhatsApp failed or was skipped
@@ -68,11 +68,11 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 					sms_key = settings.get_password("fast2sms_api_key") if settings else None
 				except Exception:
 					sms_key = None
-			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name=restaurant_name or restaurant_id, app_signature=app_signature):
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, outlet_name=outlet_name or outlet_id, app_signature=app_signature):
 				used_channel = "sms"
 
 		if not used_channel:
-			_create_otp_log(restaurant_id, phone, channel or "whatsapp", 0, purpose, "All channels failed")
+			_create_otp_log(outlet_id, phone, channel or "whatsapp", 0, purpose, "All channels failed")
 			return {"success": False, "error": "OTP_SEND_FAILED", "message": "Failed to send OTP"}
 
 		# Store OTP in cache
@@ -87,7 +87,7 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 		frappe.cache().set_value(rate_key, count + 1, expires_in_sec=3600)
 		frappe.cache().set_value(cooldown_key, "1", expires_in_sec=OTP_RESEND_COOLDOWN)
 
-		_create_otp_log(restaurant_id, phone, used_channel, 0, purpose, None)
+		_create_otp_log(outlet_id, phone, used_channel, 0, purpose, None)
 
 		return {
 			"success": True,
@@ -102,7 +102,7 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 
 
 @frappe.whitelist(allow_guest=True)
-def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral_id=None):
+def verify_otp(outlet_id, phone, otp, token, name=None, email=None, referral_id=None):
 	"""Verify OTP. On success, create/update Customer and return session token.
 	referral_id is accepted for API compatibility but no longer acted on here —
 	the Welcome Bonus is claimed explicitly via claim_referral_reward() in the UI."""
@@ -140,7 +140,7 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 			if not current:
 				frappe.db.set_value("Customer", customer.name, "verified_at", now_ts)
 			if frappe.db.has_column("Customer", "first_verified_at_restaurant"):
-				frappe.db.set_value("Customer", customer.name, "first_verified_at_restaurant", restaurant_id)
+				frappe.db.set_value("Customer", customer.name, "first_verified_at_restaurant", outlet_id)
 		# Ensure phone is set so is_phone_verified() finds this customer when order checks
 		if frappe.db.has_column("Customer", "phone"):
 			current_phone = frappe.db.get_value("Customer", customer.name, "phone")
@@ -179,7 +179,7 @@ def verify_otp(restaurant_id, phone, otp, token, name=None, email=None, referral
 def send_flamezo_otp(phone, purpose="verification", channel=None):
 	"""
 	Send a platform-level OTP for the FLAMEZO consumer super-app.
-	No restaurant_id is required. Uses "Flamezo" as the brand.
+	No outlet_id is required. Uses "Flamezo" as the brand.
 	"""
 	try:
 		normalized = normalize_phone(phone)
@@ -205,7 +205,7 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 		#    endpoint can't stall this request the way it used to (~25s → the app
 		#    sat on "Sending...").
 		if channel != "sms":
-			if send_otp_via_whatsapp(normalized, otp, restaurant_name="Flamezo"):
+			if send_otp_via_whatsapp(normalized, otp, outlet_name="Flamezo"):
 				used_channel = "whatsapp"
 
 		# 2. Fallback to SMS
@@ -217,7 +217,7 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 					sms_key = settings.get_password("fast2sms_api_key") if settings else None
 				except Exception:
 					sms_key = None
-			if sms_key and send_otp_via_sms(sms_key, normalized, otp, restaurant_name="Flamezo"):
+			if sms_key and send_otp_via_sms(sms_key, normalized, otp, outlet_name="Flamezo"):
 				used_channel = "sms"
 
 		if not used_channel:
@@ -792,11 +792,11 @@ def _resolve_customer_from_token() -> str:
     return customer_id
 
 
-def _create_otp_log(restaurant_id, phone, channel, verified, purpose, error_message):
+def _create_otp_log(outlet_id, phone, channel, verified, purpose, error_message):
 	try:
 		frappe.get_doc({
 			"doctype": "OTP Verification Log",
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"phone": phone,
 			"channel": channel,
 			"verified": verified,

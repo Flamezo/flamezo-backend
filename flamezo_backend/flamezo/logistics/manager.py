@@ -2,8 +2,8 @@ import frappe
 from frappe.utils import flt, cint
 
 class LogisticsManager:
-    def __init__(self, restaurant_name):
-        self.restaurant = frappe.get_doc("Restaurant", restaurant_name)
+    def __init__(self, outlet_name):
+        self.restaurant = frappe.get_doc("Restaurant", outlet_name)
         self.settings = frappe.get_single("Flamezo Settings")
         self.provider = None
 
@@ -36,7 +36,7 @@ class LogisticsManager:
             "delivery_fee": delivery_charge,
             "logistics_platform_fee": 0,
             "provider": "Self",
-            "note": "Self delivery — managed by restaurant's own rider."
+            "note": "Self delivery — managed by outlet's own rider."
         }
 
     def cancel_delivery(self, delivery_id):

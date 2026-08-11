@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, Users, Receipt, Banknote, Target, CheckSquare, BarChart3, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { useCurrency } from '@/hooks/useCurrency'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { cn } from '@/lib/utils'
 
 function MetricCard({ 
@@ -105,9 +105,9 @@ function OutcomeCheck({ text, highlight = false }: any) {
 
 export default function GrowthDashboard() {
   const { formatAmountNoDecimals } = useCurrency()
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
 
-  if (selectedRestaurant !== 'unvind') {
+  if (selectedOutlet !== 'unvind') {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 animate-in fade-in">
         <div className="p-4 bg-primary/10 rounded-full">

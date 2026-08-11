@@ -1,7 +1,7 @@
 import { Fragment, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
 import { CustomersSkeleton } from '@/components/PageSkeletons'
 
-interface RestaurantCustomer {
+interface OutletCustomer {
   id: string
   phone: string | null
   customerName: string
@@ -35,9 +35,9 @@ interface RestaurantCustomer {
   is_unlocked?: boolean
 }
 
-interface RestaurantData {
-  restaurant_id: string
-  restaurant_name: string
+interface OutletData {
+  outlet_id: string
+  outlet_name: string
   tableBookings: unknown[]
   banquetBookings: unknown[]
 }
@@ -46,13 +46,13 @@ interface CustomerProfileData {
   success: boolean
   data?: {
     customer: { id: string; phone: string; customerName: string; email?: string; birthday?: string; verifiedAt?: string }
-    restaurants: RestaurantData[]
+    restaurants: OutletData[]
   }
   error?: string
 }
 
 export default function Customers() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const { formatAmountNoDecimals } = useCurrency()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null)
@@ -72,16 +72,16 @@ export default function Customers() {
     setSearchQuery,
     mutate: refreshCustomers
   } = useDataTable
-      <RestaurantCustomer>({
-        customEndpoint: 'flamezo_backend.flamezo.api.customers.get_restaurant_customers',
-        customParams: { restaurant_id: selectedRestaurant },
+      <OutletCustomer>({
+        customEndpoint: 'flamezo_backend.flamezo.api.customers.get_outlet_customers',
+        customParams: { outlet_id: selectedOutlet },
         paramNames: {
           page: 'page',
           pageSize: 'page_size',
           search: 'search'
         },
         initialPageSize: 20,
-        debugId: `restaurant-customers-${selectedRestaurant}`
+        debugId: `outlet-customers-${selectedOutlet}`
       })
 
   // Customer data extractor
@@ -89,18 +89,18 @@ export default function Customers() {
     return fetchedCustomers || []
   }, [fetchedCustomers])
 
-  const { restaurantConfig, refreshConfig } = useRestaurant()
-  const isVerifyEnabled = restaurantConfig?.settings?.verifyMyUser ?? false
+  const { outletConfig, refreshConfig } = useOutlet()
+  const isVerifyEnabled = outletConfig?.settings?.verifyMyUser ?? false
 
   const { call: setValue } = useFrappePostCall('frappe.client.set_value')
 
   const handleToggleVerify = async (checked: boolean) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setIsUpdatingVerify(true)
     try {
       await setValue({
         doctype: 'Restaurant Config',
-        name: selectedRestaurant,
+        name: selectedOutlet,
         fieldname: 'verify_my_user',
         value: checked ? 1 : 0
       })
@@ -122,7 +122,7 @@ export default function Customers() {
     setProfileLoading(true)
     setProfileData(null)
     try {
-      const res = await getCustomerProfile({ customer_id: customerId, restaurant_id: selectedRestaurant })
+      const res = await getCustomerProfile({ customer_id: customerId, outlet_id: selectedOutlet })
       const body = (res as { message?: CustomerProfileData })?.message ?? (res as CustomerProfileData)
       setProfileData(body)
     } catch {
@@ -144,7 +144,7 @@ export default function Customers() {
     }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="p-6">
         <Card className="border-none shadow-sm ring-1 ring-border">
@@ -336,7 +336,7 @@ export default function Customers() {
               <div className="space-y-6">
                 <div>
                   {profileData.data.restaurants.map((rest) => (
-                    <div key={rest.restaurant_id} className="space-y-4">
+                    <div key={rest.outlet_id} className="space-y-4">
                       
                       <div className="flex gap-4">
                         {rest.tableBookings && rest.tableBookings.length > 0 && (

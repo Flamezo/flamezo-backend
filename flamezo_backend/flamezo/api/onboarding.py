@@ -4,9 +4,9 @@ from frappe import _
 from frappe.utils import get_url, now_datetime
 
 @frappe.whitelist()
-def generate_onboarding_link(restaurant_name=None, linked_restaurant=None):
+def generate_onboarding_link(outlet_name=None, linked_restaurant=None):
     """
-    Generate a unique onboarding link for a restaurant.
+    Generate a unique onboarding link for an outlet.
     Targeted for Flamezo Admin.
     """
     try:
@@ -16,21 +16,21 @@ def generate_onboarding_link(restaurant_name=None, linked_restaurant=None):
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        if not restaurant_name and not linked_restaurant:
-            return {'success': False, 'error': 'Restaurant name or direct link is required'}
+        if not outlet_name and not linked_restaurant:
+            return {'success': False, 'error': 'Outlet name or direct link is required'}
 
         # If linked_restaurant is provided, get the name
         if linked_restaurant:
             res_details = frappe.db.get_value('Restaurant', linked_restaurant, ['restaurant_name', 'owner_email', 'owner_phone'], as_dict=1)
             if res_details:
-                restaurant_name = res_details.get('restaurant_name')
+                outlet_name = res_details.get('restaurant_name')
 
         # Generate a secure token
         token = secrets.token_urlsafe(16)
         
         # Create the onboarding record
         doc = frappe.new_doc('Restaurant Onboarding')
-        doc.restaurant_name = restaurant_name
+        doc.restaurant_name = outlet_name
         doc.linked_restaurant = linked_restaurant
         
         # Prefill from existing if available
@@ -78,7 +78,7 @@ def get_onboarding_details(token):
         
         # Step 1-6 (Defensive checks for fields that might not have synced to DB yet)
         data_dict = {
-            'restaurant_name': doc.restaurant_name,
+            'outlet_name': doc.restaurant_name,
             'owner_name': getattr(doc, 'owner_name', None),
             'owner_email': getattr(doc, 'owner_email', None),
             'owner_phone': getattr(doc, 'owner_phone', None),
@@ -139,7 +139,7 @@ def get_onboarding_details(token):
 @frappe.whitelist(allow_guest=True)
 def submit_onboarding_data(token, data):
     """
-    Saves data submitted by the restaurant owner.
+    Saves data submitted by the outlet owner.
     Public endpoint.
     """
     try:
@@ -217,7 +217,8 @@ def get_all_onboarding_requests():
         for r in requests:
             if not r.get('onboarding_link') and r.get('unique_token'):
                 r['onboarding_link'] = f"{base_url}/onboard?token={r['unique_token']}"
-        
+            r['outlet_name'] = r.pop('restaurant_name', None)
+
         return {
             'success': True,
             'data': requests
@@ -287,7 +288,7 @@ def get_onboarding_by_name(name):
 
         data = {
             'name': doc.name,
-            'restaurant_name': doc.restaurant_name,
+            'outlet_name': doc.restaurant_name,
             'linked_restaurant': getattr(doc, 'linked_restaurant', None),
             'status': doc.status,
             'owner_name': getattr(doc, 'owner_name', None),
@@ -337,7 +338,7 @@ def get_onboarding_by_name(name):
 
 
 @frappe.whitelist()
-def sync_onboarding_to_restaurant(name):
+def sync_onboarding_to_outlet(name):
     """
     Syncs onboarding submission data to the linked Restaurant doc and its Restaurant Config.
     Marks the onboarding as Completed and records who finalized it.
@@ -354,7 +355,7 @@ def sync_onboarding_to_restaurant(name):
         if not doc.linked_restaurant:
             return {
                 'success': False,
-                'error': 'No linked restaurant found. This onboarding must be linked to an existing restaurant before syncing.'
+                'error': 'No linked outlet found. This onboarding must be linked to an existing outlet before syncing.'
             }
 
         restaurant = doc.linked_restaurant
@@ -362,7 +363,7 @@ def sync_onboarding_to_restaurant(name):
         # ── Sync to Restaurant ──────────────────────────────────────────────
         res_doc = frappe.get_doc('Restaurant', restaurant)
 
-        restaurant_field_map = {
+        outlet_field_map = {
             'owner_name': 'owner_name',
             'owner_email': 'owner_email',
             'owner_phone': 'owner_phone',
@@ -385,7 +386,7 @@ def sync_onboarding_to_restaurant(name):
             'description': 'description',
         }
 
-        for onboard_field, res_field in restaurant_field_map.items():
+        for onboard_field, res_field in outlet_field_map.items():
             value = getattr(doc, onboard_field, None)
             if value is not None and value != '':
                 setattr(res_doc, res_field, value)
@@ -439,7 +440,7 @@ def sync_onboarding_to_restaurant(name):
         return {
             'success': True,
             'message': f'Synced to {res_doc.restaurant_name} successfully',
-            'data': {'restaurant': restaurant}
+            'data': {'outlet_id': restaurant}
         }
     except Exception as e:
         frappe.log_error('Sync Onboarding Error', str(e))

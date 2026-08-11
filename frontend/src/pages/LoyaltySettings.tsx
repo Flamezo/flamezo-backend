@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall, useFrappeGetDoc, useFrappeGetCall } from '@/lib/frappe'
 import { LoyaltySettingsSkeleton } from '@/components/PageSkeletons'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,13 +38,13 @@ const PLATFORM = {
 }
 
 export default function LoyaltySettings() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [saving, setSaving] = useState(false)
   const [enableLoyalty, setEnableLoyalty] = useState(false)
 
   const { data: restaurantDoc, isLoading, mutate: mutateRestaurant } = useFrappeGetDoc(
-    'Restaurant', selectedRestaurant || '',
-    selectedRestaurant ? `Restaurant-${selectedRestaurant}` : null
+    'Restaurant', selectedOutlet || '',
+    selectedOutlet ? `Restaurant-${selectedOutlet}` : null
   )
 
   // Kept for backwards compatibility with the loyalty config endpoint
@@ -52,8 +52,8 @@ export default function LoyaltySettings() {
   // per-restaurant customisation hooks).
   useFrappeGetCall(
     'flamezo_backend.flamezo.api.loyalty.get_loyalty_config',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `LoyaltyConfig-${selectedRestaurant}` : undefined
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `LoyaltyConfig-${selectedOutlet}` : undefined
   )
 
   // Resolved display values.
@@ -72,11 +72,11 @@ export default function LoyaltySettings() {
   }, [restaurantDoc])
 
   const saveSettings = async (newValue: boolean) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setSaving(true)
     try {
       const response: any = await updateLoyaltyConfig({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         enable_loyalty: newValue,
         config: {}   // No restaurant-configurable fields in centralized model
       })

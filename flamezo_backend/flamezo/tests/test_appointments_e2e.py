@@ -79,7 +79,7 @@ class TestCreateAppointment(unittest.TestCase):
     def test_create_happy_path(self):
         from flamezo_backend.flamezo.api.appointments import create_appointment
         res = create_appointment(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             customer_name="Jane Doe",
             customer_phone=_PHONE,
             appointment_date=add_days(today(), 3),
@@ -101,7 +101,7 @@ class TestCreateAppointment(unittest.TestCase):
     def test_past_date_blocked(self):
         from flamezo_backend.flamezo.api.appointments import create_appointment
         res = create_appointment(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             customer_name="Jane Doe",
             customer_phone=_PHONE,
             appointment_date=add_days(today(), -1),
@@ -112,14 +112,14 @@ class TestCreateAppointment(unittest.TestCase):
 
     def test_missing_required_params(self):
         from flamezo_backend.flamezo.api.appointments import create_appointment
-        res = create_appointment(restaurant_id=self.restaurant)
+        res = create_appointment(outlet_id=self.restaurant)
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "MISSING_PARAM")
 
     def test_nonexistent_restaurant(self):
         from flamezo_backend.flamezo.api.appointments import create_appointment
         res = create_appointment(
-            restaurant_id="FAKE-9999",
+            outlet_id="FAKE-9999",
             customer_name="Jane",
             customer_phone=_PHONE,
             appointment_date=add_days(today(), 1),
@@ -229,7 +229,7 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
 
     def test_confirm_appointment(self):
         from flamezo_backend.flamezo.api.appointments import confirm_appointment
-        res = confirm_appointment(appointment_id=self.appt, restaurant_id=self.restaurant)
+        res = confirm_appointment(appointment_id=self.appt, outlet_id=self.restaurant)
         self.assertTrue(res["success"], res)
         doc = frappe.get_doc("Service Appointment", self.appt)
         self.assertEqual(doc.status, "Confirmed")
@@ -239,7 +239,7 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
         from flamezo_backend.flamezo.api.appointments import reject_appointment
         res = reject_appointment(
             appointment_id=self.appt,
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             reason="Fully booked that day",
         )
         self.assertTrue(res["success"], res)
@@ -250,8 +250,8 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
 
     def test_mark_completed(self):
         from flamezo_backend.flamezo.api.appointments import confirm_appointment, mark_appointment_completed
-        confirm_appointment(appointment_id=self.appt, restaurant_id=self.restaurant)
-        res = mark_appointment_completed(appointment_id=self.appt, restaurant_id=self.restaurant)
+        confirm_appointment(appointment_id=self.appt, outlet_id=self.restaurant)
+        res = mark_appointment_completed(appointment_id=self.appt, outlet_id=self.restaurant)
         self.assertTrue(res["success"], res)
         doc = frappe.get_doc("Service Appointment", self.appt)
         self.assertEqual(doc.status, "Completed")
@@ -259,8 +259,8 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
 
     def test_mark_no_show(self):
         from flamezo_backend.flamezo.api.appointments import confirm_appointment, mark_appointment_no_show
-        confirm_appointment(appointment_id=self.appt, restaurant_id=self.restaurant)
-        res = mark_appointment_no_show(appointment_id=self.appt, restaurant_id=self.restaurant)
+        confirm_appointment(appointment_id=self.appt, outlet_id=self.restaurant)
+        res = mark_appointment_no_show(appointment_id=self.appt, outlet_id=self.restaurant)
         self.assertTrue(res["success"], res)
         self.assertEqual(
             frappe.db.get_value("Service Appointment", self.appt, "status"),
@@ -269,13 +269,13 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
 
     def test_cross_restaurant_access_blocked(self):
         from flamezo_backend.flamezo.api.appointments import confirm_appointment
-        res = confirm_appointment(appointment_id=self.appt, restaurant_id=self.other_rest)
+        res = confirm_appointment(appointment_id=self.appt, outlet_id=self.other_rest)
         self.assertFalse(res["success"])
 
     def test_get_appointment_requests_filter_by_status(self):
         from flamezo_backend.flamezo.api.appointments import get_appointment_requests
         _make_appointment(self.restaurant, _PHONE, status="Confirmed")
-        res = get_appointment_requests(restaurant_id=self.restaurant, status="Pending")
+        res = get_appointment_requests(outlet_id=self.restaurant, status="Pending")
         self.assertTrue(res["success"])
         for a in res["data"]["appointments"]:
             self.assertEqual(a["status"], "Pending")
@@ -284,7 +284,7 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
         from flamezo_backend.flamezo.api.appointments import get_appointment_requests
         target = add_days(today(), 2)
         _make_appointment(self.restaurant, _PHONE, date=add_days(today(), 5))
-        res = get_appointment_requests(restaurant_id=self.restaurant, date=target)
+        res = get_appointment_requests(outlet_id=self.restaurant, date=target)
         self.assertTrue(res["success"])
         for a in res["data"]["appointments"]:
             self.assertEqual(a["appointment_date"], str(target))
@@ -293,7 +293,7 @@ class TestMerchantAppointmentManagement(unittest.TestCase):
         from flamezo_backend.flamezo.api.appointments import get_appointment_summary
         target_date = add_days(today(), 2)
         _make_appointment(self.restaurant, _PHONE2, date=target_date, status="Confirmed")
-        res = get_appointment_summary(restaurant_id=self.restaurant, date=str(target_date))
+        res = get_appointment_summary(outlet_id=self.restaurant, date=str(target_date))
         self.assertTrue(res["success"], res)
         summary = res["data"]
         self.assertGreaterEqual(summary["by_status"]["Pending"], 1)

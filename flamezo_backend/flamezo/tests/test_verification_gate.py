@@ -403,7 +403,7 @@ class TestValidateCouponGate(unittest.TestCase):
 
         with _patch_session(False):
             res = validate_coupon(
-                restaurant_id=self._res,
+                outlet_id=self._res,
                 coupon_code=self._code,
                 cart_total=500,
                 phone="9300000003",
@@ -417,7 +417,7 @@ class TestValidateCouponGate(unittest.TestCase):
 
         # Even without patching session, the no-token path triggers
         res = validate_coupon(
-            restaurant_id=self._res, coupon_code=self._code, cart_total=500
+            outlet_id=self._res, coupon_code=self._code, cart_total=500
         )
         # Either the missing-phone branch fires or the get_customer_from_token returns None
         self.assertFalse(res.get("success"))

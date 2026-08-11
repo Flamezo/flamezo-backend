@@ -51,7 +51,7 @@ LOGO_PATH = os.path.normpath(os.path.join(
 @frappe.whitelist(allow_guest=True)
 def start_story_download(
     template_url, media_type,
-    restaurant_name="",
+    outlet_name="",
     coupon_code=None, discount_type=None, discount_value=None,
     offer_description=None, valid_until=None,
 ):
@@ -81,7 +81,7 @@ def start_story_download(
             job_id=job_id,
             template_url=template_url,
             media_type=media_type,
-            restaurant_name=restaurant_name or "",
+            outlet_name=outlet_name or "",
             coupon_code=coupon_code,
             discount_type=discount_type,
             discount_value=discount_value,
@@ -95,7 +95,7 @@ def start_story_download(
             "flamezo_backend.flamezo.api.story_generator._run_job",
             queue="default", timeout=300, job_id=job_id,
             template_url=template_url, media_type=media_type,
-            restaurant_name=restaurant_name or "", coupon_code=coupon_code,
+            outlet_name=outlet_name or "", coupon_code=coupon_code,
             discount_type=discount_type, discount_value=discount_value,
             offer_description=offer_description, valid_until=valid_until,
         )
@@ -115,7 +115,7 @@ def get_story_download_status(job_id):
 # ─── Background Job ───────────────────────────────────────────────────────────
 
 def _run_job(
-    job_id, template_url, media_type, restaurant_name="",
+    job_id, template_url, media_type, outlet_name="",
     coupon_code=None, discount_type=None, discount_value=None,
     offer_description=None, valid_until=None,
 ):
@@ -180,7 +180,7 @@ def _run_job(
             overlay_path = os.path.join(tmp, "overlay.png")
             _render_overlay(
                 tmp, overlay_path, w, h,
-                restaurant_name, coupon_code, discount_type,
+                outlet_name, coupon_code, discount_type,
                 discount_value, offer_description, valid_until,
             )
 
@@ -207,7 +207,7 @@ def _run_job(
 
 # ─── Overlay Rendering ────────────────────────────────────────────────────────
 
-def _render_overlay(tmp, out_png, w, h, restaurant_name, coupon_code,
+def _render_overlay(tmp, out_png, w, h, outlet_name, coupon_code,
                     discount_type, discount_value, offer_description, valid_until):
     """
     Render the overlay at w×h resolution.
@@ -217,7 +217,7 @@ def _render_overlay(tmp, out_png, w, h, restaurant_name, coupon_code,
     chrome = _find_chrome()
     if chrome:
         html_path = os.path.join(tmp, "overlay.html")
-        _write_overlay_html(html_path, w, h, restaurant_name, coupon_code,
+        _write_overlay_html(html_path, w, h, outlet_name, coupon_code,
                             discount_type, discount_value, offer_description, valid_until)
         result = subprocess.run(
             [
@@ -239,11 +239,11 @@ def _render_overlay(tmp, out_png, w, h, restaurant_name, coupon_code,
         frappe.log_error(result.stderr.decode()[:2000], "Chrome headless overlay failed — using Pillow fallback")
 
     # Pillow fallback
-    _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
+    _render_overlay_pillow(out_png, w, h, outlet_name, coupon_code,
                            discount_type, discount_value, offer_description, valid_until)
 
 
-def _write_overlay_html(path, w, h, restaurant_name, coupon_code,
+def _write_overlay_html(path, w, h, outlet_name, coupon_code,
                         discount_type, discount_value, offer_description, valid_until):
     """Generate the overlay HTML at native resolution — mirrors StoryTemplateFrame.tsx."""
 
@@ -342,13 +342,13 @@ def _write_overlay_html(path, w, h, restaurant_name, coupon_code,
           {discount_line}
         </p>"""
 
-    restaurant_html = ""
-    if restaurant_name:
-        restaurant_html = f"""
+    outlet_html = ""
+    if outlet_name:
+        outlet_html = f"""
         <p style="color:rgba(255,255,255,0.45);font-size:{fz(0.021)}px;margin:0;font-weight:600;
                   letter-spacing:0.055em;text-transform:uppercase;white-space:nowrap;
                   overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">
-          {restaurant_name}
+          {outlet_name}
         </p>"""
 
     html = f"""<!DOCTYPE html>
@@ -382,9 +382,9 @@ body {{ width:{w}px; height:{h}px; background:transparent; overflow:hidden; posi
             border-radius:{round(w*0.035)}px;border:0.5px solid rgba(255,255,255,0.14);
             padding:{strip_py}px {strip_px}px;display:flex;flex-direction:column;gap:{row_gap}px;overflow:hidden;">
 
-  <!-- Row 1: restaurant name + coupon chip -->
+  <!-- Row 1: outlet name + coupon chip -->
   <div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:{round(w*0.02)}px;">
-    {restaurant_html}
+    {outlet_html}
     {coupon_chip_html}
   </div>
 
@@ -404,7 +404,7 @@ body {{ width:{w}px; height:{h}px; background:transparent; overflow:hidden; posi
         f.write(html)
 
 
-def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
+def _render_overlay_pillow(out_png, w, h, outlet_name, coupon_code,
                             discount_type, discount_value, offer_description, valid_until):
     """Pillow fallback overlay — draws the full FLAMEZO frame (logo + QR + coupon
     card) burned into the media. Used when headless Chrome is unavailable so the
@@ -460,8 +460,8 @@ def _render_overlay_pillow(out_png, w, h, restaurant_name, coupon_code,
         discount_line = ""
 
     rows = []
-    if restaurant_name:
-        rows.append((restaurant_name.upper(), font(int(w * 0.028)), (255, 255, 255, 150)))
+    if outlet_name:
+        rows.append((outlet_name.upper(), font(int(w * 0.028)), (255, 255, 255, 150)))
     if discount_line:
         rows.append((discount_line, font(int(w * 0.075)), (255, 255, 255, 255)))
     rows.append((offer_description or "on your next visit", font(int(w * 0.030), bold=False), (255, 255, 255, 175)))

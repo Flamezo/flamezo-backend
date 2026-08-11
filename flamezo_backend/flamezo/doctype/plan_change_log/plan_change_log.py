@@ -22,4 +22,4 @@ class PlanChangeLog(Document):
 		
 		# Validate restaurant exists
 		if self.restaurant and not frappe.db.exists("Restaurant", self.restaurant):
-			frappe.throw(f"Restaurant {self.restaurant} does not exist")
+			frappe.throw(f"Outlet {self.restaurant} does not exist")

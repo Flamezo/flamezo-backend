@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -77,7 +77,7 @@ async function putToR2(uploadUrl: string, file: File | Blob, contentType: string
 
 export default function ChillsUpload() {
   const navigate = useNavigate()
-  const { selectedRestaurant, isLoading: outletLoading, restaurantConfig } = useRestaurant()
+  const { selectedOutlet, isLoading: outletLoading, outletConfig } = useOutlet()
 
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null)
@@ -96,9 +96,9 @@ export default function ChillsUpload() {
   const [errorMsg, setErrorMsg] = useState('')
   const [publishedId, setPublishedId] = useState('')
 
-  const outletLat = restaurantConfig?.restaurant?.latitude as number | undefined
-  const outletLng = restaurantConfig?.restaurant?.longitude as number | undefined
-  const outletName = restaurantConfig?.restaurant?.name as string | undefined
+  const outletLat = outletConfig?.restaurant?.latitude as number | undefined
+  const outletLng = outletConfig?.restaurant?.longitude as number | undefined
+  const outletName = outletConfig?.restaurant?.name as string | undefined
 
   const seedOutletLocation = useCallback(() => {
     if (outletLat && outletLng && outletName) {
@@ -109,7 +109,7 @@ export default function ChillsUpload() {
   // Pre-seed when config first loads
   useEffect(() => {
     if (!chillsLocation) seedOutletLocation()
-  }, [restaurantConfig]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [outletConfig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const videoInputRef = useRef<HTMLInputElement>(null)
   const thumbInputRef = useRef<HTMLInputElement>(null)
@@ -160,13 +160,13 @@ export default function ChillsUpload() {
   // ── Upload & publish ────────────────────────────────────────────────────────
 
   const handlePublish = useCallback(async () => {
-    if (!videoFile || !selectedRestaurant) return
+    if (!videoFile || !selectedOutlet) return
     try {
       setStage('uploading-video')
       setVideoProgress(0)
       const mimeType = videoFile.type || 'video/mp4'
       const videoRes = await requestUpload({
-        outlet_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         filename: videoFile.name,
         content_type: mimeType,
         kind: 'video',
@@ -184,7 +184,7 @@ export default function ChillsUpload() {
         setStage('uploading-thumbnail')
         setThumbProgress(0)
         const thumbRes = await requestUpload({
-          outlet_id: selectedRestaurant,
+          outlet_id: selectedOutlet,
           filename: 'thumbnail.jpg',
           content_type: 'image/jpeg',
           kind: 'thumbnail',
@@ -200,7 +200,7 @@ export default function ChillsUpload() {
 
       setStage('publishing')
       const pubRes = await publishChills({
-        outlet_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         object_key: videoSession.object_key,
         description: description.trim(),
         thumbnail_key: thumbnailKey,
@@ -223,7 +223,7 @@ export default function ChillsUpload() {
       setStage('error')
       toast.error(err?.message ?? 'Upload failed.')
     }
-  }, [videoFile, selectedRestaurant, description, customThumbnailFile, thumbnailBlob, nicheTags, customTags, chillsLocation, requestUpload, publishChills])
+  }, [videoFile, selectedOutlet, description, customThumbnailFile, thumbnailBlob, nicheTags, customTags, chillsLocation, requestUpload, publishChills])
 
   const resetForm = useCallback(() => {
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl)
@@ -434,7 +434,7 @@ export default function ChillsUpload() {
                 onNicheChange={setNicheTags}
                 customTags={customTags}
                 onCustomChange={setCustomTags}
-                outletId={selectedRestaurant ?? ''}
+                outletId={selectedOutlet ?? ''}
                 caption={description}
                 disabled={isUploading}
               />

@@ -5,7 +5,7 @@
 E2E tests for the production discovery APIs:
   - flamezo.get_all_outlets    (discovery feed)
   - flamezo.get_outlets_for_map (map markers)
-  - restaurant.get_restaurant_detail (full outlet detail)
+  - outlet.get_outlet_detail (full outlet detail)
 
 Covers:
   get_all_outlets:
@@ -30,10 +30,10 @@ Covers:
     - Response shape: id, name, logo, lat, lng, outlet_type, is_featured, active_offers_count
     - Result cached
 
-  get_restaurant_detail:
+  get_outlet_detail:
     - Returns full outlet detail
     - All required fields present (photos, hours_json, cuisines, amenities_mask, etc.)
-    - Lookup by restaurant_id field
+    - Lookup by outlet_id field
     - Lookup by internal name
     - Not found returns NOT_FOUND error
     - active_offers_count reflects real coupons
@@ -131,7 +131,7 @@ def _cleanup():
 
 
 from flamezo_backend.flamezo.api import flamezo as flamezo_api
-from flamezo_backend.flamezo.api import restaurant as restaurant_api
+from flamezo_backend.flamezo.api import outlet as outlet_api
 
 
 # ── get_all_outlets ───────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ class TestGetAllRestaurants(unittest.TestCase):
         result = flamezo_api.get_all_outlets()
         self.assertTrue(result["success"])
         card = result["data"]["outlets"][0]
-        for field in ("id", "restaurant_name", "logo", "outlet_type", "city",
+        for field in ("id", "outlet_name", "logo", "outlet_type", "city",
                       "latitude", "longitude", "is_featured", "cuisines",
                       "amenities_mask", "hours_json", "is_open_now",
                       "active_offers_count", "distance_km"):
@@ -389,7 +389,7 @@ class TestGetRestaurantsForMap(unittest.TestCase):
         self.assertNotIn(self.r3, ids)
 
 
-# ── get_restaurant_detail ─────────────────────────────────────────────────────
+# ── get_outlet_detail ─────────────────────────────────────────────────────
 
 class TestGetRestaurantDetail(unittest.TestCase):
 
@@ -424,17 +424,17 @@ class TestGetRestaurantDetail(unittest.TestCase):
         _cleanup()
 
     def test_returns_full_detail(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         self.assertTrue(result["success"], result)
         data = result["data"]
         self.assertEqual(data["id"], self.rest)
         self.assertEqual(data["outlet_type"], "wellness")
 
     def test_all_required_fields_present(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         data = result["data"]
         for field in (
-            "id", "restaurant_name", "logo", "outlet_type",
+            "id", "outlet_name", "logo", "outlet_type",
             "address", "city", "latitude", "longitude",
             "phone", "whatsapp", "instagram_url", "description",
             "is_featured", "rating", "review_count",
@@ -445,23 +445,23 @@ class TestGetRestaurantDetail(unittest.TestCase):
             self.assertIn(field, data, f"Missing field: {field}")
 
     def test_cuisines_returned_as_list(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         self.assertIsInstance(result["data"]["cuisines"], list)
         self.assertIn("Healthy", result["data"]["cuisines"])
         self.assertIn("Vegan", result["data"]["cuisines"])
 
     def test_hours_json_returned_as_dict(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         self.assertIsInstance(result["data"]["hours_json"], dict)
         self.assertIn("mon", result["data"]["hours_json"])
 
     def test_rating_and_review_count(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         self.assertEqual(result["data"]["rating"], 4.5)
         self.assertEqual(result["data"]["amenities_mask"], 3)
 
     def test_photos_included(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         photos = result["data"]["photos"]
         self.assertIsInstance(photos, list)
         self.assertGreater(len(photos), 0)
@@ -472,28 +472,28 @@ class TestGetRestaurantDetail(unittest.TestCase):
         coupon = _make_coupon(self.rest)
         frappe.cache().delete_value(f"flamezo:outlet_detail:{self.rest}")
         try:
-            result = restaurant_api.get_restaurant_detail(self.rest)
+            result = outlet_api.get_outlet_detail(self.rest)
             self.assertEqual(result["data"]["active_offers_count"], 1)
         finally:
             frappe.delete_doc("Coupon", coupon, force=True, ignore_permissions=True)
             frappe.db.commit()
 
     def test_lookup_by_internal_name(self):
-        result = restaurant_api.get_restaurant_detail(self.rest)
+        result = outlet_api.get_outlet_detail(self.rest)
         self.assertTrue(result["success"])
         self.assertEqual(result["data"]["id"], self.rest)
 
     def test_not_found_returns_error(self):
-        result = restaurant_api.get_restaurant_detail("NONEXISTENT-REST-XYZ")
+        result = outlet_api.get_outlet_detail("NONEXISTENT-REST-XYZ")
         self.assertFalse(result["success"])
         self.assertEqual(result["error"]["code"], "NOT_FOUND")
 
     def test_missing_restaurant_id_returns_error(self):
-        result = restaurant_api.get_restaurant_detail(None)
+        result = outlet_api.get_outlet_detail(None)
         self.assertFalse(result["success"])
 
     def test_response_cached(self):
-        restaurant_api.get_restaurant_detail(self.rest)
+        outlet_api.get_outlet_detail(self.rest)
         cached = frappe.cache().get_value(f"flamezo:outlet_detail:{self.rest}")
         self.assertIsNotNone(cached)
         parsed = json.loads(cached)

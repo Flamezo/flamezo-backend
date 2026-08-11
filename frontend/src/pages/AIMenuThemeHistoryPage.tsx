@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { toast } from 'sonner'
 import { Loader2, Image as ImageIcon, Download, Eye, ArrowLeft, Calendar, Sparkles } from 'lucide-react'
@@ -35,7 +35,7 @@ interface ThemeStatusResponse {
 }
 
 export default function AIMenuThemeHistoryPage() {
-  const { selectedRestaurant, restaurantConfig } = useRestaurant()
+  const { selectedOutlet, outletConfig } = useOutlet()
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const { call: getThemeStatus } = useFrappePostCall<ThemeStatusResponse>('flamezo_backend.flamezo.api.ai_media.get_menu_theme_background_status')
@@ -47,13 +47,13 @@ export default function AIMenuThemeHistoryPage() {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      if (!selectedRestaurant) {
+      if (!selectedOutlet) {
         setIsLoading(false)
         return
       }
       setIsLoading(true)
       try {
-        const res: any = await getThemeStatus({ restaurant: selectedRestaurant })
+        const res: any = await getThemeStatus({ restaurant: selectedOutlet })
         const payload = res?.message || res
         if (!cancelled && payload?.success) {
           setStatus(payload)
@@ -72,11 +72,11 @@ export default function AIMenuThemeHistoryPage() {
     return () => {
       cancelled = true
     }
-  }, [getThemeStatus, selectedRestaurant])
+  }, [getThemeStatus, selectedOutlet])
 
   const history = useMemo(
-    () => status?.history || restaurantConfig?.branding?.menuThemeBackgroundHistory || [],
-    [status, restaurantConfig]
+    () => status?.history || outletConfig?.branding?.menuThemeBackgroundHistory || [],
+    [status, outletConfig]
   )
 
   const handleDownload = (url: string, name: string) => {
@@ -96,11 +96,11 @@ export default function AIMenuThemeHistoryPage() {
   }
 
   const handleActivate = async (imageUrl: string) => {
-    if (!selectedRestaurant || !imageUrl) return
+    if (!selectedOutlet || !imageUrl) return
     try {
-      await activateThemeBackground({ restaurant: selectedRestaurant, image_url: imageUrl })
+      await activateThemeBackground({ restaurant: selectedOutlet, image_url: imageUrl })
       toast.success('Theme background activated')
-      const res: any = await getThemeStatus({ restaurant: selectedRestaurant })
+      const res: any = await getThemeStatus({ restaurant: selectedOutlet })
       const payload = res?.message || res
       if (payload?.success) {
         setStatus(payload)
@@ -110,7 +110,7 @@ export default function AIMenuThemeHistoryPage() {
     }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Please select an outlet</div>
   }
 

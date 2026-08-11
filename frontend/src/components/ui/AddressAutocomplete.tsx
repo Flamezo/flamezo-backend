@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MapPin, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 interface AddressAutocompleteProps {
   value: string
@@ -49,7 +49,7 @@ export default function AddressAutocomplete({
   const [placesService, setPlacesService] = useState<any>(null)
   const [sessionToken, setSessionToken] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const { googleMapsApiKey } = useRestaurant()
+  const { googleMapsApiKey } = useOutlet()
   const activeMapsKey = googleMapsApiKey || ENV_MAPS_API_KEY
   const [isSelected, setIsSelected] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)

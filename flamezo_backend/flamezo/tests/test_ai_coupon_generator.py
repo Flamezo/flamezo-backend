@@ -258,8 +258,8 @@ class TestBuildPrompt(unittest.TestCase):
         _cleanup(self.restaurant_id)
 
     def _get_prompt(self, tone="attractive", offer_type_filter=None, count=6):
-        from flamezo_backend.flamezo.services.ai.coupon_generator import _get_restaurant_context, _build_prompt
-        context = _get_restaurant_context(self.restaurant_id)
+        from flamezo_backend.flamezo.services.ai.coupon_generator import _get_outlet_context, _build_prompt
+        context = _get_outlet_context(self.restaurant_id)
         return _build_prompt(context, tone, offer_type_filter, count)
 
     def test_prompt_contains_restaurant_name(self):
@@ -306,8 +306,8 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertIn("4", prompt)
 
     def test_context_has_correct_stats(self):
-        from flamezo_backend.flamezo.services.ai.coupon_generator import _get_restaurant_context
-        ctx = _get_restaurant_context(self.restaurant_id)
+        from flamezo_backend.flamezo.services.ai.coupon_generator import _get_outlet_context
+        ctx = _get_outlet_context(self.restaurant_id)
         self.assertGreater(ctx["stats"]["total_items"], 0)
         self.assertGreater(ctx["stats"]["avg_item_price"], 0)
         self.assertIn("food", " ".join(ctx["stats"]["categories"] or [""]).lower() + "food")
@@ -366,7 +366,7 @@ class TestGenerateSuggestionsWithMock(unittest.TestCase):
             from flamezo_backend.flamezo.services.ai import coupon_generator
             # Import fresh to bypass any cached state
             return coupon_generator.generate_suggestions(
-                restaurant_id=self.restaurant_id,
+                outlet_id=self.restaurant_id,
                 tone=tone,
                 offer_type_filter=offer_type_filter,
                 count=3,
@@ -475,7 +475,7 @@ class TestGenerateCouponSuggestionsAPI(unittest.TestCase):
         with patch("flamezo_backend.flamezo.services.ai.coupon_generator.get_gemini_client", return_value=mock_model):
             from flamezo_backend.flamezo.api.coupons import generate_coupon_suggestions
             return generate_coupon_suggestions(
-                restaurant_id=self.restaurant_id,
+                outlet_id=self.restaurant_id,
                 tone=tone,
                 offer_type_filter=offer_type_filter,
                 count=count,
@@ -500,7 +500,7 @@ class TestGenerateCouponSuggestionsAPI(unittest.TestCase):
 
     def test_get_ai_coupon_quota_endpoint(self):
         from flamezo_backend.flamezo.api.coupons import get_ai_coupon_quota
-        result = get_ai_coupon_quota(restaurant_id=self.restaurant_id)
+        result = get_ai_coupon_quota(outlet_id=self.restaurant_id)
         self.assertTrue(result["success"])
         self.assertIn("data", result)
         data = result["data"]
@@ -662,7 +662,7 @@ class TestLiveGeneration(unittest.TestCase):
     def _generate(self, tone="attractive", offer_type_filter=None):
         from flamezo_backend.flamezo.services.ai.coupon_generator import generate_suggestions
         return generate_suggestions(
-            restaurant_id=self.restaurant_id,
+            outlet_id=self.restaurant_id,
             tone=tone,
             offer_type_filter=offer_type_filter,
             count=4,

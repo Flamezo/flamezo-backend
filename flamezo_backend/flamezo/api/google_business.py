@@ -34,14 +34,14 @@ def handle_product_update(doc, method=None):
             # Enqueue sync to avoid slowing down save
             frappe.enqueue(
                 "flamezo_backend.flamezo.api.google_business.sync_menu_to_google",
-                restaurant_id=doc.restaurant,
+                outlet_id=doc.restaurant,
                 now=frappe.flags.in_test
             )
     except Exception as e:
         # Non-critical: log and continue — do NOT let this break product saves
         frappe.log_error("handle_product_update Error", str(e))
 
-def fetch_all_restaurant_insights():
+def fetch_all_outlet_insights():
     """
     Fetch insights for all restaurants that have Google Sync enabled.
     """
@@ -49,11 +49,11 @@ def fetch_all_restaurant_insights():
     for r in restaurants:
         frappe.enqueue(
             "flamezo_backend.flamezo.api.google_business.fetch_google_insights",
-            restaurant_id=r.name
+            outlet_id=r.name
         )
 
 @frappe.whitelist()
-def get_google_auth_url(restaurant_id):
+def get_google_auth_url(outlet_id):
     """
     Returns the Google OAuth2 URL for the restaurant owner to authorize GMB management.
     Fetches credentials from frappe.conf.
@@ -79,7 +79,7 @@ def get_google_auth_url(restaurant_id):
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/business.manage",
-        "state": restaurant_id,
+        "state": outlet_id,
         "access_type": "offline",
         "prompt": "consent"
     }
@@ -94,7 +94,7 @@ def get_google_auth_url(restaurant_id):
 def google_callback(code, state):
     """
     OAuth2 callback handler. Exchanges code for tokens and saves them.
-    `state` contains the restaurant_id.
+    `state` contains the outlet_id.
     """
     client_id = frappe.conf.get("google_client_id")
     client_secret = frappe.conf.get("google_client_secret")
@@ -144,8 +144,8 @@ def google_callback(code, state):
                         locations = loc_res.json().get("locations", [])
                         if locations:
                             # Try to match by name or just take the first one
-                            restaurant_name = frappe.db.get_value("Restaurant", state, "restaurant_name")
-                            match = next((l for l in locations if l.get("title") == restaurant_name), locations[0])
+                            outlet_name = frappe.db.get_value("Restaurant", state, "restaurant_name")
+                            match = next((l for l in locations if l.get("title") == outlet_name), locations[0])
                             frappe.db.set_value("Restaurant", state, "google_business_location_id", match.get("name"))
         except Exception as e:
             frappe.log_error("Google Auto-Discovery Failed", str(e))
@@ -158,11 +158,11 @@ def google_callback(code, state):
     frappe.local.response["type"] = "redirect"
     frappe.local.response["location"] = f"{dashboard_base}/flamezo_backend/google-growth?linked=success"
 
-def get_google_access_token(restaurant_id):
+def get_google_access_token(outlet_id):
     """
     Refreshes and returns a valid Google access token for the restaurant.
     """
-    refresh_token = frappe.db.get_value("Restaurant", restaurant_id, "google_refresh_token")
+    refresh_token = frappe.db.get_value("Restaurant", outlet_id, "google_refresh_token")
     if not refresh_token:
         return None
         
@@ -185,24 +185,24 @@ def get_google_access_token(restaurant_id):
         return None
 
 @frappe.whitelist()
-def sync_menu_to_google(restaurant_id):
+def sync_menu_to_google(outlet_id):
     """
     Syncs the Flamezo menu to Google Business Profile.
     """
-    restaurant = frappe.get_doc("Restaurant", restaurant_id)
+    restaurant = frappe.get_doc("Restaurant", outlet_id)
     if not restaurant.enable_google_sync:
-        return {"success": False, "message": "Google Sync is disabled for this restaurant."}
+        return {"success": False, "message": "Google Sync is disabled for this outlet."}
     
     if not restaurant.google_business_location_id:
         return {"success": False, "message": "Google Location ID missing."}
 
-    access_token = get_google_access_token(restaurant_id)
+    access_token = get_google_access_token(outlet_id)
     if not access_token:
         return {"success": False, "message": "Google Account not authorized."}
 
     # Fetch all active products
     products = frappe.get_all("Menu Product", 
-        filters={"restaurant": restaurant_id, "is_active": 1},
+        filters={"restaurant": outlet_id, "is_active": 1},
         fields=["product_name", "description", "price", "category_name"]
     )
 
@@ -239,12 +239,12 @@ def sync_menu_to_google(restaurant_id):
     }
 
 @frappe.whitelist()
-def fetch_google_insights(restaurant_id):
+def fetch_google_insights(outlet_id):
     """
     Fetches performance data from Google Business Profile API.
     """
-    restaurant = frappe.get_doc("Restaurant", restaurant_id)
-    access_token = get_google_access_token(restaurant_id)
+    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    access_token = get_google_access_token(outlet_id)
     
     if not access_token or not restaurant.google_business_location_id:
         # Return zeroed data for production state
@@ -266,12 +266,12 @@ def fetch_google_insights(restaurant_id):
     return insights_data
 
 @frappe.whitelist()
-def get_google_reviews(restaurant_id):
+def get_google_reviews(outlet_id):
     """
     Fetches Google Reviews for the dashboard.
     """
-    restaurant = frappe.get_doc("Restaurant", restaurant_id)
-    access_token = get_google_access_token(restaurant_id)
+    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    access_token = get_google_access_token(outlet_id)
     
     if not access_token or not restaurant.google_business_location_id:
         # Return empty list or real reviews if we have them
@@ -291,7 +291,7 @@ def get_google_reviews(restaurant_id):
     return []
 
 @frappe.whitelist()
-def generate_review_reply(review_text, rating, restaurant_id=None):
+def generate_review_reply(review_text, rating, outlet_id=None):
     """
     Uses OpenAI to generate a professional, SEO-optimized reply to a Google Review.
     """
@@ -300,8 +300,8 @@ def generate_review_reply(review_text, rating, restaurant_id=None):
         client = get_openai_client()
         
         res_context = ""
-        if restaurant_id:
-            res = frappe.get_doc("Restaurant", restaurant_id)
+        if outlet_id:
+            res = frappe.get_doc("Restaurant", outlet_id)
             city = res.city or ""
             res_name = res.restaurant_name or res.name
             contact_info = f"Phone: {res.owner_phone}" if res.owner_phone else ""
@@ -309,7 +309,7 @@ def generate_review_reply(review_text, rating, restaurant_id=None):
                 contact_info += f" Email: {res.owner_email}"
             
             top_products = frappe.get_all("Menu Product", 
-                filters={"restaurant": restaurant_id, "is_active": 1},
+                filters={"restaurant": outlet_id, "is_active": 1},
                 fields=["product_name"],
                 limit=5,
                 order_by="creation desc"
@@ -334,7 +334,7 @@ def generate_review_reply(review_text, rating, restaurant_id=None):
         - If 'Official Contact' info is provided in context, invite them to reach out using those details. Otherwise, invite them to speak with the manager during their next visit.
         - NEVER leave placeholders like [contact info] or [Name]. If you don't know something, omit it or use general terms.
         - Style: Authoritative but extremely polite hospitality professional. 
-        - Signature: "Best regards, The Team at {res_name if restaurant_id else 'the Restaurant'}"
+        - Signature: "Best regards, The Team at {res_name if outlet_id else 'the Restaurant'}"
         - Keep it concise (2-4 sentences).
         """
 
@@ -353,12 +353,12 @@ def generate_review_reply(review_text, rating, restaurant_id=None):
         return handle_ai_error(e)
 
 @frappe.whitelist()
-def post_review_reply(restaurant_id, review_name, reply_text):
+def post_review_reply(outlet_id, review_name, reply_text):
     """
     Posts a reply to a Google Review via the GMB API.
     `review_name` is the full identifier from Google (e.g. accounts/123/locations/456/reviews/789)
     """
-    access_token = get_google_access_token(restaurant_id)
+    access_token = get_google_access_token(outlet_id)
     if not access_token:
         return {"success": False, "message": "Google Account not authorized."}
 

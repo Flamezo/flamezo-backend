@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
@@ -28,7 +28,7 @@ interface QuickStats {
 }
 
 export default function BoostRedeem() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [billAmount, setBillAmount] = useState('')
@@ -43,8 +43,8 @@ export default function BoostRedeem() {
 
   // Load stats on mount
   useEffect(() => {
-    if (!selectedRestaurant) return
-    fetchOverview({ restaurant_id: selectedRestaurant })
+    if (!selectedOutlet) return
+    fetchOverview({ outlet_id: selectedOutlet })
       .then((r: any) => {
         const data = r?.message?.data || r?.data
         if (data) {
@@ -62,14 +62,14 @@ export default function BoostRedeem() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const handleRedeem = async () => {
-    if (!selectedRestaurant || !code.trim()) return
+    if (!selectedOutlet || !code.trim()) return
     setSubmitting(true); setResult(null)
     try {
       const res: any = await redeemCoupon({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         coupon_code: code.trim().toUpperCase(),
         bill_amount: billAmount ? parseFloat(billAmount) : undefined,
         redemption_method: 'Staff Entry',

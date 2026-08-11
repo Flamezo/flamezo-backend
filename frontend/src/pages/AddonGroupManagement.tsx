@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useFrappePostCall, useFrappeGetCall } from 'frappe-react-sdk'
 import { AddonGroupsSkeleton } from '@/components/PageSkeletons'
-import { useRestaurant } from '../contexts/RestaurantContext'
+import { useOutlet } from '../contexts/OutletContext'
 import { useCurrency } from '../hooks/useCurrency'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -256,8 +256,8 @@ function getTemplates(outletType: string | undefined): TemplateConfig[] {
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function AddonGroupManagement() {
-  const { selectedRestaurant, outletType } = useRestaurant()
-  const restaurantId = selectedRestaurant
+  const { selectedOutlet, outletType } = useOutlet()
+  const outletId = selectedOutlet
   const { formatAmountNoDecimals } = useCurrency()
 
   const showVeg = !outletType || outletType === 'dining' || outletType === 'cafe'
@@ -274,8 +274,8 @@ export default function AddonGroupManagement() {
   // API
   const { data: groupsData, isLoading, mutate: mutateGroups } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.addon_groups.get_addon_groups',
-    restaurantId ? { restaurant_id: restaurantId, include_items: 1 } : undefined,
-    restaurantId ? `addon-groups-${restaurantId}` : null
+    outletId ? { outlet_id: outletId, include_items: 1 } : undefined,
+    outletId ? `addon-groups-${outletId}` : null
   )
   const { call: createGroup } = useFrappePostCall('flamezo_backend.flamezo.api.addon_groups.create_addon_group')
   const { call: updateGroup } = useFrappePostCall('flamezo_backend.flamezo.api.addon_groups.update_addon_group')
@@ -301,7 +301,7 @@ export default function AddonGroupManagement() {
   // ─── Template Create ────────────────────────────────────────────────────
 
   const handleAddFromTemplate = async (templateId: string) => {
-    if (!restaurantId) {
+    if (!outletId) {
       toast.error('No outlet selected')
       return
     }
@@ -310,7 +310,7 @@ export default function AddonGroupManagement() {
 
     try {
       const result = await createGroup({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         group_name: template.defaultName,
         group_type: template.groupType,
         is_required: 0,
@@ -349,7 +349,7 @@ export default function AddonGroupManagement() {
   const handleSaveGroup = async (group: AddonGroup) => {
     try {
       await updateGroup({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         group_id: group.groupId || group.id,
         group_name: group.groupName,
         group_type: group.groupType,
@@ -379,7 +379,7 @@ export default function AddonGroupManagement() {
     try {
       const group = groups.find(g => g.id === deleteGroupId)
       await deleteGroupApi({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         group_id: group?.groupId || deleteGroupId
       })
       setDeleteDialogOpen(false)
@@ -393,7 +393,7 @@ export default function AddonGroupManagement() {
   const handleToggleStock = async (group: AddonGroup, itemId: string, currentStock: boolean) => {
     try {
       await toggleStock({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         group_id: group.groupId || group.id,
         item_id: itemId,
         in_stock: currentStock ? 0 : 1
@@ -443,7 +443,7 @@ export default function AddonGroupManagement() {
     const newStatus = rawGroup.status === 'Active' ? 'Inactive' : 'Active'
     try {
       await updateGroup({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         group_id: rawGroup.groupId || rawGroup.id,
         status: newStatus
       })

@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall, useFrappeAuth } from '@/lib/frappe'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -43,7 +43,7 @@ const CHANNEL_ICON: Record<string, React.ReactNode> = {
 
 
 export default function MarketingOverview() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedOutlet, isGold } = useOutlet()
   const { currentUser } = useFrappeAuth()
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -62,9 +62,9 @@ export default function MarketingOverview() {
   }, [currentUser])
 
   useEffect(() => {
-    if (!selectedRestaurant || !isGold) return
+    if (!selectedOutlet || !isGold) return
     setLoading(true)
-    fetchOverview({ restaurant_id: selectedRestaurant })
+    fetchOverview({ outlet_id: selectedOutlet })
       .then((res: any) => {
         if (res?.message?.success) {
           setData(res.message.data)
@@ -72,7 +72,7 @@ export default function MarketingOverview() {
       })
       .catch((err) => console.error("Failed to fetch overview:", err))
       .finally(() => setLoading(false))
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   void isGold
 

@@ -57,7 +57,7 @@ export function BranchGroupTools({ onGroupsChanged }: { onGroupsChanged?: () => 
     if (!groupName.trim()) { toast.error('Enter a group name'); return }
     setCreating(true)
     try {
-      const res: any = await createGroup({ group_name: groupName.trim(), restaurant_ids: JSON.stringify(picked.map((p) => p.id)) })
+      const res: any = await createGroup({ group_name: groupName.trim(), outlet_ids: JSON.stringify(picked.map((p) => p.id)) })
       const data = res?.message ?? res
       if (data?.success) {
         toast.success(`Group "${groupName.trim()}" created${picked.length ? ` with ${picked.length} branch(es)` : ''}`)
@@ -107,8 +107,8 @@ export function BranchGroupTools({ onGroupsChanged }: { onGroupsChanged?: () => 
     setCopying(true); setResults(null)
     try {
       const res: any = await cloneToBranches({
-        source_restaurant_id: copyFrom,
-        target_restaurant_ids: JSON.stringify([...copyTo]),
+        source_outlet_id: copyFrom,
+        target_outlet_ids: JSON.stringify([...copyTo]),
       })
       const data = res?.message ?? res
       if (data?.success) setResults(data.results || [])

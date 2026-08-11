@@ -389,7 +389,7 @@ class TestCreateTokenizationOrder(unittest.TestCase):
         self.assertEqual(payload["plan_id"], "plan_TEST")
         self.assertEqual(payload["customer_id"], "cust_TEST")
         self.assertEqual(payload["notes"]["type"], "tokenization")
-        self.assertEqual(payload["notes"]["restaurant_id"], self._res)
+        self.assertEqual(payload["notes"]["outlet_id"], self._res)
 
     def test_subscription_payload_total_count_is_exactly_ten(self):
         """We deliberately use the MAX allowed (10) so the tokenization

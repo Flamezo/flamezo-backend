@@ -1,6 +1,6 @@
 import { Lock, Star } from 'lucide-react';
 import { FeatureKey } from '../../utils/featureGate';
-import { useRestaurant } from '../../contexts/RestaurantContext';
+import { useOutlet } from '../../contexts/OutletContext';
 import { getFeatureAccessStatus } from '../../utils/featureAccess';
 
 interface LockedFeatureProps {
@@ -31,7 +31,7 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
 };
 
 export function LockedFeature({ feature }: LockedFeatureProps) {
-  const { planType } = useRestaurant();
+  const { planType } = useOutlet();
   const featureLabel = FEATURE_LABELS[feature] || feature;
   const description = FEATURE_DESCRIPTIONS[feature] || "Unlock this premium feature to automate your restaurant and grow your revenue.";
   

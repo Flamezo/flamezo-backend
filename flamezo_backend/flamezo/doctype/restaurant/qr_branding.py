@@ -755,7 +755,7 @@ def ensure_table_qr_assets(restaurant_doc, table_number, force=False, branding=N
 
 def build_table_qr_assets(restaurant_doc, force=False, override_background_url=None):
 	if not restaurant_doc.restaurant_id:
-		frappe.throw("Restaurant ID is required to generate QR codes")
+		frappe.throw("Outlet ID is required to generate QR codes")
 	if not restaurant_doc.tables or restaurant_doc.tables <= 0:
 		frappe.throw("Number of tables must be greater than 0")
 
@@ -1132,7 +1132,7 @@ def build_special_qr_assets(restaurant_doc, force=False):
 	Aggregation helper to build all special QRs (takeaway, delivery) for a restaurant.
 	"""
 	if not restaurant_doc.restaurant_id:
-		frappe.throw("Restaurant ID is required to generate QR codes")
+		frappe.throw("Outlet ID is required to generate QR codes")
 	
 	assets = []
 	for st in ["takeaway", "delivery"]:

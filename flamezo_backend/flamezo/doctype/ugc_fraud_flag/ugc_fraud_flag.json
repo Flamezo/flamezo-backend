@@ -48,7 +48,7 @@
   {
    "fieldname": "restaurant",
    "fieldtype": "Link",
-   "label": "Restaurant (context)",
+   "label": "Outlet (context)",
    "options": "Restaurant",
    "search_index": 1
   },

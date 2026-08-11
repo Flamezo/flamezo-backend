@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 """
-API endpoints for Restaurant lookup and information
+API endpoints for Outlet lookup and information
 """
 
 import frappe
@@ -12,72 +12,72 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_id(restaurant_name):
+def get_outlet_id(outlet_name):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.restaurant.get_restaurant_id
-	Get restaurant_id from restaurant_name
-	
+	GET /api/method/flamezo_backend.flamezo.api.outlet.get_outlet_id
+	Get outlet_id from outlet_name
+
 	Parameters:
-	- restaurant_name (required): The restaurant name to lookup
-	
+	- outlet_name (required): The outlet name to lookup
+
 	Returns:
 	{
 		"success": true,
 		"data": {
-			"restaurant_id": "the-gallery-cafe",
-			"restaurant_name": "The Gallery Cafe",
+			"outlet_id": "the-gallery-cafe",
+			"outlet_name": "The Gallery Cafe",
 			"is_active": true
 		}
 	}
 	"""
 	try:
-		if not restaurant_name:
+		if not outlet_name:
 			return {
 				"success": False,
 				"error": {
 					"code": "VALIDATION_ERROR",
-					"message": "restaurant_name is required"
+					"message": "outlet_name is required"
 				}
 			}
-		
-		# Try to find restaurant by restaurant_name (exact match first)
-		restaurant = frappe.db.get_value(
+
+		# Try to find outlet by outlet_name (exact match first)
+		outlet = frappe.db.get_value(
 			"Restaurant",
-			{"restaurant_name": restaurant_name},
+			{"restaurant_name": outlet_name},
 			["name", "restaurant_id", "restaurant_name", "is_active"],
 			as_dict=True
 		)
-		
+
 		# If not found, try case-insensitive search
-		if not restaurant:
-			restaurants = frappe.get_all(
+		if not outlet:
+			outlets = frappe.get_all(
 				"Restaurant",
-				filters={"restaurant_name": ["like", f"%{restaurant_name}%"]},
+				filters={"restaurant_name": ["like", f"%{outlet_name}%"]},
 				fields=["name", "restaurant_id", "restaurant_name", "is_active"],
 				limit=1
 			)
-			if restaurants:
-				restaurant = restaurants[0]
-		
-		if not restaurant:
+			if outlets:
+				outlet = outlets[0]
+
+		if not outlet:
 			return {
 				"success": False,
 				"error": {
-					"code": "RESTAURANT_NOT_FOUND",
-					"message": f"Restaurant '{restaurant_name}' not found"
+					"code": "OUTLET_NOT_FOUND",
+					"message": f"Outlet '{outlet_name}' not found"
 				}
 			}
-		
+
 		return {
 			"success": True,
 			"data": {
-				"restaurant_id": restaurant.restaurant_id,
-				"restaurant_name": restaurant.restaurant_name,
-				"is_active": bool(restaurant.is_active)
+				"outlet_id": outlet.restaurant_id,
+				"outlet_name": outlet.restaurant_name,
+				"is_active": bool(outlet.is_active)
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_id: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_id: {str(e)}")
 		return {
 			"success": False,
 			"error": {
@@ -88,14 +88,14 @@ def get_restaurant_id(restaurant_name):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_info(restaurant_id):
+def get_outlet_info(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.restaurant.get_restaurant_info
-	Get full restaurant information by restaurant_id
-	
+	GET /api/method/flamezo_backend.flamezo.api.outlet.get_outlet_info
+	Get full outlet information by outlet_id
+
 	Parameters:
-	- restaurant_id (required): The restaurant identifier
-	
+	- outlet_id (required): The outlet identifier
+
 	Returns:
 	{
 		"success": true,
@@ -109,32 +109,32 @@ def get_restaurant_info(restaurant_id):
 	}
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
-		restaurant_context = get_restaurant_context(restaurant_id)
-		
-		if not restaurant_context:
+		outlet = validate_restaurant_for_api(outlet_id)
+		outlet_context = get_restaurant_context(outlet_id)
+
+		if not outlet_context:
 			return {
 				"success": False,
 				"error": {
-					"code": "RESTAURANT_NOT_FOUND",
-					"message": f"Restaurant {restaurant_id} not found"
+					"code": "OUTLET_NOT_FOUND",
+					"message": f"Outlet {outlet_id} not found"
 				}
 			}
-		
+
 		return {
 			"success": True,
-			"data": restaurant_context
+			"data": outlet_context
 		}
 	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_info: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_info: {str(e)}")
 		return {
 			"success": False,
 			"error": {
@@ -145,14 +145,14 @@ def get_restaurant_info(restaurant_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_tables(restaurant_id):
+def get_outlet_tables(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.restaurant.get_restaurant_tables
-	Get available tables for a restaurant
-	
+	GET /api/method/flamezo_backend.flamezo.api.outlet.get_outlet_tables
+	Get available tables for an outlet
+
 	Parameters:
-	- restaurant_id (required): The restaurant identifier
-	
+	- outlet_id (required): The outlet identifier
+
 	Returns:
 	{
 		"success": true,
@@ -166,11 +166,11 @@ def get_restaurant_tables(restaurant_id):
 	}
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
-		
-		# Get number of tables from restaurant
-		tables_count = frappe.db.get_value("Restaurant", restaurant, "tables")
-		
+		outlet = validate_restaurant_for_api(outlet_id)
+
+		# Get number of tables from outlet
+		tables_count = frappe.db.get_value("Restaurant", outlet, "tables")
+
 		if not tables_count or tables_count <= 0:
 			return {
 				"success": True,
@@ -178,7 +178,7 @@ def get_restaurant_tables(restaurant_id):
 					"tables": []
 				}
 			}
-		
+
 		# Generate table options
 		tables = []
 		for i in range(1, int(tables_count) + 1):
@@ -186,7 +186,7 @@ def get_restaurant_tables(restaurant_id):
 				"value": i,
 				"label": f"Table {i}"
 			})
-		
+
 		return {
 			"success": True,
 			"data": {
@@ -197,12 +197,12 @@ def get_restaurant_tables(restaurant_id):
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e)
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_tables: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_tables: {str(e)}")
 		return {
 			"success": False,
 			"error": {
@@ -215,8 +215,8 @@ def get_restaurant_tables(restaurant_id):
 @frappe.whitelist(allow_guest=True)
 def list_restaurants(active_only=True, city=None, limit=50):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.restaurant.list_restaurants
-	Returns full restaurant cards for the consumer Discover page.
+	GET /api/method/flamezo_backend.flamezo.api.outlet.list_restaurants
+	Returns full outlet cards for the consumer Discover page.
 
 	Parameters:
 	- active_only (optional, default: true)
@@ -233,7 +233,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 		if city:
 			filters["city"] = ["like", f"%{city}%"]
 
-		restaurants = frappe.get_all(
+		outlets = frappe.get_all(
 			"Restaurant",
 			filters=filters,
 			fields=[
@@ -245,23 +245,23 @@ def list_restaurants(active_only=True, city=None, limit=50):
 			limit=int(limit),
 		)
 
-		if not restaurants:
+		if not outlets:
 			return {"success": True, "data": {"restaurants": []}}
 
-		restaurant_names = [r["name"] for r in restaurants]
+		outlet_names = [r["name"] for r in outlets]
 
 		# --- Bulk fetch Restaurant Config (tagline, description) ---
 		configs = frappe.get_all(
 			"Restaurant Config",
-			filters={"restaurant": ["in", restaurant_names]},
+			filters={"restaurant": ["in", outlet_names]},
 			fields=["restaurant", "tagline", "subtitle", "description"],
 		)
 		config_map = {c["restaurant"]: c for c in configs}
 
-		# --- Bulk fetch Gallery photos (up to 6 per restaurant) ---
+		# --- Bulk fetch Gallery photos (up to 6 per outlet) ---
 		gallery_items = frappe.get_all(
 			"Restaurant Gallery Item",
-			filters={"restaurant": ["in", restaurant_names], "is_selected": 1},
+			filters={"restaurant": ["in", outlet_names], "is_selected": 1},
 			fields=["restaurant", "url"],
 			order_by="sort_order asc",
 		)
@@ -271,15 +271,15 @@ def list_restaurants(active_only=True, city=None, limit=50):
 			if len(photos_map[item["restaurant"]]) < 6:
 				photos_map[item["restaurant"]].append(item["url"])
 
-		# --- Bulk count active coupons per restaurant ---
+		# --- Bulk count active coupons per outlet ---
 		coupon_counts_raw = frappe.db.sql(
 			"""
 			SELECT restaurant, COUNT(*) AS cnt
 			FROM `tabCoupon`
 			WHERE restaurant IN ({placeholders}) AND is_active = 1
 			GROUP BY restaurant
-			""".format(placeholders=", ".join(["%s"] * len(restaurant_names))),
-			tuple(restaurant_names),
+			""".format(placeholders=", ".join(["%s"] * len(outlet_names))),
+			tuple(outlet_names),
 			as_dict=True,
 		)
 		coupon_map = {row["restaurant"]: row["cnt"] for row in coupon_counts_raw}
@@ -288,7 +288,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 		ninety_days_ago = (now_datetime() - datetime.timedelta(days=90)).date()
 
 		result = []
-		for r in restaurants:
+		for r in outlets:
 			doc_name = r["name"]
 			cfg = config_map.get(doc_name, {})
 
@@ -305,8 +305,8 @@ def list_restaurants(active_only=True, city=None, limit=50):
 					is_new = False
 
 			result.append({
-				"restaurant_id": r["restaurant_id"],
-				"restaurant_name": r["restaurant_name"],
+				"outlet_id": r["restaurant_id"],
+				"outlet_name": r["restaurant_name"],
 				"is_active": bool(r["is_active"]),
 				"logo": r.get("logo") or "",
 				"photos": photos_map.get(doc_name, []),
@@ -344,24 +344,24 @@ def list_restaurants(active_only=True, city=None, limit=50):
 		}
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_gallery(restaurant_id):
+def get_outlet_gallery(outlet_id):
 	"""
-	Get selected gallery items for a restaurant (max 25)
+	Get selected gallery items for an outlet (max 25)
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
-		
+		outlet = validate_restaurant_for_api(outlet_id)
+
 		items = frappe.get_all(
 			"Restaurant Gallery Item",
 			filters={
-				"restaurant": restaurant,
+				"restaurant": outlet,
 				"is_selected": 1
 			},
 			fields=["url", "media_type as type", "title", "sort_order"],
 			order_by="sort_order asc",
 			limit=25
 		)
-		
+
 		return {
 			"success": True,
 			"data": {
@@ -369,7 +369,7 @@ def get_restaurant_gallery(restaurant_id):
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_gallery: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_gallery: {str(e)}")
 		return {
 			"success": False,
 			"error": {
@@ -467,15 +467,15 @@ def _decode_amenity_highlights(mask):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_detail(restaurant_id):
+def get_outlet_detail(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.restaurant.get_restaurant_detail
+	GET /api/method/flamezo_backend.flamezo.api.outlet.get_outlet_detail
 
 	Consumer-facing full outlet detail. Replaces the bundled SQLite lookup.
 	Returns everything the outlet detail screen needs in one call — cached 5 min.
 
 	Response:
-	  id, restaurant_name, logo, outlet_type, address, city, lat, lng,
+	  id, outlet_name, logo, outlet_type, address, city, lat, lng,
 	  phone, whatsapp, instagram_url, description, tagline,
 	  rating, review_count, cuisines[], price_range, amenities_mask, hours_json,
 	  is_featured, is_open_now, active_offers_count,
@@ -487,22 +487,22 @@ def get_restaurant_detail(restaurant_id):
 	import math
 	from frappe.utils import flt, cint, today
 
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 
 	try:
 		# Cache 5 minutes — busted when merchant edits their profile
-		cache_key = f"flamezo:outlet_detail:{restaurant_id}"
+		cache_key = f"flamezo:outlet_detail:{outlet_id}"
 		cached = frappe.cache().get_value(cache_key)
 		if cached:
 			return json.loads(cached)
 
 		# Resolve internal name from restaurant_id field OR direct name
-		rest_name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+		rest_name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
 		if not rest_name:
-			rest_name = frappe.db.get_value("Restaurant", restaurant_id, "name")
+			rest_name = frappe.db.get_value("Restaurant", outlet_id, "name")
 		if not rest_name:
-			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
+			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Outlet not found"}}
 
 		# Single row fetch — all discovery fields + ops fields
 		r = frappe.db.get_value(
@@ -521,7 +521,7 @@ def get_restaurant_detail(restaurant_id):
 			as_dict=True,
 		)
 		if not r:
-			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
+			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Outlet not found"}}
 
 		# Fetch social links + table booking flag from Restaurant Config (single query)
 		cfg = frappe.db.get_value(
@@ -593,8 +593,8 @@ def get_restaurant_detail(restaurant_id):
 
 		data = {
 			"id": r["name"],
-			"restaurant_id": restaurant_id,
-			"restaurant_name": r["restaurant_name"],
+			"outlet_id": outlet_id,
+			"outlet_name": r["restaurant_name"],
 			"logo": r.get("logo") or "",
 			"outlet_type": r.get("outlet_type") or "dining",
 			"address": r.get("address") or "",
@@ -633,26 +633,26 @@ def get_restaurant_detail(restaurant_id):
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_detail: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_detail: {str(e)}")
 		return {"success": False, "error": {"code": "DETAIL_FETCH_ERROR", "message": str(e)}}
 
 
 @frappe.whitelist()
-def get_restaurant_media_pool(restaurant_id):
+def get_outlet_media_pool(outlet_id):
 	"""
-	Collect all media used by the restaurant across the app
+	Collect all media used by the outlet across the app
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		outlet = validate_restaurant_for_api(outlet_id)
 		media_pool = []
 		seen_urls = set()
-		
+
 		# 0. Restaurant Branding
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		outlet_doc = frappe.get_doc("Restaurant", outlet)
 
 		# Industry-aware label for the "products" media folder — food outlets see
 		# "Food Images", fashion sees "Products & Catalogue", etc.
-		outlet_type = restaurant_doc.get("outlet_type") or "dining"
+		outlet_type = outlet_doc.get("outlet_type") or "dining"
 		MEDIA_LABELS = {
 			"dining": "Food Images",
 			"cafe": "Food Images",
@@ -664,15 +664,15 @@ def get_restaurant_media_pool(restaurant_id):
 		}
 		product_label = MEDIA_LABELS.get(outlet_type, "Products & Catalogue")
 
-		if restaurant_doc.get("logo"):
+		if outlet_doc.get("logo"):
 			media_pool.append({
-				"url": restaurant_doc.logo,
+				"url": outlet_doc.logo,
 				"type": "image",
-				"source_title": "Restaurant Logo",
+				"source_title": "Outlet Logo",
 				"source_type": "Branding",
 				"category": "Branding"
 			})
-			seen_urls.add(restaurant_doc.logo)
+			seen_urls.add(outlet_doc.logo)
 
 		# 1. Menu Product Media
 		product_media = frappe.db.sql("""
@@ -680,8 +680,8 @@ def get_restaurant_media_pool(restaurant_id):
 			FROM `tabProduct Media` pm
 			JOIN `tabMenu Product` p ON pm.parent = p.name
 			WHERE p.restaurant = %s
-		""", (restaurant,), as_dict=1)
-		
+		""", (outlet,), as_dict=1)
+
 		for m in product_media:
 			if m.url and m.url not in seen_urls:
 				m['category'] = product_label
@@ -692,7 +692,7 @@ def get_restaurant_media_pool(restaurant_id):
 		#     photo so the merchant can pick which go into the active showcase.
 		ai_generated = frappe.get_all(
 			"AI Image Generation",
-			filters={"restaurant": restaurant, "enhanced_image_url": ["is", "set"]},
+			filters={"restaurant": outlet, "enhanced_image_url": ["is", "set"]},
 			fields=["enhanced_image_url as url", "owner_name as source_title"],
 			order_by="creation desc",
 		)
@@ -713,7 +713,7 @@ def get_restaurant_media_pool(restaurant_id):
 			FROM `tabCatalogue Item Media` cim
 			JOIN `tabCatalogue Item` ci ON cim.parent = ci.name
 			WHERE ci.restaurant = %s
-		""", (restaurant,), as_dict=1)
+		""", (outlet,), as_dict=1)
 		for c in catalogue_media:
 			if c.url and c.url not in seen_urls:
 				c['category'] = product_label
@@ -723,10 +723,10 @@ def get_restaurant_media_pool(restaurant_id):
 		# 2. Events
 		events = frappe.get_all(
 			"Event",
-			filters={"restaurant": restaurant, "image_src": ["is", "set"]},
+			filters={"restaurant": outlet, "image_src": ["is", "set"]},
 			fields=["image_src as url", "title as source_title"]
 		)
-		
+
 		for e in events:
 			if e.url and e.url not in seen_urls:
 				media_pool.append({
@@ -741,10 +741,10 @@ def get_restaurant_media_pool(restaurant_id):
 		# 3. Existing Gallery Items (both selected and unselected)
 		gallery_items = frappe.get_all(
 			"Restaurant Gallery Item",
-			filters={"restaurant": restaurant},
+			filters={"restaurant": outlet},
 			fields=["name", "url", "media_type as type", "title as source_title", "is_selected"]
 		)
-		
+
 		for g in gallery_items:
 			if g.url and g.url not in seen_urls:
 				media_pool.append({
@@ -775,7 +775,7 @@ def get_restaurant_media_pool(restaurant_id):
 			}
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_media_pool: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_media_pool: {str(e)}")
 		return {
 			"success": False,
 			"error": {

@@ -296,7 +296,7 @@ def _generate_config_preview(config_name):
 		) else "image"
 
 		coupon = _inline_coupon_brief(config)
-		restaurant_name = frappe.db.get_value("Restaurant", config.restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Restaurant", config.restaurant, "restaurant_name") or ""
 
 		from flamezo_backend.flamezo.api.story_generator import _run_job, _get_cache
 		import uuid
@@ -305,7 +305,7 @@ def _generate_config_preview(config_name):
 			job_id=job_id,
 			template_url=raw_url,
 			media_type=media_type,
-			restaurant_name=restaurant_name,
+			outlet_name=outlet_name,
 			coupon_code=coupon.get("code") if coupon else None,
 			discount_type=coupon.get("discount_type") if coupon else None,
 			discount_value=coupon.get("discount_value") if coupon else None,
@@ -318,9 +318,9 @@ def _generate_config_preview(config_name):
 			frappe.db.commit()
 			# Bust the Frappe Redis cache for get_restaurant_config so the next
 			# consumer request reflects ugcActive=true without waiting for TTL.
-			restaurant_id = frappe.db.get_value("UGC Cashback Config", config_name, "restaurant")
-			if restaurant_id:
-				frappe.cache().delete_key(f"restaurant_config:{restaurant_id}")
+			outlet_id = frappe.db.get_value("UGC Cashback Config", config_name, "restaurant")
+			if outlet_id:
+				frappe.cache().delete_key(f"outlet_config:{outlet_id}")
 		else:
 			frappe.log_error(
 				f"Story preview generation finished with status={result.get('status') if result else 'None'} for {config_name}",
@@ -389,10 +389,10 @@ def _active_submission_for_order(order_id):
 #  CUSTOMER ENDPOINTS  (guest session via X-Customer-Token)
 # ══════════════════════════════════════════════════════════════════════════════
 @frappe.whitelist(allow_guest=True)
-def get_ugc_eligibility(restaurant_id, order_id):
+def get_ugc_eligibility(outlet_id, order_id):
 	"""Is this diner eligible to claim UGC cashback for this order?"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
@@ -451,24 +451,24 @@ def get_ugc_eligibility(restaurant_id, order_id):
 			"viewer_coupon": _inline_coupon_brief(config),
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"get_ugc_eligibility: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def start_ugc_offer(restaurant_id, order_id):
+def start_ugc_offer(outlet_id, order_id):
 	"""Diner taps the cashback CTA — create (or resume) a submission."""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
 
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
-			return _err("NOT_AVAILABLE", "UGC cashback is not active for this restaurant.")
+			return _err("NOT_AVAILABLE", "UGC cashback is not active for this outlet.")
 
 		order = _load_owned_order(restaurant, order_id, customer)
 		if not order:
@@ -519,17 +519,17 @@ def start_ugc_offer(restaurant_id, order_id):
 			"instructions": PLATFORM_INSTRUCTIONS,
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"start_ugc_offer: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def mark_story_shared(restaurant_id, submission_id, template_media_id=None):
+def mark_story_shared(outlet_id, submission_id, template_media_id=None):
 	"""Diner confirms they shared the story to their IG/FB story."""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -549,14 +549,14 @@ def mark_story_shared(restaurant_id, submission_id, template_media_id=None):
 		frappe.db.commit()
 		return _ok({"status": "story_shared"})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"mark_story_shared: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def verify_story_with_pin(restaurant_id, submission_id, pin):
+def verify_story_with_pin(outlet_id, submission_id, pin):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.ugc.verify_story_with_pin
 
@@ -564,7 +564,7 @@ def verify_story_with_pin(restaurant_id, submission_id, pin):
 	Transitions story_shared → story_verified, opening the 48h proof upload window.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -578,7 +578,7 @@ def verify_story_with_pin(restaurant_id, submission_id, pin):
 
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
-			return _err("PIN_NOT_SET", "This restaurant has not set up a verification PIN.")
+			return _err("PIN_NOT_SET", "This outlet has not set up a verification PIN.")
 		if str(pin).strip() != stored_pin:
 			return _err("INVALID_PIN", "Incorrect PIN — please try again.")
 
@@ -590,23 +590,23 @@ def verify_story_with_pin(restaurant_id, submission_id, pin):
 		_notify(submission.name, "story_verified")
 		return _ok({"status": "story_verified"})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"verify_story_with_pin: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def upload_proof_video(restaurant_id, submission_id, filename, content_type, size_bytes):
+def upload_proof_video(outlet_id, submission_id, filename, content_type, size_bytes):
 	"""Alias for request_ugc_video_upload — matches the EP.ugcUploadProof key."""
-	return request_ugc_video_upload(restaurant_id, submission_id, filename, content_type, size_bytes)
+	return request_ugc_video_upload(outlet_id, submission_id, filename, content_type, size_bytes)
 
 
 @frappe.whitelist(allow_guest=True)
-def request_ugc_video_upload(restaurant_id, submission_id, filename, content_type, size_bytes):
+def request_ugc_video_upload(outlet_id, submission_id, filename, content_type, size_bytes):
 	"""Issue a signed R2 URL for the diner to upload their view-count screen recording."""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -632,7 +632,7 @@ def request_ugc_video_upload(restaurant_id, submission_id, filename, content_typ
 		media_id = f"med_{uuid.uuid4().hex[:12]}"
 		safe_filename = _sanitize_filename(filename)
 		object_key = generate_object_key(
-			restaurant_id=restaurant,
+			outlet_id=restaurant,
 			owner_doctype=PROOF_OWNER_DOCTYPE,
 			owner_name=submission.name,
 			media_role=PROOF_MEDIA_ROLE,
@@ -665,25 +665,25 @@ def request_ugc_video_upload(restaurant_id, submission_id, filename, content_typ
 			"expires_in": upload_data["expires_in"],
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"request_ugc_video_upload: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def upload_ugc_video_proxy(restaurant_id, submission_id):
+def upload_ugc_video_proxy(outlet_id, submission_id):
 	"""Backend-proxied proof upload: the diner POSTs the video file here and the
 	server streams it to R2. This avoids the browser→R2 presigned-PUT, which fails
 	when the R2 bucket CORS policy doesn't allow the site origin.
 
-	Expects a multipart/form-data body with fields `restaurant_id`,
+	Expects a multipart/form-data body with fields `outlet_id`,
 	`submission_id` and a file part named `file`.
 
 	Returns { upload_id } — pass it straight to submit_ugc_proof().
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -714,7 +714,7 @@ def upload_ugc_video_proxy(restaurant_id, submission_id):
 		media_id = f"med_{uuid.uuid4().hex[:12]}"
 		safe_filename = _sanitize_filename(uploaded.filename or "proof.mp4")
 		object_key = generate_object_key(
-			restaurant_id=restaurant,
+			outlet_id=restaurant,
 			owner_doctype=PROOF_OWNER_DOCTYPE,
 			owner_name=submission.name,
 			media_role=PROOF_MEDIA_ROLE,
@@ -746,17 +746,17 @@ def upload_ugc_video_proxy(restaurant_id, submission_id):
 
 		return _ok({"upload_id": media_id, "object_key": object_key})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"upload_ugc_video_proxy: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def submit_ugc_proof(restaurant_id, submission_id, upload_id):
+def submit_ugc_proof(outlet_id, submission_id, upload_id):
 	"""Confirm the uploaded proof video and queue AI view-count verification."""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -832,17 +832,17 @@ def submit_ugc_proof(restaurant_id, submission_id, upload_id):
 
 		return _ok({"status": "proof_submitted"})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"submit_ugc_proof: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def get_ugc_status(restaurant_id, order_id):
+def get_ugc_status(outlet_id, order_id):
 	"""Status of the diner's UGC claim for an order (for the in-progress / wallet UI)."""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -865,14 +865,14 @@ def get_ugc_status(restaurant_id, order_id):
 			"proof_window_open": _proof_window_open(sub),
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"get_ugc_status: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_ugc_status(restaurant_id):
+def get_outlet_ugc_status(outlet_id):
 	"""
 	Lightweight public endpoint — returns whether UGC cashback is active for a
 	restaurant. Used by the consumer app to show/hide the promo banner and the
@@ -880,26 +880,26 @@ def get_restaurant_ugc_status(restaurant_id):
 	Active = story template uploaded AND a flat-discount viewer coupon is set.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		config = _get_active_config(restaurant)
 		active = _is_ugc_active(config) if config else False
 		return _ok({"ugc_active": active})
 	except frappe.DoesNotExistError:
 		return _ok({"ugc_active": False})
 	except Exception as e:
-		frappe.log_error(f"get_restaurant_ugc_status: {e}", "UGC")
+		frappe.log_error(f"get_outlet_ugc_status: {e}", "UGC")
 		return _ok({"ugc_active": False})  # fail-safe: hide the feature on error
 
 
 @frappe.whitelist(allow_guest=True)
-def get_claimable_orders(restaurant_id, phone):
+def get_claimable_orders(outlet_id, phone):
 	"""
 	Return the customer's recent completed orders for this restaurant that are
 	eligible for a UGC cashback claim. Mirrors the loyalty API auth pattern:
 	phone + session token are validated together.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
 			return _err("INVALID_PHONE", "Invalid phone number")
@@ -908,13 +908,13 @@ def get_claimable_orders(restaurant_id, phone):
 		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
 
-		# Real restaurant name for the claim page (the WhatsApp deep link can't
+		# Real outlet name for the claim page (the WhatsApp deep link can't
 		# resolve the brand config, so the page must get the name from the API).
-		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or ""
 
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
-			return _ok({"orders": [], "restaurantName": restaurant_name})
+			return _ok({"orders": [], "outletName": outlet_name})
 
 		# Fetch completed orders within the claim window (covers delayed claims)
 		from frappe.utils import add_days, today
@@ -966,27 +966,27 @@ def get_claimable_orders(restaurant_id, phone):
 				"alreadyClaimed": False,
 			})
 
-		return _ok({"orders": items, "restaurantName": restaurant_name})
+		return _ok({"orders": items, "outletName": outlet_name})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"get_claimable_orders: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def get_claimable_orders_bulk(restaurant_ids, phone):
+def get_claimable_orders_bulk(outlet_ids, phone):
 	"""
 	Same eligibility logic as `get_claimable_orders`, batched across multiple
-	restaurants in a single query. Lets the wallet "Claim your cashback" feed
+	outlets in a single query. Lets the wallet "Claim your cashback" feed
 	replace up to 8 sequential HTTP round-trips (one per recently-paid outlet)
 	with one call.
 	"""
 	try:
-		if isinstance(restaurant_ids, str):
-			raw_ids = [r.strip() for r in restaurant_ids.split(",") if r.strip()]
+		if isinstance(outlet_ids, str):
+			raw_ids = [r.strip() for r in outlet_ids.split(",") if r.strip()]
 		else:
-			raw_ids = [str(r).strip() for r in restaurant_ids if str(r).strip()]
+			raw_ids = [str(r).strip() for r in outlet_ids if str(r).strip()]
 
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
@@ -996,7 +996,7 @@ def get_claimable_orders_bulk(restaurant_ids, phone):
 		if not session_token or not validate_customer_session(normalized_phone, session_token):
 			return _err("SESSION_REQUIRED", "Please verify your phone to continue.")
 
-		# Resolve + de-dupe valid restaurants, dropping any that don't exist
+		# Resolve + de-dupe valid outlets, dropping any that don't exist
 		# rather than failing the whole batch.
 		resolved = {}
 		for rid in raw_ids:
@@ -1006,9 +1006,9 @@ def get_claimable_orders_bulk(restaurant_ids, phone):
 				continue
 
 		if not resolved:
-			return _ok({"byRestaurant": {}})
+			return _ok({"byOutlet": {}})
 
-		restaurant_names = {
+		outlet_names = {
 			doc_id: (frappe.db.get_value("Restaurant", doc_id, "restaurant_name") or "")
 			for doc_id in set(resolved.values())
 		}
@@ -1038,7 +1038,7 @@ def get_claimable_orders_bulk(restaurant_ids, phone):
 			if (config := _get_active_config(doc_id)) and _is_ugc_active(config)
 		}
 
-		by_restaurant: dict = {}
+		by_outlet: dict = {}
 		counts: dict = {}
 		for row in rows:
 			doc_id = row["restaurant"]
@@ -1068,10 +1068,10 @@ def get_claimable_orders_bulk(restaurant_ids, phone):
 			# Key the response by the outlet slug the client already uses.
 			for slug, doc_id2 in resolved.items():
 				if doc_id2 == doc_id:
-					bucket = by_restaurant.setdefault(slug, {"restaurantName": restaurant_names.get(doc_id, ""), "orders": []})
+					bucket = by_outlet.setdefault(slug, {"outletName": outlet_names.get(doc_id, ""), "orders": []})
 					bucket["orders"].append(item)
 
-		return _ok({"byRestaurant": by_restaurant})
+		return _ok({"byOutlet": by_outlet})
 	except Exception as e:
 		frappe.log_error(f"get_claimable_orders_bulk: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
@@ -1099,11 +1099,11 @@ def _proof_window_open(submission):
 # ══════════════════════════════════════════════════════════════════════════════
 #  STAFF ENDPOINTS  (Restaurant Admin / Staff)
 # ══════════════════════════════════════════════════════════════════════════════
-def _resolve_restaurant(restaurant_id):
+def _resolve_restaurant(outlet_id):
 	from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
-	doc_name = frappe.db.get_value("Restaurant", restaurant_id, "name") or get_restaurant_from_id(restaurant_id)
+	doc_name = frappe.db.get_value("Restaurant", outlet_id, "name") or get_restaurant_from_id(outlet_id)
 	if not doc_name:
-		frappe.throw(_("Restaurant not found"), frappe.DoesNotExistError)
+		frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
 	return doc_name
 
 
@@ -1121,7 +1121,7 @@ def _assert_staff_or_admin(restaurant):
 		"Restaurant User", {"user": user, "restaurant": restaurant, "is_active": 1}, "role"
 	)
 	if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
-		frappe.throw(_("You don't have access to this restaurant."), frappe.PermissionError)
+		frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
 
 
 def _enrich_submission_row(row):
@@ -1146,10 +1146,10 @@ def _enrich_submission_row(row):
 
 
 @frappe.whitelist()
-def list_pending_story_verifications(restaurant_id, page=1, page_size=20):
+def list_pending_story_verifications(outlet_id, page=1, page_size=20):
 	"""Day-0 queue: stories the diner shared, awaiting in-person staff verification."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		page, page_size = cint(page) or 1, cint(page_size) or 20
 		filters = {"restaurant": restaurant, "status": "story_shared"}
@@ -1171,10 +1171,10 @@ def list_pending_story_verifications(restaurant_id, page=1, page_size=20):
 
 
 @frappe.whitelist()
-def verify_ugc_story(restaurant_id, submission_id, action, notes=None):
+def verify_ugc_story(outlet_id, submission_id, action, notes=None):
 	"""Staff approves/rejects the in-person story check. action: 'approve' | 'reject'."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		sub = frappe.get_doc("UGC Story Submission", submission_id)
@@ -1210,18 +1210,18 @@ def verify_ugc_story(restaurant_id, submission_id, action, notes=None):
 
 
 @frappe.whitelist()
-def verify_ugc_story_with_pin(restaurant_id, submission_id, pin):
+def verify_ugc_story_with_pin(outlet_id, submission_id, pin):
 	"""
 	Waiter enters the restaurant PIN on the merchant dashboard to approve a story.
 	PIN check replaces the raw Verify button — reject still uses the plain endpoint.
 	"""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
-			return _err("PIN_NOT_SET", "No verification PIN set for this restaurant. Set it under Setup & Config.")
+			return _err("PIN_NOT_SET", "No verification PIN set for this outlet. Set it under Setup & Config.")
 		if str(pin).strip() != str(stored_pin).strip():
 			return _err("INVALID_PIN", "Incorrect PIN — please try again.")
 
@@ -1248,14 +1248,14 @@ def verify_ugc_story_with_pin(restaurant_id, submission_id, pin):
 
 
 @frappe.whitelist(allow_guest=True)
-def claim_ugc_with_pin(restaurant_id, order_id, pin):
+def claim_ugc_with_pin(outlet_id, order_id, pin):
 	"""
 	Customer-facing: waiter enters the restaurant PIN on the customer's phone.
 	Creates the submission and immediately marks it story_verified in one step.
 	No submission exists before this call — the card stays active until PIN is correct.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -1263,7 +1263,7 @@ def claim_ugc_with_pin(restaurant_id, order_id, pin):
 		# Verify PIN first — fail fast before touching any data
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
-			return _err("PIN_NOT_SET", "No verification PIN has been set for this restaurant.")
+			return _err("PIN_NOT_SET", "No verification PIN has been set for this outlet.")
 		if str(pin).strip() != str(stored_pin).strip():
 			return _err("INVALID_PIN", "Incorrect PIN.")
 
@@ -1313,17 +1313,17 @@ def claim_ugc_with_pin(restaurant_id, order_id, pin):
 		_notify(submission.name, "story_verified")
 		return _ok({"status": "story_verified", "submission_id": submission.name})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"claim_ugc_with_pin: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist()
-def list_flagged_ugc(restaurant_id, page=1, page_size=20):
+def list_flagged_ugc(outlet_id, page=1, page_size=20):
 	"""Day-1 queue: claims the AI couldn't auto-approve, awaiting human review."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		page, page_size = cint(page) or 1, cint(page_size) or 20
 		filters = {"restaurant": restaurant, "status": "flagged"}
@@ -1345,10 +1345,10 @@ def list_flagged_ugc(restaurant_id, page=1, page_size=20):
 
 
 @frappe.whitelist()
-def review_ugc(restaurant_id, submission_id, action, view_count=None, notes=None):
+def review_ugc(outlet_id, submission_id, action, view_count=None, notes=None):
 	"""Staff resolves a flagged claim. action: 'approve' | 'reject'."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		sub = frappe.get_doc("UGC Story Submission", submission_id)
@@ -1391,10 +1391,10 @@ def review_ugc(restaurant_id, submission_id, action, view_count=None, notes=None
 
 
 @frappe.whitelist()
-def get_ugc_analytics(restaurant_id, days=None):
+def get_ugc_analytics(outlet_id, days=None):
 	"""Aggregate UGC performance for the merchant dashboard."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		filters = {"restaurant": restaurant}
@@ -1510,10 +1510,10 @@ def _config_to_dict(config):
 
 
 @frappe.whitelist()
-def get_ugc_config(restaurant_id):
+def get_ugc_config(outlet_id):
 	"""Fetch (creating if missing) the UGC config for the dashboard."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		config = _get_or_create_config(restaurant)
 		return _ok(_config_to_dict(config))
@@ -1525,10 +1525,10 @@ def get_ugc_config(restaurant_id):
 
 
 @frappe.whitelist()
-def save_ugc_config(restaurant_id, payload):
+def save_ugc_config(outlet_id, payload):
 	"""Upsert scalar config fields and (optionally) replace the template list."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		data = frappe.parse_json(payload) if isinstance(payload, str) else (payload or {})
 
@@ -1608,10 +1608,10 @@ def _purge_template_media(media_asset, restaurant):
 
 
 @frappe.whitelist()
-def delete_ugc_template(restaurant_id, media_asset):
+def delete_ugc_template(outlet_id, media_asset):
 	"""Remove the story template from the config AND delete its file from Cloudflare R2."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		config = _get_or_create_config(restaurant)
 
@@ -1639,10 +1639,10 @@ def delete_ugc_template(restaurant_id, media_asset):
 #  CREDIT HELPER  (shared by AI verifier + staff review — idempotent)
 # ══════════════════════════════════════════════════════════════════════════════
 @frappe.whitelist(allow_guest=True)
-def get_my_ugc_vouchers(restaurant_id=None):
+def get_my_ugc_vouchers(outlet_id=None):
 	"""
 	List the diner's active UGC vouchers.
-	If restaurant_id is provided, returns only the voucher for that restaurant.
+	If outlet_id is provided, returns only the voucher for that outlet.
 	Used by the consumer storefront to surface the voucher card.
 	"""
 	try:
@@ -1657,11 +1657,11 @@ def get_my_ugc_vouchers(restaurant_id=None):
 			"expires_at": [">", now],
 			"balance": [">", 0],
 		}
-		if restaurant_id:
+		if outlet_id:
 			try:
-				restaurant = validate_restaurant_for_api(restaurant_id)
+				restaurant = validate_restaurant_for_api(outlet_id)
 			except Exception:
-				return _err("RESTAURANT_NOT_FOUND")
+				return _err("OUTLET_NOT_FOUND")
 			filters["restaurant"] = restaurant
 
 		rows = frappe.get_all(
@@ -1690,11 +1690,11 @@ def get_my_ugc_vouchers(restaurant_id=None):
 			# We don't know the next bill here, so we show the balance and the rule.
 			items.append({
 				"voucherCode": r["voucher_code"],
-				"restaurantId": r["restaurant"],
-				# Public URL slug (the /[restaurant_id] route segment). Falls back to the
+				"outletId": r["restaurant"],
+				# Public URL slug (the /[outlet_id] route segment). Falls back to the
 				# doc name so navigation still resolves if the slug field is unset.
-				"restaurantSlug": m.get("restaurant_id") or r["restaurant"],
-				"restaurantName": m.get("restaurant_name") or r["restaurant"],
+				"outletSlug": m.get("restaurant_id") or r["restaurant"],
+				"outletName": m.get("restaurant_name") or r["restaurant"],
 				"city": m.get("city") or "",
 				"logo": get_cdn_url(m.get("logo")) if m.get("logo") else None,
 				"originalAmount": flt(r["original_amount"]),
@@ -1710,7 +1710,7 @@ def get_my_ugc_vouchers(restaurant_id=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
+def get_my_ugc_submissions(outlet_id=None, page=1, page_size=10):
 	"""
 	Paginated list of all UGC Story Submissions for the logged-in diner.
 	Optionally filtered to a single restaurant.
@@ -1727,9 +1727,9 @@ def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
 		page, page_size = cint(page) or 1, min(cint(page_size) or 10, 50)
 		filters: dict = {"customer": customer}
 
-		if restaurant_id:
+		if outlet_id:
 			try:
-				restaurant = validate_restaurant_for_api(restaurant_id)
+				restaurant = validate_restaurant_for_api(outlet_id)
 				filters["restaurant"] = restaurant
 			except Exception:
 				pass
@@ -1750,12 +1750,12 @@ def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
 
 		items = []
 		for r in rows:
-			restaurant_name = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_name") or r.restaurant
-			restaurant_slug = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_id") or r.restaurant
+			outlet_name = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_name") or r.restaurant
+			outlet_slug = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_id") or r.restaurant
 			items.append({
 				"submission_id": r.name,
-				"restaurant_id": restaurant_slug,
-				"restaurant_name": restaurant_name,
+				"outlet_id": outlet_slug,
+				"outlet_name": outlet_name,
 				"order_id": r.order,
 				"status": r.status,
 				"order_amount": flt(r.order_amount),
@@ -1772,7 +1772,7 @@ def get_my_ugc_submissions(restaurant_id=None, page=1, page_size=10):
 
 
 @frappe.whitelist(allow_guest=True)
-def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
+def activate_ugc_with_pin(outlet_id, voucher_code, pin):
 	"""
 	Waiter enters the 4-digit PIN on the customer's phone to activate a UGC voucher
 	for redemption at this restaurant. Activation is valid for UGC_PIN_LOCK_HOURS hours.
@@ -1783,7 +1783,7 @@ def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 	- Voucher must be active, unexpired, and belong to this restaurant.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -1791,7 +1791,7 @@ def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 		# Validate PIN
 		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
-			return _err("PIN_NOT_SET", "This restaurant has not set up offer verification.")
+			return _err("PIN_NOT_SET", "This outlet has not set up offer verification.")
 		if str(pin).strip() != stored_pin:
 			return _err("INVALID_PIN", "Incorrect PIN — please ask your waiter.")
 
@@ -1825,7 +1825,7 @@ def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 		if has_active_claim:
 			return _err(
 				"OFFER_CONFLICT",
-				"You have an active offer at this restaurant. UGC cashback cannot be combined with other offers.",
+				"You have an active offer at this outlet. UGC cashback cannot be combined with other offers.",
 			)
 
 		# Stamp the activation on the voucher
@@ -1843,14 +1843,14 @@ def activate_ugc_with_pin(restaurant_id, voucher_code, pin):
 			"message": "Cashback activated! Pick your free dish.",
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"activate_ugc_with_pin: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
+def get_ugc_redeemable_dishes(outlet_id, voucher_code, bill_amount):
 	"""
 	Returns menu products marked is_ugc_redeemable=1 for this restaurant whose price
 	fits within min(bill * 30%, voucher_balance).
@@ -1861,7 +1861,7 @@ def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
 	actually deducts the balance.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -1933,14 +1933,14 @@ def get_ugc_redeemable_dishes(restaurant_id, voucher_code, bill_amount):
 			"perVisitPct": PLATFORM_VOUCHER_PER_VISIT_PCT,
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"get_ugc_redeemable_dishes: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist(allow_guest=True)
-def apply_ugc_dish_redemption(restaurant_id, voucher_code, dish_id, bill_amount):
+def apply_ugc_dish_redemption(outlet_id, voucher_code, dish_id, bill_amount):
 	"""
 	Final step: customer has selected a free dish. Deducts the dish price from the
 	voucher balance and records the redemption. Requires prior PIN activation.
@@ -1948,7 +1948,7 @@ def apply_ugc_dish_redemption(restaurant_id, voucher_code, dish_id, bill_amount)
 	Idempotent on (voucher, dish_id) within the same PIN session.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		customer = _require_customer()
 		if not customer:
 			return _err("SESSION_REQUIRED")
@@ -2045,17 +2045,17 @@ def apply_ugc_dish_redemption(restaurant_id, voucher_code, dish_id, bill_amount)
 			"voucherCode": voucher_code,
 		})
 	except frappe.DoesNotExistError:
-		return _err("RESTAURANT_NOT_FOUND")
+		return _err("OUTLET_NOT_FOUND")
 	except Exception as e:
 		frappe.log_error(f"apply_ugc_dish_redemption: {e}", "UGC")
 		return _err("INTERNAL_ERROR")
 
 
 @frappe.whitelist()
-def get_voucher_stats(restaurant_id, days=None):
+def get_voucher_stats(outlet_id, days=None):
 	"""Voucher issuance + redemption stats for the merchant dashboard."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		filters = {"restaurant": restaurant}
@@ -2116,10 +2116,10 @@ def get_voucher_stats(restaurant_id, days=None):
 
 
 @frappe.whitelist()
-def get_ugc_funnel(restaurant_id, days=30):
+def get_ugc_funnel(outlet_id, days=30):
 	"""Submission funnel counts for the UGC analytics tab."""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
 		since = add_to_date(now_datetime(), days=-cint(days))

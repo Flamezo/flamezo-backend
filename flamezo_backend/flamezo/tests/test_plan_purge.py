@@ -78,13 +78,13 @@ class TestPlanPurge(unittest.TestCase):
         get_restaurant_config must always return planType='GOLD' regardless
         of what is stored in the Restaurant DocType field.
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
         # Force DB value to something that should be ignored
         frappe.db.set_value("Restaurant", self.res_id, "plan_type", "GOLD")
         frappe.db.commit()
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
 
         self.assertTrue(result.get("success"), f"API error: {result}")
         subscription = result["data"]["subscription"]
@@ -99,9 +99,9 @@ class TestPlanPurge(unittest.TestCase):
         deferredPlanType must always be None in the API response (the field
         is retired in the single-tier model).
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
 
         self.assertTrue(result.get("success"))
         subscription = result["data"]["subscription"]
@@ -114,18 +114,18 @@ class TestPlanPurge(unittest.TestCase):
         """
         planChangeDate must always be None (not read from the DB any longer).
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
         self.assertIsNone(result["data"]["subscription"].get("planChangeDate"))
 
     def test_get_restaurant_config_settings_plan_type_gold(self):
         """
         settings.planType must also always be 'GOLD'.
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
         settings = result["data"]["settings"]
         self.assertEqual(settings.get("planType"), "GOLD")
 
@@ -133,9 +133,9 @@ class TestPlanPurge(unittest.TestCase):
         """
         Under the single-tier model every feature flag must be True.
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
         features = result["data"]["subscription"]["features"]
 
         expected_true = [
@@ -166,9 +166,9 @@ class TestPlanPurge(unittest.TestCase):
         """
         plan_defaults.gold_barrier must be 0.0 (retired unlock barrier).
         """
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
+        from flamezo_backend.flamezo.api.config import get_outlet_config
 
-        result = get_restaurant_config(self.res_id)
+        result = get_outlet_config(self.res_id)
         plan_defaults = result["data"]["subscription"]["plan_defaults"]
         self.assertAlmostEqual(
             float(plan_defaults.get("gold_barrier", 999)),
@@ -186,9 +186,9 @@ class TestPlanPurge(unittest.TestCase):
         get_restaurant_details should not include a meaningful plan_type
         distinction; any plan_type value returned must be 'GOLD'.
         """
-        from flamezo_backend.flamezo.api.admin import get_restaurant_details
+        from flamezo_backend.flamezo.api.admin import get_outlet_details
 
-        result = get_restaurant_details(self.res_id)
+        result = get_outlet_details(self.res_id)
         self.assertTrue(result.get("success"), f"Admin API error: {result}")
 
         restaurant = result["data"]["restaurant"]
@@ -204,11 +204,11 @@ class TestPlanPurge(unittest.TestCase):
         admin_update_restaurant_settings must reject / ignore any attempt
         to set plan_type to a non-GOLD value.
         """
-        from flamezo_backend.flamezo.api.admin import admin_update_restaurant_settings
+        from flamezo_backend.flamezo.api.admin import admin_update_outlet_settings
 
         # Attempt to set plan_type to a legacy value
-        result = admin_update_restaurant_settings(
-            restaurant_id=self.res_id,
+        result = admin_update_outlet_settings(
+            outlet_id=self.res_id,
             updates={"plan_type": "SILVER"},
         )
         # The field is not in the allowed list so the call should succeed
@@ -225,11 +225,11 @@ class TestPlanPurge(unittest.TestCase):
         update_restaurant_plan must raise PermissionError / return an error
         response — it is deprecated in the single-tier model.
         """
-        from flamezo_backend.flamezo.api.admin import update_restaurant_plan
+        from flamezo_backend.flamezo.api.admin import update_outlet_plan
 
         try:
-            result = update_restaurant_plan(
-                restaurant_id=self.res_id,
+            result = update_outlet_plan(
+                outlet_id=self.res_id,
                 plan_type="SILVER",
             )
             # If it returns a dict, it must be an error

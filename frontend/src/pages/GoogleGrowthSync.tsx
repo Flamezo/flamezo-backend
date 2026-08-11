@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetDocList, useFrappePostCall } from '@/lib/frappe'
 import { useState } from 'react'
 import { Package, RefreshCw, CheckCircle2, Search, Globe, ChevronRight } from 'lucide-react'
@@ -11,15 +11,15 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 
 export default function GoogleGrowthSync() {
-  const { selectedRestaurant, isGold } = useRestaurant()
+  const { selectedOutlet, isGold } = useOutlet()
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
 
   const { data: products, isLoading, mutate: refreshProducts } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name', 'category_name', 'price', 'is_active', 'google_item_id', 'google_product_id', 'seo_slug'],
-    filters: [['restaurant', '=', selectedRestaurant || '']],
+    filters: [['restaurant', '=', selectedOutlet || '']],
     limit: 1000
-  }, selectedRestaurant || '')
+  }, selectedOutlet || '')
 
   const { call: syncMenu } = useFrappePostCall('flamezo_backend.flamezo.api.google_business.sync_menu_to_google')
 
@@ -31,7 +31,7 @@ export default function GoogleGrowthSync() {
     
     setSyncing(true)
     try {
-      const res = await syncMenu({ restaurant_id: selectedRestaurant })
+      const res = await syncMenu({ outlet_id: selectedOutlet })
       if (res.message?.success) {
         toast.success(res.message.message)
         refreshProducts()

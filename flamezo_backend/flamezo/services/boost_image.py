@@ -356,7 +356,7 @@ def _coupon_chip(coupon_code):
 
 
 def _draw_offer_card(canvas, *, offer_headline, offer_detail=None, coupon_code=None,
-                     restaurant_name=None, location=None, position="bottom"):
+                     outlet_name=None, location=None, position="bottom"):
     """
     One elegant frosted-glass card holding the whole offer: a small orange label
     pill, the big dynamic offer headline (e.g. 'FLAT ₹100 OFF', 'BUY 1 GET 1
@@ -390,7 +390,7 @@ def _draw_offer_card(canvas, *, offer_headline, offer_detail=None, coupon_code=N
     detail = _truncate(scratch, offer_detail, detail_font, text_w) if offer_detail else None
     detail_h = _text_size(scratch, detail, detail_font)[1] if detail else 0
 
-    loc_bits = [b for b in [restaurant_name, location] if b]
+    loc_bits = [b for b in [outlet_name, location] if b]
     sub = "  ·  ".join(loc_bits)
     pin_w = 24
     sub = _truncate(scratch, sub, sub_font, text_w - (pin_w + 12))
@@ -521,7 +521,7 @@ def compose_ad_overlays(
     offer_headline=None,
     offer_detail=None,
     coupon_code=None,
-    restaurant_name=None,
+    outlet_name=None,
     address=None,
     area=None,
     analysis=None,
@@ -562,7 +562,7 @@ def compose_ad_overlays(
             offer_headline=headline,
             offer_detail=offer_detail,
             coupon_code=coupon_code,
-            restaurant_name=restaurant_name,
+            outlet_name=outlet_name,
             location=location,
             position=offer_position,
         )
@@ -591,7 +591,7 @@ _ANALYSIS_DEFAULTS = {
 }
 
 
-def _analysis_prompt(restaurant_name):
+def _analysis_prompt(outlet_name):
     return (
         "You are a senior ad-creative director reviewing a restaurant photo that will become a "
         "Meta (Instagram/Facebook) ad. Inspect the image and return ONLY strict JSON, no prose, "
@@ -607,11 +607,11 @@ def _analysis_prompt(restaurant_name):
         '  "description": string,                // <=18 words describing the dish/scene\n'
         '  "refinement_prompt": string           // <=40 words: how to lightly enhance lighting/colour/clarity WITHOUT changing the dish or adding text\n'
         '}\n'
-        f"Restaurant: {restaurant_name or 'a restaurant'}."
+        f"Restaurant: {outlet_name or 'a restaurant'}."
     )
 
 
-def analyze_ad_image(image_path, restaurant_name=None, gemini_key=None):
+def analyze_ad_image(image_path, outlet_name=None, gemini_key=None):
     """
     Gemini vision analysis of the photo. Returns a dict (see _ANALYSIS_DEFAULTS).
     Never raises — falls back to safe defaults on any failure.
@@ -629,7 +629,7 @@ def analyze_ad_image(image_path, restaurant_name=None, gemini_key=None):
                f"gemini-2.5-flash:generateContent?key={gemini_key}")
         payload = {
             "contents": [{"parts": [
-                {"text": _analysis_prompt(restaurant_name)},
+                {"text": _analysis_prompt(outlet_name)},
                 {"inline_data": {"mime_type": mime, "data": img_b64}},
             ]}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
@@ -656,7 +656,7 @@ def _default_offer_headline(offer_amount):
     return f"FLAT ₹{n} OFF" if n else "SPECIAL OFFER"
 
 
-def _ai_creative_prompt(offer_headline, offer_detail, coupon_code, restaurant_name, area,
+def _ai_creative_prompt(offer_headline, offer_detail, coupon_code, outlet_name, area,
                         *, has_offer=False, has_address=False, position="bottom",
                         clean_corner="top-right"):
     """
@@ -666,7 +666,7 @@ def _ai_creative_prompt(offer_headline, offer_detail, coupon_code, restaurant_na
     Flamezo logo is NOT requested — we stamp the real logo by code afterwards,
     so the `clean_corner` is kept empty.
     """
-    loc = f"{restaurant_name}" + (f" · {area}" if area else "") if restaurant_name else (area or "")
+    loc = f"{outlet_name}" + (f" · {area}" if area else "") if outlet_name else (area or "")
     include_offer = not has_offer
     include_loc = bool(loc) and not has_address
 
@@ -702,7 +702,7 @@ def _ai_creative_prompt(offer_headline, offer_detail, coupon_code, restaurant_na
 
     return (
         f'You are a senior social-media advertising designer. The attached photograph is a real dish from the '
-        f'restaurant "{restaurant_name or "this restaurant"}". Turn it into a polished, scroll-stopping '
+        f'restaurant "{outlet_name or "this restaurant"}". Turn it into a polished, scroll-stopping '
         f'Instagram/Facebook (Meta) ad creative.\n\n'
         f'⚠️ TEXT ACCURACY — HIGHEST PRIORITY:\n'
         f'Reproduce all on-image text EXACTLY as given. Every DIGIT, the ₹ currency symbol, and every letter of the '
@@ -732,7 +732,7 @@ def _ai_creative_prompt(offer_headline, offer_detail, coupon_code, restaurant_na
 
 
 def generate_creative_gemini(image_path, *, offer_headline, offer_detail=None, coupon_code=None,
-                             restaurant_name=None, area=None, gemini_key=None, aspect="4:5",
+                             outlet_name=None, area=None, gemini_key=None, aspect="4:5",
                              has_offer=False, has_address=False, position="bottom",
                              clean_corner="top-right"):
     """
@@ -748,7 +748,7 @@ def generate_creative_gemini(image_path, *, offer_headline, offer_detail=None, c
     mime = "image/png" if ext == ".png" else "image/jpeg"
 
     prompt = _ai_creative_prompt(
-        offer_headline, offer_detail, coupon_code, restaurant_name, area,
+        offer_headline, offer_detail, coupon_code, outlet_name, area,
         has_offer=has_offer, has_address=has_address, position=position, clean_corner=clean_corner)
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            f"gemini-2.5-flash-image:generateContent?key={gemini_key}")
@@ -818,8 +818,8 @@ def _download_to_tmp(url):
 def refine_ad_image(
     source,
     *,
-    restaurant_id=None,
-    restaurant_name=None,
+    outlet_id=None,
+    outlet_name=None,
     address=None,
     area=None,
     offer_amount=0,
@@ -861,14 +861,14 @@ def refine_ad_image(
             try:
                 # OCR/vision pass: see what's already printed on the photo so the
                 # prompt only asks the AI to add what's missing.
-                analysis = analyze_ad_image(image_path, restaurant_name, gemini_key) \
+                analysis = analyze_ad_image(image_path, outlet_name, gemini_key) \
                     if do_analysis else dict(_ANALYSIS_DEFAULTS)
                 position = analysis.get("offer_position", "bottom")
                 logo_corner = _resolve_logo_corner(analysis, position, True)
 
                 tmp_ai = generate_creative_gemini(
                     image_path, offer_headline=headline, offer_detail=offer_detail,
-                    coupon_code=coupon_code, restaurant_name=restaurant_name,
+                    coupon_code=coupon_code, outlet_name=outlet_name,
                     area=area, gemini_key=gemini_key,
                     has_offer=bool(analysis.get("has_offer_text")),
                     has_address=bool(analysis.get("has_address_text")),
@@ -885,7 +885,7 @@ def refine_ad_image(
                 # fall through to deterministic overlay
 
         # 2) Deterministic overlay (fallback, or mode="overlay")
-        analysis = analyze_ad_image(image_path, restaurant_name, gemini_key) if do_analysis \
+        analysis = analyze_ad_image(image_path, outlet_name, gemini_key) if do_analysis \
             else dict(_ANALYSIS_DEFAULTS)
         out = compose_ad_overlays(
             image_path,
@@ -893,7 +893,7 @@ def refine_ad_image(
             offer_detail=offer_detail,
             offer_amount=offer_amount,
             coupon_code=coupon_code,
-            restaurant_name=restaurant_name,
+            outlet_name=outlet_name,
             address=address,
             area=area,
             analysis=analysis,
@@ -975,8 +975,8 @@ def process_boost_creative(campaign_name, source_image_url):
 
         out_path, analysis = refine_ad_image(
             source_image_url,
-            restaurant_id=campaign.restaurant,
-            restaurant_name=restaurant.restaurant_name,
+            outlet_id=campaign.restaurant,
+            outlet_name=restaurant.restaurant_name,
             area=area,
             offer_amount=campaign.offer_amount,
             offer_headline=offer_headline,
@@ -988,7 +988,7 @@ def process_boost_creative(campaign_name, source_image_url):
 
         uid = frappe.generate_hash(length=8)
         object_key = generate_object_key(
-            restaurant_id=campaign.restaurant,
+            outlet_id=campaign.restaurant,
             owner_doctype="Restaurant",
             owner_name=campaign.restaurant,
             media_role="boost_ad_creative",

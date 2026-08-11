@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -80,7 +80,7 @@ const AVG_BILL = 600
 // ─── Component ──────────────────────────────────────────────────
 
 export default function BoostOverview() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const navigate = useNavigate()
   const [overview, setOverview] = useState<OverviewData | null>(null)
   const [prereqs, setPrereqs] = useState<PrereqData | null>(null)
@@ -92,17 +92,17 @@ export default function BoostOverview() {
   const { call: fetchPrereqs } = useFrappePostCall('flamezo_backend.flamezo.api.boost.check_prerequisites')
 
   useEffect(() => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
     Promise.all([
-      fetchOverview({ restaurant_id: selectedRestaurant }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
-      fetchPrereqs({ restaurant_id: selectedRestaurant }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
+      fetchOverview({ outlet_id: selectedOutlet }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
+      fetchPrereqs({ outlet_id: selectedOutlet }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
     ]).then(([ov, pr]) => {
       setOverview(ov)
       setPrereqs(pr)
       setLoading(false)
     })
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const filteredCampaigns = useMemo(() => {
     if (!overview?.campaigns) return []

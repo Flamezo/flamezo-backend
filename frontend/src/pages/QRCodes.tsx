@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFrappeGetDoc, useFrappePostCall, useFrappeUpdateDoc } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { NumberInput } from "@/components/ui/number-input"
@@ -206,7 +206,7 @@ function MiniBarChart({ data }: { data: { date: string; scanCount: number }[] })
 }
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function QRCodes() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [baseUrl, setBaseUrl] = useState('')
   const [tables, setTables] = useState(0)
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
@@ -230,8 +230,8 @@ export default function QRCodes() {
   const [activeTab, setActiveTab] = useState('overview')
 
   // Fetch restaurant document
-  const { data: restaurantDoc, mutate: refreshRestaurant } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', {
-    enabled: !!selectedRestaurant,
+  const { data: restaurantDoc, mutate: refreshRestaurant } = useFrappeGetDoc('Restaurant', selectedOutlet || '', {
+    enabled: !!selectedOutlet,
   })
 
   // API calls
@@ -245,7 +245,7 @@ export default function QRCodes() {
 
   // Load restaurant + settings on mount
   useEffect(() => {
-    if (!restaurantDoc || !selectedRestaurant) return
+    if (!restaurantDoc || !selectedOutlet) return
     async function loadSettings() {
       try {
         const globalBaseUrl = (await getAppSettings({}))?.message?.app_base_url
@@ -261,12 +261,12 @@ export default function QRCodes() {
       }
     }
     loadSettings()
-  }, [restaurantDoc?.name, selectedRestaurant])
+  }, [restaurantDoc?.name, selectedOutlet])
 
   const loadQrCodeUrl = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
-      const response: any = await getQrCodeUrl({ restaurant: selectedRestaurant })
+      const response: any = await getQrCodeUrl({ restaurant: selectedOutlet })
       const msg = response?.message
       const url = typeof msg === 'string' ? msg : msg?.pdf_url ?? null
       setQrCodeUrl(url)
@@ -276,10 +276,10 @@ export default function QRCodes() {
   }
 
   const loadTableAssets = useCallback(async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setIsLoadingAssets(true)
     try {
-      const response: any = await getTableAssets({ restaurant: selectedRestaurant, force: 0 })
+      const response: any = await getTableAssets({ restaurant: selectedOutlet, force: 0 })
       const items = response?.message?.items || []
       setTableAssets(items)
     } catch (e) {
@@ -287,13 +287,13 @@ export default function QRCodes() {
     } finally {
       setIsLoadingAssets(false)
     }
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const loadAnalytics = useCallback(async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setIsLoadingAnalytics(true)
     try {
-      const res: any = await getAnalytics({ restaurant: selectedRestaurant, days: 30 })
+      const res: any = await getAnalytics({ restaurant: selectedOutlet, days: 30 })
       if (res?.message?.success) {
         setAnalyticsData(res.message.data)
       }
@@ -302,7 +302,7 @@ export default function QRCodes() {
     } finally {
       setIsLoadingAnalytics(false)
     }
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   // Load assets + analytics when switching to dedicated tabs
   useEffect(() => {
@@ -319,7 +319,7 @@ export default function QRCodes() {
   }
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleGenerateQrCodes = async () => {
-    if (!selectedRestaurant) return toast.error('Select an outlet first')
+    if (!selectedOutlet) return toast.error('Select an outlet first')
     if (!tables || tables <= 0) {
       return toast.error('Set number of tables first')
     }
@@ -336,7 +336,7 @@ export default function QRCodes() {
         formData.append('file', bgFile)
         formData.append('filename', bgFile.name)
         formData.append('doctype', 'Restaurant')
-        formData.append('docname', selectedRestaurant)
+        formData.append('docname', selectedOutlet)
         formData.append('is_private', '0')
 
         const csrf = (window as any).frappe?.csrf_token || (window as any).csrf_token
@@ -358,7 +358,7 @@ export default function QRCodes() {
 
       toast.info('Generating QR codes PDF...', { id: 'qr-gen' })
       const response: any = await generateQrCodes({
-        restaurant: selectedRestaurant,
+        restaurant: selectedOutlet,
         layout: pdfLayout,
         background_image: finalBgUrl || undefined,
       })
@@ -391,11 +391,11 @@ export default function QRCodes() {
   }
 
   const handleUpdateTables = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     if (!tables || tables <= 0) return toast.error('Number of tables must be > 0')
     setIsUpdating(true)
     try {
-      await updateRestaurant('Restaurant', selectedRestaurant, { tables })
+      await updateRestaurant('Restaurant', selectedOutlet, { tables })
       toast.success('Tables count updated')
       await refreshRestaurant()
       setQrCodeUrl(null)
@@ -446,11 +446,11 @@ export default function QRCodes() {
   }
 
   const confirmDeleteQrCodes = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setShowDeleteDialog(false)
     setIsDeleting(true)
     try {
-      const response: any = await deleteQrCodes({ restaurant: selectedRestaurant })
+      const response: any = await deleteQrCodes({ restaurant: selectedOutlet })
       const msg = response?.message
       const deleted = typeof msg === 'boolean' ? msg : msg?.status === 'success'
       if (deleted) {
@@ -469,7 +469,7 @@ export default function QRCodes() {
   }
 
   // ─── Empty state ───────────────────────────────────────────────────────────
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="w-full max-w-md">
@@ -1079,7 +1079,7 @@ export default function QRCodes() {
 
       {/* ── QR Code Scanner Dialog ─────────────────────────────────────────── */}
       <QRCodeScanner
-        restaurantId={restaurantDoc?.restaurant_id || ''}
+        outletId={restaurantDoc?.restaurant_id || ''}
         open={showScanner}
         onOpenChange={setShowScanner}
         onScan={(tableNumber) => {

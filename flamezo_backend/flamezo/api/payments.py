@@ -62,7 +62,7 @@ def get_or_create_mandate_plan(client):
 
 
 @frappe.whitelist()
-def create_linked_account(restaurant_id):
+def create_linked_account(outlet_id):
 	"""Create or fetch the Razorpay Route Linked Account for a restaurant.
 
 	Idempotent — safe to call multiple times. The restaurant must have all
@@ -72,12 +72,12 @@ def create_linked_account(restaurant_id):
 	arrives later via `account.*` webhook events which auto-promote the
 	restaurant to `direct_split` once activated.
 	"""
-	_restaurant_name = validate_restaurant_for_api(restaurant_id)
-	return route_adapter.ensure_linked_account(_restaurant_name)
+	_outlet_id = validate_restaurant_for_api(outlet_id)
+	return route_adapter.ensure_linked_account(_outlet_id)
 
 
 @frappe.whitelist(allow_guest=True)
-def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None, payment_source="web"):
+def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None, payment_source="web"):
 	"""Create or update a Razorpay order for customer payment.
 
 	payment_source controls the fee model:
@@ -85,8 +85,8 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 	  "app"  — 7% Flamezo fee; Flamezo absorbs 2% Razorpay gateway cost.
 	"""
 	try:
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
+		_outlet_id = validate_restaurant_for_api(outlet_id)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
 
 		# Active-restaurant gate.
 		# New model: every onboarded restaurant gets online payments. The only
@@ -94,7 +94,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		if not restaurant.is_active:
 			return {
 				"success": False,
-				"error": "This restaurant is currently inactive. Please contact support."
+				"error": "This outlet is currently inactive. Please contact support."
 			}
 
 		# Parse delivery info if string
@@ -158,7 +158,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			try:
 				order_doc = frappe.get_doc("Order", existing_order_id)
 				# Only reuse if it's still pending payment and belongs to the same restaurant
-				if order_doc.payment_status != "pending" or order_doc.restaurant != restaurant_id:
+				if order_doc.payment_status != "pending" or order_doc.restaurant != outlet_id:
 					order_doc = None
 			except frappe.DoesNotExistError:
 				order_doc = None
@@ -172,7 +172,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			order_doc.update({
 				"order_id": order_id,
 				"order_number": order_number,
-				"restaurant": restaurant_id,
+				"restaurant": outlet_id,
 			})
 
 		# Update basic info
@@ -240,16 +240,16 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			try:
 				from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, is_loyalty_enabled
 				from flamezo_backend.flamezo.utils.platform_config import get_max_redemption_percent, is_cross_restaurant_redemption_enabled
-				if is_loyalty_enabled(_restaurant_name):
+				if is_loyalty_enabled(_outlet_id):
 					if is_cross_restaurant_redemption_enabled():
 						balance = get_loyalty_balance(platform_customer)
 					else:
-						balance = get_loyalty_balance(platform_customer, restaurant=_restaurant_name)
+						balance = get_loyalty_balance(platform_customer, restaurant=_outlet_id)
 					if redeemed_coins > balance:
 						redeemed_coins = balance
 
 					# Plan-tiered redemption cap: GOLD 30% (single active tier).
-					plan = frappe.db.get_value("Restaurant", _restaurant_name, "plan_type") or "GOLD"
+					plan = frappe.db.get_value("Restaurant", _outlet_id, "plan_type") or "GOLD"
 					max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 					loyalty_discount = float(redeemed_coins)  # coin_value_in_inr is always 1
 					max_ld = orig_subtotal * max_redeem_pct
@@ -269,7 +269,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			try:
 				from flamezo_backend.flamezo.api.coupons import validate_coupon
 				cart_items_val = [{"dishId": i.get("product_id") or i.get("dishId")} for i in order_items]
-				coupon_res = validate_coupon(restaurant_id, coupon_code, orig_subtotal, customer_id=platform_customer, cart_items=json.dumps(cart_items_val))
+				coupon_res = validate_coupon(outlet_id, coupon_code, orig_subtotal, customer_id=platform_customer, cart_items=json.dumps(cart_items_val))
 				if coupon_res.get("success"):
 					cdata = coupon_res.get("data", {}).get("coupon", {})
 					applied_coupon = cdata.get("id")
@@ -352,7 +352,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		# (The legacy `merchant_direct` mode — restaurant uses their own
 		# Razorpay keys — is retired; `get_razorpay_config` always returns
 		# platform keys now.)
-		client = get_razorpay_client(restaurant_id)
+		client = get_razorpay_client(outlet_id)
 
 		settlement_mode = "flamezo_hold"
 		netoff_paise = 0
@@ -370,7 +370,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			# platform's slice of this order so Flamezo recovers it
 			# automatically. Capped at 40% of the order (see engine).
 			netoff_paise = commission_engine.compute_netoff_for_online_order(
-				restaurant_id, final_total_paise
+				outlet_id, final_total_paise
 			)
 
 			if payment_source == "app":
@@ -404,8 +404,8 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			"payment_capture": 1,
 			"notes": {
 				"order_id": order_doc.name,
-				"restaurant_id": restaurant_id,
-				"restaurant_name": frappe.db.get_value("Restaurant", restaurant_id, "restaurant_name") or restaurant_id,
+				"outlet_id": outlet_id,
+				"outlet_name": frappe.db.get_value("Restaurant", outlet_id, "restaurant_name") or outlet_id,
 				"platform_fee": platform_fee_paise,
 				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
@@ -561,7 +561,7 @@ def process_loyalty_and_coupons(order):
 	"""
 	from flamezo_backend.flamezo.utils.loyalty import redeem_loyalty_coins, earn_loyalty_coins
 
-	restaurant_id = order.restaurant
+	outlet_id = order.restaurant
 	platform_customer = order.platform_customer
 
 	if not platform_customer:
@@ -578,7 +578,7 @@ def process_loyalty_and_coupons(order):
 			# Idempotency: skip if a Redeem entry already exists for this order
 			already_redeemed = frappe.db.exists("Restaurant Loyalty Entry", {
 				"customer": platform_customer,
-				"restaurant": restaurant_id,
+				"restaurant": outlet_id,
 				"reference_doctype": "Order",
 				"reference_name": order.name,
 				"transaction_type": "Redeem"
@@ -591,7 +591,7 @@ def process_loyalty_and_coupons(order):
 			else:
 				result = redeem_loyalty_coins(
 					customer=platform_customer,
-					restaurant=restaurant_id,
+					restaurant=outlet_id,
 					coins=coins_to_redeem,
 					reason="Redemption",
 					ref_doctype="Order",
@@ -613,7 +613,7 @@ def process_loyalty_and_coupons(order):
 		# Idempotency: skip if an Earn entry already exists for this order
 		already_earned = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": platform_customer,
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"reference_doctype": "Order",
 			"reference_name": order.name,
 			"transaction_type": "Earn"
@@ -626,7 +626,7 @@ def process_loyalty_and_coupons(order):
 			# (settled, spendable now). A later refund reverses it via the webhook.
 			earn_loyalty_coins(
 				customer=platform_customer,
-				restaurant=restaurant_id,
+				restaurant=outlet_id,
 				amount_paid=order.total,
 				reason="Order",
 				ref_doctype="Order",
@@ -651,7 +651,7 @@ def process_loyalty_and_coupons(order):
 					"coupon": order.coupon,
 					"customer": platform_customer,
 					"order": order.name,
-					"restaurant": restaurant_id,
+					"restaurant": outlet_id,
 					"discount_amount": order.discount
 				})
 				usage_doc.insert(ignore_permissions=True)
@@ -670,7 +670,7 @@ def process_loyalty_and_coupons(order):
 			claim_name = frappe.db.get_value(
 				"Offer Claim",
 				{
-					"restaurant": restaurant_id,
+					"restaurant": outlet_id,
 					"customer": platform_customer,
 					"coupon": order.coupon,
 					"is_paid": 0,
@@ -693,18 +693,18 @@ def process_loyalty_and_coupons(order):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_payment_stats(restaurant_id):
-	"""Alias for get_restaurant_payment_stats — matches the EP.paymentStats key."""
-	return get_restaurant_payment_stats(restaurant_id)
+def get_payment_stats(outlet_id):
+	"""Alias for get_outlet_payment_stats — matches the EP.paymentStats key."""
+	return get_outlet_payment_stats(outlet_id)
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_payment_stats(restaurant_id):
-	"""Get payment statistics for a restaurant"""
+def get_outlet_payment_stats(outlet_id):
+	"""Get payment statistics for an outlet"""
 	try:
-		# Validate restaurant (returns restaurant doc name), then fetch doc
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
+		# Validate outlet (returns restaurant doc name), then fetch doc
+		_outlet_id = validate_restaurant_for_api(outlet_id)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
 
 		def mask_identifier(value, prefix_len=4):
 			if not value:
@@ -752,11 +752,11 @@ def get_restaurant_payment_stats(restaurant_id):
 
 
 @frappe.whitelist()
-def create_razorpay_customer_and_token(restaurant_id, customer_name, customer_email, token_id=None):
+def create_razorpay_customer_and_token(outlet_id, customer_name, customer_email, token_id=None):
 	"""Create a Razorpay customer record and optionally store a token id for recurring charges."""
 	try:
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
+		_outlet_id = validate_restaurant_for_api(outlet_id)
+		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
 
 		client = get_razorpay_client()
 
@@ -766,7 +766,7 @@ def create_razorpay_customer_and_token(restaurant_id, customer_name, customer_em
 				"name": customer_name,
 				"email": customer_email,
 				"contact": restaurant.owner_phone or customer_email,
-				"notes": {"restaurant": restaurant_id}
+				"notes": {"restaurant": outlet_id}
 			}
 			customer = client.customer.create(customer_payload)
 			restaurant.razorpay_customer_id = customer.get("id")
@@ -785,15 +785,15 @@ def create_razorpay_customer_and_token(restaurant_id, customer_name, customer_em
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist(allow_guest=True)
-def create_tokenization_order(restaurant_id, customer_name=None, customer_email=None):
+def create_tokenization_order(outlet_id, customer_name=None, customer_email=None):
 	"""
 	Create a Razorpay Subscription to register a production mandate (UPI, Card, eNACH).
 	We use the Subscriptions API to ensure full multi-method support for live customers.
 	"""
 	try:
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
+		_outlet_id = validate_restaurant_for_api(outlet_id)
 		client = get_razorpay_client()
-		customer_id = get_or_create_razorpay_customer(restaurant_id)
+		customer_id = get_or_create_razorpay_customer(outlet_id)
 		
 		plan_id = get_or_create_mandate_plan(client)
 		if not plan_id:
@@ -802,7 +802,7 @@ def create_tokenization_order(restaurant_id, customer_name=None, customer_email=
 		# Create a TokenizationAttempt doc
 		attempt_doc = frappe.get_doc({
 			"doctype": "Tokenization Attempt",
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"amount": 100, # ₹1
 			"currency": "INR",
 			"status": "pending",
@@ -831,7 +831,7 @@ def create_tokenization_order(restaurant_id, customer_name=None, customer_email=
 			"customer_notify": 0,
 			"notes": {
 				"attempt_id": attempt_doc.name,
-				"restaurant_id": restaurant_id,
+				"outlet_id": outlet_id,
 				"description": "Production Autopay Mandate Registration (Limit: ₹15,000)",
 				"type": "tokenization"
 			}
@@ -863,14 +863,14 @@ def create_tokenization_order(restaurant_id, customer_name=None, customer_email=
 
 
 @frappe.whitelist(allow_guest=True)
-def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id, razorpay_signature):
+def confirm_mandate_setup(outlet_id, razorpay_payment_id, razorpay_order_id, razorpay_signature):
 	"""
 	Confirm mandate registration after Razorpay Checkout handler fires.
 	Verifies signature, fetches token from Razorpay, and saves to Restaurant doc.
 	This is called by the frontend after the Checkout handler returns.
 	"""
 	try:
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
+		_outlet_id = validate_restaurant_for_api(outlet_id)
 		
 		# 1. Verify payment signature
 		cfg = get_razorpay_config()
@@ -891,7 +891,7 @@ def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id,
 					'razorpay_signature': razorpay_signature
 				})
 		except Exception as e:
-			frappe.log_error(f"Mandate signature verification failed for {_restaurant_name}: {str(e)}", "razorpay.confirm_mandate")
+			frappe.log_error(f"Mandate signature verification failed for {_outlet_id}: {str(e)}", "razorpay.confirm_mandate")
 			return {"success": False, "error": "Payment signature verification failed"}
 		
 		# 2. Fetch payment details from Razorpay to get the token
@@ -912,9 +912,9 @@ def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id,
 		)
 		
 		# 3. Save to restaurant doc
-		if not _restaurant_name:
-			raise Exception("Restaurant not found")
-		restarurant_doc = frappe.get_doc("Restaurant", _restaurant_name)
+		if not _outlet_id:
+			raise Exception("Outlet not found")
+		restarurant_doc = frappe.get_doc("Restaurant", _outlet_id)
 		updated = False
 		
 		if customer_id and not restarurant_doc.razorpay_customer_id:
@@ -958,7 +958,7 @@ def confirm_mandate_setup(restaurant_id, razorpay_payment_id, razorpay_order_id,
 			"message": "Mandate registered successfully" if token_id else "Payment verified. Mandate will activate shortly via webhook."
 		}
 	except Exception as e:
-		frappe.log_error(f"confirm_mandate_setup failed for {restaurant_id}: {str(e)}", "razorpay.confirm_mandate")
+		frappe.log_error(f"confirm_mandate_setup failed for {outlet_id}: {str(e)}", "razorpay.confirm_mandate")
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist(allow_guest=True)
@@ -1096,7 +1096,7 @@ def charge_monthly_bill(ledger_name):
 
 		restaurant = frappe.get_doc("Restaurant", ledger.restaurant)
 		if not restaurant.razorpay_customer_id or not restaurant.razorpay_token_id:
-			return {"success": False, "error": "Restaurant missing customer/token"}
+			return {"success": False, "error": "Outlet missing customer/token"}
 
 		client = get_razorpay_client(restaurant.name)
 
@@ -1224,11 +1224,11 @@ def charge_monthly_bill(ledger_name):
 			pass
 		return {"success": False, "error": str(e)}
 @frappe.whitelist()
-def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10, skip=0):
+def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, skip=0):
 	"""Fetch transactions directly from Razorpay filtered for a specific restaurant."""
 	try:
-		validate_restaurant_for_api(restaurant_id)
-		client = get_razorpay_client(restaurant_id)
+		validate_restaurant_for_api(outlet_id)
+		client = get_razorpay_client(outlet_id)
 		
 		params = {
 			"count": count,
@@ -1263,17 +1263,17 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 		]
 		breakdown_enabled = True
 		try:
-			orders = frappe.db.get_all("Order", filters={"restaurant": restaurant_id}, fields=BREAKDOWN_FIELDS)
+			orders = frappe.db.get_all("Order", filters={"restaurant": outlet_id}, fields=BREAKDOWN_FIELDS)
 		except Exception:
 			breakdown_enabled = False
 			orders = frappe.db.get_all(
-				"Order", filters={"restaurant": restaurant_id},
+				"Order", filters={"restaurant": outlet_id},
 				fields=["name", "razorpay_payment_id", "razorpay_order_id"],
 			)
 
 		order_payment_ids = {o.razorpay_payment_id for o in orders if o.razorpay_payment_id}
 		order_ids = {o.razorpay_order_id for o in orders if o.razorpay_order_id}
-		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"restaurant": restaurant_id}, pluck="razorpay_payment_id"))
+		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"restaurant": outlet_id}, pluck="razorpay_payment_id"))
 
 		# Resolve applied-coupon codes in one batch (Order.coupon is the Coupon docname).
 		coupon_codes = {}
@@ -1285,7 +1285,7 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 
 		# Restaurant's current success-share % — used to ESTIMATE the split for older
 		# orders that never persisted it (their split write failed before migration).
-		fee_pct = flt(frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")) or 0.0
+		fee_pct = flt(frappe.db.get_value("Restaurant", outlet_id, "platform_fee_percent")) or 0.0
 
 		def _breakdown(o):
 			# `total` is the amount the customer actually paid (already after any
@@ -1339,8 +1339,8 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 			if (payment_id in order_payment_ids or
 				payment_id in ledger_payment_ids or
 				rzp_order_id in order_ids or
-				notes.get("restaurant") == restaurant_id or
-				notes.get("restaurant_id") == restaurant_id):
+				notes.get("restaurant") == outlet_id or
+				notes.get("outlet_id") == outlet_id):
 				# Attach the breakdown by the most reliable key available.
 				item["breakdown"] = (
 					bd_by_pid.get(payment_id)
@@ -1376,7 +1376,7 @@ def get_razorpay_payments(restaurant_id, from_date=None, to_date=None, count=10,
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-def initiate_razorpay_refund(restaurant_id, payment_id, amount=None, reason=None):
+def initiate_razorpay_refund(outlet_id, payment_id, amount=None, reason=None):
 	"""Initiate a refund for a Razorpay payment.
 
 	For Route split orders, reverses the linked-account transfer first so the
@@ -1384,8 +1384,8 @@ def initiate_razorpay_refund(restaurant_id, payment_id, amount=None, reason=None
 	Without this, Flamezo absorbs the full refund while the restaurant keeps its cut.
 	"""
 	try:
-		validate_restaurant_for_api(restaurant_id)
-		client = get_razorpay_client(restaurant_id)
+		validate_restaurant_for_api(outlet_id)
+		client = get_razorpay_client(outlet_id)
 
 		# Reverse the Route transfer if this order had a split
 		order_name = frappe.db.get_value("Order", {"razorpay_payment_id": payment_id}, "name")

@@ -19,7 +19,7 @@ class MarketingCampaign(Document):
     def _check_segment_match(self):
         seg_restaurant = frappe.db.get_value("Marketing Segment", self.target_segment, "restaurant")
         if seg_restaurant != self.restaurant:
-            frappe.throw(_("The selected segment does not belong to this restaurant."))
+            frappe.throw(_("The selected segment does not belong to this outlet."))
 
     def _check_coin_balance(self):
         """Warn (not hard-block) if coins may be insufficient for the full reach."""

@@ -24,9 +24,9 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 import json
 
 
-def _require_restaurant(restaurant_id):
+def _require_restaurant(outlet_id):
 	"""Validate the restaurant AND that the logged-in user has access to it."""
-	return validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+	return validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 
 
 def _has_food_cost_col():
@@ -54,14 +54,14 @@ def _product_metrics(price, food_cost):
 
 
 @frappe.whitelist()
-def get_menu_costing(restaurant_id):
+def get_menu_costing(outlet_id):
 	"""
 	GET menu items + food cost + margin metrics for the costing page.
 	Returns products grouped flat (frontend groups by category), the category
 	list, and a menu-wide summary (coverage, avg food cost %, avg margin %).
 	"""
 	try:
-		restaurant = _require_restaurant(restaurant_id)
+		restaurant = _require_restaurant(outlet_id)
 		has_cost_col = _has_food_cost_col()
 
 		fields = [
@@ -139,14 +139,14 @@ def get_menu_costing(restaurant_id):
 
 
 @frappe.whitelist()
-def bulk_set_costs(restaurant_id, items):
+def bulk_set_costs(outlet_id, items):
 	"""
 	Set food_cost on multiple products at once.
 	items: JSON list of {"docname": "...", "food_cost": <number>}
 	Used for inline single edits (one item) and saved batches.
 	"""
 	try:
-		restaurant = _require_restaurant(restaurant_id)
+		restaurant = _require_restaurant(outlet_id)
 		if not _has_food_cost_col():
 			return {"success": False, "error": {"message": "Food cost is not enabled yet. Please run 'bench migrate' to finish setup."}}
 		if isinstance(items, str):
@@ -200,10 +200,10 @@ def _apply_pct(restaurant, pct, category_name=None):
 
 
 @frappe.whitelist()
-def apply_category_cost_pct(restaurant_id, category, pct):
+def apply_category_cost_pct(outlet_id, category, pct):
 	"""Set food cost = pct% of price for every item in one category."""
 	try:
-		restaurant = _require_restaurant(restaurant_id)
+		restaurant = _require_restaurant(outlet_id)
 		if not _has_food_cost_col():
 			return {"success": False, "error": {"message": "Food cost is not enabled yet. Please run 'bench migrate' to finish setup."}}
 		updated = _apply_pct(restaurant, pct, category_name=category)
@@ -216,10 +216,10 @@ def apply_category_cost_pct(restaurant_id, category, pct):
 
 
 @frappe.whitelist()
-def apply_global_cost_pct(restaurant_id, pct):
+def apply_global_cost_pct(outlet_id, pct):
 	"""Set food cost = pct% of price for the entire menu (one-tap baseline)."""
 	try:
-		restaurant = _require_restaurant(restaurant_id)
+		restaurant = _require_restaurant(outlet_id)
 		if not _has_food_cost_col():
 			return {"success": False, "error": {"message": "Food cost is not enabled yet. Please run 'bench migrate' to finish setup."}}
 		updated = _apply_pct(restaurant, pct)
@@ -232,14 +232,14 @@ def apply_global_cost_pct(restaurant_id, pct):
 
 
 @frappe.whitelist()
-def check_food_cost_coverage(restaurant_id):
+def check_food_cost_coverage(outlet_id):
 	"""
 	Check whether all active menu items have food cost set.
 	Used to gate AI coupon generation — AI needs cost data on every item to
 	generate profit-safe, margin-aware offers.
 	"""
 	try:
-		restaurant = _require_restaurant(restaurant_id)
+		restaurant = _require_restaurant(outlet_id)
 
 		total = frappe.db.count("Menu Product", {"restaurant": restaurant, "is_active": 1})
 

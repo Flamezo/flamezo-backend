@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, Users, Clock, CheckCircle, XCircle, AlertCircle, Search, ChevronLeft, ChevronRight, Phone, StickyNote, ChevronDown, Scissors, Dumbbell } from 'lucide-react'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,7 +34,7 @@ interface Appointment {
 const SELECTED_DATE_KEY = 'flamezo_backend-appointments-selected-date'
 
 export default function AppointmentsPage() {
-  const { selectedRestaurant, outletType } = useRestaurant()
+  const { selectedOutlet, outletType } = useOutlet()
 
   const isFitness = outletType === 'fitness'
   const pageTitle = isFitness ? 'Class Bookings' : 'Appointments'
@@ -83,11 +83,11 @@ export default function AppointmentsPage() {
   }, [selectedDate])
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       loadAppointments()
       if (!searchQuery) loadMonthlyAppointments()
     }
-  }, [selectedRestaurant, selectedDate, statusFilter, showPastBookings, searchQuery])
+  }, [selectedOutlet, selectedDate, statusFilter, showPastBookings, searchQuery])
 
   const formatDateForAPI = (date: Date): string => {
     const y = date.getFullYear()
@@ -97,12 +97,12 @@ export default function AppointmentsPage() {
   }
 
   const loadAppointments = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       setLoading(true)
       const dateStr = formatDateForAPI(selectedDate)
       let params: any = {
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         status: statusFilter === 'all' ? undefined : statusFilter,
         limit: 200,
       }
@@ -137,10 +137,10 @@ export default function AppointmentsPage() {
   }
 
   const loadMonthlyAppointments = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       const response = await fetchAppointments({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         limit: 1000,
       })
       const data = response?.message?.data || response?.data
@@ -157,10 +157,10 @@ export default function AppointmentsPage() {
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       let response
-      const base = { appointment_id: id, restaurant_id: selectedRestaurant }
+      const base = { appointment_id: id, outlet_id: selectedOutlet }
       if (newStatus === 'Confirmed') response = await confirmAPI(base)
       else if (newStatus === 'Rejected') response = await rejectAPI({ ...base, reason: 'Rejected by staff' })
       else if (newStatus === 'Completed') response = await completeAPI(base)
@@ -206,7 +206,7 @@ export default function AppointmentsPage() {
     return 'bg-gray-100 text-gray-800'
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

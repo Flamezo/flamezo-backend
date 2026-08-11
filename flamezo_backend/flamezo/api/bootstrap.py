@@ -5,7 +5,7 @@ import json
 import frappe
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
-from flamezo_backend.flamezo.api.config import get_restaurant_config, get_filters
+from flamezo_backend.flamezo.api.config import get_outlet_config, get_filters
 from flamezo_backend.flamezo.api.categories import get_categories
 from flamezo_backend.flamezo.api.products import get_products
 
@@ -20,13 +20,13 @@ def _run_in_frappe_thread(site, fn, *args, **kwargs):
 		frappe.destroy()
 
 
-def _try_fast_path(restaurant_id, restaurant):
+def _try_fast_path(outlet_id, restaurant):
 	"""
 	Serve bootstrap entirely from Redis — zero thread overhead.
 	Returns assembled data dict when all 4 caches are warm, else None.
 	"""
-	# 1. Config cache (60s TTL, keyed by restaurant_id)
-	config_raw = frappe.cache().get_value(f"restaurant_config:{restaurant_id}")
+	# 1. Config cache (60s TTL, keyed by outlet_id)
+	config_raw = frappe.cache().get_value(f"outlet_config:{outlet_id}")
 	if not config_raw:
 		return None
 
@@ -65,7 +65,7 @@ def _try_fast_path(restaurant_id, restaurant):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_bootstrap(restaurant_id):
+def get_outlet_bootstrap(outlet_id):
 	"""
 	Consolidated API to fetch all initial data for ONO Menu in one request.
 
@@ -73,20 +73,20 @@ def get_restaurant_bootstrap(restaurant_id):
 	Slow path  (any cache cold):     parallel ThreadPoolExecutor(4) — ~265ms server-side.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# ── Fast path ──────────────────────────────────────────────────────
-		fast = _try_fast_path(restaurant_id, restaurant)
+		fast = _try_fast_path(outlet_id, restaurant)
 		if fast is not None:
 			return {"success": True, "data": {**fast, "site": frappe.local.site}}
 
 		# ── Slow path: parallel threads ─────────────────────────────────────
 		site = frappe.local.site
 		task_map = {
-			"config":     (get_restaurant_config, [restaurant_id], {}),
-			"categories": (get_categories,        [restaurant_id], {}),
-			"filters":    (get_filters,            [restaurant_id], {}),
-			"products":   (get_products,           [restaurant_id], {"limit": 100}),
+			"config":     (get_outlet_config, [outlet_id], {}),
+			"categories": (get_categories,        [outlet_id], {}),
+			"filters":    (get_filters,            [outlet_id], {}),
+			"products":   (get_products,           [outlet_id], {"limit": 100}),
 		}
 
 		results = {}
@@ -121,12 +121,12 @@ def get_restaurant_bootstrap(restaurant_id):
 		return {
 			"success": False,
 			"error": {
-				"code": "RESTAURANT_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
+				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
 				"message": str(e),
 			},
 		}
 	except Exception as e:
-		frappe.log_error(f"Error in get_restaurant_bootstrap: {str(e)}")
+		frappe.log_error(f"Error in get_outlet_bootstrap: {str(e)}")
 		return {
 			"success": False,
 			"error": {

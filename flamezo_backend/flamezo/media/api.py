@@ -72,7 +72,7 @@ def request_upload_session(owner_doctype, owner_name, media_role, filename, cont
 	
 	# Generate object key
 	object_key = generate_object_key(
-		restaurant_id=restaurant,
+		outlet_id=restaurant,
 		owner_doctype=owner_doctype,
 		owner_name=owner_name,
 		media_role=actual_role,
@@ -321,7 +321,7 @@ def validate_restaurant_access(restaurant):
 	user_restaurant_list = [r.restaurant for r in user_restaurants]
 	
 	if restaurant not in user_restaurant_list:
-		frappe.throw(_("You do not have access to this restaurant"), frappe.PermissionError)
+		frappe.throw(_("You do not have access to this outlet"), frappe.PermissionError)
 	
 	return True
 

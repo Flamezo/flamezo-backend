@@ -42,9 +42,9 @@ def check_admin_access():
         }
 
 @frappe.whitelist()
-def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
+def get_all_outlets(page=1, page_size=20, search=None, filters=None):
     """
-    Get all restaurants with their plan details
+    Get all outlets with their plan details
     Only accessible by admin users
     """
     try:
@@ -163,8 +163,8 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
         # throttle indicators without a second round-trip.
         _select_cols = f"""
             r.name,
-            r.restaurant_id,
-            r.restaurant_name,
+            r.restaurant_id as outlet_id,
+            r.restaurant_name as outlet_name,
             r.owner_email,
             r.owner_phone,
             r.is_active,
@@ -228,11 +228,11 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
         }
 
 @frappe.whitelist()
-def get_admin_restaurants_stats():
+def get_admin_outlets_stats():
     """
-    Aggregate stats strip for the admin Restaurant Management page.
+    Aggregate stats strip for the admin Outlet Management page.
 
-    Returns counts + sums across every restaurant so the admin can see
+    Returns counts + sums across every outlet so the admin can see
     fleet-wide health at a glance without paginating. Cheap query (one
     aggregate scan of `tabRestaurant`).
     """
@@ -266,14 +266,14 @@ def get_admin_restaurants_stats():
         out['total_outstanding_rupees'] = round(out.get('total_outstanding_paise', 0) / 100.0, 2)
         return {'success': True, 'data': out}
     except Exception as e:
-        frappe.log_error("Admin Stats Error", f"get_admin_restaurants_stats failed: {e!s}")
+        frappe.log_error("Admin Stats Error", f"get_admin_outlets_stats failed: {e!s}")
         return {'success': False, 'error': str(e)}
 
 
 @frappe.whitelist()
-def get_restaurant_details(restaurant_id):
+def get_outlet_details(outlet_id):
     """
-    Get all details of a single restaurant.
+    Get all details of a single outlet.
     Only accessible by admin users.
     """
     try:
@@ -286,11 +286,11 @@ def get_restaurant_details(restaurant_id):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
-                'error': 'Restaurant not found'
+                'error': 'Outlet not found'
             }
 
         restaurant_dict = restaurant.as_dict()
@@ -307,24 +307,24 @@ def get_restaurant_details(restaurant_id):
             }
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in get_restaurant_details: {e!s}")
+        frappe.log_error("Admin API Error", f"Error in get_outlet_details: {e!s}")
         return {
             'success': False,
             'error': str(e)
         }
 
 
-# Deprecated: update_restaurant_plan removed as plan_type is no longer used
-def update_restaurant_plan(restaurant_id, plan_type):
+# Deprecated: update_outlet_plan removed as plan_type is no longer used
+def update_outlet_plan(outlet_id, plan_type):
     return {
         'success': False,
-        'error': 'Plan updates are deprecated. All restaurants use the default GOLD plan.'
+        'error': 'Plan updates are deprecated. All outlets use the default GOLD plan.'
     }
 
 @frappe.whitelist()
-def toggle_restaurant_status(restaurant_id, is_active):
+def toggle_outlet_status(outlet_id, is_active):
     """
-    Toggle restaurant active status
+    Toggle outlet active status
     Only accessible by admin users
     """
     try:
@@ -344,11 +344,11 @@ def toggle_restaurant_status(restaurant_id, is_active):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
-                'error': 'Restaurant not found'
+                'error': 'Outlet not found'
             }
 
         # Update restaurant status
@@ -360,10 +360,10 @@ def toggle_restaurant_status(restaurant_id, is_active):
             return {
                 'success': True,
                 'data': {
-                    'restaurant_id': restaurant_id,
+                    'outlet_id': outlet_id,
                     'is_active': is_active,
                     'updated_by': frappe.session.user,
-                    'note': f'Restaurant {"activated" if is_active else "deactivated"} successfully'
+                    'note': f'Outlet {"activated" if is_active else "deactivated"} successfully'
                 }
             }
         except Exception as e:
@@ -374,7 +374,7 @@ def toggle_restaurant_status(restaurant_id, is_active):
             }
 
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in toggle_restaurant_status: {e!s}")
+        frappe.log_error("Admin API Error", f"Error in toggle_outlet_status: {e!s}")
         return {
             'success': False,
             'error': str(e)
@@ -382,9 +382,9 @@ def toggle_restaurant_status(restaurant_id, is_active):
 
 
 @frappe.whitelist()
-def delete_restaurant(restaurant_id):
+def delete_outlet(outlet_id):
     """
-    Permanently delete a restaurant and ALL associated data.
+    Permanently delete an outlet and ALL associated data.
     This includes: Configuration, Menu, Orders, Customers, Media, etc.
     Only accessible by system administrators.
     """
@@ -393,15 +393,15 @@ def delete_restaurant(restaurant_id):
         if not is_global_admin():
             return {
                 'success': False,
-                'error': 'Restricted: Only Global Administrators can purge restaurants'
+                'error': 'Restricted: Only Global Administrators can purge outlets'
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
-                'error': f'Restaurant {restaurant_id} not found'
+                'error': f'Outlet {outlet_id} not found'
             }
 
         restaurant_name = restaurant.name
@@ -560,31 +560,31 @@ def delete_restaurant(restaurant_id):
 
         # 6. Finally, delete the Restaurant record itself
         frappe.delete_doc('Restaurant', restaurant_name, ignore_permissions=True, delete_permanently=True, force=1)
-        cleanup_report.append(f"Deleted Restaurant record: {restaurant_id}")
+        cleanup_report.append(f"Deleted Restaurant record: {outlet_id}")
 
         # Commit all changes to database
         frappe.db.commit()
 
         return {
             'success': True,
-            'message': f"Restaurant {restaurant_id} and all related data deleted successfully.",
+            'message': f"Outlet {outlet_id} and all related data deleted successfully.",
             'report': cleanup_report
         }
 
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in delete_restaurant API: {e!s}")
+        frappe.log_error("Admin API Error", f"Error in delete_outlet API: {e!s}")
         frappe.db.rollback()
         return {
             'success': False,
-            'error': f"Failed to delete restaurant: {e!s}",
+            'error': f"Failed to delete outlet: {e!s}",
             'partial_report': cleanup_report if 'cleanup_report' in locals() else []
         }
 
 
 @frappe.whitelist()
-def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
+def admin_give_coins(outlet_id, amount, reason="Admin Grant"):
     """
-    Give coins to a restaurant manually from admin.
+    Give coins to an outlet manually from admin.
     """
     try:
         # Check admin access first
@@ -599,9 +599,9 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
             return {'success': False, 'error': 'Invalid amount'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
-            return {'success': False, 'error': 'Restaurant not found'}
+            return {'success': False, 'error': 'Outlet not found'}
 
         # Update balance and log the transaction (audit trail)
         from flamezo_backend.flamezo.api.coin_billing import record_transaction
@@ -617,7 +617,7 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
 
         return {
             'success': True,
-            'message': f"Successfully credited {amount} coins to {restaurant_id}",
+            'message': f"Successfully credited {amount} coins to {outlet_id}",
             'new_balance': new_bal
         }
     except Exception as e:
@@ -626,9 +626,9 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
         return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
-def admin_update_restaurant_settings(restaurant_id, updates):
+def admin_update_outlet_settings(outlet_id, updates):
     """
-    Update administrative settings for a restaurant.
+    Update administrative settings for an outlet.
     """
     try:
         # Check admin access first
@@ -637,9 +637,9 @@ def admin_update_restaurant_settings(restaurant_id, updates):
             return {'success': False, 'error': 'Admin access required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
-            return {'success': False, 'error': 'Restaurant not found'}
+            return {'success': False, 'error': 'Outlet not found'}
 
         # Parse updates if it's a string
         if isinstance(updates, str):
@@ -673,8 +673,8 @@ def admin_update_restaurant_settings(restaurant_id, updates):
             frappe.db.commit()
             return {
                 'success': True,
-                'message': f"Restaurant settings updated successfully for {restaurant_id}",
-                'data': {'restaurant_id': restaurant_id, 'updated_fields': list(updates.keys())}
+                'message': f"Outlet settings updated successfully for {outlet_id}",
+                'data': {'outlet_id': outlet_id, 'updated_fields': list(updates.keys())}
             }
 
         for field, value in remaining.items():
@@ -697,19 +697,19 @@ def admin_update_restaurant_settings(restaurant_id, updates):
 
         return {
             'success': True,
-            'message': f"Restaurant settings updated successfully for {restaurant_id}",
+            'message': f"Outlet settings updated successfully for {outlet_id}",
             'data': {
-                'restaurant_id': restaurant_id,
+                'outlet_id': outlet_id,
                 'updated_fields': list(updates.keys())
             }
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in admin_update_restaurant_settings: {e!s}")
+        frappe.log_error("Admin API Error", f"Error in admin_update_outlet_settings: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
-def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
+def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
     """
     Onboard a restaurant owner.
     Creates a Frappe User, assigns roles, links to Restaurant, and triggers welcome email.
@@ -724,9 +724,9 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             return {'success': False, 'error': 'Owner email is required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         if not restaurant:
-            return {'success': False, 'error': 'Restaurant not found'}
+            return {'success': False, 'error': 'Outlet not found'}
 
         # 1. Update Restaurant record if details changed
         if restaurant.owner_email != owner_email or restaurant.owner_name != owner_name:
@@ -749,7 +749,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
         import random
         clean_name = ''.join(e for e in restaurant.restaurant_name if e.isalnum())
         if not clean_name:
-            clean_name = restaurant_id.replace('-', '')
+            clean_name = outlet_id.replace('-', '')
             
         suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
         symbols = ['!', '@', '#', '$', '%', '&', '*']
@@ -835,7 +835,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             }
         }
     except Exception as e:
-        frappe.log_error("Admin Onboarding Error", f"Error in admin_onboard_restaurant_owner: {e!s}")
+        frappe.log_error("Admin Onboarding Error", f"Error in admin_onboard_outlet_owner: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
@@ -995,7 +995,7 @@ def admin_list_branch_access(multi_only=0):
         rows = frappe.db.sql(
             """
             SELECT ru.user, ru.restaurant, ru.role,
-                   COALESCE(r.restaurant_name, ru.restaurant) AS restaurant_name
+                   COALESCE(r.restaurant_name, ru.restaurant) AS outlet_name
             FROM `tabRestaurant User` ru
             LEFT JOIN `tabRestaurant` r ON r.name = ru.restaurant
             WHERE ru.is_active = 1
@@ -1009,7 +1009,7 @@ def admin_list_branch_access(multi_only=0):
             g = grouped.setdefault(row.user, {'user': row.user, 'branches': []})
             g['branches'].append({
                 'name': row.restaurant,
-                'restaurant_name': row.restaurant_name,
+                'outlet_name': row.outlet_name,
                 'role': row.role,
             })
 
@@ -1090,13 +1090,13 @@ def send_onboarding_email(recipient, name, password):
 
 
 @frappe.whitelist()
-def admin_create_wallet_payment_link(restaurant_id, tier):
+def admin_create_wallet_payment_link(outlet_id, tier):
     """
     Legacy endpoint — previously created a Razorpay Payment Link for the
     unlock fee. Under the single-tier model onboarding is free, so this endpoint is intentionally short-circuited.
     It remains importable so existing client code that calls it doesn't 404.
 
-    To charge a restaurant a one-off amount today, generate a Razorpay
+    To charge an outlet a one-off amount today, generate a Razorpay
     Payment Link directly from the Frappe desk.
     """
     try:
@@ -1106,7 +1106,7 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
 
         # Silence unused-arg lints — the legacy signature is preserved for
         # any out-of-tree clients still calling this endpoint.
-        _ = (restaurant_id, tier)
+        _ = (outlet_id, tier)
 
         return {
             'success': False,
@@ -1175,7 +1175,7 @@ def update_platform_settings(settings):
 
     return {'success': True, 'updated': updated}
 @frappe.whitelist()
-def admin_create_manual_recharge_link(restaurant_id, amount):
+def admin_create_manual_recharge_link(outlet_id, amount):
     """
     Generate a Razorpay payment link for a custom manual credit.
     Includes 18% GST.
@@ -1201,9 +1201,9 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
 
         # Get restaurant record
         try:
-            restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
+            restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
         except Exception:
-            return {'success': False, 'error': 'Restaurant not found'}
+            return {'success': False, 'error': 'Outlet not found'}
 
         # Build Razorpay Payment Link
         client = get_razorpay_client()
@@ -1228,7 +1228,7 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
             "reminder_enable": False,
             "notes": {
                 "restaurant": restaurant.name,
-                "restaurant_id": restaurant_id,
+                "outlet_id": outlet_id,
                 "type": "wallet_topup_plink",
                 "is_manual": "yes",
                 "base_amount": base_amount,
@@ -1247,7 +1247,7 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
             'amount': total_payable,
             'base_amount': base_amount,
             'gst_amount': gst_amount,
-            'restaurant_name': restaurant.restaurant_name
+            'outlet_name': restaurant.restaurant_name
         }
 
     except Exception as e:
@@ -1455,9 +1455,9 @@ def admin_get_customer_full_profile(customer_id):
     if all_rest_ids:
         rest_rows = frappe.get_all(
             "Restaurant", filters={"name": ["in", list(all_rest_ids)]},
-            fields=["name", "restaurant_name"]
+            fields=["name", "restaurant_name as outlet_name"]
         )
-        rest_name_map = {r.name: r.restaurant_name for r in rest_rows}
+        rest_name_map = {r.name: r.outlet_name for r in rest_rows}
 
     def rn(rid):
         return rest_name_map.get(rid, rid)
@@ -1480,18 +1480,18 @@ def admin_get_customer_full_profile(customer_id):
                 "total_redeemed":  sum(e.coins for e in loyalty_entries if e.transaction_type == "Redeem" and e.is_settled),
             },
             "table_bookings": [
-                {**dict(b), "restaurant_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.restaurant)}
                 for b in table_bookings
             ],
             "banquet_bookings": [
-                {**dict(b), "restaurant_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.restaurant)}
                 for b in banquet_bookings
             ],
             "loyalty": {
                 "balance":        balance,
                 "lifetime_earned": lifetime_earned,
                 "entries": [
-                    {**dict(e), "restaurant_name": rn(e.restaurant)}
+                    {**dict(e), "outlet_name": rn(e.restaurant)}
                     for e in loyalty_entries
                 ],
             },
@@ -1507,7 +1507,7 @@ def admin_get_customer_full_profile(customer_id):
                 "referrals_made": [dict(r) for r in referrals_made],
             },
             "ugc": [
-                {**dict(u), "restaurant_name": rn(u.restaurant)}
+                {**dict(u), "outlet_name": rn(u.restaurant)}
                 for u in ugc_submissions
             ],
         }
@@ -1515,7 +1515,7 @@ def admin_get_customer_full_profile(customer_id):
 
 
 @frappe.whitelist()
-def admin_adjust_customer_loyalty(customer_id, restaurant_id, coins, reason, transaction_type="Earn"):
+def admin_adjust_customer_loyalty(customer_id, outlet_id, coins, reason, transaction_type="Earn"):
     """Manual loyalty adjustment — admin/supervisor only."""
     if not is_supervisor():
         frappe.throw("Permission denied", frappe.PermissionError)
@@ -1527,7 +1527,7 @@ def admin_adjust_customer_loyalty(customer_id, restaurant_id, coins, reason, tra
     from flamezo_backend.flamezo.utils.loyalty import add_loyalty_coins
     add_loyalty_coins(
         customer=customer_id,
-        restaurant=restaurant_id,
+        restaurant=outlet_id,
         coins=coins,
         reason=reason or "Manual Adjustment",
         transaction_type=transaction_type,
@@ -1597,10 +1597,10 @@ def admin_delete_customer(customer_id):
 
 
 @frappe.whitelist()
-def admin_generate_bulk_food_photos(restaurant_id):
+def admin_generate_bulk_food_photos(outlet_id):
     """
-    Enqueue a background job to generate Fal.ai food photos for all 
-    products in a restaurant that currently lack media.
+    Enqueue a background job to generate Fal.ai food photos for all
+    products in an outlet that currently lack media.
     """
     try:
         # Check admin access first
@@ -1610,7 +1610,7 @@ def admin_generate_bulk_food_photos(restaurant_id):
 
         frappe.enqueue(
             'flamezo_backend.flamezo.api.admin.process_bulk_food_photos',
-            restaurant_id=restaurant_id,
+            outlet_id=outlet_id,
             queue='long',
             timeout=3600
         )
@@ -1623,9 +1623,9 @@ def admin_generate_bulk_food_photos(restaurant_id):
         frappe.log_error("Bulk Photo Gen Error", f"Failed to enqueue: {str(e)}")
         return {'success': False, 'error': str(e)}
 
-def process_bulk_food_photos(restaurant_id):
+def process_bulk_food_photos(outlet_id):
     try:
-        products = frappe.get_all('Menu Product', filters={'restaurant': restaurant_id}, pluck='name')
+        products = frappe.get_all('Menu Product', filters={'restaurant': outlet_id}, pluck='name')
         for product_name in products:
             product = frappe.get_doc('Menu Product', product_name)
 
@@ -1637,7 +1637,7 @@ def process_bulk_food_photos(restaurant_id):
             # Prevents duplicate jobs when the button is clicked twice or after a
             # partial run leaves pending/processing/completed records behind.
             active_job = frappe.db.exists("AI Image Generation", {
-                "restaurant": restaurant_id,
+                "restaurant": outlet_id,
                 "owner_doctype": "Menu Product",
                 "owner_name": product_name,
                 "status": ["in", ["Pending_Upload", "Processing", "Completed"]],
@@ -1647,7 +1647,7 @@ def process_bulk_food_photos(restaurant_id):
 
             doc = frappe.get_doc({
                 "doctype": "AI Image Generation",
-                "restaurant": restaurant_id,
+                "restaurant": outlet_id,
                 "owner_doctype": "Menu Product",
                 "owner_name": product_name,
                 "original_image_url": "",

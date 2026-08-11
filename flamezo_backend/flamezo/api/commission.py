@@ -16,19 +16,19 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 
 
 @frappe.whitelist()
-def get_commission_status(restaurant_id):
+def get_commission_status(outlet_id):
     """Compact dashboard view of where the restaurant stands on cash
     commission: outstanding, wallet balance, throttle state, count by
     ledger status."""
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     return {"success": True, "data": commission_engine.get_outstanding_summary(name)}
 
 
 @frappe.whitelist()
-def list_ledger_entries(restaurant_id, status=None, limit=50, offset=0):
+def list_ledger_entries(outlet_id, status=None, limit=50, offset=0):
     """Paginated Commission Ledger history. `status` may be
     'outstanding' / 'partial' / 'settled' / 'voided' or omitted for all."""
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     filters = {"restaurant": name}
     if status:
         filters["status"] = status
@@ -50,10 +50,10 @@ def list_ledger_entries(restaurant_id, status=None, limit=50, offset=0):
 
 
 @frappe.whitelist()
-def get_ledger_entry(restaurant_id, ledger_name):
+def get_ledger_entry(outlet_id, ledger_name):
     """Full Commission Ledger Entry incl. settlement child rows. Used by
     drill-down view in the merchant dashboard."""
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     if frappe.db.get_value("Commission Ledger Entry", ledger_name, "restaurant") != name:
         frappe.throw(_("Not permitted"), frappe.PermissionError)
     doc = frappe.get_doc("Commission Ledger Entry", ledger_name)
@@ -94,7 +94,7 @@ def get_ledger_entry(restaurant_id, ledger_name):
 
 
 @frappe.whitelist()
-def submit_route_kyc(restaurant_id, legal_name=None, business_type=None,
+def submit_route_kyc(outlet_id, legal_name=None, business_type=None,
                      pan_number=None, bank_account_number=None, bank_ifsc=None,
                      bank_holder_name=None):
     """Collect Route KYC fields from the merchant dashboard onboarding form
@@ -105,7 +105,7 @@ def submit_route_kyc(restaurant_id, legal_name=None, business_type=None,
     `razorpay_kyc_status = under_review`. KYC outcome arrives via webhook
     (`account.activated` flips it to `direct_split` automatically).
     """
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
 
     update = {}
     if legal_name is not None:
@@ -129,7 +129,7 @@ def submit_route_kyc(restaurant_id, legal_name=None, business_type=None,
 
 
 @frappe.whitelist()
-def sync_route_kyc_status(restaurant_id):
+def sync_route_kyc_status(outlet_id):
     """Manual sync triggered by the Sync button on the merchant's Route/payout page.
 
     Handles all three states in one shot:
@@ -141,7 +141,7 @@ def sync_route_kyc_status(restaurant_id):
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     res = frappe.get_doc("Restaurant", name)
     current = (res.get("razorpay_kyc_status") or "").lower()
 
@@ -273,7 +273,7 @@ def reconcile_all_pending_kyc():
 
 
 @frappe.whitelist()
-def trigger_manual_sweep(restaurant_id):
+def trigger_manual_sweep(outlet_id):
     """Admin / merchant tool: force a Tier 2 autopay sweep right now
     instead of waiting for the weekly cadence. Useful when a merchant just
     set up their mandate after a big cash day.
@@ -281,7 +281,7 @@ def trigger_manual_sweep(restaurant_id):
     Per-restaurant rate-limited to one call per minute via Frappe's
     `frappe.cache` to prevent accidental double-charges from impatient
     clicks."""
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     cache_key = f"cash_sweep_manual:{name}"
     if frappe.cache().get_value(cache_key):
         return {"success": False, "error": "rate_limited", "retry_after_sec": 60}
@@ -290,7 +290,7 @@ def trigger_manual_sweep(restaurant_id):
 
 
 @frappe.whitelist()
-def debug_bank_attach(restaurant_id):
+def debug_bank_attach(outlet_id):
     """System Manager only. Runs the stakeholder + bank PATCH steps against
     an existing linked account and returns the raw Razorpay HTTP status codes
     and response bodies so you can diagnose exactly which step fails and why.
@@ -302,7 +302,7 @@ def debug_bank_attach(restaurant_id):
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     res = frappe.get_doc("Restaurant", name)
     account_id = res.get("razorpay_account_id")
     if not account_id:
@@ -368,15 +368,15 @@ def debug_bank_attach(restaurant_id):
 
 
 @frappe.whitelist()
-def admin_void_ledger(restaurant_id, ledger_name, reason):
+def admin_void_ledger(outlet_id, ledger_name, reason):
     """Admin override: void a Commission Ledger Entry (e.g. dispute, bad
     accrual). Requires System Manager. Refunds any wallet sweeps already
     applied to the entry."""
     if "System Manager" not in frappe.get_roles(frappe.session.user):
         frappe.throw(_("Not permitted"), frappe.PermissionError)
-    name = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+    name = validate_restaurant_for_api(outlet_id, frappe.session.user)
     if frappe.db.get_value("Commission Ledger Entry", ledger_name, "restaurant") != name:
-        frappe.throw(_("Ledger entry does not belong to this restaurant"))
+        frappe.throw(_("Ledger entry does not belong to this outlet"))
 
     order = frappe.db.get_value("Commission Ledger Entry", ledger_name, "order")
     commission_engine.void_for_order(order, reason=reason or "Admin override")

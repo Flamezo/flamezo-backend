@@ -54,7 +54,7 @@ const MAX_POSTERS = 3
 interface Props {
   open: boolean
   onClose: () => void
-  restaurantId: string
+  outletId: string
   onUseEvent: (event: AIEvent) => void
 }
 
@@ -66,7 +66,7 @@ const dayLabel = (e: AIEvent) => {
   return map.filter(([k]) => e[k]).map(([, l]) => l).join(', ')
 }
 
-export default function EventAIModal({ open, onClose, restaurantId, onUseEvent }: Props) {
+export default function EventAIModal({ open, onClose, outletId, onUseEvent }: Props) {
   const [mode, setMode] = useState<Mode>('prompt')
   const [userPrompt, setUserPrompt] = useState('')
   const [posterFiles, setPosterFiles] = useState<File[]>([])
@@ -135,7 +135,7 @@ export default function EventAIModal({ open, onClose, restaurantId, onUseEvent }
     }
     try {
       const res: any = await generate({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         user_prompt: mode === 'prompt' ? userPrompt.trim() : null,
         poster_base64: mode === 'poster' ? JSON.stringify(posterPreviews) : null,
       })

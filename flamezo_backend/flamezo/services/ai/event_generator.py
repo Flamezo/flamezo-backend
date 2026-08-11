@@ -70,18 +70,18 @@ HARD RULES:
 """
 
 
-def _restaurant_context(restaurant_id: str) -> dict[str, Any]:
+def _outlet_context(outlet_id: str) -> dict[str, Any]:
     """Light context for the prompt. Defensive: a site missing any of these
     columns must never break event generation."""
     try:
         return frappe.db.get_value(
             "Restaurant",
-            restaurant_id,
+            outlet_id,
             ["restaurant_name", "city", "state", "address"],
             as_dict=True,
         ) or {}
     except Exception:
-        return {"restaurant_name": frappe.db.get_value("Restaurant", restaurant_id, "restaurant_name") or ""}
+        return {"restaurant_name": frappe.db.get_value("Restaurant", outlet_id, "restaurant_name") or ""}
 
 
 def _build_prompt(ctx: dict, user_prompt: str | None, from_poster: bool) -> str:
@@ -201,7 +201,7 @@ def _validate_and_clean_event(e: dict) -> dict | None:
 
 
 def generate_events(
-    restaurant_id: str,
+    outlet_id: str,
     user_prompt: str | None = None,
     poster_base64: str | list | None = None,
 ) -> dict[str, Any]:
@@ -227,7 +227,7 @@ def generate_events(
                 posters = [s]
         posters = [p for p in posters if p][:3]
 
-    quota = _check_and_increment_quota(restaurant_id)
+    quota = _check_and_increment_quota(outlet_id)
     if not quota["allowed"]:
         return {
             "success": False,
@@ -239,7 +239,7 @@ def generate_events(
             "quota": quota,
         }
 
-    ctx = _restaurant_context(restaurant_id)
+    ctx = _outlet_context(outlet_id)
     prompt = _build_prompt(ctx, user_prompt, from_poster=bool(posters))
 
     try:
@@ -262,15 +262,15 @@ def generate_events(
         raw_text = response.text.strip()
     except Exception as ex:
         # Roll back the quota increment since generation failed.
-        used = int(frappe.db.get_value("Restaurant", restaurant_id, "ai_coupon_generations_this_month") or 1)
-        frappe.db.set_value("Restaurant", restaurant_id,
+        used = int(frappe.db.get_value("Restaurant", outlet_id, "ai_coupon_generations_this_month") or 1)
+        frappe.db.set_value("Restaurant", outlet_id,
             {"ai_coupon_generations_this_month": max(used - 1, 0)}, update_modified=False)
         frappe.db.commit()
         return handle_ai_error(ex)
 
     raw_events = _extract_json_array(raw_text)
     if raw_events is None:
-        logger.error(f"[event_generator] JSON parse failed for {restaurant_id}: {raw_text[:300]}")
+        logger.error(f"[event_generator] JSON parse failed for {outlet_id}: {raw_text[:300]}")
         return {"success": False, "error_code": "PARSE_ERROR",
                 "message": "AI returned an unexpected format. Please try again.",
                 "quota": {k: v for k, v in quota.items() if k != "allowed"}}

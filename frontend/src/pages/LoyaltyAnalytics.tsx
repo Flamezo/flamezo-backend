@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -155,12 +155,12 @@ function MiniTrend({ data }: { data: DayPoint[] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LoyaltyAnalytics() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
 
   const { data: raw, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.loyalty.get_loyalty_analytics',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `LoyaltyAnalytics-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `LoyaltyAnalytics-${selectedOutlet}` : undefined,
   )
 
   const res = (raw as any)?.message ?? (raw as any)

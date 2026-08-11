@@ -1,5 +1,5 @@
 import { useState, useEffect, SetStateAction } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import {
 import { Label } from '@/components/ui/label'
 
 export default function CustomerInsights() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [loading, setLoading] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -38,11 +38,11 @@ export default function CustomerInsights() {
   const { call: adjustPoints } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.adjust_customer_points')
   const { call: getTransactions } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.get_customer_transactions')
   const fetchInsights = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
     try {
       const res: any = await getInsights({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         search_query: searchQuery
       })
       if (res.message?.success) {
@@ -57,15 +57,15 @@ export default function CustomerInsights() {
 
   useEffect(() => {
     fetchInsights()
-  }, [selectedRestaurant, searchQuery])
+  }, [selectedOutlet, searchQuery])
 
   const handleAdjustPoints = async () => {
-    if (!selectedRestaurant || !selectedCustomer || !adjustAmount) return
+    if (!selectedOutlet || !selectedCustomer || !adjustAmount) return
 
     setAdjusting(true)
     try {
       const res: any = await adjustPoints({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         customer_id: selectedCustomer.id,
         coins: Math.abs(parseInt(adjustAmount)),
         reason: adjustReason || 'Manual Adjustment',
@@ -89,13 +89,13 @@ export default function CustomerInsights() {
   }
 
   const fetchHistory = async (customer: any) => {
-    if (!selectedRestaurant || !customer) return
+    if (!selectedOutlet || !customer) return
     setSelectedCustomer(customer)
     setHistoryModalOpen(true)
     setLoadingHistory(true)
     try {
       const res: any = await getTransactions({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         customer_id: customer.id
       })
       if (res.message?.success) {

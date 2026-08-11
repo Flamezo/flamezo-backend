@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,7 +88,7 @@ function StatCard({
 
 export default function ChillsAnalytics() {
   const navigate = useNavigate()
-  const { selectedRestaurant, isLoading: outletLoading } = useRestaurant()
+  const { selectedOutlet, isLoading: outletLoading } = useOutlet()
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [allVideos, setAllVideos] = useState<VideoRow[]>([])
@@ -96,15 +96,15 @@ export default function ChillsAnalytics() {
   // Aggregate analytics
   const { data: analyticsRes, isLoading: analyticsLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.chills.get_chills_outlet_analytics',
-    selectedRestaurant ? { outlet_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `chills-analytics-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `chills-analytics-${selectedOutlet}` : undefined,
   )
 
   // All videos for per-video table (top 50)
   const { data: videosRes, isLoading: videosLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.chills.get_merchant_chills',
-    selectedRestaurant ? { outlet_id: selectedRestaurant, limit: 50 } : undefined,
-    selectedRestaurant ? `chills-all-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet, limit: 50 } : undefined,
+    selectedOutlet ? `chills-all-${selectedOutlet}` : undefined,
   )
 
   useEffect(() => {

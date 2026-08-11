@@ -28,7 +28,7 @@ def main():
     token_data = {
         "user_id": user_id,
         "email": email,
-        "restaurant_access": []  # Add restaurant IDs if needed
+        "outlet_access": []  # Add outlet IDs if needed
     }
     
     token = create_access_token(token_data)

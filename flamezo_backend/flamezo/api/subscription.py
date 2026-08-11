@@ -18,25 +18,25 @@ from flamezo_backend.flamezo.utils.feature_gate import check_feature_access, get
 
 
 @frappe.whitelist()
-def get_restaurant_plan(restaurant_id):
+def get_outlet_plan(outlet_id):
     """
-    Get current subscription plan for a restaurant.
+    Get current subscription plan for an outlet.
 
     Args:
-        restaurant_id (str): Restaurant ID
+        outlet_id (str): Outlet ID
 
     Returns:
-        dict: Restaurant plan information
+        dict: Outlet plan information
     """
-    if not restaurant_id:
-        frappe.throw(_('Restaurant ID is required'))
+    if not outlet_id:
+        frappe.throw(_('Outlet ID is required'))
 
-    restaurant = frappe.get_doc('Restaurant', restaurant_id)
+    restaurant = frappe.get_doc('Restaurant', outlet_id)
     plan_type = restaurant.plan_type or 'GOLD'
 
     return {
-        'restaurant_id': restaurant.name,
-        'restaurant_name': restaurant.restaurant_name,
+        'outlet_id': restaurant.name,
+        'outlet_name': restaurant.restaurant_name,
         'plan_type': plan_type,
         'plan_activated_on': restaurant.plan_activated_on,
         'plan_changed_by': restaurant.plan_changed_by,
@@ -57,22 +57,22 @@ def get_restaurant_plan(restaurant_id):
 
 
 @frappe.whitelist()
-def check_access(restaurant_id, feature_name):
+def check_access(outlet_id, feature_name):
     """
-    Check if restaurant has access to a specific feature.
+    Check if outlet has access to a specific feature.
 
     Args:
-        restaurant_id (str): Restaurant ID
+        outlet_id (str): Outlet ID
         feature_name (str): Feature identifier
 
     Returns:
         dict: Feature access information
     """
-    return check_feature_access(restaurant_id, feature_name)
+    return check_feature_access(outlet_id, feature_name)
 
 
 @frappe.whitelist()
-def get_plan_comparison(restaurant_id=None):
+def get_plan_comparison(outlet_id=None):
     """
     Return the active plan description.
 
@@ -80,9 +80,9 @@ def get_plan_comparison(restaurant_id=None):
     """
     default_rate = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0
     commission_rate = f"{float(default_rate)}%"
-    if restaurant_id:
+    if outlet_id:
         try:
-            rate = frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")
+            rate = frappe.db.get_value("Restaurant", outlet_id, "platform_fee_percent")
             if rate is not None:
                 commission_rate = f"{float(rate)}%"
         except Exception:
@@ -127,15 +127,15 @@ def get_plan_comparison(restaurant_id=None):
 
 
 @frappe.whitelist()
-def get_upgrade_benefits(restaurant_id):
+def get_upgrade_benefits(outlet_id):
     """
     Legacy endpoint kept for backwards compatibility with old merchant builds.
 
-    Under the new model every restaurant is already on the only available tier,
+    Under the new model every outlet is already on the only available tier,
     so this always reports `already_gold: True`. The benefits payload is left in
     place so the existing UI continues to render without breaking.
     """
-    restaurant = frappe.get_doc('Restaurant', restaurant_id)
+    restaurant = frappe.get_doc('Restaurant', outlet_id)
 
     return {
         'already_gold': True,

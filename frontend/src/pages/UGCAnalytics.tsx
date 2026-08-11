@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, Eye, Wallet, TrendingUp, Loader2, IndianRupee, ArrowUpRight, ShoppingBag, Sparkles } from 'lucide-react'
@@ -39,16 +39,16 @@ const MOCK_ANALYTICS_DATA = {
 }
 
 export default function UGCAnalytics() {
-  const { selectedRestaurant } = useRestaurant()
-  const [demoMode, setDemoMode] = useState(selectedRestaurant === 'unvind')
+  const { selectedOutlet } = useOutlet()
+  const [demoMode, setDemoMode] = useState(selectedOutlet === 'unvind')
 
   const { data, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_analytics',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `ugc-analytics-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `ugc-analytics-${selectedOutlet}` : undefined,
   )
 
-  if (!selectedRestaurant) return <div className="p-8 text-center text-muted-foreground">Select an outlet.</div>
+  if (!selectedOutlet) return <div className="p-8 text-center text-muted-foreground">Select an outlet.</div>
 
   const body: any = (data as any)?.message || data
   const realData = body?.success ? body.data : null
@@ -75,7 +75,7 @@ export default function UGCAnalytics() {
           <h1 className="text-3xl font-bold tracking-tight">UGC Analytics</h1>
           <p className="text-muted-foreground mt-1">Lifetime performance of your story-for-cashback loop.</p>
         </div>
-        {selectedRestaurant === 'unvind' && (
+        {selectedOutlet === 'unvind' && (
           <div className="flex items-center gap-2.5 bg-muted/60 border rounded-full px-3 py-1.5 text-xs font-medium self-start sm:self-center">
             <span className={demoMode ? "text-orange-500 font-semibold" : "text-muted-foreground"}>Simulated Data</span>
             <button

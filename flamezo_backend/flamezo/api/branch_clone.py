@@ -9,7 +9,7 @@ Design goals
 ------------
 * ADMIN ONLY. Merchants can never call this (role-gated).
 * Only shows / targets branches that belong to the SAME owner as the source
-  (matched on Restaurant.owner_email) — never unrelated restaurants.
+  (matched on Restaurant.owner_email) — never unrelated outlets.
 * Independent copies: each branch gets its own Menu Category / Menu Product /
   Addon Group records, so editing one branch never affects another.
 * Zero image-generation cost: product/category images are reused by URL
@@ -38,25 +38,25 @@ def _assert_admin():
 		frappe.throw(_("Only Flamezo admins can copy content across branches."), frappe.PermissionError)
 
 
-def _parse_ids(target_restaurant_ids):
-	"""Accept a JSON string, comma list, or python list of restaurant ids."""
-	if isinstance(target_restaurant_ids, (list, tuple)):
-		return [str(x).strip() for x in target_restaurant_ids if str(x).strip()]
-	if not target_restaurant_ids:
+def _parse_ids(target_outlet_ids):
+	"""Accept a JSON string, comma list, or python list of outlet ids."""
+	if isinstance(target_outlet_ids, (list, tuple)):
+		return [str(x).strip() for x in target_outlet_ids if str(x).strip()]
+	if not target_outlet_ids:
 		return []
 	import json
 	try:
-		parsed = json.loads(target_restaurant_ids)
+		parsed = json.loads(target_outlet_ids)
 		if isinstance(parsed, (list, tuple)):
 			return [str(x).strip() for x in parsed if str(x).strip()]
 	except Exception:
 		pass
-	return [b.strip() for b in str(target_restaurant_ids).split(",") if b.strip()]
+	return [b.strip() for b in str(target_outlet_ids).split(",") if b.strip()]
 
 
 @frappe.whitelist()
 def search_branches(query=None, limit=20):
-	"""Type-ahead search over restaurants (name / id / city) — used when picking
+	"""Type-ahead search over outlets (name / id / city) — used when picking
 	branches for a group. Admin-only."""
 	_assert_admin()
 	q = (query or "").strip()
@@ -102,7 +102,7 @@ def list_group_branches(group_id):
 
 
 @frappe.whitelist()
-def create_group(group_name, restaurant_ids=None):
+def create_group(group_name, outlet_ids=None):
 	"""Create a named Merchant Group and (optionally) assign branches to it."""
 	_assert_admin()
 	name = (group_name or "").strip()
@@ -114,31 +114,31 @@ def create_group(group_name, restaurant_ids=None):
 	group = frappe.get_doc({"doctype": "Merchant Group", "group_name": name})
 	group.insert(ignore_permissions=True)
 
-	ids = [r for r in _parse_ids(restaurant_ids) if frappe.db.exists("Restaurant", r)]
+	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Restaurant", r)]
 	for r in ids:
 		frappe.db.set_value("Restaurant", r, "branch_group", group.name)
 	return {"success": True, "group": group.name, "group_name": name, "assigned": len(ids)}
 
 
 @frappe.whitelist()
-def add_to_group(group_id, restaurant_ids):
+def add_to_group(group_id, outlet_ids):
 	"""Add one or more branches to an existing Merchant Group."""
 	_assert_admin()
 	if not frappe.db.exists("Merchant Group", group_id):
 		return {"success": False, "error": "Group not found"}
-	ids = [r for r in _parse_ids(restaurant_ids) if frappe.db.exists("Restaurant", r)]
+	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Restaurant", r)]
 	for r in ids:
 		frappe.db.set_value("Restaurant", r, "branch_group", group_id)
 	return {"success": True, "group": group_id, "assigned": len(ids)}
 
 
 @frappe.whitelist()
-def remove_from_group(restaurant_id):
+def remove_from_group(outlet_id):
 	"""Detach a branch from its group (make it standalone)."""
 	_assert_admin()
-	if not frappe.db.exists("Restaurant", restaurant_id):
-		return {"success": False, "error": "Restaurant not found"}
-	frappe.db.set_value("Restaurant", restaurant_id, "branch_group", None)
+	if not frappe.db.exists("Restaurant", outlet_id):
+		return {"success": False, "error": "Outlet not found"}
+	frappe.db.set_value("Restaurant", outlet_id, "branch_group", None)
 	return {"success": True}
 
 
@@ -301,26 +301,26 @@ def _clone_branding(source, target):
 
 
 @frappe.whitelist()
-def clone_content_to_branches(source_restaurant_id, target_restaurant_ids):
+def clone_content_to_branches(source_outlet_id, target_outlet_ids):
 	"""Copy the source branch's full menu setup into the given target branches.
 
 	Returns a per-branch summary. Non-destructive: existing items are skipped.
 	"""
 	_assert_admin()
 
-	if not frappe.db.exists("Restaurant", source_restaurant_id):
+	if not frappe.db.exists("Restaurant", source_outlet_id):
 		return {"success": False, "error": "Source branch not found"}
 
-	targets = _parse_ids(target_restaurant_ids)
+	targets = _parse_ids(target_outlet_ids)
 	if not targets:
 		return {"success": False, "error": "Select at least one target branch"}
 
 	# Copy only within the source's Merchant Group — never leak a menu across merchants.
-	src_group = frappe.db.get_value("Restaurant", source_restaurant_id, "branch_group")
+	src_group = frappe.db.get_value("Restaurant", source_outlet_id, "branch_group")
 	results = []
 
 	for t in targets:
-		if t == source_restaurant_id:
+		if t == source_outlet_id:
 			continue
 		if not frappe.db.exists("Restaurant", t):
 			results.append({"branch": t, "status": "not_found"})
@@ -331,13 +331,13 @@ def clone_content_to_branches(source_restaurant_id, target_restaurant_ids):
 			continue
 
 		try:
-			group_map = _clone_addon_groups(source_restaurant_id, t)
-			cat_map = _clone_categories(source_restaurant_id, t)
-			copied, skipped = _clone_products(source_restaurant_id, t, cat_map, group_map)
-			offers_copied, offers_skipped = _clone_offers(source_restaurant_id, t)
-			coupons_copied, coupons_skipped = _clone_coupons(source_restaurant_id, t)
-			gallery_copied, gallery_skipped = _clone_gallery(source_restaurant_id, t)
-			branding_copied = _clone_branding(source_restaurant_id, t)
+			group_map = _clone_addon_groups(source_outlet_id, t)
+			cat_map = _clone_categories(source_outlet_id, t)
+			copied, skipped = _clone_products(source_outlet_id, t, cat_map, group_map)
+			offers_copied, offers_skipped = _clone_offers(source_outlet_id, t)
+			coupons_copied, coupons_skipped = _clone_coupons(source_outlet_id, t)
+			gallery_copied, gallery_skipped = _clone_gallery(source_outlet_id, t)
+			branding_copied = _clone_branding(source_outlet_id, t)
 			results.append({
 				"branch": t,
 				"status": "ok",
@@ -355,7 +355,7 @@ def clone_content_to_branches(source_restaurant_id, target_restaurant_ids):
 			})
 		except Exception as e:
 			frappe.db.rollback()
-			frappe.log_error(f"clone_content_to_branches {source_restaurant_id}->{t}: {e}", "Branch Clone Error")
+			frappe.log_error(f"clone_content_to_branches {source_outlet_id}->{t}: {e}", "Branch Clone Error")
 			results.append({"branch": t, "status": "error", "message": str(e)})
 
-	return {"success": True, "source": source_restaurant_id, "results": results}
+	return {"success": True, "source": source_outlet_id, "results": results}

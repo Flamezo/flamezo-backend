@@ -3,7 +3,7 @@
 
 """
 API endpoints for Legacy/Place Content
-All endpoints require restaurant_id for SaaS multi-tenancy
+All endpoints require outlet_id for SaaS multi-tenancy
 """
 
 import frappe
@@ -17,17 +17,17 @@ import json
 
 
 @frappe.whitelist(allow_guest=True)
-def get_legacy_content(restaurant_id):
+def get_legacy_content(outlet_id):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.legacy.get_legacy_content
 	Get all content for "The Place & Its Legacy" page
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get restaurant name
-		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name")
+		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name")
 		
 		# Get or create legacy content
 		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
@@ -36,7 +36,7 @@ def get_legacy_content(restaurant_id):
 			# Return default structure if not exists
 			return {
 				"success": True,
-				"data": get_default_legacy_content(restaurant_name)
+				"data": get_default_legacy_content(outlet_name)
 			}
 		
 		legacy_doc = frappe.get_doc("Legacy Content", legacy_name)
@@ -172,14 +172,14 @@ def get_legacy_content(restaurant_id):
 
 
 @frappe.whitelist()
-def update_legacy_content(restaurant_id, hero=None, content=None, testimonials=None, members=None, gallery=None, instagram_reels=None, footer=None):
+def update_legacy_content(outlet_id, hero=None, content=None, testimonials=None, members=None, gallery=None, instagram_reels=None, footer=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.legacy.update_legacy_content
 	Update content for "The Place & Its Legacy" page (Admin only)
 	"""
 	try:
 		# Validate restaurant access
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Parse JSON strings if needed
 		if isinstance(hero, str):
@@ -288,7 +288,7 @@ def update_legacy_content(restaurant_id, hero=None, content=None, testimonials=N
 		}
 
 
-def get_default_legacy_content(restaurant_name):
+def get_default_legacy_content(outlet_name):
 	"""Get default legacy content structure"""
 	return {
 		"hero": {},
@@ -314,7 +314,7 @@ def get_default_legacy_content(restaurant_name):
 	}
 
 @frappe.whitelist()
-def generate_legacy_content(restaurant_id):
+def generate_legacy_content(outlet_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.legacy.generate_legacy_content
 	Generate perfect 10/10 content for the Legacy Feature.
@@ -327,7 +327,7 @@ def generate_legacy_content(restaurant_id):
 			frappe.throw("Not authorized to generate legacy content", frappe.PermissionError)
 			
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Fetch restaurant info
 		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
@@ -395,7 +395,7 @@ def generate_legacy_content(restaurant_id):
 		members_payload = []
 
 		update_result = update_legacy_content(
-			restaurant_id=restaurant_id,
+			outlet_id=outlet_id,
 			hero=hero_payload,
 			content=content_payload,
 			footer=footer_payload,

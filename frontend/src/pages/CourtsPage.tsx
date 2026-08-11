@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Trophy, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Search, ChevronLeft, ChevronRight, Phone, Plus, Trash2, Edit2, ChevronDown } from 'lucide-react'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -64,7 +64,7 @@ const DEFAULT_COURT_DATA = {
 }
 
 export default function CourtsPage() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
   const [activeTab, setActiveTab] = useState<'bookings' | 'courts'>('bookings')
@@ -105,15 +105,15 @@ export default function CourtsPage() {
   const { call: noShowAPI } = useFrappePostCall('flamezo_backend.flamezo.api.courts.mark_court_no_show')
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       loadCourts()
       loadBookings()
       if (!searchQuery) loadMonthlyBookings()
     }
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   useEffect(() => {
-    if (selectedRestaurant) {
+    if (selectedOutlet) {
       loadBookings()
       if (!searchQuery) loadMonthlyBookings()
     }
@@ -131,10 +131,10 @@ export default function CourtsPage() {
   }
 
   const loadCourts = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       setCourtsLoading(true)
-      const res = await fetchCourts({ restaurant_id: selectedRestaurant })
+      const res = await fetchCourts({ outlet_id: selectedOutlet })
       const data = res?.message?.data || res?.data
       setCourts(Array.isArray(data) ? data : [])
     } catch {
@@ -146,10 +146,10 @@ export default function CourtsPage() {
   }
 
   const loadBookings = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       setBookingsLoading(true)
-      const params: any = { restaurant_id: selectedRestaurant, limit: 200 }
+      const params: any = { outlet_id: selectedOutlet, limit: 200 }
       if (!showPast) params.date = formatDateAPI(selectedDate)
       if (courtFilter !== 'all') params.court_id = courtFilter
       if (statusFilter !== 'all') params.status = statusFilter
@@ -175,9 +175,9 @@ export default function CourtsPage() {
   }
 
   const loadMonthlyBookings = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
-      const res = await fetchBookings({ restaurant_id: selectedRestaurant, limit: 1000 })
+      const res = await fetchBookings({ outlet_id: selectedOutlet, limit: 1000 })
       const data = res?.message?.data || res?.data
       const byDate: { [key: string]: number } = {}
       ;(data?.bookings || []).forEach((b: CourtBooking) => {
@@ -188,9 +188,9 @@ export default function CourtsPage() {
   }
 
   const handleBookingAction = async (id: string, action: 'complete' | 'no_show') => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
-      const base = { booking_id: id, restaurant_id: selectedRestaurant }
+      const base = { booking_id: id, outlet_id: selectedOutlet }
       const res = action === 'complete' ? await completeBookingAPI(base) : await noShowAPI(base)
       const ok = res?.message?.success ?? res?.success ?? (res?.message?.data || res?.data)
       if (ok) {
@@ -229,14 +229,14 @@ export default function CourtsPage() {
   }
 
   const handleSaveCourt = async () => {
-    if (!selectedRestaurant || !courtData.court_name || !courtData.sport_type) {
+    if (!selectedOutlet || !courtData.court_name || !courtData.sport_type) {
       toast.error('Court name and sport type are required')
       return
     }
     try {
       setCourtSaving(true)
       const res = await saveCourt({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         court_id: editingCourt?.id || null,
         court_data: JSON.stringify(courtData),
       })
@@ -264,7 +264,7 @@ export default function CourtsPage() {
     })
     if (!ok) return
     try {
-      const res = await deleteCourt({ restaurant_id: selectedRestaurant, court_id: court.id })
+      const res = await deleteCourt({ outlet_id: selectedOutlet, court_id: court.id })
       const success = res?.message?.success ?? res?.success
       if (success) {
         toast.success('Court deleted')
@@ -308,7 +308,7 @@ export default function CourtsPage() {
     return 'bg-gray-100 text-gray-800'
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

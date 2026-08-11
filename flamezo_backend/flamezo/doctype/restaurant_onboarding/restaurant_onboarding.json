@@ -71,12 +71,12 @@
    "fieldname": "restaurant_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Restaurant Name"
+   "label": "Outlet Name"
   },
   {
    "fieldname": "linked_restaurant",
    "fieldtype": "Link",
-   "label": "Linked Restaurant (Existing)",
+   "label": "Linked Outlet (Existing)",
    "options": "Restaurant",
    "description": "Select an existing restaurant to link this onboarding to."
   },
@@ -372,7 +372,7 @@
   {
    "fieldname": "created_restaurant",
    "fieldtype": "Link",
-   "label": "Created Restaurant",
+   "label": "Created Outlet",
    "options": "Restaurant",
    "read_only": 1
   },

@@ -5,7 +5,7 @@ Order creation happens in payments.py (create_payment_order).
 This module provides customer-facing read + cancel endpoints.
 
 Consumer endpoints (session required):
-  get_my_orders(phone, page, limit, status, restaurant_id)
+  get_my_orders(phone, page, limit, status, outlet_id)
   get_order_detail(order_id, phone)
   get_order_status(order_id, phone)
   cancel_order(order_id, phone, reason)
@@ -70,7 +70,7 @@ def _format_order(order, include_items=False):
 	result = {
 		"id": order.name,
 		"order_number": order.order_number or order.order_id or order.name,
-		"restaurant_id": order.restaurant,
+		"outlet_id": order.restaurant,
 		"status": order.status or "",
 		"payment_status": order.payment_status or "",
 		"payment_method": order.payment_method or "",
@@ -117,7 +117,7 @@ def _format_order(order, include_items=False):
 # ── Consumer: list my orders ──────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_my_orders(phone=None, page=1, limit=20, status=None, restaurant_id=None):
+def get_my_orders(phone=None, page=1, limit=20, status=None, outlet_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.orders.get_my_orders
 
@@ -138,8 +138,8 @@ def get_my_orders(phone=None, page=1, limit=20, status=None, restaurant_id=None)
 		filters = {"customer_phone": ["like", f"%{phone.strip()[-10:]}%"]}
 		if status:
 			filters["status"] = status
-		if restaurant_id:
-			filters["restaurant"] = restaurant_id
+		if outlet_id:
+			filters["restaurant"] = outlet_id
 
 		orders = frappe.get_all(
 			"Order",
@@ -173,8 +173,8 @@ def get_my_orders(phone=None, page=1, limit=20, status=None, restaurant_id=None)
 		for o in orders:
 			fmt = _format_order(o, include_items=False)
 			rm = rest_meta.get(o.restaurant, {})
-			fmt["restaurant_name"] = rm.get("restaurant_name") or o.restaurant
-			fmt["restaurant_logo"] = rm.get("logo") or ""
+			fmt["outlet_name"] = rm.get("restaurant_name") or o.restaurant
+			fmt["outlet_logo"] = rm.get("logo") or ""
 			result.append(fmt)
 
 		return {
@@ -233,9 +233,9 @@ def get_order_detail(order_id=None, phone=None):
 				"Restaurant", doc.restaurant,
 				["restaurant_name", "logo", "city"], as_dict=True,
 			) or {}
-			fmt["restaurant_name"] = rm.get("restaurant_name") or doc.restaurant
-			fmt["restaurant_logo"] = rm.get("logo") or ""
-			fmt["restaurant_city"] = rm.get("city") or ""
+			fmt["outlet_name"] = rm.get("restaurant_name") or doc.restaurant
+			fmt["outlet_logo"] = rm.get("logo") or ""
+			fmt["outlet_city"] = rm.get("city") or ""
 
 		return {"success": True, "data": fmt}
 

@@ -22,7 +22,7 @@ interface OrderItem {
 }
 
 interface RazorpayCheckoutProps {
-  restaurantId: string;
+  outletId: string;
   orderItems: OrderItem[];
   totalAmount: number;
   customerName?: string;
@@ -48,7 +48,7 @@ interface PaymentOrderResponse {
 }
 
 const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
-  restaurantId,
+  outletId,
   orderItems,
   totalAmount,
   customerName,
@@ -110,7 +110,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
     try {
       // Create payment order
       const response = await createPaymentOrder({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         order_items: JSON.stringify(orderItems),
         total_amount: totalAmount,
         customer_name: customerName,
@@ -131,7 +131,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
         amount: amount,
         currency: 'INR',
         name: 'Flamezo',
-        description: `Order payment for ${restaurantId}`,
+        description: `Order payment for ${outletId}`,
         order_id: razorpay_order_id,
         prefill: {
           name: customerName || '',

@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -54,7 +54,7 @@ const STEPS: WizardStep[] = ['audience', 'message', 'schedule', 'review']
 const STEP_LABELS: Record<WizardStep, string> = { audience: 'Audience', message: 'Message', schedule: 'Schedule', review: 'Review' }
 
 export default function MarketingCampaigns() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const navigate = useNavigate()
   const [segments, setSegments] = useState<Segment[]>([])
   const [showWizard, setShowWizard] = useState(false)
@@ -94,7 +94,7 @@ export default function MarketingCampaigns() {
   } = useDataTable({
       customEndpoint: 'flamezo_backend.flamezo.api.marketing.get_campaigns',
       customParams: {
-          restaurant_id: selectedRestaurant,
+          outlet_id: selectedOutlet,
           status_filter: statusFilter !== 'All' ? statusFilter : undefined
       },
       paramNames: {
@@ -103,7 +103,7 @@ export default function MarketingCampaigns() {
           search: 'search_query'
       },
       initialPageSize: 10,
-      debugId: `campaigns-${selectedRestaurant}`
+      debugId: `campaigns-${selectedOutlet}`
   })
 
   const { call: fetchSegments } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_segments')
@@ -113,12 +113,12 @@ export default function MarketingCampaigns() {
   const { call: cancelCampaignApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.cancel_campaign')
 
   useEffect(() => {
-    if (selectedRestaurant) {
-        fetchSegments({ restaurant_id: selectedRestaurant }).then((res: any) => {
+    if (selectedOutlet) {
+        fetchSegments({ outlet_id: selectedOutlet }).then((res: any) => {
             if (res.message?.success) setSegments(res.message.data || [])
         })
     }
-  }, [selectedRestaurant, fetchSegments])
+  }, [selectedOutlet, fetchSegments])
 
   const selectedSegment = segments.find(s => s.name === form.target_segment)
   const estimatedCoinCost = (selectedSegment?.estimated_reach ?? 0) * (form.channel === 'WhatsApp' ? 1.2 : form.channel === 'SMS' ? 0.25 : 0.05)
@@ -135,7 +135,7 @@ export default function MarketingCampaigns() {
     setSending(true)
     try {
       const createRes: any = await createCampaignApi({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         campaign_data: {
           campaign_name: form.campaign_name,
           channel: form.channel,

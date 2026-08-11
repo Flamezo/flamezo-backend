@@ -87,13 +87,13 @@ class TestGetEventDetail(unittest.TestCase):
         result = events_api.get_event_detail(self.event.name)
         evt = result["data"]["event"]
         for field in ("id", "title", "description", "date", "time", "location",
-                      "category", "status", "restaurantName"):
+                      "category", "status", "outletName"):
             self.assertIn(field, evt)
 
-    def test_includes_restaurant_name(self):
+    def test_includes_outlet_name(self):
         result = events_api.get_event_detail(self.event.name)
         evt = result["data"]["event"]
-        self.assertTrue(len(evt.get("restaurantName", "")) > 0)
+        self.assertTrue(len(evt.get("outletName", "")) > 0)
 
     def test_non_recurring_block(self):
         result = events_api.get_event_detail(self.event.name)

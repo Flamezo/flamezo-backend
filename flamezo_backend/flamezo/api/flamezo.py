@@ -32,20 +32,20 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 	return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _get_restaurant_primary_color(restaurant_name):
-	"""Brand color is fixed to the Flamezo copper (no per-restaurant colors)."""
+def _get_outlet_primary_color(outlet_name):
+	"""Brand color is fixed to the Flamezo copper (no per-outlet colors)."""
 	return "#B7410E"
 
 
-def _batch_active_offers_count(restaurant_names):
+def _batch_active_offers_count(outlet_ids):
 	"""
-	Single SQL query — returns {restaurant_name: count} for all given restaurants.
+	Single SQL query — returns {outlet_id: count} for all given outlets.
 	Groups valid (date-gated) active coupons in one shot; no N+1.
 	"""
-	if not restaurant_names:
+	if not outlet_ids:
 		return {}
 	today_str = today()
-	placeholders = ",".join(["%s"] * len(restaurant_names))
+	placeholders = ",".join(["%s"] * len(outlet_ids))
 	rows = frappe.db.sql(
 		f"""
 		SELECT restaurant, COUNT(*) AS cnt
@@ -56,7 +56,7 @@ def _batch_active_offers_count(restaurant_names):
 		  AND (valid_until IS NULL OR valid_until >= %s)
 		GROUP BY restaurant
 		""",
-		restaurant_names + [today_str, today_str],
+		outlet_ids + [today_str, today_str],
 		as_dict=True,
 	)
 	return {r.restaurant: r.cnt for r in rows}
@@ -64,7 +64,7 @@ def _batch_active_offers_count(restaurant_names):
 
 def _is_open_now(hours_json_str):
 	"""
-	Return True if the restaurant is currently open based on its hours_json.
+	Return True if the outlet is currently open based on its hours_json.
 	hours_json format: {"mon": "11 AM – 11 PM", "tue": "Closed", ...}
 	"""
 	if not hours_json_str:
@@ -111,8 +111,8 @@ _DISCOVERY_FIELDS = [
 ]
 
 
-def _format_restaurant_card(r, user_lat, user_lon, offers_map):
-	"""Format a single restaurant record for the discovery feed."""
+def _format_outlet_card(r, user_lat, user_lon, offers_map):
+	"""Format a single outlet record for the discovery feed."""
 	distance_km = None
 	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
 		distance_km = round(
@@ -121,7 +121,7 @@ def _format_restaurant_card(r, user_lat, user_lon, offers_map):
 	hours_raw = r.get("hours_json") or ""
 	return {
 		"id": r["name"],
-		"restaurant_name": r["restaurant_name"],
+		"outlet_name": r["restaurant_name"],
 		"logo": r.get("logo") or "",
 		"latitude": r.get("latitude"),
 		"longitude": r.get("longitude"),
@@ -276,7 +276,7 @@ def get_all_outlets(
 			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
 		# ── Format cards ──────────────────────────────────────────────────────────
-		enriched = [_format_restaurant_card(r, user_lat, user_lon, offers_map) for r in restaurants]
+		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in restaurants]
 
 		# ── open_now filter (post-format, uses is_open_now computed per card) ────
 		if cint(open_now):
@@ -463,18 +463,18 @@ def get_outlets_for_map(
 		return {"success": False, "error": {"code": "MAP_FETCH_ERROR", "message": str(e)}}
 
 
-# ── 2. Cross-Restaurant Offers Feed ──────────────────────────────────────────
+# ── 2. Cross-Outlet Offers Feed ──────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_cross_restaurant_offers(city=None, page=1, limit=30):
+def get_cross_outlet_offers(city=None, page=1, limit=30):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_cross_restaurant_offers
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_cross_outlet_offers
 
-	Returns active coupons/offers across all active FLAMEZO restaurants.
+	Returns active coupons/offers across all active FLAMEZO outlets.
 	Sorted by discount value desc (best deals first).
 
 	Parameters:
-	- city (str, optional): Filter by restaurant city
+	- city (str, optional): Filter by outlet city
 	- page (int): Page number (default 1)
 	- limit (int): Results per page (default 30)
 	"""
@@ -538,7 +538,7 @@ def get_cross_restaurant_offers(city=None, page=1, limit=30):
 			if not restaurant:
 				continue
 
-			primary_color = _get_restaurant_primary_color(c.restaurant)
+			primary_color = _get_outlet_primary_color(c.restaurant)
 
 			offers.append({
 				"name": c.name,
@@ -547,9 +547,9 @@ def get_cross_restaurant_offers(city=None, page=1, limit=30):
 				"discount_type": c.discount_type or "percent",
 				"discount_value": flt(c.discount_value),
 				"min_order_amount": flt(c.min_order_amount),
-				"restaurant_id": c.restaurant,
-				"restaurant_name": restaurant.restaurant_name,
-				"restaurant_logo": restaurant.logo or "",
+				"outlet_id": c.restaurant,
+				"outlet_name": restaurant.restaurant_name,
+				"outlet_logo": restaurant.logo or "",
 				"city": restaurant.city or "",
 				"primary_color": primary_color,
 				"valid_until": str(v_until) if v_until else None,
@@ -576,7 +576,7 @@ def get_cross_restaurant_offers(city=None, page=1, limit=30):
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"Error in flamezo.get_cross_restaurant_offers: {str(e)}")
+		frappe.log_error(f"Error in flamezo.get_cross_outlet_offers: {str(e)}")
 		return {"success": False, "error": {"code": "OFFERS_FETCH_ERROR", "message": str(e)}}
 
 
@@ -762,7 +762,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 		formatted_entries = []
 		for e in entries:
-			restaurant_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
+			outlet_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
 
 			# Map type
 			if e.transaction_type == "Earn":
@@ -773,8 +773,8 @@ def get_points_ledger(phone=None, page=1, limit=20):
 				entry_type = "expire"
 
 			formatted_entries.append({
-				"restaurant_name": restaurant_name,
-				"restaurant_id": e.restaurant or "",
+				"outlet_name": outlet_name,
+				"outlet_id": e.restaurant or "",
 				"points": flt(e.coins),
 				"type": entry_type,
 				"reason": e.reason or "",
@@ -883,21 +883,21 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 		return {"success": False, "error": {"code": "REGISTRATION_ERROR", "message": str(e)}}
 
 
-# ── 6. Quick Restaurant Summary (for link previews / notifications) ───────────
+# ── 6. Quick Outlet Summary (for link previews / notifications) ──────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_restaurant_summary(restaurant_id):
+def get_outlet_summary(outlet_id):
 	"""
-	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_restaurant_summary
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_outlet_summary
 
-	Lightweight restaurant summary for FLAMEZO link previews, notifications,
+	Lightweight outlet summary for FLAMEZO link previews, notifications,
 	and deep link landing pages. Faster than get_restaurant_config.
 
 	Parameters:
-	- restaurant_id (str): Restaurant identifier
+	- outlet_id (str): Outlet identifier
 	"""
 	try:
-		cache_key = f"flamezo:restaurant_summary:{restaurant_id}"
+		cache_key = f"flamezo:outlet_summary:{outlet_id}"
 		cached = frappe.cache().get_value(cache_key)
 		if cached:
 			return json.loads(cached)
@@ -905,54 +905,54 @@ def get_restaurant_summary(restaurant_id):
 		_summary_fields = ["name", "restaurant_name", "logo", "city", "plan_type", "is_active",
 			"latitude", "longitude", "outlet_type", "contact_phone", "whatsapp_number", "instagram_url"]
 
-		restaurant = frappe.db.get_value(
+		outlet = frappe.db.get_value(
 			"Restaurant",
-			{"restaurant_id": restaurant_id},
+			{"restaurant_id": outlet_id},
 			_summary_fields,
 			as_dict=True,
 		)
 
-		if not restaurant:
+		if not outlet:
 			# Try by name
-			restaurant = frappe.db.get_value(
+			outlet = frappe.db.get_value(
 				"Restaurant",
-				{"name": restaurant_id},
+				{"name": outlet_id},
 				_summary_fields,
 				as_dict=True,
 			)
 
-		if not restaurant:
-			return {"success": False, "error": {"code": "RESTAURANT_NOT_FOUND", "message": "Restaurant not found"}}
+		if not outlet:
+			return {"success": False, "error": {"code": "OUTLET_NOT_FOUND", "message": "Outlet not found"}}
 
-		if not restaurant.is_active:
-			return {"success": False, "error": {"code": "RESTAURANT_INACTIVE", "message": "Restaurant is currently inactive"}}
+		if not outlet.is_active:
+			return {"success": False, "error": {"code": "OUTLET_INACTIVE", "message": "Outlet is currently inactive"}}
 
 		config = frappe.db.get_value(
 			"Restaurant Config",
-			{"restaurant": restaurant.name},
+			{"restaurant": outlet.name},
 			["restaurant_name", "tagline", "default_theme"],
 			as_dict=True,
 		) or {}
 
-		active_offers = _batch_active_offers_count([restaurant.name]).get(restaurant.name, 0)
+		active_offers = _batch_active_offers_count([outlet.name]).get(outlet.name, 0)
 
 		response = {
 			"success": True,
 			"data": {
-				"id": restaurant.name,
-				"restaurant_name": config.get("restaurant_name") or restaurant.restaurant_name,
+				"id": outlet.name,
+				"outlet_name": config.get("restaurant_name") or outlet.restaurant_name,
 				"tagline": config.get("tagline") or "",
-				"logo": restaurant.logo or "",
-				"city": restaurant.city or "",
-				"plan_type": restaurant.plan_type or "GOLD",
-				"outlet_type": restaurant.outlet_type or "dining",
-				"contact_phone": restaurant.contact_phone or "",
-				"whatsapp_number": restaurant.whatsapp_number or "",
-				"instagram_url": restaurant.instagram_url or "",
+				"logo": outlet.logo or "",
+				"city": outlet.city or "",
+				"plan_type": outlet.plan_type or "GOLD",
+				"outlet_type": outlet.outlet_type or "dining",
+				"contact_phone": outlet.contact_phone or "",
+				"whatsapp_number": outlet.whatsapp_number or "",
+				"instagram_url": outlet.instagram_url or "",
 				"primary_color": "#B7410E",
 				"default_theme": config.get("default_theme") or "dark",
-				"latitude": restaurant.latitude,
-				"longitude": restaurant.longitude,
+				"latitude": outlet.latitude,
+				"longitude": outlet.longitude,
 				"active_offers_count": active_offers,
 				"is_gold": True,
 			}
@@ -962,7 +962,7 @@ def get_restaurant_summary(restaurant_id):
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"Error in flamezo.get_restaurant_summary: {str(e)}")
+		frappe.log_error(f"Error in flamezo.get_outlet_summary: {str(e)}")
 		return {"success": False, "error": {"code": "SUMMARY_FETCH_ERROR", "message": str(e)}}
 
 

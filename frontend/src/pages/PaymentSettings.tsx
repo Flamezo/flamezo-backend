@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -113,9 +113,9 @@ function SummaryCard({
 }
 
 export default function PaymentSettings() {
-  const { restaurantId } = useParams()
-  const { selectedRestaurant } = useRestaurant()
-  const activeRestaurantId = restaurantId || selectedRestaurant
+  const { outletId } = useParams()
+  const { selectedOutlet } = useOutlet()
+  const activeOutletId = outletId || selectedOutlet
 
   const [payments, setPayments] = useState<RazorpayPayment[]>([])
   const [detailPayment, setDetailPayment] = useState<RazorpayPayment | null>(null)
@@ -140,11 +140,11 @@ export default function PaymentSettings() {
   )
 
   const loadPayments = useCallback(async (fDate?: string, tDate?: string) => {
-    if (!activeRestaurantId) return
+    if (!activeOutletId) return
     setLoading(true)
     try {
       const resp: any = await getPayments({ 
-        restaurant_id: activeRestaurantId,
+        outlet_id: activeOutletId,
         from_date: fDate || fromDate || undefined,
         to_date: tDate || toDate || undefined,
         count: 50
@@ -161,11 +161,11 @@ export default function PaymentSettings() {
     } finally {
       setLoading(false)
     }
-  }, [activeRestaurantId, fromDate, toDate, getPayments])
+  }, [activeOutletId, fromDate, toDate, getPayments])
 
   useEffect(() => {
     loadPayments()
-  }, [activeRestaurantId]) // Only load once on mount or restaurant change
+  }, [activeOutletId]) // Only load once on mount or restaurant change
 
   const applyPreset = (preset: FilterPreset) => {
     setActivePreset(preset)
@@ -191,12 +191,12 @@ export default function PaymentSettings() {
   }
 
   const handleRefund = async () => {
-    if (!activeRestaurantId || !selectedPayment) return
+    if (!activeOutletId || !selectedPayment) return
     
     setIsRefunding(true)
     try {
       const resp: any = await refundPayment({
-        restaurant_id: activeRestaurantId,
+        outlet_id: activeOutletId,
         payment_id: selectedPayment.id,
         amount: refundAmount || undefined,
         reason: refundReason
@@ -292,7 +292,7 @@ export default function PaymentSettings() {
     { revenue: 0, youGet: 0, flamezo: 0, discounts: 0 },
   )
 
-  if (!activeRestaurantId) {
+  if (!activeOutletId) {
     return <div className="p-8 text-center text-muted-foreground">Please select an outlet to view transactions.</div>
   }
 

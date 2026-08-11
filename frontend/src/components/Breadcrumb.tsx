@@ -63,14 +63,14 @@ export default function Breadcrumb() {
       // Get restaurant name from URL (second segment)
       const restaurantNameFromUrl = decodeLabel(segments[1])
       // Convert URL-friendly name back to readable format (replace hyphens with spaces, capitalize)
-      const restaurantName = restaurantNameFromUrl
+      const outletName = restaurantNameFromUrl
         .replace(/-/g, ' ')
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ')
       
       breadcrumbs.push({
-        label: `${restaurantName} wizard`
+        label: `${outletName} wizard`
       })
       return breadcrumbs
     }

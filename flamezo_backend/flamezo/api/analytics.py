@@ -15,7 +15,7 @@ import json
 
 # Production-grade analytics engine with tiered feature gating
 @frappe.whitelist()
-def get_offer_analytics(restaurant_id, start_date=None, end_date=None):
+def get_offer_analytics(outlet_id, start_date=None, end_date=None):
 	"""
 	Get comprehensive analytics for offers and coupons
 	
@@ -29,7 +29,7 @@ def get_offer_analytics(restaurant_id, start_date=None, end_date=None):
 	"""
 	try:
 		# Validate restaurant
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Default date range: last 30 days
 		if not end_date:
@@ -179,12 +179,12 @@ def get_offer_analytics(restaurant_id, start_date=None, end_date=None):
 
 
 @frappe.whitelist()
-def get_coupon_performance(restaurant_id, coupon_id):
+def get_coupon_performance(outlet_id, coupon_id):
 	"""
 	Get detailed performance metrics for a specific coupon
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get coupon details
 		coupon = frappe.get_doc("Coupon", coupon_id)
@@ -194,7 +194,7 @@ def get_coupon_performance(restaurant_id, coupon_id):
 				"success": False,
 				"error": {
 					"code": "UNAUTHORIZED",
-					"message": "Coupon does not belong to this restaurant"
+					"message": "Coupon does not belong to this outlet"
 				}
 			}
 		
@@ -269,24 +269,24 @@ def get_coupon_performance(restaurant_id, coupon_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def log_event(restaurant_id, event_type, event_value=None, session_id=None, platform="web"):
+def log_event(outlet_id, event_type, event_value=None, session_id=None, platform="web"):
 	"""
 	Logs a guest interaction event. Whitelisted for guests.
 	"""
 	try:
-		# Ensure restaurant_id is lowercase slugs
-		restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+		# Ensure outlet_id is lowercase slugs
+		outlet_id = outlet_id.lower() if outlet_id else outlet_id
 		
-		if not restaurant_id or not event_type:
+		if not outlet_id or not event_type:
 			return {"success": False, "message": "Missing required fields"}
 
-		# Validate restaurant exists
-		if not frappe.db.exists("Restaurant", restaurant_id):
-			return {"success": False, "message": "Invalid restaurant"}
+		# Validate outlet exists
+		if not frappe.db.exists("Restaurant", outlet_id):
+			return {"success": False, "message": "Invalid outlet"}
 
 		doc = frappe.get_doc({
 			"doctype": "Analytics Event",
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"event_type": event_type,
 			"event_value": event_value,
 			"session_id": session_id or "anonymous",
@@ -301,23 +301,23 @@ def log_event(restaurant_id, event_type, event_value=None, session_id=None, plat
 
 
 @frappe.whitelist()
-def get_dashboard_summary(restaurant_id):
+def get_dashboard_summary(outlet_id):
 	"""
 	Returns a tiered summary of analytics for the merchant dashboard.
 	ALL values are computed from real data – no mocks, no Math.random().
 	"""
 	try:
-		cache_key = f"dashboard_summary:{restaurant_id}"
+		cache_key = f"dashboard_summary:{outlet_id}"
 		cached = frappe.cache().get_value(cache_key)
 		if cached:
 			return json.loads(cached)
-		# Ensure restaurant_id is lowercase (DocNames in Flamezo are lowercase slugs)
-		restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+		# Ensure outlet_id is lowercase (DocNames in Flamezo are lowercase slugs)
+		outlet_id = outlet_id.lower() if outlet_id else outlet_id
 		
 		# Validate restaurant & check subscription tier
-		restaurant = frappe.get_doc("Restaurant", restaurant_id)
+		restaurant = frappe.get_doc("Restaurant", outlet_id)
 		from flamezo_backend.flamezo.utils.feature_gate import get_restaurant_plan
-		plan = get_restaurant_plan(restaurant_id)
+		plan = get_restaurant_plan(outlet_id)
 
 		end_date = add_days(today(), 1)
 		start_date_7d = add_days(today(), -7)
@@ -331,7 +331,7 @@ def get_dashboard_summary(restaurant_id):
 			WHERE restaurant = %s 
 			AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
-		""", (restaurant_id, start_date_7d, end_date), as_dict=True)[0]
+		""", (outlet_id, start_date_7d, end_date), as_dict=True)[0]
 
 		# Growth vs previous 7d
 		start_date_prev = add_days(start_date_7d, -7)
@@ -341,14 +341,14 @@ def get_dashboard_summary(restaurant_id):
 			WHERE restaurant = %s 
 			AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
-		""", (restaurant_id, start_date_prev, start_date_7d), as_dict=True)[0]
+		""", (outlet_id, start_date_prev, start_date_7d), as_dict=True)[0]
 
 		growth = 0
 		if prev_traffic.total_views > 0:
 			growth = ((traffic_stats.total_views - prev_traffic.total_views) / prev_traffic.total_views) * 100
 
 		lifetime_scans = frappe.db.count("Analytics Event", {
-			"restaurant": restaurant_id,
+			"restaurant": outlet_id,
 			"event_type": "menu_view"
 		})
 
@@ -370,7 +370,7 @@ def get_dashboard_summary(restaurant_id):
 			WHERE restaurant = %s AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
 			GROUP BY hour ORDER BY count DESC LIMIT 1
-		""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+		""", (outlet_id, start_date_7d, end_date), as_dict=True)
 		
 		if peak_hour_data:
 			h = peak_hour_data[0].hour
@@ -390,7 +390,7 @@ def get_dashboard_summary(restaurant_id):
 			GROUP BY DAYOFWEEK(creation), day_name
 			ORDER BY order_count DESC
 			LIMIT 1
-		""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+		""", (outlet_id, start_date_7d, end_date), as_dict=True)
 
 		summary["traffic"]["peakDay"] = peak_day_data[0].day_name if peak_day_data else None
 		summary["traffic"]["peakDayOrders"] = peak_day_data[0].order_count if peak_day_data else 0
@@ -401,7 +401,7 @@ def get_dashboard_summary(restaurant_id):
 			FROM `tabAnalytics Event`
 			WHERE restaurant = %s AND event_type = 'category_view'
 			GROUP BY event_value ORDER BY count DESC LIMIT 1
-		""", (restaurant_id,), as_dict=True)
+		""", (outlet_id,), as_dict=True)
 
 		# ── 2. GOLD Features ──────────────────────────────────────────
 		if plan == 'GOLD':
@@ -414,7 +414,7 @@ def get_dashboard_summary(restaurant_id):
 				WHERE restaurant = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)[0]
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)[0]
 
 			total_orders = order_stats.total_orders or 0
 			revenue = flt(order_stats.revenue or 0)
@@ -443,7 +443,7 @@ def get_dashboard_summary(restaurant_id):
 				GROUP BY oi.product_name
 				ORDER BY order_count DESC
 				LIMIT 8
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)
 
 			# Fallback: if product_name is empty, use product (slug) as display name.
 			# NOTE: oi.item_name does NOT exist in tabOrder Item — use only product_name or product.
@@ -461,7 +461,7 @@ def get_dashboard_summary(restaurant_id):
 					GROUP BY item_name
 					ORDER BY order_count DESC
 					LIMIT 8
-				""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+				""", (outlet_id, start_date_7d, end_date), as_dict=True)
 
 			summary["topPerformers"] = [
 				{
@@ -485,7 +485,7 @@ def get_dashboard_summary(restaurant_id):
 				GROUP BY event_value
 				ORDER BY views DESC
 				LIMIT 8
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)
 
 			# Prefer order-based; fall back to view-based if no orders yet
 			if not summary["topPerformers"] and item_view_performers:
@@ -502,7 +502,7 @@ def get_dashboard_summary(restaurant_id):
 				WHERE restaurant = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
-			""", (restaurant_id, start_date_prev, start_date_7d), as_dict=True)
+			""", (outlet_id, start_date_prev, start_date_7d), as_dict=True)
 
 			curr_customers_raw = frappe.db.sql("""
 				SELECT COUNT(DISTINCT COALESCE(platform_customer, customer_phone)) as cnt
@@ -510,7 +510,7 @@ def get_dashboard_summary(restaurant_id):
 				WHERE restaurant = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)
 
 			prev_count = (prev_customers_raw[0].cnt or 0) if prev_customers_raw else 0
 			curr_count = (curr_customers_raw[0].cnt or 0) if curr_customers_raw else 0
@@ -565,7 +565,7 @@ def get_dashboard_summary(restaurant_id):
 				) o ON v.item_name = o.item_name
 				ORDER BY v.views DESC
 				LIMIT 10
-			""", (restaurant_id, start_date_7d, end_date, restaurant_id, start_date_7d, end_date), as_dict=True)
+			""", (outlet_id, start_date_7d, end_date, outlet_id, start_date_7d, end_date), as_dict=True)
 
 			summary["menuHeatmap"] = []
 			for row in heatmap_raw:
@@ -603,7 +603,7 @@ def get_dashboard_summary(restaurant_id):
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
 				GROUP BY source
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)
 			
 			social_revenue_raw = frappe.db.sql("""
 				SELECT SUM(total) as revenue, COUNT(*) as orders
@@ -612,7 +612,7 @@ def get_dashboard_summary(restaurant_id):
 				AND referral_link IS NOT NULL AND referral_link != ''
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
-			""", (restaurant_id, start_date_7d, end_date), as_dict=True)[0]
+			""", (outlet_id, start_date_7d, end_date), as_dict=True)[0]
 			
 			summary["qrRoas"] = [
 				{
@@ -638,13 +638,13 @@ def get_dashboard_summary(restaurant_id):
 
 
 @frappe.whitelist()
-def get_top_products(restaurant_id, days=7, limit=8):
+def get_top_products(outlet_id, days=7, limit=8):
 	"""
 	Standalone endpoint: top products by order count over the last N days.
 	Returns real data from Order Items — no mocked values.
 	"""
 	try:
-		restaurant_id = restaurant_id.lower() if restaurant_id else restaurant_id
+		outlet_id = outlet_id.lower() if outlet_id else outlet_id
 		days = int(days) if days else 7
 		limit = int(limit) if limit else 8
 
@@ -666,7 +666,7 @@ def get_top_products(restaurant_id, days=7, limit=8):
 			GROUP BY item_name
 			ORDER BY order_count DESC
 			LIMIT %s
-		""", (restaurant_id, start_date, end_date, limit), as_dict=True)
+		""", (outlet_id, start_date, end_date, limit), as_dict=True)
 
 		return {
 			"success": True,
@@ -706,7 +706,7 @@ def _resolve_window(start_date, end_date):
 
 
 @frappe.whitelist()
-def get_commission_summary(restaurant_id, start_date=None, end_date=None):
+def get_commission_summary(outlet_id, start_date=None, end_date=None):
 	"""
 	Commission report for the merchant dashboard.
 
@@ -717,7 +717,7 @@ def get_commission_summary(restaurant_id, start_date=None, end_date=None):
 	Returns rupee floats so the frontend doesn't have to do paise math.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		start, end = _resolve_window(start_date, end_date)
 
 		row = frappe.db.sql(
@@ -747,7 +747,7 @@ def get_commission_summary(restaurant_id, start_date=None, end_date=None):
 		return {
 			"success": True,
 			"data": {
-				"restaurant_id": restaurant,
+				"outlet_id": restaurant,
 				"window": {"start_date": str(start), "end_date": str(end)},
 				"order_count": int(row.order_count or 0),
 				"gmv": round(gmv, 2),
@@ -762,7 +762,7 @@ def get_commission_summary(restaurant_id, start_date=None, end_date=None):
 
 
 @frappe.whitelist()
-def get_flamezo_acquisition_stats(restaurant_id, start_date=None, end_date=None):
+def get_flamezo_acquisition_stats(outlet_id, start_date=None, end_date=None):
 	"""
 	"Customers brought in by the FLAMEZO consumer app" report.
 
@@ -772,7 +772,7 @@ def get_flamezo_acquisition_stats(restaurant_id, start_date=None, end_date=None)
 	dollar value of the network effect.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		start, end = _resolve_window(start_date, end_date)
 
 		row = frappe.db.sql(
@@ -814,7 +814,7 @@ def get_flamezo_acquisition_stats(restaurant_id, start_date=None, end_date=None)
 		return {
 			"success": True,
 			"data": {
-				"restaurant_id": restaurant,
+				"outlet_id": restaurant,
 				"window": {"start_date": str(start), "end_date": str(end)},
 				"flamezo_discovery": {
 					"orders": int(row.order_count or 0),
