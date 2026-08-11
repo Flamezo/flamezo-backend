@@ -1000,6 +1000,19 @@ def upload_customer_photo():
 		if len(content) > 5 * 1024 * 1024:
 			return {"success": False, "error": {"code": "FILE_TOO_LARGE", "message": "Image must be under 5MB"}}
 
+		# Compress the avatar — a resized WebP keeps it sharp at the sizes a
+		# profile photo is ever shown while cutting storage sharply.
+		save_name = file.filename or f"avatar_{customer_id}.jpg"
+		try:
+			from flamezo_backend.flamezo.media.processors import compress_image_bytes
+			comp, comp_type, comp_ext = compress_image_bytes(content, max_dim=1024)
+			if comp_type:
+				content = comp
+				base_name = save_name.rsplit(".", 1)[0] if "." in save_name else save_name
+				save_name = f"{base_name}.{comp_ext}"
+		except Exception:
+			pass  # keep the original bytes if compression is unavailable
+
 		from frappe.utils.file_manager import save_file
 
 		# The custom X-Customer-Token auth does not create a real Frappe login, so
@@ -1013,7 +1026,7 @@ def upload_customer_photo():
 			frappe.flags.ignore_permissions = True
 
 			file_doc = save_file(
-				fname=file.filename or f"avatar_{customer_id}.jpg",
+				fname=save_name,
 				content=content,
 				dt="Customer",
 				dn=customer_id,
