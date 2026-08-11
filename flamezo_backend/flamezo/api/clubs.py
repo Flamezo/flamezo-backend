@@ -65,7 +65,6 @@ def _format_club(c, phone=None, member_set=None):
         "description": c.description or "",
         "cover_image": c.cover_image or "",
         "category": c.category or "",
-        "tier": c.tier or "Spark",
         "followers_count": c.followers_count or 0,
         "is_following": c.name in member_set,
         "creator_id": c.creator or "",
@@ -119,7 +118,7 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
     rows = frappe.db.sql(
         f"""
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
-               cc.category, cc.tier, cc.followers_count, cc.creator,
+               cc.category, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
                fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone
@@ -153,7 +152,7 @@ def get_club_detail(club_id, phone=None):
     rows = frappe.db.sql(
         """
         SELECT cc.*, fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image, fc.creator_tier AS creator_tier,
+               fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone
         FROM `tabCreator Club` cc
         LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
@@ -168,7 +167,6 @@ def get_club_detail(club_id, phone=None):
     club = rows[0]
     member_set = _get_member_set(phone)
     result = _format_club(club, phone, member_set)
-    result["creator_tier"] = club.creator_tier or "Spark"
     result["recent_posts"] = frappe.db.count("Creator Club Post", {"club": club_id})
     result["notify_new_posts"] = bool(
         phone
@@ -705,7 +703,7 @@ def get_my_clubs(phone):
     rows = frappe.db.sql(
         """
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
-               cc.category, cc.tier, cc.followers_count, cc.creator,
+               cc.category, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
                fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone

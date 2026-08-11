@@ -312,6 +312,17 @@ scheduler_events = {
 		"0 2 * * 0": [
 			"flamezo_backend.flamezo.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
 		],
+		# Creator Program — weekly score/payout run, Mondays 03:00 IST (before
+		# the 03:45 commission autopay sweep). See creator-weekly-score-
+		# algorithm.md and utils/creator_score_engine.py.
+		"0 3 * * 1": [
+			"flamezo_backend.flamezo.utils.creator_score_engine.run_weekly_payout",
+		],
+		# Creator Program — monthly follower refresh, 1st of month 05:00 IST.
+		# creator-program-fundamentals-v1-locked.md Section 6.
+		"0 5 1 * *": [
+			"flamezo_backend.flamezo.api.creator_onboarding.monthly_follower_refresh",
+		],
 		# Menu extraction self-heal: sweep docs stuck in 'Processing' for >5min
 		# (worker restart / transient failures) and re-aggregate or mark Failed.
 		"*/5 * * * *": [
