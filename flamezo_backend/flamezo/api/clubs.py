@@ -410,6 +410,32 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
         if not object_exists(image_key):
             frappe.throw(_("Image not found on storage. Please upload first."))
         image_url = public_url(image_key)
+        # Compress the raw upload (resized WebP), point the post at the smaller
+        # copy and drop the original. Best-effort: any failure keeps the raw.
+        try:
+            import os
+            import tempfile
+            from flamezo_backend.flamezo.media.storage import download_object, upload_bytes, delete_object, get_cdn_url
+            from flamezo_backend.flamezo.media.processors import compress_image_bytes
+
+            with tempfile.TemporaryDirectory() as _tmp:
+                _raw_path = os.path.join(_tmp, "raw")
+                download_object(image_key, _raw_path)
+                with open(_raw_path, "rb") as _f:
+                    _raw = _f.read()
+            _comp, _ctype, _ext = compress_image_bytes(_raw)
+            if _ctype:
+                _base = image_key.rsplit(".", 1)[0] if "." in image_key else image_key
+                _comp_key = f"{_base}.{_ext}"
+                upload_bytes(_comp_key, _comp, content_type=_ctype)
+                image_url = get_cdn_url(_comp_key)
+                if _comp_key != image_key:
+                    try:
+                        delete_object(image_key)
+                    except Exception:
+                        pass
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "club post image compress")
     if post_type == "chills" and not reel_id:
         frappe.throw(_("reel_id is required for a chills post"))
     if post_type == "chills" and not frappe.db.exists("Chills", reel_id):
