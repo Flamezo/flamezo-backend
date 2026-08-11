@@ -522,6 +522,46 @@ def backfill_onboarding_display():
     return synced
 
 
+def backfill_restaurant_logo_from_config():
+    """One-off backfill for the OTHER half of the "Branding = 0 assets" bug:
+    `get_outlet_media_pool` (and the discovery feed) read `Restaurant.logo`,
+    but a real slice of outlets only ever had their logo written to
+    `Restaurant Config.logo` (an older, separate write path — same gap
+    `get_my_restaurants` already works around in ui.py) and it was never
+    copied across. `backfill_onboarding_display` can't fix these because
+    their `Restaurant Onboarding.logo` is ALSO empty — the logo simply never
+    passed through onboarding at all.
+
+    Only fills `Restaurant.logo` when it's currently empty and
+    `Restaurant Config.logo` has a real value — never overwrites. Run once
+    after deploy:
+
+        bench --site backend.flamezo.in execute \\
+          flamezo_backend.flamezo.api.onboarding.backfill_restaurant_logo_from_config
+
+    Not whitelisted — bench-only (privileged), so no web exposure."""
+    rows = frappe.db.sql(
+        """
+        SELECT r.name AS restaurant, c.logo AS config_logo
+        FROM `tabRestaurant` r
+        JOIN `tabRestaurant Config` c ON c.restaurant = r.name
+        WHERE (r.logo IS NULL OR r.logo = '')
+          AND c.logo IS NOT NULL AND c.logo != ''
+        """,
+        as_dict=True,
+    )
+    synced = 0
+    for row in rows:
+        try:
+            frappe.db.set_value('Restaurant', row.restaurant, 'logo', row.config_logo, update_modified=False)
+            synced += 1
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), 'onboarding.backfill_restaurant_logo_from_config')
+    frappe.db.commit()
+    print(f'backfill_restaurant_logo_from_config: synced {synced} restaurant(s)')
+    return synced
+
+
 @frappe.whitelist(allow_guest=True)
 def upload_onboarding_media(token):
     """
