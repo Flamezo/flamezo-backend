@@ -22,12 +22,24 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today, now_datetime
 
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _resolve_restaurant(outlet_id):
 	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
 	return name or frappe.db.get_value("Restaurant", outlet_id, "name")
+
+
+def _require_session(phone):
+	"""Every endpoint here touches personal appointment data — a client-supplied
+	phone alone is not identity. Without this, anyone who knows/guesses a phone
+	number could create appointments as that person, or read/cancel their real
+	ones (same class of bug found and fixed in crowd.py / table_booking_consumer.py)."""
+	if not has_active_customer_session(phone):
+		frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+	return phone
 
 
 def _assert_restaurant_access(restaurant_name):
@@ -98,6 +110,8 @@ def create_appointment(
 	if not appointment_date or not appointment_time:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_date and appointment_time are required"}}
 
+	_require_session(customer_phone)
+
 	try:
 		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
@@ -153,6 +167,7 @@ def get_my_appointments(phone=None, page=1, limit=20):
 	"""
 	if not phone:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "phone is required"}}
+	_require_session(phone)
 	try:
 		page = cint(page) or 1
 		limit = min(cint(limit) or 20, 50)
@@ -205,6 +220,7 @@ def cancel_appointment(appointment_id=None, phone=None, reason=None):
 	"""
 	if not appointment_id or not phone:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "appointment_id and phone are required"}}
+	_require_session(phone)
 	try:
 		doc = frappe.get_doc("Service Appointment", appointment_id)
 

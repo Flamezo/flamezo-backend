@@ -10,7 +10,6 @@
   "club_name",
   "column_break_1",
   "category",
-  "tier",
   "is_active",
   "section_break_info",
   "niche",
@@ -44,13 +43,6 @@
    "fieldtype": "Select",
    "label": "Category",
    "options": "dining\nwellness\nfitness\ncafe\nevents\nfashion\nsports"
-  },
-  {
-   "fieldname": "tier",
-   "fieldtype": "Select",
-   "label": "Tier",
-   "options": "Spark\nFlame\nBlaze",
-   "read_only": 1
   },
   {
    "default": "1",

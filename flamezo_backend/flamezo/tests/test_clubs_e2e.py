@@ -124,7 +124,6 @@ def _make_creator(phone=_PHONE_A):
         "display_name": f"ClubCreator-{phone[-4:]}",
         "meta_followers": 25000,
         "meta_avg_views": 2500,
-        "creator_tier": "Flame",
         "status": "approved",
     })
     doc.insert(ignore_permissions=True)
@@ -365,7 +364,6 @@ class TestGetClubDetail(unittest.TestCase):
             result = clubs.get_club_detail(self.club.name, phone=_PHONE_B)["data"]
         self.assertEqual(result["id"], self.club.name)
         self.assertIn("club_name", result)
-        self.assertIn("tier", result)
         self.assertIn("followers_count", result)
         self.assertIn("creator_id", result)
         self.assertIn("recent_posts", result)

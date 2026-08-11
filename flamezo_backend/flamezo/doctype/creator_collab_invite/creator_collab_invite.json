@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "outlet",
+  "creator",
+  "column_break_1",
+  "status",
+  "proposed_date",
+  "section_break_1",
+  "offer_details",
+  "deliverable",
+  "section_break_2",
+  "completed_at",
+  "merchant_rating",
+  "column_break_2",
+  "revenue_bonus_points"
+ ],
+ "fields": [
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "pending\naccepted\ndeclined\nwaitlisted\ncompleted",
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "proposed_date",
+   "fieldtype": "Date",
+   "label": "Proposed Date"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Offer"
+  },
+  {
+   "fieldname": "offer_details",
+   "fieldtype": "Text",
+   "label": "Offer Details"
+  },
+  {
+   "fieldname": "deliverable",
+   "fieldtype": "Data",
+   "label": "Expected Deliverable",
+   "description": "e.g. '1 Reel + 1 Story'"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Completion"
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "merchant_rating",
+   "fieldtype": "Int",
+   "label": "Merchant Rating (1-5)",
+   "description": "Feeds the score engine's collab-quality points (rating/5 per completed collab) — creator-weekly-score-algorithm.md Section 10, Tier 3."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "revenue_bonus_points",
+   "fieldtype": "Float",
+   "label": "Revenue Bonus Points",
+   "read_only": 1,
+   "description": "Computed via creator_score_engine.compute_revenue_bonus once outlet bookings before/after this collab are correlated."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-08-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Collab Invite",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

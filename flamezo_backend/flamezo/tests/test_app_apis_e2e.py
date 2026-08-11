@@ -33,6 +33,16 @@ _BOOKING_SESSION  = "flamezo_backend.flamezo.api.bookings.validate_customer_sess
 # get_all_customer_bookings imports auth helpers locally, patch at the source module
 _HELPERS_TOKEN    = "flamezo_backend.flamezo.utils.customer_helpers.get_customer_token"
 _HELPERS_SESSION  = "flamezo_backend.flamezo.utils.customer_helpers.validate_customer_session"
+# table_booking_consumer.py / appointments.py / courts.py each import
+# has_active_customer_session by name and require a verified session on
+# every consumer endpoint — patch at each module's own bound name.
+_TBC_SESSION = "flamezo_backend.flamezo.api.table_booking_consumer.has_active_customer_session"
+_APPT_SESSION = "flamezo_backend.flamezo.api.appointments.has_active_customer_session"
+_COURTS_SESSION = "flamezo_backend.flamezo.api.courts.has_active_customer_session"
+
+
+def _tbc_verified_session():
+    return patch(_TBC_SESSION, return_value=True)
 
 # ── Test fixtures ──────────────────────────────────────────────────────────────
 PRIMARY_PHONE = "9876543210"   # Rajesh Kumar — Platinum
@@ -493,6 +503,58 @@ class TestGetCatalogueItem(unittest.TestCase):
 # 4. Bookings — bookings.py
 # ══════════════════════════════════════════════════════════════════════════════
 
+class TestCreateBanquetBooking(unittest.TestCase):
+    """create_banquet_booking used to only check the session `if phone:`,
+    meaning omitting phone from customer_info skipped auth entirely."""
+
+    _created = []
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+
+    @classmethod
+    def tearDownClass(cls):
+        for name in cls._created:
+            frappe.db.delete("Banquet Booking", name)
+        frappe.db.commit()
+
+    def _call(self, phone="9600000020", **kw):
+        from flamezo_backend.flamezo.api.bookings import create_banquet_booking
+        customer_info = json.dumps({"phone": phone, "fullName": "Test Host"}) if phone else None
+        defaults = dict(
+            outlet_id=DINING_ID, number_of_guests=20, event_type="Birthday",
+            date=add_days(today(), 5), time_slot="18:00 – 22:00",
+            customer_info=customer_info,
+        )
+        defaults.update(kw)
+        with patch(_BOOKING_TOKEN, return_value="tok"), \
+             patch(_BOOKING_SESSION, return_value=True):
+            return create_banquet_booking(**defaults)
+
+    def test_no_phone_rejected(self):
+        r = self._call(phone=None)
+        self.assertFalse(r["success"], msg=str(r))
+        self.assertEqual(r["error"]["code"], "MISSING_PARAM")
+
+    def test_valid_booking_succeeds(self):
+        r = self._call(phone="9600000021")
+        self.assertTrue(r["success"], msg=str(r))
+        self._created.append(r["data"]["booking"]["id"])
+
+    def test_no_session_rejected(self):
+        from flamezo_backend.flamezo.api.bookings import create_banquet_booking
+        with patch(_BOOKING_TOKEN, return_value=None), \
+             patch(_BOOKING_SESSION, return_value=False):
+            r = create_banquet_booking(
+                outlet_id=DINING_ID, number_of_guests=20, event_type="Birthday",
+                date=add_days(today(), 5), time_slot="18:00 – 22:00",
+                customer_info=json.dumps({"phone": "9600000022", "fullName": "Test Host"}),
+            )
+        self.assertFalse(r["success"], msg=str(r))
+        self.assertEqual(r["error"]["code"], "SECURE_SESSION_INVALID")
+
+
 class TestGetAllCustomerBookings(unittest.TestCase):
 
     @classmethod
@@ -541,13 +603,87 @@ class TestGetAllCustomerBookings(unittest.TestCase):
         self.assertLessEqual(len(r["data"]["bookings"]), 3)
 
 
-class TestCreateTableBooking(unittest.TestCase):
-
-    _created = []
+class TestGetCustomerBookingHistory(unittest.TestCase):
+    """get_customer_booking_history is the Past-tab counterpart to
+    get_all_customer_bookings — without it, cancelled/completed bookings
+    of any type (table/banquet/appointment/court) were invisible in the app."""
 
     @classmethod
     def setUpClass(cls):
         frappe.set_user("Administrator")
+
+    def _call(self, phone=PRIMARY_PHONE, **kw):
+        from flamezo_backend.flamezo.api.bookings import get_customer_booking_history
+        with patch(_HELPERS_TOKEN, return_value="tok"), \
+             patch(_HELPERS_SESSION, return_value=True):
+            return get_customer_booking_history(phone=phone, **kw)
+
+    def test_success_for_primary_user(self):
+        r = self._call()
+        self.assertTrue(r["success"], msg=str(r))
+
+    def test_returns_bookings_list(self):
+        r = self._call()
+        self.assertIsInstance(r["data"]["bookings"], list)
+
+    def test_bookings_have_type_field(self):
+        r = self._call()
+        for booking in r["data"]["bookings"]:
+            self.assertIn("type", booking)
+
+    def test_sorted_most_recent_first(self):
+        r = self._call()
+        dates = [b["date"] for b in r["data"]["bookings"] if b.get("date")]
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_limit_respected(self):
+        r = self._call(limit=2)
+        self.assertLessEqual(len(r["data"]["bookings"]), 2)
+
+    def test_no_overlap_with_upcoming_endpoint(self):
+        """A booking id must never appear in both the upcoming and history
+        endpoints — that would mean a booking is shown twice on Activity."""
+        from flamezo_backend.flamezo.api.bookings import get_all_customer_bookings
+        with patch(_HELPERS_TOKEN, return_value="tok"), \
+             patch(_HELPERS_SESSION, return_value=True):
+            upcoming = get_all_customer_bookings(phone=PRIMARY_PHONE)
+        past = self._call()
+        upcoming_ids = {b["id"] for b in upcoming["data"]["bookings"]}
+        past_ids = {b["id"] for b in past["data"]["bookings"]}
+        self.assertEqual(upcoming_ids & past_ids, set())
+
+    def test_invalid_phone_rejected(self):
+        r = self._call(phone="123")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"]["code"], "INVALID_PHONE")
+
+    def test_no_session_rejected(self):
+        from flamezo_backend.flamezo.api.bookings import get_customer_booking_history
+        with patch(_HELPERS_TOKEN, return_value=None), \
+             patch(_HELPERS_SESSION, return_value=False), \
+             patch("flamezo_backend.flamezo.utils.customer_helpers.is_phone_verified", return_value=False):
+            r = get_customer_booking_history(phone=PRIMARY_PHONE)
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"]["code"], "SECURE_SESSION_INVALID")
+
+
+class TestCreateTableBooking(unittest.TestCase):
+
+    _created = []
+    _TEST_PHONES = ["9600000010", "9600000011", "9600000012", "9700000001"]
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+        # Defensive: a prior interrupted run (crash before tearDownClass, or
+        # a run predating this cleanup) can leave active bookings for these
+        # phones, tripping the 3-active-bookings cap on this run's inserts.
+        for p in cls._TEST_PHONES:
+            frappe.db.sql(
+                "UPDATE `tabTable Booking` SET status='cancelled' WHERE customer_phone=%s",
+                p,
+            )
+        frappe.db.commit()
 
     @classmethod
     def tearDownClass(cls):
@@ -571,22 +707,38 @@ class TestCreateTableBooking(unittest.TestCase):
                 customer_info=customer_info,
             )
 
-    def test_guest_booking_no_phone_succeeds(self):
+    def test_guest_booking_no_phone_rejected(self):
+        """phone is required and must carry a valid session — guest (no
+        phone) bookings used to silently succeed unauthenticated; that was
+        the bug (anyone could create a booking attributed to any phone by
+        omitting it entirely). Now rejected outright."""
         r = self._call()
-        self.assertTrue(r["success"], msg=str(r))
-        self._created.append(r["data"]["booking"]["id"])
+        self.assertFalse(r["success"], msg=str(r))
+        self.assertEqual(r["error"]["code"], "MISSING_PARAM")
 
     def test_response_has_booking_id(self):
-        r = self._call()
-        self.assertTrue(r["success"])
+        r = self._call(phone="9600000010")
+        self.assertTrue(r["success"], msg=str(r))
         self.assertIn("id", r["data"]["booking"])
         self._created.append(r["data"]["booking"]["id"])
 
     def test_booking_status_is_pending(self):
-        r = self._call()
-        self.assertTrue(r["success"])
+        r = self._call(phone="9600000011")
+        self.assertTrue(r["success"], msg=str(r))
         self.assertEqual(r["data"]["booking"]["status"], "pending")
-        self._created.append(r["data"]["booking"]["id"])
+
+    def test_no_session_rejected(self):
+        from flamezo_backend.flamezo.api.bookings import create_table_booking
+        customer_info = json.dumps({"phone": "9600000012", "fullName": "Test Diner"})
+        with patch(_BOOKING_TOKEN, return_value=None), \
+             patch(_BOOKING_SESSION, return_value=False):
+            r = create_table_booking(
+                outlet_id=DINING_ID, number_of_diners=2,
+                date=add_days(today(), 5), time_slot="7:00 PM – 9:30 PM",
+                customer_info=customer_info,
+            )
+        self.assertFalse(r["success"], msg=str(r))
+        self.assertEqual(r["error"]["code"], "SECURE_SESSION_INVALID")
 
     def test_booking_with_phone_succeeds(self):
         # Use a fresh phone not in the seeded data to avoid the 3-booking cap
@@ -654,6 +806,12 @@ class TestGetMyAppointments(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         frappe.set_user("Administrator")
+        cls._session_patch = patch(_APPT_SESSION, return_value=True)
+        cls._session_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def _call(self, phone=PRIMARY_PHONE, **kw):
         from flamezo_backend.flamezo.api.appointments import get_my_appointments
@@ -701,6 +859,8 @@ class TestCreateAppointment(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         frappe.set_user("Administrator")
+        cls._session_patch = patch(_APPT_SESSION, return_value=True)
+        cls._session_patch.start()
         # Get a real catalogue item ID for the wellness outlet
         result = frappe.db.get_value(
             "Catalogue Item",
@@ -711,6 +871,7 @@ class TestCreateAppointment(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls._session_patch.stop()
         for name in cls._created:
             frappe.db.delete("Service Appointment", name)
         frappe.db.commit()
@@ -725,6 +886,16 @@ class TestCreateAppointment(unittest.TestCase):
         )
         defaults.update(kw)
         return create_appointment(outlet_id=outlet_id, **defaults)
+
+    def test_no_session_rejected(self):
+        from flamezo_backend.flamezo.api.appointments import create_appointment
+        with patch(_APPT_SESSION, return_value=False):
+            with self.assertRaises(frappe.exceptions.AuthenticationError):
+                create_appointment(
+                    outlet_id=WELLNESS_ID, customer_name="Test Booker",
+                    customer_phone="9700000098", appointment_date=add_days(today(), 3),
+                    appointment_time="11:00:00",
+                )
 
     def test_create_wellness_appointment(self):
         r = self._call()
@@ -866,6 +1037,12 @@ class TestGetMyCourtBookings(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         frappe.set_user("Administrator")
+        cls._session_patch = patch(_COURTS_SESSION, return_value=True)
+        cls._session_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def _call(self, phone=PRIMARY_PHONE, **kw):
         from flamezo_backend.flamezo.api.courts import get_my_court_bookings
@@ -894,6 +1071,47 @@ class TestGetMyCourtBookings(unittest.TestCase):
     def test_pagination(self):
         r = self._call(limit=2)
         self.assertLessEqual(len(r["data"]["bookings"]), 2)
+
+    def test_no_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import get_my_court_bookings
+        with patch(_COURTS_SESSION, return_value=False):
+            with self.assertRaises(frappe.exceptions.AuthenticationError):
+                get_my_court_bookings(phone=PRIMARY_PHONE)
+
+
+class TestCourtBookingSessionEnforcement(unittest.TestCase):
+    """Covers create_court_booking / cancel_court_booking, which had NO
+    session check at all before this fix — anyone who knew a phone number
+    could create a paid booking as that person, or cancel their real one
+    and trigger a live Razorpay refund without their consent."""
+
+    def test_create_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import create_court_booking
+        with patch(_COURTS_SESSION, return_value=False):
+            with self.assertRaises(frappe.exceptions.AuthenticationError):
+                create_court_booking(
+                    outlet_id=COURT_ID, court_id="whatever",
+                    booking_date=add_days(today(), 2), start_time="10:00",
+                    customer_name="Test Player", customer_phone="9700000097",
+                )
+
+    def test_cancel_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import cancel_court_booking
+        with patch(_COURTS_SESSION, return_value=False):
+            with self.assertRaises(frappe.exceptions.AuthenticationError):
+                cancel_court_booking(booking_id="whatever", phone="9700000097")
+
+
+class TestAppointmentSessionEnforcement(unittest.TestCase):
+    """cancel_appointment had an ownership check (customer_phone string
+    match) but no session/token verification — anyone who knew a customer's
+    phone number could cancel their appointment with zero proof of identity."""
+
+    def test_cancel_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.appointments import cancel_appointment
+        with patch(_APPT_SESSION, return_value=False):
+            with self.assertRaises(frappe.exceptions.AuthenticationError):
+                cancel_appointment(appointment_id="whatever", phone="9700000096")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1568,12 +1786,18 @@ class TestTableBookingConsumerCreate(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._session_patch = _tbc_verified_session()
+        cls._session_patch.start()
         # Cancel any existing bookings for the test phone to avoid the 3-booking cap
         frappe.db.sql(
             "UPDATE `tabTable Booking` SET status='cancelled' WHERE customer_phone=%s",
             cls._BOOKING_PHONE,
         )
         frappe.db.commit()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def _call(self, **kwargs):
         from flamezo_backend.flamezo.api.table_booking_consumer import create_table_booking
@@ -1627,6 +1851,8 @@ class TestTableBookingConsumerGetMy(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._session_patch = _tbc_verified_session()
+        cls._session_patch.start()
         frappe.db.sql(
             "UPDATE `tabTable Booking` SET status='cancelled' WHERE customer_phone=%s",
             cls._BOOKING_PHONE,
@@ -1637,6 +1863,10 @@ class TestTableBookingConsumerGetMy(unittest.TestCase):
             phone=cls._BOOKING_PHONE, outlet_id=DINING_ID,
             date="2027-07-15", time_slot="12:00 – 14:00", number_of_diners=4,
         )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def _call(self, **kwargs):
         from flamezo_backend.flamezo.api.table_booking_consumer import get_my_table_bookings
@@ -1671,6 +1901,8 @@ class TestTableBookingConsumerDetail(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._session_patch = _tbc_verified_session()
+        cls._session_patch.start()
         frappe.db.sql(
             "UPDATE `tabTable Booking` SET status='cancelled' WHERE customer_phone=%s",
             cls._BOOKING_PHONE,
@@ -1682,6 +1914,10 @@ class TestTableBookingConsumerDetail(unittest.TestCase):
             date="2027-08-10", time_slot="20:00 – 22:00", number_of_diners=3,
         )
         cls.booking_id = r["data"]["booking_id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def _call(self, booking_id=None, phone=None):
         from flamezo_backend.flamezo.api.table_booking_consumer import get_table_booking_detail
@@ -1718,6 +1954,8 @@ class TestTableBookingConsumerCancel(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._session_patch = _tbc_verified_session()
+        cls._session_patch.start()
         frappe.db.sql(
             "UPDATE `tabTable Booking` SET status='cancelled' WHERE customer_phone=%s",
             cls._BOOKING_PHONE,
@@ -1729,6 +1967,10 @@ class TestTableBookingConsumerCancel(unittest.TestCase):
             date="2027-09-05", time_slot="13:00 – 15:00", number_of_diners=2,
         )
         cls.booking_id = r["data"]["booking_id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._session_patch.stop()
 
     def test_cancel_succeeds(self):
         from flamezo_backend.flamezo.api.table_booking_consumer import cancel_table_booking

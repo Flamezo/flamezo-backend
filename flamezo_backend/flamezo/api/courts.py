@@ -31,6 +31,7 @@ from datetime import datetime, timedelta, date as date_type
 import razorpay
 
 from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_client as _shared_get_razorpay_client, get_razorpay_config
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
 
 
 DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -41,6 +42,17 @@ DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 def _resolve_restaurant(outlet_id):
 	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
 	return name or frappe.db.get_value("Restaurant", outlet_id, "name")
+
+
+def _require_session(phone):
+	"""Every endpoint here touches personal booking + payment data — a
+	client-supplied phone alone is not identity. Without this, anyone who
+	knows/guesses a phone number could create a paid booking as that person,
+	read their payment metadata, or cancel it and trigger a real Razorpay
+	refund against their booking without their consent."""
+	if not has_active_customer_session(phone):
+		frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+	return phone
 
 
 def _assert_restaurant_access(restaurant_name):
@@ -303,6 +315,7 @@ def create_court_booking(
 	"""
 	if not all([outlet_id, court_id, booking_date, start_time, customer_name, customer_phone]):
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id, court_id, booking_date, start_time, customer_name, customer_phone are required"}}
+	_require_session(customer_phone)
 	try:
 		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
@@ -488,6 +501,7 @@ def get_my_court_bookings(phone=None, page=1, limit=20):
 	"""
 	if not phone:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "phone is required"}}
+	_require_session(phone)
 	try:
 		page  = cint(page) or 1
 		limit = min(cint(limit) or 20, 50)
@@ -539,6 +553,7 @@ def cancel_court_booking(booking_id=None, phone=None, reason=None):
 	"""
 	if not booking_id or not phone:
 		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "booking_id and phone are required"}}
+	_require_session(phone)
 	try:
 		doc = frappe.get_doc("Court Booking", booking_id)
 

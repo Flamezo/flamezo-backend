@@ -7,9 +7,58 @@ Media processing utilities for images and videos
 
 import os
 import subprocess
+import io
 from PIL import Image
 import frappe
 from flamezo_backend.flamezo.utils.common import safe_log_error
+
+
+def compress_image_bytes(raw, max_dim=1600, quality=82):
+	"""Resize + re-encode an image in-memory to save storage while staying
+	visually sharp (used by chat / profile / club uploads that don't go through
+	the full variant pipeline).
+
+	- Longest side is capped at ``max_dim`` (photos are usually far larger).
+	- Re-encoded as WebP (quality ``quality``) — big savings, broadly supported.
+	- Orientation is normalised from EXIF; transparency is flattened onto white.
+
+	Returns ``(bytes, content_type, ext)``. If Pillow can't decode the input,
+	returns the ORIGINAL bytes with ``(raw, None, None)`` so callers can fall
+	back safely and never break an upload.
+	"""
+	try:
+		with Image.open(io.BytesIO(raw)) as img:
+			if img.mode in ("RGBA", "LA", "P"):
+				background = Image.new("RGB", img.size, (255, 255, 255))
+				if img.mode == "P":
+					img = img.convert("RGBA")
+				background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+				img = background
+			elif img.mode != "RGB":
+				img = img.convert("RGB")
+
+			try:
+				from PIL import ImageOps
+				img = ImageOps.exif_transpose(img)
+			except Exception:
+				pass
+
+			w, h = img.size
+			if max(w, h) > max_dim:
+				if w >= h:
+					nw = max_dim
+					nh = max(1, int(h * (max_dim / w)))
+				else:
+					nh = max_dim
+					nw = max(1, int(w * (max_dim / h)))
+				img = img.resize((nw, nh), Image.Resampling.LANCZOS)
+
+			out = io.BytesIO()
+			img.save(out, "WEBP", quality=quality, method=6, optimize=True)
+			return out.getvalue(), "image/webp", "webp"
+	except Exception as e:
+		safe_log_error("compress_image_bytes", str(e))
+		return raw, None, None
 
 
 class ImageProcessor:

@@ -10,6 +10,7 @@
   "creator",
   "column_break_1",
   "post_type",
+  "outlet",
   "reel",
   "image_url",
   "section_break_content",
@@ -46,6 +47,14 @@
    "label": "Post Type",
    "options": "chills\nimage\ntext",
    "reqd": 1
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant",
+   "in_list_view": 1,
+   "description": "Which merchant this post is about, if any — optional (a lifestyle tip or club update might not tag one), but required for that visit to count toward the 14-day reward-redemption cooldown (utils/creator_reward_redemption.py)."
   },
   {
    "fieldname": "reel",

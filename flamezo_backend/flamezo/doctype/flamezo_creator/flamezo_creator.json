@@ -10,13 +10,18 @@
   "display_name",
   "column_break_1",
   "status",
-  "creator_tier",
+  "city",
   "section_break_meta",
   "instagram_handle",
   "meta_user_id",
   "column_break_2",
   "meta_followers",
   "meta_avg_views",
+  "section_break_oauth",
+  "oauth_token",
+  "oauth_token_expires",
+  "column_break_oauth_2",
+  "follower_count_last_synced",
   "section_break_profile",
   "bio",
   "profile_image",
@@ -52,10 +57,11 @@
    "reqd": 1
   },
   {
-   "fieldname": "creator_tier",
-   "fieldtype": "Select",
-   "label": "Creator Tier",
-   "options": "Spark\nFlame\nBlaze"
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "City",
+   "description": "Drives the weekly score engine's IG/App blend weight (see utils/creator_score_engine.py::city_club_member_count) — the city a collab happens in, not necessarily where the creator lives, takes precedence once Creator Collab Invite tracks per-collab location."
   },
   {
    "fieldname": "section_break_meta",
@@ -87,6 +93,31 @@
    "fieldname": "meta_avg_views",
    "fieldtype": "Float",
    "label": "Meta Avg Views"
+  },
+  {
+   "fieldname": "section_break_oauth",
+   "fieldtype": "Section Break",
+   "label": "OAuth (Instagram Login)"
+  },
+  {
+   "fieldname": "oauth_token",
+   "fieldtype": "Password",
+   "label": "Instagram Long-Lived Access Token",
+   "description": "See utils/creator_onboarding.py — 60-day long-lived token, refreshable after 24h. Never exposed to the client; server-side use only."
+  },
+  {
+   "fieldname": "oauth_token_expires",
+   "fieldtype": "Datetime",
+   "label": "OAuth Token Expires"
+  },
+  {
+   "fieldname": "column_break_oauth_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "follower_count_last_synced",
+   "fieldtype": "Datetime",
+   "label": "Follower Count Last Synced"
   },
   {
    "fieldname": "section_break_profile",

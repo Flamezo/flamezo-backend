@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "outlet",
+  "column_break_1",
+  "amount",
+  "redeemed_at",
+  "section_break_1",
+  "proof_post"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "redeemed_at",
+   "fieldtype": "Datetime",
+   "label": "Redeemed At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Proof"
+  },
+  {
+   "fieldname": "proof_post",
+   "fieldtype": "Link",
+   "label": "Proof Post",
+   "options": "Creator Club Post",
+   "reqd": 1,
+   "description": "The fresh Club post tagging this outlet that satisfied the redemption's content requirement — see utils/creator_reward_redemption.py::_qualifying_proof_post."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-08-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Reward Redemption",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "track_changes": 0
+}

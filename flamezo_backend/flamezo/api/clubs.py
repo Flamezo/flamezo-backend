@@ -65,7 +65,6 @@ def _format_club(c, phone=None, member_set=None):
         "description": c.description or "",
         "cover_image": c.cover_image or "",
         "category": c.category or "",
-        "tier": c.tier or "Spark",
         "followers_count": c.followers_count or 0,
         "is_following": c.name in member_set,
         "creator_id": c.creator or "",
@@ -119,7 +118,7 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
     rows = frappe.db.sql(
         f"""
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
-               cc.category, cc.tier, cc.followers_count, cc.creator,
+               cc.category, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
                fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone
@@ -153,7 +152,7 @@ def get_club_detail(club_id, phone=None):
     rows = frappe.db.sql(
         """
         SELECT cc.*, fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image, fc.creator_tier AS creator_tier,
+               fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone
         FROM `tabCreator Club` cc
         LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
@@ -168,7 +167,6 @@ def get_club_detail(club_id, phone=None):
     club = rows[0]
     member_set = _get_member_set(phone)
     result = _format_club(club, phone, member_set)
-    result["creator_tier"] = club.creator_tier or "Spark"
     result["recent_posts"] = frappe.db.count("Creator Club Post", {"club": club_id})
     result["notify_new_posts"] = bool(
         phone
@@ -410,6 +408,32 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
         if not object_exists(image_key):
             frappe.throw(_("Image not found on storage. Please upload first."))
         image_url = public_url(image_key)
+        # Compress the raw upload (resized WebP), point the post at the smaller
+        # copy and drop the original. Best-effort: any failure keeps the raw.
+        try:
+            import os
+            import tempfile
+            from flamezo_backend.flamezo.media.storage import download_object, upload_bytes, delete_object, get_cdn_url
+            from flamezo_backend.flamezo.media.processors import compress_image_bytes
+
+            with tempfile.TemporaryDirectory() as _tmp:
+                _raw_path = os.path.join(_tmp, "raw")
+                download_object(image_key, _raw_path)
+                with open(_raw_path, "rb") as _f:
+                    _raw = _f.read()
+            _comp, _ctype, _ext = compress_image_bytes(_raw)
+            if _ctype:
+                _base = image_key.rsplit(".", 1)[0] if "." in image_key else image_key
+                _comp_key = f"{_base}.{_ext}"
+                upload_bytes(_comp_key, _comp, content_type=_ctype)
+                image_url = get_cdn_url(_comp_key)
+                if _comp_key != image_key:
+                    try:
+                        delete_object(image_key)
+                    except Exception:
+                        pass
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "club post image compress")
     if post_type == "chills" and not reel_id:
         frappe.throw(_("reel_id is required for a chills post"))
     if post_type == "chills" and not frappe.db.exists("Chills", reel_id):
@@ -705,7 +729,7 @@ def get_my_clubs(phone):
     rows = frappe.db.sql(
         """
         SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
-               cc.category, cc.tier, cc.followers_count, cc.creator,
+               cc.category, cc.followers_count, cc.creator,
                fc.display_name AS creator_display_name,
                fc.profile_image AS creator_profile_image,
                fc.customer_phone AS creator_phone

@@ -22,6 +22,7 @@ Covers:
 """
 
 import unittest
+from unittest.mock import patch
 from frappe.utils import today, add_days
 
 import frappe
@@ -30,6 +31,16 @@ from flamezo_backend.flamezo.tests.utils import make_restaurant
 _PREFIX = "TEST-APPT"
 _PHONE  = "9000000001"
 _PHONE2 = "9000000002"
+
+
+def _verified_session():
+    """appointments.py imports has_active_customer_session by name, so it
+    must be patched at its own bound name — same convention as
+    test_table_booking_e2e.py / test_crowd_e2e.py."""
+    return patch(
+        "flamezo_backend.flamezo.api.appointments.has_active_customer_session",
+        return_value=True,
+    )
 
 
 def _make_restaurant(suffix="01", outlet_type="wellness"):
@@ -71,9 +82,12 @@ class TestCreateAppointment(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.restaurant = _make_restaurant("CA01", "wellness")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.restaurant)
 
     def test_create_happy_path(self):
@@ -133,6 +147,8 @@ class TestGetMyAppointments(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.r1 = _make_restaurant("GM01", "wellness")
         self.r2 = _make_restaurant("GM02", "fitness")
         self.a1 = _make_appointment(self.r1, _PHONE)
@@ -140,6 +156,7 @@ class TestGetMyAppointments(unittest.TestCase):
         self.a3 = _make_appointment(self.r1, _PHONE2)  # different customer
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.r1)
         _cleanup(self.r2)
 
@@ -171,9 +188,12 @@ class TestCancelAppointment(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.restaurant = _make_restaurant("CX01", "wellness")
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.restaurant)
 
     def test_customer_can_cancel_pending(self):
@@ -213,6 +233,42 @@ class TestCancelAppointment(unittest.TestCase):
         res = cancel_appointment(appointment_id=appt, phone=_PHONE)
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "INVALID_STATUS")
+
+
+class TestSessionEnforcement(unittest.TestCase):
+    """create_appointment/get_my_appointments/cancel_appointment used to
+    trust a client-supplied phone with zero session verification — anyone
+    who knew/guessed a real phone number could create appointments as that
+    person, or read/cancel their real ones. These tests verify the fix
+    without the blanket _verified_session() patch the other classes use,
+    since the whole point here is the unpatched path."""
+
+    def setUp(self):
+        frappe.set_user("Administrator")
+        self.restaurant = _make_restaurant("SE01", "wellness")
+
+    def tearDown(self):
+        _cleanup(self.restaurant)
+
+    def test_create_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.appointments import create_appointment
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            create_appointment(
+                outlet_id=self.restaurant, customer_name="Jane Doe",
+                customer_phone=_PHONE, appointment_date=add_days(today(), 3),
+                appointment_time="11:00:00",
+            )
+
+    def test_get_my_appointments_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.appointments import get_my_appointments
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            get_my_appointments(phone=_PHONE)
+
+    def test_cancel_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.appointments import cancel_appointment
+        appt = _make_appointment(self.restaurant, _PHONE, status="Pending")
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            cancel_appointment(appointment_id=appt, phone=_PHONE)
 
 
 class TestMerchantAppointmentManagement(unittest.TestCase):
