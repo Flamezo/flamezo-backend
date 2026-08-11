@@ -59,8 +59,8 @@ import { UpdateSuccessShareModal } from '@/components/UpdateSuccessShareModal'
 
 interface Merchant {
   name: string
-  restaurant_id: string
-  restaurant_name: string
+  outlet_id: string
+  outlet_name: string
   owner_email?: string
   owner_phone?: string
   outlet_type?: string
@@ -107,7 +107,7 @@ interface AdminStats {
 
 interface OnboardingDetail {
   name: string
-  restaurant_name: string
+  outlet_name: string
   linked_restaurant?: string
   status: string
   owner_name?: string
@@ -269,7 +269,7 @@ export default function AdminMerchantManagement() {
     filters,
     setFilters
   } = useDataTable({
-    customEndpoint: 'flamezo_backend.flamezo.api.admin.get_all_restaurants',
+    customEndpoint: 'flamezo_backend.flamezo.api.admin.get_all_outlets',
     paramNames: {
       page: 'page',
       pageSize: 'page_size',
@@ -292,16 +292,16 @@ export default function AdminMerchantManagement() {
 
   // APIs
   const { call: toggleMerchantStatus } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.toggle_restaurant_status'
+    'flamezo_backend.flamezo.api.admin.toggle_outlet_status'
   )
   const { call: deleteMerchant } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.delete_restaurant'
+    'flamezo_backend.flamezo.api.admin.delete_outlet'
   )
   const { call: giveCoins } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
     'flamezo_backend.flamezo.api.admin.admin_give_coins'
   )
   const { call: updateSettings } = useFrappePostCall<{ success: boolean, message?: string, error?: string }>(
-    'flamezo_backend.flamezo.api.admin.admin_update_restaurant_settings'
+    'flamezo_backend.flamezo.api.admin.admin_update_outlet_settings'
   )
 
   const { call: generateOnboardingLink } = useFrappePostCall(
@@ -322,7 +322,7 @@ export default function AdminMerchantManagement() {
     'flamezo_backend.flamezo.api.onboarding.get_onboarding_by_name'
   )
   const { call: syncOnboarding } = useFrappePostCall(
-    'flamezo_backend.flamezo.api.onboarding.sync_onboarding_to_restaurant'
+    'flamezo_backend.flamezo.api.onboarding.sync_onboarding_to_outlet'
   )
 
   // Review modal state
@@ -346,7 +346,7 @@ export default function AdminMerchantManagement() {
   // table mutates so KPIs reflect the freshest state after coin grants,
   // status toggles, etc.
   const { data: rawAdminStats, mutate: loadAdminStats } = useFrappeGetCall<{ message?: { success: boolean; data?: AdminStats } }>(
-    'flamezo_backend.flamezo.api.admin.get_admin_restaurants_stats',
+    'flamezo_backend.flamezo.api.admin.get_admin_outlets_stats',
     {},
     'admin-merchants-stats'
   )
@@ -358,11 +358,11 @@ export default function AdminMerchantManagement() {
     }
   }, [rawPlatformSettings])
 
-  const handleStatusToggle = async (restaurantName: string, currentStatus: number) => {
+  const handleStatusToggle = async (outletName: string, currentStatus: number) => {
     try {
-      setUpdating(restaurantName)
+      setUpdating(outletName)
       const newStatus = currentStatus ? 0 : 1
-      const result = await toggleMerchantStatus({ restaurant_id: restaurantName, is_active: newStatus }) as any
+      const result = await toggleMerchantStatus({ outlet_id: outletName, is_active: newStatus }) as any
       if (result?.message?.success) {
         toast.success(`Merchant ${newStatus ? 'activated' : 'deactivated'}`)
         loadMerchants()
@@ -388,7 +388,7 @@ export default function AdminMerchantManagement() {
     try {
       setUpdating(merchant.name)
       const res = await updateSettings({
-        restaurant_id: merchant.restaurant_id,
+        outlet_id: merchant.outlet_id,
         updates: JSON.stringify({ is_signature: nextValue ? 1 : 0 }),
       }) as any
       if (res?.message?.success) {
@@ -410,7 +410,7 @@ export default function AdminMerchantManagement() {
     try {
       setIsSavingShareRate(true)
       const res = await updateSettings({
-        restaurant_id: shareUpdateTarget.restaurant_id,
+        outlet_id: shareUpdateTarget.outlet_id,
         updates: JSON.stringify({ platform_fee_percent: newRate }),
       }) as any
       if (res?.message?.success) {
@@ -435,7 +435,7 @@ export default function AdminMerchantManagement() {
       const finalAmount = coinAction === 'grant' ? amount : -Math.abs(amount)
       
       const result = await giveCoins({
-        restaurant_id: selectedMerchant.restaurant_id,
+        outlet_id: selectedMerchant.outlet_id,
         amount: finalAmount,
         reason: coinReason
       }) as any
@@ -457,7 +457,7 @@ export default function AdminMerchantManagement() {
     if (!merchantToDelete || verificationInput !== merchantToDelete.id) return
     try {
       setUpdating(merchantToDelete.id)
-      const result = await deleteMerchant({ restaurant_id: merchantToDelete.id }) as any
+      const result = await deleteMerchant({ outlet_id: merchantToDelete.id }) as any
       if (result?.message?.success) {
         toast.success(`Merchant removed from system`)
         setIsDeleteDialogOpen(false)
@@ -678,7 +678,7 @@ export default function AdminMerchantManagement() {
         </div>
       </div>
 
-      {/* Fleet-wide stats strip. Single read of get_admin_restaurants_stats;
+      {/* Fleet-wide stats strip. Single read of get_admin_outlets_stats;
           refreshes alongside the table. Each card is clickable to apply the
           matching filter so the admin can drill from KPI → row set in one
           click. */}
@@ -1051,7 +1051,7 @@ export default function AdminMerchantManagement() {
                             />
                             <div className="flex flex-col min-w-0">
                               <span className="font-bold truncate flex items-center gap-1.5">
-                                {merchant.restaurant_name}
+                                {merchant.outlet_name}
                                 {(!!merchant.is_signature || Math.abs(Number(merchant.platform_fee_percent ?? 0) - 11) < 0.001) && (
                                   <Star
                                     className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500"
@@ -1065,22 +1065,22 @@ export default function AdminMerchantManagement() {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const type = optimisticTypes[merchant.restaurant_id] || merchant.outlet_type || 'dining'
+                            const type = optimisticTypes[merchant.outlet_id] || merchant.outlet_type || 'dining'
                             const m = OUTLET_TYPE_META[type] || { label: type, cls: 'bg-stone-50 text-stone-600 border-stone-200' }
                             return (
                               <Select
                                 value={type}
                                 onValueChange={async (newType) => {
-                                  setOptimisticTypes(prev => ({ ...prev, [merchant.restaurant_id]: newType }))
+                                  setOptimisticTypes(prev => ({ ...prev, [merchant.outlet_id]: newType }))
                                   const res = await updateSettings({
-                                    restaurant_id: merchant.restaurant_id,
+                                    outlet_id: merchant.outlet_id,
                                     updates: JSON.stringify({ outlet_type: newType }),
                                   })
                                   if (res?.message?.success) {
                                     loadMerchants()
                                     toast.success(`Type updated to ${OUTLET_TYPE_META[newType]?.label ?? newType}`)
                                   } else {
-                                    setOptimisticTypes(prev => ({ ...prev, [merchant.restaurant_id]: merchant.outlet_type || 'dining' }))
+                                    setOptimisticTypes(prev => ({ ...prev, [merchant.outlet_id]: merchant.outlet_type || 'dining' }))
                                     toast.error(res?.message?.error || 'Failed to update type')
                                   }
                                 }}
@@ -1100,7 +1100,7 @@ export default function AdminMerchantManagement() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <code className="text-[10px] bg-muted px-1 rounded">{merchant.restaurant_id}</code>
+                          <code className="text-[10px] bg-muted px-1 rounded">{merchant.outlet_id}</code>
                         </TableCell>
                         <TableCell>
                           {(() => {
@@ -1158,7 +1158,7 @@ export default function AdminMerchantManagement() {
                             </Button>
                             <Button
                               variant="ghost" size="icon" className="h-8 w-8"
-                              onClick={() => navigate(`/admin/merchants/${merchant.restaurant_id}`)}
+                              onClick={() => navigate(`/admin/merchants/${merchant.outlet_id}`)}
                             >
                               <Settings className="h-4 w-4" />
                             </Button>
@@ -1175,7 +1175,7 @@ export default function AdminMerchantManagement() {
                                 variant="ghost" size="icon"
                                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => {
-                                  setMerchantToDelete({ id: merchant.restaurant_id, name: merchant.restaurant_name })
+                                  setMerchantToDelete({ id: merchant.outlet_id, name: merchant.outlet_name })
                                   setVerificationInput('')
                                   setIsDeleteDialogOpen(true)
                                 }}
@@ -1215,7 +1215,7 @@ export default function AdminMerchantManagement() {
             <DialogHeader className="text-center">
               <DialogTitle className="text-xl font-bold text-center w-full">Issue Credits</DialogTitle>
               <DialogDescription className="text-sm text-center pt-2">
-                {coinAction === 'grant' ? 'Manually add' : 'Manually remove'} digital coins {coinAction === 'grant' ? 'to' : 'from'} <span className="font-bold text-foreground">"{selectedMerchant?.restaurant_name}"</span>.
+                {coinAction === 'grant' ? 'Manually add' : 'Manually remove'} digital coins {coinAction === 'grant' ? 'to' : 'from'} <span className="font-bold text-foreground">"{selectedMerchant?.outlet_name}"</span>.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -1350,7 +1350,7 @@ export default function AdminMerchantManagement() {
       <UpdateSuccessShareModal
         open={!!shareUpdateTarget}
         onOpenChange={(open) => { if (!open) setShareUpdateTarget(null) }}
-        merchantName={shareUpdateTarget?.restaurant_name ?? ''}
+        merchantName={shareUpdateTarget?.outlet_name ?? ''}
         currentRate={Number(shareUpdateTarget?.platform_fee_percent ?? 0)}
         onConfirm={handleUpdateShareRate}
         isSaving={isSavingShareRate}
@@ -1409,7 +1409,7 @@ export default function AdminMerchantManagement() {
                     onSelect={setSelectedOnboardingResId}
                     options={(merchants || []).map((r: any) => ({
                       value: r.name,
-                      label: r.restaurant_name
+                      label: r.outlet_name
                     }))}
                     placeholder="Search existing merchants..."
                   />
@@ -1497,7 +1497,7 @@ export default function AdminMerchantManagement() {
                         />
                       </td>
                       <td className="py-3 pr-2 font-bold text-sm truncate max-w-0">
-                        <span className="block truncate" title={req.restaurant_name}>{req.restaurant_name}</span>
+                        <span className="block truncate" title={req.outlet_name}>{req.outlet_name}</span>
                       </td>
                       <td className="py-3 pr-2 min-w-0">
                         <div className="flex flex-col min-w-0">
@@ -1646,7 +1646,7 @@ export default function AdminMerchantManagement() {
                 </div>
                 <div>
                   <DialogTitle className="text-lg font-black">
-                    {reviewDetail ? reviewDetail.restaurant_name : 'Loading…'}
+                    {reviewDetail ? reviewDetail.outlet_name : 'Loading…'}
                   </DialogTitle>
                   <DialogDescription className="text-xs font-medium">
                     Submitted data review — verify before syncing

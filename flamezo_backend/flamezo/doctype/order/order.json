@@ -69,7 +69,7 @@
   {
    "fieldname": "restaurant",
    "fieldtype": "Link",
-   "label": "Restaurant",
+   "label": "Outlet",
    "options": "Restaurant",
    "reqd": 1
   },
@@ -260,7 +260,7 @@
   {
    "fieldname": "restaurant_transfer_amount",
    "fieldtype": "Int",
-   "label": "Restaurant Transfer Amount (paise)",
+   "label": "Outlet Transfer Amount (paise)",
    "default": "0"
   },
   {

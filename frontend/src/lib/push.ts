@@ -33,12 +33,12 @@ function getFirebaseApp(): FirebaseApp {
  * Initializes push notifications for the merchant dashboard.
  * Registers the service worker, gets an FCM token, and saves it to the backend.
  *
- * @param restaurantId  The slug of the restaurant
+ * @param outletId  The slug of the restaurant
  * @param frappeBaseUrl Base URL of the Frappe backend (e.g. https://api.flamezo_backend.com)
  * @param onNewOrder    Callback fired when a new-order push arrives while tab is open
  */
 export async function initMerchantPush(
-  restaurantId: string,
+  outletId: string,
   frappeBaseUrl: string,
   onNewOrder?: (data: Record<string, string>) => void
 ): Promise<boolean> {
@@ -91,7 +91,7 @@ export async function initMerchantPush(
           'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
         },
         body: JSON.stringify({
-          restaurant_id: restaurantId,
+          outlet_id: outletId,
           fcm_token: fcmToken,
         }),
         credentials: 'include',

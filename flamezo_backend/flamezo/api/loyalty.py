@@ -28,22 +28,22 @@ import json
 import random
 import string
 
-# ── Per-restaurant guardrails removed ────────────────────────────────────────
+# ── Per-outlet guardrails removed ────────────────────────────────────────
 # Flamezo now operates a fully centralized loyalty model.
 # All earn/redeem rates are fixed platform-wide in utils/platform_config.py.
-# Restaurants only control whether loyalty is enabled or disabled.
+# Outlets only control whether loyalty is enabled or disabled.
 # LOYALTY_GUARDRAILS and validate_loyalty_config() are no longer needed.
 
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def get_loyalty_summary(restaurant_id, phone):
+def get_loyalty_summary(outlet_id, phone):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.loyalty.get_loyalty_summary
-	Get customer's loyalty balance and history for a specific restaurant
+	Get customer's loyalty balance and history for a specific outlet
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
 			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
@@ -65,7 +65,7 @@ def get_loyalty_summary(restaurant_id, phone):
 		
 		from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
 		from flamezo_backend.flamezo.utils.platform_config import is_cross_restaurant_redemption_enabled
-		# Balance scope: own-restaurant when cross-redemption is disabled
+		# Balance scope: own-outlet when cross-redemption is disabled
 		if is_cross_restaurant_redemption_enabled():
 			balance = get_loyalty_balance(customer.name)
 			pending_balance = get_loyalty_balance(customer.name, include_pending=True) - balance
@@ -91,7 +91,7 @@ def get_loyalty_summary(restaurant_id, phone):
 		lifetime_coins = sum(e.coins for e in entries if e.transaction_type == 'Earn' and e.is_settled == 1)
 		
 		cross_redemption = is_cross_restaurant_redemption_enabled()
-		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant_id
+		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
 
 		return {
 			"success": True,
@@ -102,8 +102,8 @@ def get_loyalty_summary(restaurant_id, phone):
 				"lifetime_coins": lifetime_coins,
 				"tier": tier,
 				"transactions": entries,
-				"cross_restaurant_redemption_enabled": cross_redemption,
-				"earning_restaurant_name": None if cross_redemption else restaurant_name,
+				"cross_outlet_redemption_enabled": cross_redemption,
+				"earning_outlet_name": None if cross_redemption else outlet_name,
 			}
 		}
 	except Exception as e:
@@ -111,23 +111,23 @@ def get_loyalty_summary(restaurant_id, phone):
 		return {"success": False, "error": {"code": "LOYALTY_FETCH_ERROR", "message": str(e)}}
 
 @frappe.whitelist(allow_guest=True)
-def get_loyalty_config(restaurant_id):
+def get_loyalty_config(outlet_id):
 	"""
 	Get loyalty configuration for the cart and admin.
 	All earn/redeem rates are now Flamezo platform constants — uniform across
 	the entire network. Only enable_loyalty and program metadata come from the
-	per-restaurant doc.
+	per-outlet doc.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		
-		# Check if loyalty is enabled for this restaurant
+		# Check if loyalty is enabled for this outlet
 		is_enabled = frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
 		if not is_enabled:
 			return {"success": True, "data": None}
 
-		# Try to fetch non-rate fields from the restaurant doc if it exists
-		restaurant_doc_config = frappe.db.get_value(
+		# Try to fetch non-rate fields from the outlet doc if it exists
+		outlet_doc_config = frappe.db.get_value(
 			"Restaurant Loyalty Config",
 			{"restaurant": restaurant},
 			["program_name", "earn_on_status"],
@@ -142,8 +142,8 @@ def get_loyalty_config(restaurant_id):
 
 		# Build config: platform constants + program metadata
 		config = {
-			"program_name":                 restaurant_doc_config.get("program_name") or "Flamezo Rewards",
-			"earn_on_status":               restaurant_doc_config.get("earn_on_status") or "Completed",
+			"program_name":                 outlet_doc_config.get("program_name") or "Flamezo Rewards",
+			"earn_on_status":               outlet_doc_config.get("earn_on_status") or "Completed",
 			"plan_type":                    "GOLD",
 			"is_gold":                      True,
 			# ── Platform rates ───────────────────────────────────────────────────
@@ -170,21 +170,21 @@ def get_loyalty_config(restaurant_id):
 			"tier_platinum_threshold":      get_tier_threshold("platinum"),
 		}
 
-		# Add current restaurant's city
-		restaurant_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
-		config["city"] = restaurant_info.city or "Surat"
+		# Add current outlet's city
+		outlet_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
+		config["city"] = outlet_info.city or "Surat"
 		cross_redemption = is_cross_restaurant_redemption_enabled()
-		config["cross_restaurant_redemption_enabled"] = cross_redemption
-		config["earning_restaurant_name"] = None if cross_redemption else (
-			frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant_id
+		config["cross_outlet_redemption_enabled"] = cross_redemption
+		config["earning_outlet_name"] = None if cross_redemption else (
+			frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
 		)
 
 		# Fetch other outlets (Real + Mock)
 		filters = {"is_active": 1, "enable_loyalty": 1, "name": ["!=", restaurant]}
-		if restaurant_info.company:
-			filters["company"] = restaurant_info.company
+		if outlet_info.company:
+			filters["company"] = outlet_info.company
 		else:
-			filters["city"] = restaurant_info.city
+			filters["city"] = outlet_info.city
 
 		other_outlets = frappe.get_all(
 			"Restaurant",
@@ -282,19 +282,19 @@ def get_loyalty_config(restaurant_id):
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
+def generate_referral_link(outlet_id, phone, platform="WhatsApp"):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.loyalty.generate_referral_link
 	Generate or get a unique referral link for a customer
 	"""
 	try:
 		# Simple Rate Limiting
-		cache_key = f"referral_gen_limit:{phone}:{restaurant_id}"
+		cache_key = f"referral_gen_limit:{phone}:{outlet_id}"
 		if frappe.cache().get_value(cache_key):
 			return {"success": False, "error": {"code": "RATE_LIMIT", "message": "Please wait a moment before generating another link"}}
 		frappe.cache().set_value(cache_key, 1, expires_in_sec=5)
 
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
 			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
@@ -306,7 +306,7 @@ def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 		
 		customer = get_or_create_customer(normalized_phone)
 		
-		# Check if link already exists for this restaurant
+		# Check if link already exists for this outlet
 		existing_link = frappe.db.get_value(
 			"Referral Link",
 			{"referrer": customer.name, "restaurant": restaurant},
@@ -341,7 +341,7 @@ def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 		
 		from flamezo_backend.flamezo.utils.config_helpers import get_app_base_url
 		base_url = get_app_base_url()
-		referral_url = f"{base_url.rstrip('/')}/{restaurant_id}/invite/{identifier}"
+		referral_url = f"{base_url.rstrip('/')}/{outlet_id}/invite/{identifier}"
 		
 		return {
 			"success": True,
@@ -414,7 +414,7 @@ def track_referral_visit(identifier, ip_address=None, user_agent=None):
 		return {
 			"success": True,
 			"data": {
-				"restaurant_id": link_doc.restaurant,
+				"outlet_id": link_doc.restaurant,
 				"referral_id": identifier,
 				"is_unique": is_unique
 			}
@@ -426,7 +426,7 @@ def track_referral_visit(identifier, ip_address=None, user_agent=None):
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def claim_referral_reward(restaurant_id, referral_id, phone):
+def claim_referral_reward(outlet_id, referral_id, phone):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.loyalty.claim_referral_reward
 	Called after phone OTP verification.
@@ -441,7 +441,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 	The referrer earns nothing at claim time — rewards come from real orders.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		normalized_phone = normalize_phone(phone)
 		if not normalized_phone:
 			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
@@ -462,7 +462,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			return {"success": False, "error": {"code": "LINK_NOT_FOUND", "message": "Invalid referral link"}}
 
 		if link_info.restaurant != restaurant:
-			return {"success": False, "error": {"code": "RESTAURANT_MISMATCH", "message": "This referral link belongs to a different restaurant"}}
+			return {"success": False, "error": {"code": "OUTLET_MISMATCH", "message": "This referral link belongs to a different outlet"}}
 
 		# 2. Get or create the referee customer
 		referee = get_or_create_customer(normalized_phone)
@@ -474,7 +474,7 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 			if age_seconds < 60:
 				return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
 
-		# 4. Global idempotency: one Welcome Bonus per phone ever, across all restaurants
+		# 4. Global idempotency: one Welcome Bonus per phone ever, across all outlets
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": referee.name,
 			"reason": "Welcome Bonus"
@@ -573,12 +573,12 @@ def get_referral_details(identifier):
 		referrer_full_name = frappe.db.get_value("Customer", link_info.referrer, "customer_name") or link_info.referrer
 		# Swiggy/Zomato style: Show first name only for privacy
 		referrer_name = referrer_full_name.split(' ')[0] if referrer_full_name else link_info.referrer
-		restaurant_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
+		outlet_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
 		
 		# Get welcome coins from platform config (source of truth)
 		welcome_coins = get_welcome_reward_coins()
 		
-		# Get restaurant config for images
+		# Get outlet config for images
 		logo = frappe.db.get_value("Restaurant Config", {"restaurant": link_info.restaurant}, "logo")
 		# Using logo as fallback for banner as ‘banner_image’ field doesn’t exist
 		banner = logo 
@@ -587,8 +587,8 @@ def get_referral_details(identifier):
 			"success": True,
 			"data": {
 				"referrer": referrer_name,
-				"restaurant_name": restaurant_name,
-				"restaurant_id": link_info.restaurant,
+				"outlet_name": outlet_name,
+				"outlet_id": link_info.restaurant,
 				"logo": logo,
 				"banner": banner,
 				"welcome_coins": welcome_coins
@@ -600,7 +600,7 @@ def get_referral_details(identifier):
 def process_referral_welcome_bonus(customer, restaurant, referral_id):
 	"""
 	Awards the Welcome Bonus instantly upon signup/verification.
-	Validates that the referral_id belongs to the specified restaurant.
+	Validates that the referral_id belongs to the specified outlet.
 	"""
 	try:
 		# 1. Validate the referral link
@@ -608,25 +608,25 @@ def process_referral_welcome_bonus(customer, restaurant, referral_id):
 		if not link_info:
 			return False
 		
-		# Strict Scoping: Referral must match the restaurant the user is currently joining
+		# Strict Scoping: Referral must match the outlet the user is currently joining
 		if link_info.get("restaurant") != restaurant:
 			return False
 			
-		# 2. Global idempotency: one Welcome Bonus per phone number ever, across all restaurants
+		# 2. Global idempotency: one Welcome Bonus per phone number ever, across all outlets
 		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
 			"customer": customer,
 			"reason": "Welcome Bonus"
-			# No "restaurant" filter — global check prevents multi-restaurant bonus farming
+			# No "restaurant" filter — global check prevents multi-outlet bonus farming
 		})
 		
 		if already_rewarded:
 			return False
 			
-		# 3. Ensure an active loyalty config exists for this restaurant
+		# 3. Ensure an active loyalty config exists for this outlet
 		if not frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name"):
 			return False
 
-		# 4. Award the Welcome Bonus (always platform value — not per-restaurant config)
+		# 4. Award the Welcome Bonus (always platform value — not per-outlet config)
 		coins = get_welcome_reward_coins()
 		credit_loyalty_points(
 			customer=customer,
@@ -654,19 +654,19 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
+def update_loyalty_config(outlet_id, config, enable_loyalty=None):
 	"""
-	Update loyalty settings for a restaurant.
-	In the centralized model, restaurants can ONLY toggle loyalty on/off.
+	Update loyalty settings for an outlet.
+	In the centralized model, outlets can ONLY toggle loyalty on/off.
 	All earn/redeem rates are platform-fixed and ignored if passed.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		if isinstance(config, str):
 			config = json.loads(config)
 
 		# ── Strip all earn/redeem fields — platform owns these now ───────────────
-		# Even if a restaurant somehow passes these fields, they are ignored.
+		# Even if an outlet somehow passes these fields, they are ignored.
 		_LOCKED_FIELDS = {
 			"earn_type", "earn_percentage", "earn_flat_coins", "points_per_inr",
 			"min_order_to_earn", "max_coins_per_order", "coin_value_in_inr",
@@ -721,14 +721,14 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_customer_insights(restaurant_id, search_query=None):
+def get_customer_insights(outlet_id, search_query=None):
 	"""
-	Get list of customers with their points for a restaurant.
+	Get list of customers with their points for an outlet.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 
-		# Get all customers who have ever had a loyalty entry at this restaurant
+		# Get all customers who have ever had a loyalty entry at this outlet
 		# or placed an order, then compute all metrics in bulk SQL (no N+1).
 		
 		# Find customers via Restaurant Loyalty Entry
@@ -874,17 +874,17 @@ def get_customer_insights(restaurant_id, search_query=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_customer_transactions(restaurant_id, customer_id):
+def get_customer_transactions(outlet_id, customer_id):
 	"""
-	Get all loyalty transactions for a specific customer and restaurant
+	Get all loyalty transactions for a specific customer and outlet
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Customer data is always unlocked
 		is_unlocked = True
 
-		# Get all loyalty entries for this customer at this restaurant
+		# Get all loyalty entries for this customer at this outlet
 		transactions = frappe.get_all(
 			"Restaurant Loyalty Entry",
 			filters={"customer": customer_id, "restaurant": restaurant},
@@ -900,7 +900,7 @@ def get_customer_transactions(restaurant_id, customer_id):
 @frappe.whitelist()
 def get_loyalty_customers(restaurant, page=1, page_size=20, search=None):
 	"""
-	List loyalty customers for a restaurant.
+	List loyalty customers for an outlet.
 	No plan_type gating — always works in the single-tier GOLD model.
 	"""
 	try:
@@ -924,7 +924,7 @@ def get_loyalty_customers(restaurant, page=1, page_size=20, search=None):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def get_loyalty_analytics(restaurant_id):
+def get_loyalty_analytics(outlet_id):
 	"""
 	Merchant loyalty analytics dashboard.
 	Returns programme-level KPIs in a single API call — no N+1 queries.
@@ -939,7 +939,7 @@ def get_loyalty_analytics(restaurant_id):
 	  daily_trend  — last 30 days of daily earn + redeem volumes
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 
 		from frappe.utils import today, add_days, getdate
 		today_str = today()
@@ -1014,7 +1014,7 @@ def get_loyalty_analytics(restaurant_id):
 		""", (restaurant,), as_dict=True)
 		avg_balance = round(float(avg_row[0].avg_balance or 0), 1) if avg_row else 0.0
 
-		# Today's total redemptions across the whole restaurant (all customers)
+		# Today's total redemptions across the whole outlet (all customers)
 		today_redeem_row = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS today_redeemed
 			FROM `tabRestaurant Loyalty Entry`
@@ -1048,7 +1048,7 @@ def get_loyalty_analytics(restaurant_id):
 			LIMIT 5
 		""", (restaurant,), as_dict=True)
 
-		# Top earners — aggregate only, no personal data exposed to restaurant
+		# Top earners — aggregate only, no personal data exposed to outlet
 		top_earners = [
 			{
 				"customer": f"Customer #{i+1}",
@@ -1104,7 +1104,7 @@ def get_loyalty_analytics(restaurant_id):
 					"customers_expiring_soon":      customers_expiring_soon,
 					"redemption_rate_percent":      redemption_rate,
 					"avg_balance":                  avg_balance,
-					"today_redeemed_restaurant":    today_redeemed_total,
+					"today_redeemed_outlet":    today_redeemed_total,
 				},
 				"earn_by_reason":    earn_by_reason,
 				"top_earners":       top_earners,
@@ -1119,12 +1119,12 @@ def get_loyalty_analytics(restaurant_id):
 
 @frappe.whitelist()
 @require_plan('GOLD')
-def adjust_customer_points(restaurant_id, customer_id, coins, reason, transaction_type="Earn"):
+def adjust_customer_points(outlet_id, customer_id, coins, reason, transaction_type="Earn"):
 	"""
 	Manually adjust customer points (for admin use).
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		coins = cint(coins)
 
 		if coins <= 0:

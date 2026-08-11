@@ -15,12 +15,12 @@ from flamezo_backend.flamezo.doctype.restaurant_user.restaurant_user import get_
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _assert_admin(restaurant_id):
-	"""Throw if the current user is NOT a Restaurant Admin for this restaurant."""
+def _assert_admin(outlet_id):
+	"""Throw if the current user is NOT a Restaurant Admin for this outlet."""
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
 	if (
-		user == "Administrator" or 
+		user == "Administrator" or
 		any(role in GLOBAL_ADMIN_ROLES or role in SUPERVISOR_ROLES for role in user_roles) or
 		"Restaurant Admin" in user_roles
 	):
@@ -28,22 +28,22 @@ def _assert_admin(restaurant_id):
 
 	role = frappe.db.get_value(
 		"Restaurant User",
-		{"user": user, "restaurant": restaurant_id, "is_active": 1},
+		{"user": user, "restaurant": outlet_id, "is_active": 1},
 		"role"
 	)
 	if role != "Restaurant Admin":
 		frappe.throw(_("Only a Restaurant Admin can perform this action."), frappe.PermissionError)
 
 
-def _resolve_restaurant(restaurant_id):
-	"""Normalise restaurant_id → docname (handles both restaurant_id slug and name)."""
+def _resolve_restaurant(outlet_id):
+	"""Normalise outlet_id → docname (handles both outlet_id slug and name)."""
 	from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
 	# validate_restaurant_access expects the docname
-	doc_name = frappe.db.get_value("Restaurant", restaurant_id, "name")
+	doc_name = frappe.db.get_value("Restaurant", outlet_id, "name")
 	if not doc_name:
-		doc_name = get_restaurant_from_id(restaurant_id)
+		doc_name = get_restaurant_from_id(outlet_id)
 	if not doc_name:
-		frappe.throw(_("Restaurant not found"), frappe.DoesNotExistError)
+		frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
 	return doc_name
 
 
@@ -52,9 +52,9 @@ def _resolve_restaurant(restaurant_id):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def get_staff_members(restaurant_id):
+def get_staff_members(outlet_id):
 	"""
-	GET – return all staff for this restaurant plus seat-quota info.
+	GET – return all staff for this outlet plus seat-quota info.
 
 	Returns:
 	  {
@@ -70,7 +70,7 @@ def get_staff_members(restaurant_id):
 	  }
 	"""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 
 		if not validate_restaurant_access(frappe.session.user, restaurant):
 			frappe.throw(_("Access denied"), frappe.PermissionError)
@@ -109,7 +109,8 @@ def get_staff_members(restaurant_id):
 				"creation": str(m.creation),
 			})
 
-		limit, plan_type = get_staff_seat_limit(restaurant)
+		limit = get_staff_seat_limit(restaurant)
+		plan_type = "GOLD"
 		# Count only active non-admin staff toward the quota
 		seats_used = sum(1 for m in members if m["role"] == "Restaurant Staff" and m["is_active"])
 		seats_remaining = max(0, limit - seats_used)
@@ -131,7 +132,7 @@ def get_staff_members(restaurant_id):
 
 
 @frappe.whitelist()
-def invite_staff_member(restaurant_id, email, full_name, role="Restaurant Staff"):
+def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
 	"""
 	POST – invite a staff member by email.
 
@@ -145,7 +146,7 @@ def invite_staff_member(restaurant_id, email, full_name, role="Restaurant Staff"
 	  { success: true, data: { restaurant_user: "...", user: "...", is_new_user: true } }
 	"""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_admin(restaurant)
 
 		email = (email or "").strip().lower()
@@ -179,7 +180,7 @@ def invite_staff_member(restaurant_id, email, full_name, role="Restaurant Staff"
 
 		# --- Check not already added ---
 		if frappe.db.exists("Restaurant User", {"user": email, "restaurant": restaurant}):
-			frappe.throw(_("{0} is already a member of this restaurant.").format(email))
+			frappe.throw(_("{0} is already a member of this outlet.").format(email))
 
 		# --- Create Restaurant User (seat limit enforced in DocType.validate) ---
 		ru = frappe.get_doc({
@@ -196,7 +197,7 @@ def invite_staff_member(restaurant_id, email, full_name, role="Restaurant Staff"
 		_send_staff_invite_email(
 			email=email,
 			full_name=full_name,
-			restaurant_name=frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant,
+			outlet_name=frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant,
 			is_new_user=is_new_user,
 		)
 
@@ -220,25 +221,25 @@ def invite_staff_member(restaurant_id, email, full_name, role="Restaurant Staff"
 
 
 @frappe.whitelist()
-def remove_staff_member(restaurant_id, restaurant_user_name):
+def remove_staff_member(outlet_id, restaurant_user_name):
 	"""
-	DELETE – remove a staff member from this restaurant.
+	DELETE – remove a staff member from this outlet.
 
 	Admins cannot remove themselves this way.
 	"""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_admin(restaurant)
 
 		ru = frappe.get_doc("Restaurant User", restaurant_user_name)
 
 		# Safety: ensure the record belongs to this restaurant
 		if ru.restaurant != restaurant:
-			frappe.throw(_("This staff record does not belong to this restaurant."), frappe.PermissionError)
+			frappe.throw(_("This staff record does not belong to this outlet."), frappe.PermissionError)
 
 		# Admins cannot remove themselves
 		if ru.user == frappe.session.user:
-			frappe.throw(_("You cannot remove yourself from the restaurant."))
+			frappe.throw(_("You cannot remove yourself from the outlet."))
 
 		frappe.delete_doc("Restaurant User", restaurant_user_name, ignore_permissions=True)
 
@@ -253,17 +254,17 @@ def remove_staff_member(restaurant_id, restaurant_user_name):
 
 
 @frappe.whitelist()
-def update_staff_member(restaurant_id, restaurant_user_name, is_active=None, role=None):
+def update_staff_member(outlet_id, restaurant_user_name, is_active=None, role=None):
 	"""
 	PATCH – update staff member status or role.
 	"""
 	try:
-		restaurant = _resolve_restaurant(restaurant_id)
+		restaurant = _resolve_restaurant(outlet_id)
 		_assert_admin(restaurant)
 
 		ru = frappe.get_doc("Restaurant User", restaurant_user_name)
 		if ru.restaurant != restaurant:
-			frappe.throw(_("This staff record does not belong to this restaurant."), frappe.PermissionError)
+			frappe.throw(_("This staff record does not belong to this outlet."), frappe.PermissionError)
 
 		# Update active status if provided
 		if is_active is not None:
@@ -298,7 +299,7 @@ def update_staff_member(restaurant_id, restaurant_user_name, is_active=None, rol
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _send_staff_invite_email(email, full_name, restaurant_name, is_new_user):
+def _send_staff_invite_email(email, full_name, outlet_name, is_new_user):
 	"""Send a welcome/invite email to the newly added staff member."""
 	try:
 		site_url = frappe.utils.get_url()
@@ -316,19 +317,19 @@ def _send_staff_invite_email(email, full_name, restaurant_name, is_new_user):
 			except Exception:
 				pass  # Non-fatal – they can use "forgot password"
 
-			subject = f"You've been invited to {restaurant_name} on Flamezo!"
+			subject = f"You've been invited to {outlet_name} on Flamezo!"
 			message_body = f"""
 			<p>Hi {full_name},</p>
-			<p>You have been added as a staff member for <strong>{restaurant_name}</strong> on Flamezo.</p>
+			<p>You have been added as a staff member for <strong>{outlet_name}</strong> on Flamezo.</p>
 			<p>Please <a href="{site_url}/update-password?key={reset_key}">click here to set your password</a> and get started.</p>
 			<p>Once logged in, visit: <a href="{login_url}">{login_url}</a></p>
 			<p>— The Flamezo Team</p>
 			"""
 		else:
-			subject = f"You've been added to {restaurant_name} on Flamezo"
+			subject = f"You've been added to {outlet_name} on Flamezo"
 			message_body = f"""
 			<p>Hi {full_name},</p>
-			<p>You have been added as a staff member for <strong>{restaurant_name}</strong> on Flamezo.</p>
+			<p>You have been added as a staff member for <strong>{outlet_name}</strong> on Flamezo.</p>
 			<p><a href="{login_url}">Log in to your dashboard</a> to start managing orders.</p>
 			<p>— The Flamezo Team</p>
 			"""

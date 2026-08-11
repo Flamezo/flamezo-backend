@@ -10,23 +10,23 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Plus, Edit2, Trash2, Star } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 export default function LegacySignatureDishPage() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
 
   // Get signature dishes data
   const { data: signatureDishes } = useFrappeGetDocList('Legacy Signature Dish', {
-    filters: [['parent', '=', selectedRestaurant]],
+    filters: [['parent', '=', selectedOutlet]],
     fields: ['name', 'dish', 'display_order', 'dish_name'],
     orderBy: { field: 'display_order', order: 'asc' }
   })
 
   // Get menu products for signature dishes selection
   const { data: menuProducts } = useFrappeGetDocList('Menu Product', {
-    filters: [['restaurant', '=', selectedRestaurant]],
+    filters: [['restaurant', '=', selectedOutlet]],
     fields: ['name', 'product_name', 'image']
   })
 
@@ -43,7 +43,7 @@ export default function LegacySignatureDishPage() {
         await createDoc({
           ...data,
           doctype: 'Legacy Signature Dish',
-          parent: selectedRestaurant,
+          parent: selectedOutlet,
           parenttype: 'Legacy Content',
           parentfield: 'signature_dishes'
         })
@@ -78,7 +78,7 @@ export default function LegacySignatureDishPage() {
     handleSave(data)
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="text-center py-8">
         <p>Please select an outlet to manage featured items.</p>

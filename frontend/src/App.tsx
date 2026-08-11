@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import { Toaster } from './components/ui/sonner'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
-import { RestaurantProvider } from './contexts/RestaurantContext'
+import { OutletProvider } from './contexts/OutletContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import FeatureProtectedRoute from './components/FeatureProtectedRoute'
@@ -200,9 +200,9 @@ function AppContent() {
 								<Route path="/ai-menu-theme-history" element={<AIMenuThemeHistoryPage />} />
 
 								<Route path="/Legacy Content" element={<LegacyContent />} />
-								<Route path="/restaurant/:restaurantId/payment" element={<Payment />} />
-								<Route path="/restaurant/:restaurantId/billing" element={<PaymentSettings />} />
-								<Route path="/restaurant/:restaurantId/route-kyc" element={<RouteKycPage />} />
+								<Route path="/restaurant/:outletId/payment" element={<Payment />} />
+								<Route path="/restaurant/:outletId/billing" element={<PaymentSettings />} />
+								<Route path="/restaurant/:outletId/route-kyc" element={<RouteKycPage />} />
 								<Route path="/:doctype/:docname" element={<ModuleDetail />} />
 							</Route>
 						</Route>
@@ -223,10 +223,10 @@ function App() {
 			socketPort={import.meta.env.VITE_SOCKET_PORT || undefined}
 			siteName={(window as any)?.frappe?.boot?.sitename ?? import.meta.env.VITE_SITE_NAME}>
 			<ThemeProvider>
-				<RestaurantProvider>
+				<OutletProvider>
 					<SessionGuard />
 					<AppContent />
-				</RestaurantProvider>
+				</OutletProvider>
 			</ThemeProvider>
 		</FrappeProvider>
 	)

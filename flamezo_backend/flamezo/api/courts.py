@@ -5,20 +5,20 @@ Customers browse courts, check slot availability, book and pay the consumer fee
 via Razorpay. After payment confirmation the booking is locked.
 
 Consumer endpoints (guest allowed):
-  get_courts(restaurant_id)
-  get_court_availability(restaurant_id, court_id, date)
+  get_courts(outlet_id)
+  get_court_availability(outlet_id, court_id, date)
   create_court_booking(...)        → returns Razorpay order for consumer_fee
   verify_court_payment(...)        → confirms booking after payment
   get_my_court_bookings(phone)
   cancel_court_booking(booking_id, phone, reason)
 
 Merchant endpoints (auth required):
-  get_court_bookings(restaurant_id, date, court_id, status, page, limit)
-  get_court_booking_summary(restaurant_id, date)
-  mark_court_completed(booking_id, restaurant_id)
-  mark_court_no_show(booking_id, restaurant_id)
-  save_court(restaurant_id, ...)
-  delete_court(restaurant_id, court_id)
+  get_court_bookings(outlet_id, date, court_id, status, page, limit)
+  get_court_booking_summary(outlet_id, date)
+  mark_court_completed(booking_id, outlet_id)
+  mark_court_no_show(booking_id, outlet_id)
+  save_court(outlet_id, ...)
+  delete_court(outlet_id, court_id)
 """
 
 import json
@@ -30,20 +30,17 @@ from frappe.utils import cint, flt, getdate, today, now_datetime, add_days
 from datetime import datetime, timedelta, date as date_type
 import razorpay
 
+from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_client as _shared_get_razorpay_client, get_razorpay_config
 
-# ── Config ────────────────────────────────────────────────────────────────────
-
-_RAZORPAY_KEY_ID     = frappe.conf.get("razorpay_key_id", "")
-_RAZORPAY_KEY_SECRET = frappe.conf.get("razorpay_key_secret", "")
 
 DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _resolve_restaurant(restaurant_id):
-	name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
-	return name or frappe.db.get_value("Restaurant", restaurant_id, "name")
+def _resolve_restaurant(outlet_id):
+	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
+	return name or frappe.db.get_value("Restaurant", outlet_id, "name")
 
 
 def _assert_restaurant_access(restaurant_name):
@@ -54,13 +51,11 @@ def _assert_restaurant_access(restaurant_name):
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
-		frappe.throw(_("Access denied to this restaurant."), frappe.PermissionError)
+		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
 
 
 def _get_razorpay_client():
-	if not _RAZORPAY_KEY_ID or not _RAZORPAY_KEY_SECRET:
-		frappe.throw("Razorpay credentials not configured.")
-	return razorpay.Client(auth=(_RAZORPAY_KEY_ID, _RAZORPAY_KEY_SECRET))
+	return _shared_get_razorpay_client()
 
 
 def _time_str_to_minutes(t):
@@ -145,16 +140,16 @@ def _format_booking(b):
 # ── Consumer: list courts ─────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_courts(restaurant_id=None):
+def get_courts(outlet_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.courts.get_courts
 
 	Returns all active courts for a sports_court merchant.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
@@ -197,7 +192,7 @@ def get_courts(restaurant_id=None):
 # ── Consumer: check availability ──────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_court_availability(restaurant_id=None, court_id=None, date=None):
+def get_court_availability(outlet_id=None, court_id=None, date=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.courts.get_court_availability
 
@@ -213,10 +208,10 @@ def get_court_availability(restaurant_id=None, court_id=None, date=None):
 	    ]
 	  }
 	"""
-	if not restaurant_id or not court_id or not date:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id, court_id and date are required"}}
+	if not outlet_id or not court_id or not date:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id, court_id and date are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
@@ -282,7 +277,7 @@ def get_court_availability(restaurant_id=None, court_id=None, date=None):
 
 @frappe.whitelist(allow_guest=True)
 def create_court_booking(
-	restaurant_id=None,
+	outlet_id=None,
 	court_id=None,
 	booking_date=None,
 	start_time=None,
@@ -306,10 +301,10 @@ def create_court_booking(
 	    currency: "INR"
 	  }
 	"""
-	if not all([restaurant_id, court_id, booking_date, start_time, customer_name, customer_phone]):
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id, court_id, booking_date, start_time, customer_name, customer_phone are required"}}
+	if not all([outlet_id, court_id, booking_date, start_time, customer_name, customer_phone]):
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id, court_id, booking_date, start_time, customer_name, customer_phone are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
@@ -382,7 +377,7 @@ def create_court_booking(
 			"data": {
 				"booking_id": doc.name,
 				"razorpay_order_id": order_data["id"],
-				"razorpay_key_id": _RAZORPAY_KEY_ID,
+				"razorpay_key_id": get_razorpay_config()["key_id"],
 				"consumer_fee": consumer_fee,
 				"slot_price": slot_price,
 				"currency": "INR",
@@ -426,7 +421,7 @@ def verify_court_payment(
 
 		# Verify HMAC-SHA256 signature
 		expected = hmac.new(
-			_RAZORPAY_KEY_SECRET.encode(),
+			get_razorpay_config()["key_secret"].encode(),
 			f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
 			hashlib.sha256,
 		).hexdigest()
@@ -590,7 +585,7 @@ def cancel_court_booking(booking_id=None, phone=None, reason=None):
 
 @frappe.whitelist()
 def get_court_bookings(
-	restaurant_id=None,
+	outlet_id=None,
 	date=None,
 	court_id=None,
 	status=None,
@@ -602,10 +597,10 @@ def get_court_bookings(
 
 	Merchant view — list court bookings with optional filters.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -659,16 +654,16 @@ def get_court_bookings(
 # ── Merchant: daily summary ───────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_court_booking_summary(restaurant_id=None, date=None):
+def get_court_booking_summary(outlet_id=None, date=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.courts.get_court_booking_summary
 
 	Returns booking counts and revenue summary for a given date.
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -711,12 +706,12 @@ def get_court_booking_summary(restaurant_id=None, date=None):
 # ── Merchant: status transitions ──────────────────────────────────────────────
 
 @frappe.whitelist()
-def mark_court_completed(booking_id=None, restaurant_id=None):
+def mark_court_completed(booking_id=None, outlet_id=None):
 	"""Mark a confirmed court booking as completed."""
-	if not booking_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "booking_id and restaurant_id are required"}}
+	if not booking_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "booking_id and outlet_id are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Court Booking", booking_id)
@@ -734,12 +729,12 @@ def mark_court_completed(booking_id=None, restaurant_id=None):
 
 
 @frappe.whitelist()
-def mark_court_no_show(booking_id=None, restaurant_id=None):
+def mark_court_no_show(booking_id=None, outlet_id=None):
 	"""Mark a confirmed court booking as no-show."""
-	if not booking_id or not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "booking_id and restaurant_id are required"}}
+	if not booking_id or not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "booking_id and outlet_id are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Court Booking", booking_id)
@@ -758,7 +753,7 @@ def mark_court_no_show(booking_id=None, restaurant_id=None):
 # ── Merchant: court CRUD ──────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def save_court(restaurant_id=None, court_id=None, court_data=None):
+def save_court(outlet_id=None, court_id=None, court_data=None):
 	"""
 	Create or update a court configuration.
 
@@ -769,10 +764,10 @@ def save_court(restaurant_id=None, court_id=None, court_data=None):
 	    available_days, advance_booking_days, is_active, sort_order
 	  }
 	"""
-	if not restaurant_id or not court_data:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and court_data are required"}}
+	if not outlet_id or not court_data:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and court_data are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -828,12 +823,12 @@ def save_court(restaurant_id=None, court_id=None, court_data=None):
 
 
 @frappe.whitelist()
-def delete_court(restaurant_id=None, court_id=None):
+def delete_court(outlet_id=None, court_id=None):
 	"""Delete a court (only if it has no active/future bookings)."""
-	if not restaurant_id or not court_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and court_id are required"}}
+	if not outlet_id or not court_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and court_id are required"}}
 	try:
-		restaurant_name = _resolve_restaurant(restaurant_id)
+		restaurant_name = _resolve_restaurant(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)

@@ -9,8 +9,8 @@ const RESEND_COOLDOWN_SEC = 30
 const OTP_LENGTH = 6
 
 interface OTPVerificationProps {
-  restaurantId: string
-  restaurantName?: string
+  outletId: string
+  outletName?: string
   phone: string
   name?: string
   email?: string
@@ -19,8 +19,8 @@ interface OTPVerificationProps {
 }
 
 export function OTPVerification({
-  restaurantId,
-  restaurantName,
+  outletId,
+  outletName,
   phone,
   name,
   email,
@@ -49,8 +49,8 @@ export function OTPVerification({
     setSending(true)
     try {
       const res = await sendOtp({
-        restaurant_id: restaurantId,
-        restaurant_name: restaurantName,
+        outlet_id: outletId,
+        outlet_name: outletName,
         phone: phone.trim(),
         purpose: 'checkout'
       })
@@ -76,7 +76,7 @@ export function OTPVerification({
     setVerifying(true)
     try {
       const res = await verifyOtp({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         phone: phone.trim(),
         otp,
         token,

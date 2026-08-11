@@ -3,7 +3,7 @@ import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2, X, Lan
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 /**
  * BillingNotificationBar
@@ -39,7 +39,7 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
   isActive = true,
 }) => {
   const navigate = useNavigate()
-  const { payments } = useRestaurant()
+  const { payments } = useOutlet()
   const [isDismissed, setIsDismissed] = useState(false)
 
   // Check for dismissal on mount (sticky for 24h via localStorage)

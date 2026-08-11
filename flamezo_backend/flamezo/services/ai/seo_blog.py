@@ -228,10 +228,10 @@ class ContentGenerator:
         return text.strip()[:max_length] + "..."
 
 
-    def generate_dynamic_keywords(self, restaurant_name, location, dishes, cuisine=None):
+    def generate_dynamic_keywords(self, outlet_name, location, dishes, cuisine=None):
         """Generate high-end, dynamic SEO keywords based on restaurant context"""
         dish_names = [d.get("item_name") for d in dishes[:10]]
-        context = f"Restaurant: {restaurant_name}\nLocation: {location}\nCuisine: {cuisine}\nTop Dishes: {', '.join(dish_names)}"
+        context = f"Restaurant: {outlet_name}\nLocation: {location}\nCuisine: {cuisine}\nTop Dishes: {', '.join(dish_names)}"
         
         prompt = f"""You are an elite SEO strategist for the 2026 Indian and Global dining scene.
         Generate 5 high-authority "Power Keywords" for a blog post targeting foodies and restaurant enthusiasts.
@@ -243,7 +243,7 @@ class ContentGenerator:
         - Must be highly specific to the restaurant's menu items.
         - Must include the location and the year 2026.
         - Style: "High-end", "Trending", "Authoritative".
-        - Examples: "The Ultimate Guide to India's Best {dish_names[0] if dish_names else 'Sushi'}", "Why {restaurant_name} is Dominating the local Food Scene in 2026", "5 Secrets Behind the Perfect {dish_names[1] if len(dish_names) > 1 else 'Cocktail'}".
+        - Examples: "The Ultimate Guide to India's Best {dish_names[0] if dish_names else 'Sushi'}", "Why {outlet_name} is Dominating the local Food Scene in 2026", "5 Secrets Behind the Perfect {dish_names[1] if len(dish_names) > 1 else 'Cocktail'}".
         
         Output MUST be pure JSON array of strings."""
         

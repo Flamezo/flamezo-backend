@@ -2,16 +2,16 @@
 Catalogue API — non-dining merchant catalogue (wellness, fitness, sports_venue, fashion, etc.)
 
 Consumer endpoints (public):
-  get_catalogue(restaurant_id)
-  get_catalogue_item(item_id, restaurant_id)
+  get_catalogue(outlet_id)
+  get_catalogue_item(item_id, outlet_id)
 
 Merchant endpoints (auth required, restaurant permission enforced):
-  get_catalogue_categories(restaurant_id)
-  save_catalogue_category(restaurant_id, ...)
-  delete_catalogue_category(restaurant_id, name)
-  save_catalogue_item(restaurant_id, ...)
-  delete_catalogue_item(restaurant_id, name)
-  reorder_catalogue_items(restaurant_id, item_orders)
+  get_catalogue_categories(outlet_id)
+  save_catalogue_category(outlet_id, ...)
+  delete_catalogue_category(outlet_id, name)
+  save_catalogue_item(outlet_id, ...)
+  delete_catalogue_item(outlet_id, name)
+  reorder_catalogue_items(outlet_id, item_orders)
 """
 
 import json
@@ -52,12 +52,12 @@ def _indian_format(amount):
 	return "₹" + ",".join(parts) + "," + last3
 
 
-def _resolve_restaurant_name(restaurant_id):
-	"""Resolve restaurant_id (external ID or internal name) to internal Frappe name."""
-	name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+def _resolve_restaurant_name(outlet_id):
+	"""Resolve outlet_id (external ID or internal name) to internal Frappe name."""
+	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
 	if not name:
 		# Try direct name match
-		name = frappe.db.get_value("Restaurant", restaurant_id, "name")
+		name = frappe.db.get_value("Restaurant", outlet_id, "name")
 	return name
 
 
@@ -70,13 +70,13 @@ def _assert_restaurant_access(restaurant_name):
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
-		frappe.throw(_("Access denied to this restaurant."), frappe.PermissionError)
+		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
 
 
 # ── Consumer: get_catalogue ───────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_catalogue(restaurant_id=None):
+def get_catalogue(outlet_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.catalogue.get_catalogue
 
@@ -104,11 +104,11 @@ def get_catalogue(restaurant_id=None):
 	    }
 	  }
 	"""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
@@ -247,14 +247,14 @@ def get_catalogue(restaurant_id=None):
 		return response
 
 	except Exception as e:
-		frappe.log_error(f"catalogue.get_catalogue error for {restaurant_id}: {e}")
+		frappe.log_error(f"catalogue.get_catalogue error for {outlet_id}: {e}")
 		return {"success": False, "error": {"code": "CATALOGUE_FETCH_ERROR", "message": str(e)}}
 
 
 # ── Consumer: get_catalogue_item ──────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_catalogue_item(item_id=None, restaurant_id=None):
+def get_catalogue_item(item_id=None, outlet_id=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.catalogue.get_catalogue_item
 
@@ -268,8 +268,8 @@ def get_catalogue_item(item_id=None, restaurant_id=None):
 		doc = frappe.get_doc("Catalogue Item", item_id)
 
 		# Security: confirm item belongs to the given restaurant (or resolve via item)
-		if restaurant_id:
-			rest_name = _resolve_restaurant_name(restaurant_id)
+		if outlet_id:
+			rest_name = _resolve_restaurant_name(outlet_id)
 			if rest_name and doc.restaurant != rest_name:
 				return {"success": False, "error": {"code": "NOT_FOUND", "message": "Item not found"}}
 
@@ -378,12 +378,12 @@ def get_catalogue_item(item_id=None, restaurant_id=None):
 # ── Merchant: Categories ──────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_catalogue_categories(restaurant_id=None):
+def get_catalogue_categories(outlet_id=None):
 	"""List all catalogue categories for a restaurant (merchant use)."""
-	if not restaurant_id:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id is required"}}
+	if not outlet_id:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id is required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -401,12 +401,12 @@ def get_catalogue_categories(restaurant_id=None):
 
 
 @frappe.whitelist()
-def save_catalogue_category(restaurant_id=None, name=None, category_name=None, sort_order=0, is_active=1):
+def save_catalogue_category(outlet_id=None, name=None, category_name=None, sort_order=0, is_active=1):
 	"""Create or update a catalogue category."""
-	if not restaurant_id or not category_name:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and category_name are required"}}
+	if not outlet_id or not category_name:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and category_name are required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -437,12 +437,12 @@ def save_catalogue_category(restaurant_id=None, name=None, category_name=None, s
 
 
 @frappe.whitelist()
-def delete_catalogue_category(restaurant_id=None, name=None):
+def delete_catalogue_category(outlet_id=None, name=None):
 	"""Delete a catalogue category (and orphan its items — they keep the category link but category is gone)."""
-	if not restaurant_id or not name:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and name are required"}}
+	if not outlet_id or not name:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and name are required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -462,7 +462,7 @@ def delete_catalogue_category(restaurant_id=None, name=None):
 # ── Merchant: Items ───────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def save_catalogue_item(restaurant_id=None, name=None, item_data=None):
+def save_catalogue_item(outlet_id=None, name=None, item_data=None):
 	"""
 	Create or update a catalogue item.
 
@@ -474,10 +474,10 @@ def save_catalogue_item(restaurant_id=None, name=None, item_data=None):
 	    sub_items:  [{item_name, price, is_available, sort_order}]
 	  }
 	"""
-	if not restaurant_id or not item_data:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and item_data are required"}}
+	if not outlet_id or not item_data:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and item_data are required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -569,12 +569,12 @@ def save_catalogue_item(restaurant_id=None, name=None, item_data=None):
 
 
 @frappe.whitelist()
-def delete_catalogue_item(restaurant_id=None, name=None):
+def delete_catalogue_item(outlet_id=None, name=None):
 	"""Delete a catalogue item."""
-	if not restaurant_id or not name:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and name are required"}}
+	if not outlet_id or not name:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and name are required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)
@@ -592,16 +592,16 @@ def delete_catalogue_item(restaurant_id=None, name=None):
 
 
 @frappe.whitelist()
-def reorder_catalogue_items(restaurant_id=None, item_orders=None):
+def reorder_catalogue_items(outlet_id=None, item_orders=None):
 	"""
 	Bulk-update sort_order for catalogue items.
 
 	item_orders: [{"name": "CITEM-xxx", "sort_order": 0}, ...]
 	"""
-	if not restaurant_id or not item_orders:
-		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "restaurant_id and item_orders are required"}}
+	if not outlet_id or not item_orders:
+		return {"success": False, "error": {"code": "MISSING_PARAM", "message": "outlet_id and item_orders are required"}}
 	try:
-		restaurant_name = _resolve_restaurant_name(restaurant_id)
+		restaurant_name = _resolve_restaurant_name(outlet_id)
 		if not restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 		_assert_restaurant_access(restaurant_name)

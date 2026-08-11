@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
@@ -48,12 +48,12 @@ function costTone(foodCostPct: number, hasCost: boolean) {
 }
 
 export default function MenuCosting() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
 
   const { data, isLoading, mutate } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.costing.get_menu_costing',
-    { restaurant_id: selectedRestaurant },
-    selectedRestaurant ? `menu-costing-${selectedRestaurant}` : null,
+    { outlet_id: selectedOutlet },
+    selectedOutlet ? `menu-costing-${selectedOutlet}` : null,
   )
 
   const products: CostingProduct[] = data?.message?.data?.products || []
@@ -80,7 +80,7 @@ export default function MenuCosting() {
   const [globalPct, setGlobalPct] = useState('')
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
 
-  useEffect(() => { setDirty({}) }, [selectedRestaurant])
+  useEffect(() => { setDirty({}) }, [selectedOutlet])
 
   // Resize handler
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function MenuCosting() {
     setSaving(true)
     try {
       const items = Object.entries(dirty).map(([docname, food_cost]) => ({ docname, food_cost }))
-      const res = await bulkSet({ restaurant_id: selectedRestaurant, items: JSON.stringify(items) })
+      const res = await bulkSet({ outlet_id: selectedOutlet, items: JSON.stringify(items) })
       if (res?.message?.success) {
         toast.success(`Saved cost for ${res.message.data.updated} item${res.message.data.updated === 1 ? '' : 's'}`)
         setDirty({})
@@ -193,7 +193,7 @@ export default function MenuCosting() {
 
   const applyToCategory = async (category: string, pct: number) => {
     try {
-      const res = await applyCategoryPct({ restaurant_id: selectedRestaurant, category, pct })
+      const res = await applyCategoryPct({ outlet_id: selectedOutlet, category, pct })
       if (res?.message?.success) {
         toast.success(`Set ${pct}% item cost on ${res.message.data.updated} items in ${category}`)
         setDirty({}); mutate()
@@ -209,7 +209,7 @@ export default function MenuCosting() {
     })
     if (!confirmed) return
     try {
-      const res = await applyGlobalPct({ restaurant_id: selectedRestaurant, pct: 0 })
+      const res = await applyGlobalPct({ outlet_id: selectedOutlet, pct: 0 })
       if (res?.message?.success) {
         toast.success(`Removed item costs from all ${res.message.data.updated} items`)
         setDirty({}); mutate()
@@ -221,7 +221,7 @@ export default function MenuCosting() {
     const pct = parseFloat(globalPct)
     if (isNaN(pct) || pct <= 0 || pct >= 100) { toast.error('Enter a % between 1 and 99'); return }
     try {
-      const res = await applyGlobalPct({ restaurant_id: selectedRestaurant, pct })
+      const res = await applyGlobalPct({ outlet_id: selectedOutlet, pct })
       if (res?.message?.success) {
         toast.success(`Set ${pct}% item cost across ${res.message.data.updated} items`)
         setGlobalPct(''); setDirty({}); mutate()

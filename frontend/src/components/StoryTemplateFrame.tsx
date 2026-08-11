@@ -22,7 +22,7 @@ export interface StoryTemplateFrameProps {
   offerDescription?: string
   validUntil?: string   // ISO date string e.g. "2025-06-11"
   // Restaurant identity
-  restaurantName?: string
+  outletName?: string
 }
 
 export default function StoryTemplateFrame({
@@ -35,7 +35,7 @@ export default function StoryTemplateFrame({
   discountValue,
   offerDescription,
   validUntil,
-  restaurantName,
+  outletName,
 }: StoryTemplateFrameProps) {
   const height = Math.round((width / 9) * 16)
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -179,7 +179,7 @@ export default function StoryTemplateFrame({
         >
           {/* Row 1: restaurant name (left) + coupon code chip (right) */}
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Math.round(dims.w * 0.02) }}>
-            {restaurantName && (
+            {outletName && (
               <p style={{
                 color: 'rgba(255,255,255,0.45)', fontSize: fs(0.021),
                 margin: 0, fontWeight: 600, letterSpacing: '0.055em',
@@ -187,7 +187,7 @@ export default function StoryTemplateFrame({
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 flex: 1, minWidth: 0,
               }}>
-                {restaurantName}
+                {outletName}
               </p>
             )}
             {couponCode && (

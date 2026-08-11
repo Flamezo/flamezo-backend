@@ -66,7 +66,7 @@ class BoostCampaign(Document):
 		try:
 			from flamezo_backend.flamezo.services.ai.coupon_generator import generate_suggestions
 			result = generate_suggestions(
-				restaurant_id=self.restaurant,
+				outlet_id=self.restaurant,
 				tone="attractive",
 				# Boost coupons are always staff-entered/typed codes, never
 				# auto-applied or combo deals — "coupon" is the matching
@@ -121,7 +121,7 @@ class BoostCampaign(Document):
 			return  # Don't block draft creation
 		if not self.restaurant_lat or not self.restaurant_lng:
 			frappe.throw(
-				"Restaurant GPS coordinates are required for Boost campaigns. "
+				"Outlet GPS coordinates are required for Boost campaigns. "
 				"Please set latitude and longitude in Restaurant settings."
 			)
 

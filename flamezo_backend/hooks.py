@@ -301,7 +301,7 @@ scheduler_events = {
 		],
 		# Google Growth: fetch insights daily
         "0 1 * * *": [
-            "flamezo_backend.flamezo.api.google_business.fetch_all_restaurant_insights"
+            "flamezo_backend.flamezo.api.google_business.fetch_all_outlet_insights"
         ],
 		# Loyalty: grant birthday bonus coins at 08:00 IST daily
 		"0 8 * * *": [

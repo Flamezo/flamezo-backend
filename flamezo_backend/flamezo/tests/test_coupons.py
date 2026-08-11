@@ -2258,8 +2258,8 @@ class TestComboImage(unittest.TestCase):
         return frappe.get_doc("Coupon", doc.name)
 
     def _get_combo_deals(self):
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
-        result = get_restaurant_config(self.restaurant)
+        from flamezo_backend.flamezo.api.config import get_outlet_config
+        result = get_outlet_config(self.restaurant)
         # Response is {"success": True, "data": {"settings": {"comboDeals": [...]}}}
         return result.get("data", {}).get("settings", {}).get("comboDeals", [])
 
@@ -2589,8 +2589,8 @@ class TestBOGOFreeItemValue(unittest.TestCase):
         )
 
     def _get_combo_deals(self):
-        from flamezo_backend.flamezo.api.config import get_restaurant_config
-        result = get_restaurant_config(self.restaurant)
+        from flamezo_backend.flamezo.api.config import get_outlet_config
+        result = get_outlet_config(self.restaurant)
         return result.get("data", {}).get("settings", {}).get("comboDeals", [])
 
     # ── 1. BOGO discount = bogo_free_item_value ───────────────────────────────

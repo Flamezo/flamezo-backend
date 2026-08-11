@@ -25,7 +25,7 @@ class RestaurantUser(Document):
 				"name"
 			)
 			if existing_default:
-				frappe.throw("User can have only one default restaurant")
+				frappe.throw("User can have only one default outlet")
 
 		# --- Seat Limit Enforcement (only for new Staff records) ---
 		if self.is_new() and self.role == "Restaurant Staff":

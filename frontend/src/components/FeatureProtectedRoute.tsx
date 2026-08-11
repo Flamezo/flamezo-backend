@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useState, useEffect } from 'react'
 import { getFeatureAccessStatus } from '@/utils/featureAccess'
 
@@ -11,7 +11,7 @@ interface FeatureProtectedRouteProps {
 }
 
 export default function FeatureProtectedRoute({ feature, anyOf, requireGold = false }: FeatureProtectedRouteProps) {
-  const { isGold, features, isLoading, planType } = useRestaurant()
+  const { isGold, features, isLoading, planType } = useOutlet()
   const location = useLocation()
   const [hasTimedOut, setHasTimedOut] = useState(false)
 

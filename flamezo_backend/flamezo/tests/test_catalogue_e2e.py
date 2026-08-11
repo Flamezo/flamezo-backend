@@ -291,7 +291,7 @@ class TestCatalogueCategoryMerchantCRUD(unittest.TestCase):
     def test_create_category(self):
         from flamezo_backend.flamezo.api.catalogue import save_catalogue_category
         res = save_catalogue_category(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             category_name="Group Classes",
             sort_order=0,
             is_active=1,
@@ -305,7 +305,7 @@ class TestCatalogueCategoryMerchantCRUD(unittest.TestCase):
         from flamezo_backend.flamezo.api.catalogue import save_catalogue_category
         cat_name = _make_category(self.restaurant, "Old Name")
         res = save_catalogue_category(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             name=cat_name,
             category_name="New Name",
             sort_order=5,
@@ -317,14 +317,14 @@ class TestCatalogueCategoryMerchantCRUD(unittest.TestCase):
 
     def test_missing_params_returns_error(self):
         from flamezo_backend.flamezo.api.catalogue import save_catalogue_category
-        res = save_catalogue_category(restaurant_id=self.restaurant)
+        res = save_catalogue_category(outlet_id=self.restaurant)
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "MISSING_PARAM")
 
     def test_delete_category(self):
         from flamezo_backend.flamezo.api.catalogue import delete_catalogue_category
         cat_name = _make_category(self.restaurant, "To Delete")
-        res = delete_catalogue_category(restaurant_id=self.restaurant, name=cat_name)
+        res = delete_catalogue_category(outlet_id=self.restaurant, name=cat_name)
         self.assertTrue(res["success"], res)
         self.assertFalse(frappe.db.exists("Catalogue Category", cat_name))
 
@@ -333,7 +333,7 @@ class TestCatalogueCategoryMerchantCRUD(unittest.TestCase):
         other = _make_restaurant("CC02", "fitness")
         cat_name = _make_category(other, "Other Cat")
         try:
-            res = delete_catalogue_category(restaurant_id=self.restaurant, name=cat_name)
+            res = delete_catalogue_category(outlet_id=self.restaurant, name=cat_name)
             # Must not succeed — category belongs to other restaurant
             self.assertFalse(res["success"])
         finally:
@@ -354,7 +354,7 @@ class TestCatalogueItemMerchantCRUD(unittest.TestCase):
     def test_create_item_with_media_and_sub_items(self):
         from flamezo_backend.flamezo.api.catalogue import save_catalogue_item
         res = save_catalogue_item(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             item_data={
                 "item_name": "Keratin Treatment",
                 "category": self.category,
@@ -385,7 +385,7 @@ class TestCatalogueItemMerchantCRUD(unittest.TestCase):
         other_cat = _make_category(other, "Clothes")
         try:
             res = save_catalogue_item(
-                restaurant_id=self.restaurant,
+                outlet_id=self.restaurant,
                 item_data={"item_name": "X", "category": other_cat, "price": 100},
             )
             self.assertFalse(res["success"])
@@ -398,7 +398,7 @@ class TestCatalogueItemMerchantCRUD(unittest.TestCase):
         item1 = _make_item(self.restaurant, self.category, "Item A", 100)
         item2 = _make_item(self.restaurant, self.category, "Item B", 200)
         res = reorder_catalogue_items(
-            restaurant_id=self.restaurant,
+            outlet_id=self.restaurant,
             item_orders=[
                 {"name": item1, "sort_order": 10},
                 {"name": item2, "sort_order": 5},
@@ -411,7 +411,7 @@ class TestCatalogueItemMerchantCRUD(unittest.TestCase):
     def test_delete_item(self):
         from flamezo_backend.flamezo.api.catalogue import delete_catalogue_item
         item_name = _make_item(self.restaurant, self.category, "To Delete", 100)
-        res = delete_catalogue_item(restaurant_id=self.restaurant, name=item_name)
+        res = delete_catalogue_item(outlet_id=self.restaurant, name=item_name)
         self.assertTrue(res["success"], res)
         self.assertFalse(frappe.db.exists("Catalogue Item", item_name))
 

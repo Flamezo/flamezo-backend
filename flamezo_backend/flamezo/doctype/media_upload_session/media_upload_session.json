@@ -33,7 +33,7 @@
   {
    "fieldname": "restaurant",
    "fieldtype": "Link",
-   "label": "Restaurant",
+   "label": "Outlet",
    "options": "Restaurant",
    "reqd": 1
   },

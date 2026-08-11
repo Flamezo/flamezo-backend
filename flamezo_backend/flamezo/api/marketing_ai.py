@@ -3,14 +3,14 @@ from flamezo_backend.flamezo.services.ai.seo_blog import generate_seo_content, V
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 
 @frappe.whitelist()
-def generate_blog_post(restaurant_id, keyword, title=None, length=1500, style="professional"):
+def generate_blog_post(outlet_id, keyword, title=None, length=1500, style="professional"):
     """
-    Generate an SEO-optimized blog post for a restaurant.
+    Generate an SEO-optimized blog post for an outlet.
     """
-    validate_restaurant_for_api(restaurant_id)
+    validate_restaurant_for_api(outlet_id)
     
-    # Optional: Fetch restaurant context to provide to AI
-    restaurant = frappe.get_doc("Restaurant", restaurant_id)
+    # Optional: Fetch outlet context to provide to AI
+    restaurant = frappe.get_doc("Restaurant", outlet_id)
     context = f"Restaurant Name: {restaurant.restaurant_name}\n"
     if restaurant.description:
         context += f"Description: {restaurant.description}\n"
@@ -26,23 +26,23 @@ def generate_blog_post(restaurant_id, keyword, title=None, length=1500, style="p
     )
 
 @frappe.whitelist()
-def analyze_restaurant_voice(restaurant_id):
+def analyze_outlet_voice(outlet_id):
     """
     Analyze existing marketing content to create a voice profile.
     """
-    validate_restaurant_for_api(restaurant_id)
+    validate_restaurant_for_api(outlet_id)
     
     # Fetch existing content (e.g., from a 'Marketing Content' DocType if it exists)
     # For now, we'll look for any existing blog posts or descriptions
     contents = []
     
-    # 1. Get restaurant description
-    desc = frappe.db.get_value("Restaurant", restaurant_id, "description")
+    # 1. Get outlet description
+    desc = frappe.db.get_value("Restaurant", outlet_id, "description")
     if desc: contents.append(desc)
     
     # 2. Get any existing blog posts (assuming a DocType named 'Blog Post' exists)
     # if frappe.db.exists("DocType", "AI Blog Post"):
-    #     posts = frappe.get_all("AI Blog Post", filters={"restaurant": restaurant_id}, fields=["content"])
+    #     posts = frappe.get_all("AI Blog Post", filters={"restaurant": outlet_id}, fields=["content"])
     #     contents.extend([p.content for p in posts if p.content])
     
     matcher = VoiceMatcher()

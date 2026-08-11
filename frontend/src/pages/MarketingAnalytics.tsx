@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
@@ -32,7 +32,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 
 
 export default function MarketingAnalytics() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [searchParams] = useSearchParams()
   const [campaigns, setCampaigns] = useState<{ name: string; campaign_name: string; sent_at: string }[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState<string>(searchParams.get('campaign') ?? '')
@@ -43,8 +43,8 @@ export default function MarketingAnalytics() {
   const { call: fetchAnalytics } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_campaign_analytics')
 
   useEffect(() => {
-    if (!selectedRestaurant) return
-    fetchCampaigns({ restaurant_id: selectedRestaurant }).then((res: any) => {
+    if (!selectedOutlet) return
+    fetchCampaigns({ outlet_id: selectedOutlet }).then((res: any) => {
       if (res?.message?.success) {
         const list = res.message.data || []
         const sentList = list.filter((c: any) => c.status === 'Sent')
@@ -54,7 +54,7 @@ export default function MarketingAnalytics() {
         }
       }
     }).catch((err) => console.error("Failed to load campaigns for analytics:", err))
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   useEffect(() => {
     if (!selectedCampaign) return

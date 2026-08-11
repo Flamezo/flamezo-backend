@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -243,10 +243,10 @@ function VideoCard({
 
 export default function ChillsVideos() {
   const navigate = useNavigate()
-  const { selectedRestaurant, isLoading: outletLoading, restaurantConfig } = useRestaurant()
-  const outletLat = restaurantConfig?.restaurant?.latitude as number | undefined
-  const outletLng = restaurantConfig?.restaurant?.longitude as number | undefined
-  const outletName = restaurantConfig?.restaurant?.name as string | undefined
+  const { selectedOutlet, isLoading: outletLoading, outletConfig } = useOutlet()
+  const outletLat = outletConfig?.restaurant?.latitude as number | undefined
+  const outletLng = outletConfig?.restaurant?.longitude as number | undefined
+  const outletName = outletConfig?.restaurant?.name as string | undefined
 
   const [videos, setVideos] = useState<ChillsVideo[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
@@ -268,8 +268,8 @@ export default function ChillsVideos() {
 
   const { data, isLoading, mutate } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.chills.get_merchant_chills',
-    selectedRestaurant ? { outlet_id: selectedRestaurant, limit: 20 } : undefined,
-    selectedRestaurant ? `merchant-chills-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet, limit: 20 } : undefined,
+    selectedOutlet ? `merchant-chills-${selectedOutlet}` : undefined,
   )
 
   const { call: deleteChills } = useFrappePostCall(
@@ -299,10 +299,10 @@ export default function ChillsVideos() {
   }, [data])
 
   const handleLoadMore = useCallback(async () => {
-    if (!cursor || !selectedRestaurant || loadingMore) return
+    if (!cursor || !selectedOutlet || loadingMore) return
     setLoadingMore(true)
     try {
-      const res = await loadMoreCall({ outlet_id: selectedRestaurant, cursor, limit: 20 }) as any
+      const res = await loadMoreCall({ outlet_id: selectedOutlet, cursor, limit: 20 }) as any
       const body = res?.message ?? res
       if (body?.success && body.data) {
         setVideos((prev) => [...prev, ...(body.data.videos ?? [])])
@@ -312,7 +312,7 @@ export default function ChillsVideos() {
     } finally {
       setLoadingMore(false)
     }
-  }, [cursor, selectedRestaurant, loadingMore, loadMoreCall])
+  }, [cursor, selectedOutlet, loadingMore, loadMoreCall])
 
   const handleOpenEditTags = useCallback((video: ChillsVideo) => {
     setEditTagsVideo(video)
@@ -326,11 +326,11 @@ export default function ChillsVideos() {
   }, [])
 
   const handleSaveLocation = useCallback(async () => {
-    if (!editLocationVideo || !selectedRestaurant) return
+    if (!editLocationVideo || !selectedOutlet) return
     setIsSavingLocation(true)
     try {
       await updateLocationCall({
-        outlet_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         chills_id: editLocationVideo.id,
         location_name: editLocation?.name ?? '',
         location_lat: editLocation?.lat ?? 0,
@@ -347,14 +347,14 @@ export default function ChillsVideos() {
     } finally {
       setIsSavingLocation(false)
     }
-  }, [editLocationVideo, selectedRestaurant, editLocation, updateLocationCall])
+  }, [editLocationVideo, selectedOutlet, editLocation, updateLocationCall])
 
   const handleSaveTags = useCallback(async () => {
-    if (!editTagsVideo || !selectedRestaurant) return
+    if (!editTagsVideo || !selectedOutlet) return
     setIsSavingTags(true)
     try {
       await updateTagsCall({
-        outlet_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         chills_id: editTagsVideo.id,
         niche_tags: JSON.stringify(editNicheTags),
         custom_tags: JSON.stringify(editCustomTags),
@@ -373,14 +373,14 @@ export default function ChillsVideos() {
     } finally {
       setIsSavingTags(false)
     }
-  }, [editTagsVideo, selectedRestaurant, editNicheTags, editCustomTags, updateTagsCall])
+  }, [editTagsVideo, selectedOutlet, editNicheTags, editCustomTags, updateTagsCall])
 
   const handleDelete = useCallback(async () => {
-    if (!deleteTarget || !selectedRestaurant) return
+    if (!deleteTarget || !selectedOutlet) return
     setDeletingId(deleteTarget)
     setDeleteTarget(null)
     try {
-      await deleteChills({ outlet_id: selectedRestaurant, chills_id: deleteTarget })
+      await deleteChills({ outlet_id: selectedOutlet, chills_id: deleteTarget })
       setVideos((prev) => prev.filter((v) => v.id !== deleteTarget))
       mutate()
       toast.success('Video removed.')
@@ -389,7 +389,7 @@ export default function ChillsVideos() {
     } finally {
       setDeletingId(null)
     }
-  }, [deleteTarget, selectedRestaurant, deleteChills, mutate])
+  }, [deleteTarget, selectedOutlet, deleteChills, mutate])
 
   if (outletLoading || isLoading) return <ChillsVideosSkeleton />
 
@@ -502,7 +502,7 @@ export default function ChillsVideos() {
                 onNicheChange={setEditNicheTags}
                 customTags={editCustomTags}
                 onCustomChange={setEditCustomTags}
-                outletId={selectedRestaurant ?? ''}
+                outletId={selectedOutlet ?? ''}
                 caption={editTagsVideo.description}
               />
               <div className="flex gap-2 pt-2">

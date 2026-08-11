@@ -3,12 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Lock, Crown, ArrowLeft, Star, Zap, Shield, TrendingUp } from 'lucide-react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 
 export default function FeatureLocked() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isGold, planType, isLoading } = useRestaurant()
+  const { isGold, planType, isLoading } = useOutlet()
 
   // Get the attempted path from location state or current path
   const attemptedPath = (location.state?.from || location.pathname).replace('/flamezo_backend', '')

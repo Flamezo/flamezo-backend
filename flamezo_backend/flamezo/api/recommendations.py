@@ -12,10 +12,10 @@ from flamezo_backend.flamezo.services.ai.recommendations import get_recommendati
 MAX_RECOMMENDATIONS_PER_PRODUCT = 8
 
 
-def _get_restaurant_doc(restaurant_id: str):
+def _get_restaurant_doc(outlet_id: str):
     """Validate and load Restaurant doc."""
-    restaurant_name = validate_restaurant_for_api(restaurant_id)
-    return frappe.get_doc("Restaurant", restaurant_name)
+    outlet_name = validate_restaurant_for_api(outlet_id)
+    return frappe.get_doc("Restaurant", outlet_name)
 
 
 def _build_payload_for_restaurant(restaurant_doc) -> tuple:
@@ -30,7 +30,7 @@ def _build_payload_for_restaurant(restaurant_doc) -> tuple:
     )
 
     if not products:
-        frappe.throw(_("No active menu products found for this restaurant."))
+        frappe.throw(_("No active menu products found for this outlet."))
 
     categories = frappe.get_all(
         "Menu Category",
@@ -60,7 +60,7 @@ def _build_payload_for_restaurant(restaurant_doc) -> tuple:
     return {
         "dishes": dishes,
         "categories": categories_data,
-        "restaurant_name": restaurant_doc.restaurant_name or restaurant_doc.name,
+        "outlet_name": restaurant_doc.restaurant_name or restaurant_doc.name,
         "min_recommendations": MAX_RECOMMENDATIONS_PER_PRODUCT,
     }, products
 
@@ -76,7 +76,7 @@ def _call_recommendations_api(payload: Dict, co_order_matrix: Optional[Dict] = N
         categories=payload.get("categories", []),
         min_recommendations=payload.get("min_recommendations", 9),
         co_order_matrix=co_order_matrix,
-        restaurant=payload.get("restaurant_name"),
+        restaurant=payload.get("outlet_name"),
     )
 
     if not data.get("success"):
@@ -175,16 +175,16 @@ def _store_recommendations(restaurant_doc, products: List[Dict], api_result: Dic
 
 
 @frappe.whitelist()
-def run_recommendation_engine(restaurant_id: str):
+def run_recommendation_engine(outlet_id: str):
     """
     Run the AI recommendation engine for a restaurant.
     Can be run multiple times (no longer locked after first run).
     Includes co-order signals and uses embedding cache for speed.
     """
-    if not restaurant_id:
-        frappe.throw(_("restaurant_id is required"))
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
 
-    restaurant_doc = _get_restaurant_doc(restaurant_id)
+    restaurant_doc = _get_restaurant_doc(outlet_id)
 
     from flamezo_backend.flamezo.tasks.recommendation_tasks import _compute_co_order_matrix
     co_order_matrix = _compute_co_order_matrix(restaurant_doc.name)
@@ -207,15 +207,15 @@ def run_recommendation_engine(restaurant_id: str):
 
 
 @frappe.whitelist()
-def get_recommendations_tree(restaurant_id: str):
+def get_recommendations_tree(outlet_id: str):
     """
     Return tree-friendly structure for Recommendations Engine page.
     Includes recommendation_last_run timestamp and per-product CTR if available.
     """
-    if not restaurant_id:
-        frappe.throw(_("restaurant_id is required"))
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
 
-    restaurant_doc = _get_restaurant_doc(restaurant_id)
+    restaurant_doc = _get_restaurant_doc(outlet_id)
 
     products = frappe.get_all(
         "Menu Product",
@@ -313,7 +313,7 @@ def get_recommendations_tree(restaurant_id: str):
     }
 
 
-def _get_ctr_stats_bulk(restaurant_name: str) -> Dict[str, Dict]:
+def _get_ctr_stats_bulk(outlet_name: str) -> Dict[str, Dict]:
     """
     Returns CTR stats indexed by:
     - "{source_product_id}:{recommended_product_id}" → {clicks, add_to_cart}
@@ -327,7 +327,7 @@ def _get_ctr_stats_bulk(restaurant_name: str) -> Dict[str, Dict]:
             WHERE restaurant = %s
             GROUP BY source_product_id, recommended_product_id, action
             """,
-            restaurant_name,
+            outlet_name,
             as_dict=True,
         )
     except Exception:
@@ -352,19 +352,19 @@ def _get_ctr_stats_bulk(restaurant_name: str) -> Dict[str, Dict]:
     return result
 
 
-def _process_interaction(restaurant_id: str, source_product_id: str, recommended_product_id: str, action: str, session_id: str = ""):
+def _process_interaction(outlet_id: str, source_product_id: str, recommended_product_id: str, action: str, session_id: str = ""):
     try:
-        restaurant_name = frappe.db.get_value(
+        outlet_name = frappe.db.get_value(
             "Restaurant",
-            {"restaurant_id": restaurant_id},
+            {"restaurant_id": outlet_id},
             "name",
         )
-        if not restaurant_name:
+        if not outlet_name:
             return
 
         frappe.get_doc({
             "doctype": "Recommendation Interaction",
-            "restaurant": restaurant_name,
+            "restaurant": outlet_name,
             "source_product_id": source_product_id,
             "recommended_product_id": recommended_product_id,
             "action": action,
@@ -377,7 +377,7 @@ def _process_interaction(restaurant_id: str, source_product_id: str, recommended
 
 @frappe.whitelist(allow_guest=True)
 def log_recommendation_interaction(
-    restaurant_id: str,
+    outlet_id: str,
     source_product_id: str,
     recommended_product_id: str,
     action: str,
@@ -388,7 +388,7 @@ def log_recommendation_interaction(
     allow_guest=True since ono-menu customers are unauthenticated.
     Now enqueues to the background worker to avoid blocking the main thread at high volume.
     """
-    if not restaurant_id or not source_product_id or not recommended_product_id:
+    if not outlet_id or not source_product_id or not recommended_product_id:
         return {"success": False, "error": "Missing required fields"}
 
     if action not in ("click", "add_to_cart"):
@@ -396,7 +396,7 @@ def log_recommendation_interaction(
 
     frappe.enqueue(
         "flamezo_backend.flamezo.api.recommendations._process_interaction",
-        restaurant_id=restaurant_id,
+        outlet_id=outlet_id,
         source_product_id=source_product_id,
         recommended_product_id=recommended_product_id,
         action=action,
@@ -408,29 +408,29 @@ def log_recommendation_interaction(
 
 
 @frappe.whitelist()
-def get_recommendation_stats(restaurant_id: str):
+def get_recommendation_stats(outlet_id: str):
     """Return per-product recommendation CTR stats for the admin dashboard."""
-    if not restaurant_id:
-        frappe.throw(_("restaurant_id is required"))
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
 
-    restaurant_doc = _get_restaurant_doc(restaurant_id)
+    restaurant_doc = _get_restaurant_doc(outlet_id)
     stats = _get_ctr_stats_bulk(restaurant_doc.name)
     return {"success": True, "data": stats}
 
 
 @frappe.whitelist()
-def update_product_recommendations(restaurant_id: str, source_product_id: str, recommendation_ids=None):
+def update_product_recommendations(outlet_id: str, source_product_id: str, recommendation_ids=None):
     """
     Manually update recommendations for a single product.
     Validates restaurant and product ownership.
     Max 8 unique recommendations.
     """
-    if not restaurant_id:
-        frappe.throw(_("restaurant_id is required"))
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
     if not source_product_id:
         frappe.throw(_("source_product_id is required"))
 
-    restaurant_doc = _get_restaurant_doc(restaurant_id)
+    restaurant_doc = _get_restaurant_doc(outlet_id)
 
     raw_list = frappe.parse_json(recommendation_ids) if recommendation_ids is not None else []
     if not isinstance(raw_list, list):
@@ -458,7 +458,7 @@ def update_product_recommendations(restaurant_id: str, source_product_id: str, r
         limit=1,
     )
     if not source_rows:
-        frappe.throw(_("Source product {0} not found for this restaurant.").format(source_product_id))
+        frappe.throw(_("Source product {0} not found for this outlet.").format(source_product_id))
 
     source_row = source_rows[0]
 

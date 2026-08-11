@@ -1,5 +1,5 @@
 import { useFrappeGetDoc, useFrappeAuth } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { User, Mail, Globe, MapPin, AlertCircle, Clock, CheckCircle2, ShieldAler
 
 export default function MyAccount() {
   const { currentUser } = useFrappeAuth()
-  const { isActive } = useRestaurant()
+  const { isActive } = useOutlet()
 
   // Fetch user data securely
   const { data: userDoc, isLoading, error } = useFrappeGetDoc('User', currentUser || '', {

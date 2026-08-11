@@ -72,7 +72,7 @@ def check_feature_access(restaurant_id, feature_name):
     Check if a restaurant has access to a specific feature (always True).
     """
     if not restaurant_id:
-        frappe.throw(_('Restaurant ID is required'))
+        frappe.throw(_('Outlet ID is required'))
     
     return {
         'has_access': True,

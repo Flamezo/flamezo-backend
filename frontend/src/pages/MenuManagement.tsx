@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useFrappeGetDocList, useFrappePostCall } from 'frappe-react-sdk'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, HelpCircle, ArrowRightLeft, Trash2, RefreshCw, Info, TrendingUp } from 'lucide-react'
@@ -43,7 +43,7 @@ import {
 } from '@dnd-kit/sortable'
 
 export default function MenuManagement() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const { confirm, ConfirmDialogComponent } = useConfirm()
 
   const isPOSManaged = false
@@ -96,7 +96,7 @@ export default function MenuManagement() {
     mutate: mutateCategories
   } = useFrappeGetDocList('Menu Category', {
     fields: ['name', 'category_name', 'display_name', 'display_order', 'is_special', 'is_active', 'parent_category'],
-    filters: selectedRestaurant ? [['restaurant', '=', selectedRestaurant]] : [],
+    filters: selectedOutlet ? [['restaurant', '=', selectedOutlet]] : [],
     orderBy: { field: 'display_order', order: 'asc' },
     limit: 200
   })
@@ -148,12 +148,12 @@ export default function MenuManagement() {
     isLoading: productsLoading,
     mutate: mutateProducts
   } = useFrappeGetCall('flamezo_backend.flamezo.api.products.get_products', {
-    restaurant_id: selectedRestaurant,
+    outlet_id: selectedOutlet,
     category: searchQuery ? undefined : activeCategory?.category_name,
     search: searchQuery || undefined,
     include_inactive: 1,
     limit: 500
-  }, (selectedRestaurant && (activeCategory || searchQuery)) ? `menu-products-${activeCategory?.name || 'search'}-${searchQuery}` : null)
+  }, (selectedOutlet && (activeCategory || searchQuery)) ? `menu-products-${activeCategory?.name || 'search'}-${searchQuery}` : null)
   
   // Hierarchical categories for selection menus (parents -> children)
   const hierarchicalCategories = useMemo(() => {
@@ -485,7 +485,7 @@ export default function MenuManagement() {
             {!isPOSManaged && (
               <Button
                 className="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white shadow-md"
-                onClick={() => openForm('Menu Category', 'create', undefined, { restaurant: selectedRestaurant, is_active: 1 })}
+                onClick={() => openForm('Menu Category', 'create', undefined, { restaurant: selectedOutlet, is_active: 1 })}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 ADD NEW CATEGORY
@@ -525,7 +525,7 @@ export default function MenuManagement() {
                         isExpanded={subs.length > 0 ? isParentExpanded : undefined}
                         onToggleExpand={() => toggleParentExpand(category.name)}
                         onAddSubcategory={!isPOSManaged ? () => openForm('Menu Category', 'create', undefined, {
-                          restaurant: selectedRestaurant,
+                          restaurant: selectedOutlet,
                           is_active: 1,
                           parent_category: category.name,
                         }) : undefined}
@@ -746,7 +746,7 @@ export default function MenuManagement() {
               initialData={
                 formConfig.mode === 'create'
                   ? {
-                      restaurant: selectedRestaurant,
+                      restaurant: selectedOutlet,
                       category: formConfig.doctype === 'Menu Product' ? selectedCategoryId : undefined,
                       is_active: 1,
                       ...(formConfig.initialData || {})
@@ -764,7 +764,7 @@ export default function MenuManagement() {
       <BulkPriceUpdateDialog
         open={isBulkPriceOpen}
         onOpenChange={setIsBulkPriceOpen}
-        restaurantId={selectedRestaurant}
+        outletId={selectedOutlet}
         allCategories={hierarchicalCategories.map((c: any) => ({
           name: c.name,
           label: (c.parent_category ? '↳ ' : '') + (c.display_name || c.category_name),

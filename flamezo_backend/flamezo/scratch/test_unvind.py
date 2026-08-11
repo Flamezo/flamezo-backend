@@ -18,7 +18,7 @@ def run_test():
         restaurant_name = res[0].restaurant_name
         print(f"\nGenerating legacy for: {restaurant_name} ({restaurant_id})\n")
 
-        result = generate_legacy_content(restaurant_id=restaurant_id)
+        result = generate_legacy_content(outlet_id=restaurant_id)
 
         if result.get("success"):
             data = result.get("data", {})

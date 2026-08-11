@@ -16,7 +16,7 @@ const CityStateSelector = lazy(() => import('@/components/ui/CityStateSelector')
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete'
 import { DatePicker } from '@/components/ui/date-picker'
 import { useFrappeGetDoc, useFrappePostCall, useFrappeGetDocList } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -1434,7 +1434,7 @@ export default function DynamicForm({
                 value={Array.isArray(value) ? value : []}
                 onChange={(links) => handleFieldChange(field.fieldname, links)}
                 disabled={isReadOnly}
-                restaurantId={formData?.restaurant || undefined}
+                outletId={formData?.restaurant || undefined}
               />
               {field.description && (
                 <p className="text-xs text-muted-foreground">{field.description}</p>
@@ -1806,7 +1806,7 @@ function LinkFieldReadOnly({
   value: any
 }) {
   const linkedDoctype = field.options || ''
-  const { selectedRestaurant, restaurants, isLoading: contextLoading } = useRestaurant()
+  const { selectedOutlet, outlets, isLoading: contextLoading } = useOutlet()
 
   // 1. Fetch the actual linked record (for non-restaurant links or for full resolution)
   const { data: linkedRecord } = useFrappeGetDoc(linkedDoctype, value || '', {
@@ -1827,19 +1827,19 @@ function LinkFieldReadOnly({
     if (linkedDoctype === 'Restaurant') {
       const isCurrency = typeof value === 'string' && /^[A-Z]{3}$/.test(value)
 
-      // If the value is a currency code (leak), or if it matches a known restaurant
-      const matchingRestaurant = restaurants.find(r =>
+      // If the value is a currency code (leak), or if it matches a known outlet
+      const matchingOutlet = outlets.find(r =>
         r.name === value ||
-        r.restaurant_id === value ||
-        (isCurrency && (r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant))
+        r.outlet_id === value ||
+        (isCurrency && (r.name === selectedOutlet || r.outlet_id === selectedOutlet))
       )
 
-      if (matchingRestaurant) {
-        return matchingRestaurant.restaurant_name || matchingRestaurant.name
+      if (matchingOutlet) {
+        return matchingOutlet.outlet_name || matchingOutlet.name
       }
 
       // If we are still loading context or fetching doc, show loading for currency-like values
-      if (isCurrency && (contextLoading || !selectedRestaurant)) {
+      if (isCurrency && (contextLoading || !selectedOutlet)) {
         return 'Loading...'
       }
     }
@@ -1879,7 +1879,7 @@ function LinkField({
   onChange: (value: string) => void
   isReadOnly: boolean
 }) {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const linkedDoctype = field.options || ''
 
   // Determine which fields to fetch based on common doctype patterns
@@ -1897,8 +1897,8 @@ function LinkField({
   const fields = getFieldsForDoctype(linkedDoctype)
 
   const filters: any[] = []
-  if (linkedDoctype === 'Menu Category' && selectedRestaurant) {
-    filters.push(['restaurant', '=', selectedRestaurant])
+  if (linkedDoctype === 'Menu Category' && selectedOutlet) {
+    filters.push(['restaurant', '=', selectedOutlet])
   }
 
   // Fetch linked records
@@ -1910,7 +1910,7 @@ function LinkField({
       limit: 1000,
       orderBy: { field: fields[1] || 'name', order: 'asc' }
     },
-    linkedDoctype ? `link-${linkedDoctype}-${selectedRestaurant || 'all'}` : null
+    linkedDoctype ? `link-${linkedDoctype}-${selectedOutlet || 'all'}` : null
   )
 
   // Organize categories hierarchically: Parent -> [Children]

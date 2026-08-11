@@ -7,7 +7,7 @@ interface BoostRadiusMapProps {
   lat: number
   lng: number
   radius: number // in km
-  restaurantName: string
+  outletName: string
 }
 
 function MapController({ center, radius }: { center: [number, number]; radius: number }) {
@@ -22,7 +22,7 @@ function MapController({ center, radius }: { center: [number, number]; radius: n
   return null
 }
 
-export default function BoostRadiusMap({ lat, lng, radius, restaurantName }: BoostRadiusMapProps) {
+export default function BoostRadiusMap({ lat, lng, radius, outletName }: BoostRadiusMapProps) {
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function BoostRadiusMap({ lat, lng, radius, restaurantName }: Boo
             offset={[0, -8]} 
             className="!bg-card !text-foreground !border-border/60 !shadow-md !rounded-lg !px-2.5 !py-1 !text-[10px] !font-black !uppercase !tracking-wider"
           >
-            {restaurantName}
+            {outletName}
           </Tooltip>
         </Marker>
         <MapController center={center} radius={radius} />

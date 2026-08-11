@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { uploadToR2 } from '@/lib/r2Upload'
 
 interface LegacyContentStepProps {
-  selectedRestaurant: string
+  selectedOutlet: string
   onComplete: () => void
 }
 
@@ -26,7 +26,7 @@ interface MenuProduct {
   main_category?: string
 }
 
-export default function LegacyContentStep({ selectedRestaurant, onComplete }: LegacyContentStepProps) {
+export default function LegacyContentStep({ selectedOutlet, onComplete }: LegacyContentStepProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [currentSection, setCurrentSection] = useState<string>('')
@@ -47,8 +47,8 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   // Fetch legacy content via custom API (returns child tables + formatted data)
   const { data: legacyResponse, isLoading: contentLoading, mutate: mutateContent } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.legacy.get_legacy_content',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `legacy-content-${selectedRestaurant}` : null
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `legacy-content-${selectedOutlet}` : null
   )
 
   // The API wraps response in { message: { success, data } }
@@ -57,13 +57,13 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   // Child tables — fetch raw doc by restaurant filter to get all child rows
   const { data: legacyDocList, mutate: mutateDoc } = useFrappeGetCall(
     'frappe.client.get_list',
-    selectedRestaurant ? {
+    selectedOutlet ? {
       doctype: 'Legacy Content',
-      filters: JSON.stringify([['restaurant', '=', selectedRestaurant]]),
+      filters: JSON.stringify([['restaurant', '=', selectedOutlet]]),
       fields: JSON.stringify(['name']),
       limit: 1
     } : undefined,
-    selectedRestaurant ? `legacy-docname-${selectedRestaurant}` : null
+    selectedOutlet ? `legacy-docname-${selectedOutlet}` : null
   )
   const legacyDocName = legacyDocList?.message?.[0]?.name ?? null
 
@@ -87,8 +87,8 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   // Get all menu products via whitelisted API (avoids REST permission issues)
   const { data: productsResponse } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.products.get_products',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant, limit: 200 } : undefined,
-    selectedRestaurant ? `menu-products-${selectedRestaurant}` : null
+    selectedOutlet ? { outlet_id: selectedOutlet, limit: 200 } : undefined,
+    selectedOutlet ? `menu-products-${selectedOutlet}` : null
   )
   const allMenuProducts: MenuProduct[] = (productsResponse?.message?.data?.products ?? []).map((p: any) => ({
     name: p.docname,          // doc ID — used as Select value
@@ -137,7 +137,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
           doc: {
             ...data,
             doctype: doctype,
-            parent: selectedRestaurant,
+            parent: selectedOutlet,
             parenttype: 'Legacy Content',
             parentfield: getChildTableField(doctype)
           }
@@ -167,7 +167,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
     e.preventDefault()
     try {
       await updateLegacyContent({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         content: {
           openingText: heroData.opening_text,
           paragraph1: heroData.paragraph_1
@@ -184,7 +184,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
     e.preventDefault()
     try {
       await updateLegacyContent({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         footer: {
           mediaSrc: footerData.footer_media_src,
           title: footerData.footer_title,
@@ -207,7 +207,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
     try {
       const result = await uploadToR2({
         ownerDoctype: 'Legacy Content',
-        ownerName: selectedRestaurant,
+        ownerName: selectedOutlet,
         mediaRole,
         file
       })
@@ -381,7 +381,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
                     reel_link: link,
                     title: 'Instagram Reel',
                     doctype: 'Legacy Instagram Reel',
-                    parent: selectedRestaurant,
+                    parent: selectedOutlet,
                     parenttype: 'Legacy Content',
                     parentfield: 'instagram_reels'
                   }
@@ -551,7 +551,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
         </CardHeader>
         <CardContent>
           <form 
-            key={selectedRestaurant || 'loading'}
+            key={selectedOutlet || 'loading'}
             onSubmit={handleHeroContentSave} className="space-y-4">
             <div>
               <Label htmlFor="opening_text">Opening Text</Label>
@@ -594,7 +594,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
         </CardHeader>
         <CardContent>
           <form 
-            key={selectedRestaurant ? `footer-${selectedRestaurant}` : 'footer-loading'}
+            key={selectedOutlet ? `footer-${selectedOutlet}` : 'footer-loading'}
             onSubmit={handleFooterContentSave} className="space-y-4">
             <div>
               <Label htmlFor="footer_media_upload">Upload Footer Media (Image/Video)</Label>

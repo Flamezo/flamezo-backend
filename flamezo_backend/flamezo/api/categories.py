@@ -48,18 +48,18 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 from flamezo_backend.flamezo.media.utils import format_media_field
 
 
-def invalidate_category_cache(doc=None, method=None, restaurant_id=None):
+def invalidate_category_cache(doc=None, method=None, outlet_id=None):
 	"""Invalidate the categories cache for a restaurant. Callable as a hook (doc, method) or directly."""
 	import time
-	rid = restaurant_id
+	rid = outlet_id
 	if rid is None and doc is not None:
-		rid = doc.get("restaurant") or doc.get("restaurant_id")
+		rid = doc.get("restaurant") or doc.get("outlet_id")
 	if rid:
 		frappe.cache().set_value(f"cats_v:{rid}", str(int(time.time())), expires_in_sec=7200)
 
 
 @frappe.whitelist(allow_guest=True)
-def get_categories(restaurant_id, include_inactive=0):
+def get_categories(outlet_id, include_inactive=0):
 	"""
 	GET /api/v1/categories
 	Get all categories (with optional sub-categories) for a restaurant.
@@ -67,7 +67,7 @@ def get_categories(restaurant_id, include_inactive=0):
 	`subcategories` list and are NOT repeated at the top level.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# ── Redis cache ────────────────────────────────────────────────────
 		cache_version = frappe.cache().get_value(f"cats_v:{restaurant}") or "0"
@@ -138,7 +138,7 @@ def get_categories(restaurant_id, include_inactive=0):
 			"Media Asset",
 			filters={
 				"owner_doctype": "Menu Category",
-				"owner_name": ["in", all_cat_ids] if all_cat_ids else ["__no_match__"],
+				"owner_name": ["in", all_cat_ids] if all_cat_ids else "__no_match__",
 				"media_role": "category_image",
 				"status": "ready",
 			},
@@ -385,13 +385,13 @@ def update_category_order(category_orders):
 
 
 @frappe.whitelist()
-def get_parent_categories(restaurant_id):
+def get_parent_categories(outlet_id):
 	"""
 	Helper used by the dashboard to populate the 'parent_category' Link field.
 	Returns only top-level (non-sub) categories so you can't create 3-level nesting.
 	"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		cats = frappe.get_all(
 			"Menu Category",
 			filters={

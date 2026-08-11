@@ -29,7 +29,7 @@ interface PreviewSample {
 interface BulkPriceUpdateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  restaurantId: string | null
+  outletId: string | null
   /** All categories of the restaurant, for the category multi-select. */
   allCategories: { name: string; label: string }[]
   /** Docnames of the currently-open category (+ its sub-categories) — pre-selected by default. */
@@ -46,7 +46,7 @@ const money = (n: number) =>
 export default function BulkPriceUpdateDialog({
   open,
   onOpenChange,
-  restaurantId,
+  outletId,
   allCategories,
   scopedCategoryNames,
   selectedProductIds,
@@ -92,7 +92,7 @@ export default function BulkPriceUpdateDialog({
   const isValidValue = !isNaN(numericValue) && numericValue > 0
 
   const buildPayload = (dryRun: boolean) => ({
-    restaurant_id: restaurantId,
+    outlet_id: outletId,
     mode,
     value: numericValue,
     direction,
@@ -111,7 +111,7 @@ export default function BulkPriceUpdateDialog({
   }, [mode, direction, scope, value, selectedCats])
 
   const handlePreview = async () => {
-    if (!isValidValue || !restaurantId) return
+    if (!isValidValue || !outletId) return
     try {
       const res = await call(buildPayload(true))
       const msg = res?.message
@@ -130,7 +130,7 @@ export default function BulkPriceUpdateDialog({
   }
 
   const handleApply = async () => {
-    if (!isValidValue || !restaurantId || !preview) return
+    if (!isValidValue || !outletId || !preview) return
     setApplying(true)
     try {
       const res = await call(buildPayload(false))

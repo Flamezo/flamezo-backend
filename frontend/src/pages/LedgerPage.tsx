@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useFrappeGetCall } from '@/lib/frappe'
@@ -59,7 +59,7 @@ interface Transaction {
 type FilterPreset = 'all' | 'today' | 'yesterday' | '7d' | '30d' | 'custom'
 
 export default function LedgerPage() {
-  const { selectedRestaurant, coinsBalance, refreshConfig } = useRestaurant()
+  const { selectedOutlet, coinsBalance, refreshConfig } = useOutlet()
   const { formatAmountNoDecimals } = useCurrency()
   
   // UI State
@@ -98,14 +98,14 @@ export default function LedgerPage() {
     setFilters: setDataTableFilters
   } = useDataTable({
     doctype: 'Coin Transaction',
-    initialFilters: selectedRestaurant ? [
-      { fieldname: 'restaurant', operator: '=', value: selectedRestaurant }
+    initialFilters: selectedOutlet ? [
+      { fieldname: 'restaurant', operator: '=', value: selectedOutlet }
     ] : [],
     fields: ['name', 'creation', 'transaction_type', 'amount', 'gst_amount', 'total_paid_inr', 'balance_after', 'description', 'reference_doctype', 'reference_name', 'payment_id'],
     initialPageSize: 20,
     searchFields: ['description', 'payment_id', 'transaction_type', 'reference_name'],
     orderBy: { field: 'creation', order: 'desc' },
-    debugId: `ledger-v5-${selectedRestaurant}`
+    debugId: `ledger-v5-${selectedOutlet}`
   })
 
   useEffect(() => {
@@ -118,10 +118,10 @@ export default function LedgerPage() {
 
   // Apply filters based on presets and custom dates
   useEffect(() => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
 
     const baseFilters: FilterCondition[] = [
-      { fieldname: 'restaurant', operator: '=', value: selectedRestaurant }
+      { fieldname: 'restaurant', operator: '=', value: selectedOutlet }
     ]
     
     // Type Filter
@@ -144,7 +144,7 @@ export default function LedgerPage() {
     }
 
     setDataTableFilters(baseFilters)
-  }, [typeFilter, fromDate, toDate, selectedRestaurant, setDataTableFilters])
+  }, [typeFilter, fromDate, toDate, selectedOutlet, setDataTableFilters])
 
   const applyPreset = (preset: FilterPreset) => {
     setActivePreset(preset)
@@ -595,11 +595,11 @@ export default function LedgerPage() {
         </Sheet>
       )}
 
-      {selectedRestaurant && (
+      {selectedOutlet && (
         <AiRechargeModal
           open={showRecharge}
           onClose={() => setShowRecharge(false)}
-          restaurant={selectedRestaurant}
+          restaurant={selectedOutlet}
           onSuccess={() => {
             mutate()
             setBalance(0) // Will refresh via useEffect

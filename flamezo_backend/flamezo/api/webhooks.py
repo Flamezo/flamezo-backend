@@ -103,7 +103,7 @@ def handle_payment_captured(payload):
 		payment_id = payment_data.get("id")
 		
 		notes = payment_data.get("notes") or order_data.get("notes") or {}
-		restaurant_from_notes = notes.get("restaurant_id")
+		outlet_from_notes = notes.get("outlet_id")
 		request_type = notes.get("type")
 		
 		# Handle Mandate Tokenization
@@ -120,11 +120,11 @@ def handle_payment_captured(payload):
 					payload.get("payload", {}).get("token", {}).get("entity", {}).get("token")
 				)
 
-				if restaurant_from_notes and frappe.db.exists("Restaurant", restaurant_from_notes):
+				if outlet_from_notes and frappe.db.exists("Restaurant", outlet_from_notes):
 					if customer_id:
-						frappe.db.set_value("Restaurant", restaurant_from_notes, "razorpay_customer_id", customer_id)
+						frappe.db.set_value("Restaurant", outlet_from_notes, "razorpay_customer_id", customer_id)
 					if token_id:
-						frappe.db.set_value("Restaurant", restaurant_from_notes, {
+						frappe.db.set_value("Restaurant", outlet_from_notes, {
 							"razorpay_token_id": token_id, 
 							"mandate_status": "active"
 						})
@@ -150,7 +150,7 @@ def handle_payment_captured(payload):
 		# Handle Coin Purchase
 		if request_type == "coin_purchase":
 			try:
-				restaurant = restaurant_from_notes or notes.get("restaurant")
+				restaurant = outlet_from_notes or notes.get("restaurant")
 				coins = float(notes.get("coins") or 0)
 				if restaurant and coins > 0:
 					from flamezo_backend.flamezo.api.coin_billing import record_transaction
@@ -169,7 +169,7 @@ def handle_payment_captured(payload):
 		# Handle Auto-Recharge (async bank confirmation e.g. HDFC, Axis)
 		if request_type == "auto_recharge":
 			try:
-				restaurant = restaurant_from_notes or notes.get("restaurant")
+				restaurant = outlet_from_notes or notes.get("restaurant")
 				if restaurant and frappe.db.exists("Restaurant", restaurant):
 					from flamezo_backend.flamezo.api.coin_billing import _credit_autopay_coins
 					threshold = frappe.db.get_value("Restaurant", restaurant, "auto_recharge_threshold") or 300
@@ -213,7 +213,7 @@ def handle_payment_captured(payload):
 		# amount across open ledgers FIFO, reset failure counter.
 		if request_type == "cash_sweep":
 			try:
-				restaurant = restaurant_from_notes or notes.get("restaurant")
+				restaurant = outlet_from_notes or notes.get("restaurant")
 				amount_paise = int(payment_data.get("amount") or notes.get("outstanding_paise") or 0)
 				if restaurant and amount_paise > 0:
 					applied = commission_engine.apply_autopay_sweep_capture(
@@ -496,15 +496,15 @@ def handle_payment_link_paid(payload):
 		# ── Wallet Top-up via Admin Payment Link ────────────────────────────
 		plink_type = notes.get("type")
 		if plink_type == "wallet_topup_plink":
-			restaurant_name = notes.get("restaurant")  # Frappe doc name
+			outlet_id = notes.get("restaurant")  # Frappe doc name
 			tier = notes.get("tier", "")
 
-			if not restaurant_name or not frappe.db.exists("Restaurant", restaurant_name):
+			if not outlet_id or not frappe.db.exists("Restaurant", outlet_id):
 				frappe.log_error(
-					f"payment_link.paid: restaurant '{restaurant_name}' not found in notes for plink {payment_link_id}",
+					f"payment_link.paid: outlet '{outlet_id}' not found in notes for plink {payment_link_id}",
 					"razorpay.wallet_topup_plink"
 				)
-				return {"success": False, "error": "Restaurant not found"}
+				return {"success": False, "error": "Outlet not found"}
 
 			# Fetch the actual paid amount from Razorpay's event payload
 			amount_paid_paise = payment_link_data.get("amount_paid") or payment_link_data.get("amount") or 0
@@ -529,7 +529,7 @@ def handle_payment_link_paid(payload):
 
 			# Idempotency guard: prevent double-credit for the same payment
 			already_credited = frappe.db.exists("Coin Transaction", {
-				"restaurant": restaurant_name,
+				"restaurant": outlet_id,
 				"payment_id": payment_id,
 				"transaction_type": "Purchase"
 			})
@@ -547,7 +547,7 @@ def handle_payment_link_paid(payload):
 
 			from flamezo_backend.flamezo.api.coin_billing import record_transaction
 			new_balance = record_transaction(
-				restaurant=restaurant_name,
+				restaurant=outlet_id,
 				txn_type="Purchase",
 				amount=amount_to_credit,
 				description=description,
@@ -558,7 +558,7 @@ def handle_payment_link_paid(payload):
 			frappe.db.commit()
 
 			frappe.log_error(
-				f"Wallet top-up credited: ₹{amount_to_credit} (Paid ₹{amount_inr}) to {restaurant_name} (tier={tier}). "
+				f"Wallet top-up credited: ₹{amount_to_credit} (Paid ₹{amount_inr}) to {outlet_id} (tier={tier}). "
 				f"New balance: {new_balance}. payment_id={payment_id}",
 				"razorpay.wallet_topup_plink.success"
 			)
@@ -621,7 +621,7 @@ def handle_subscription_event(payload):
 		)
 		
 		notes = sub_data.get("notes") or payment_data.get("notes") or {}
-		restaurant = notes.get("restaurant_id")
+		restaurant = notes.get("outlet_id")
 		request_type = notes.get("type")
 		
 		if restaurant and frappe.db.exists("Restaurant", restaurant):
@@ -690,16 +690,16 @@ def handle_operational_event(payload):
 		return {"success": False}
 
 
-def update_monthly_ledger(restaurant_id, order_total, platform_fee_amount):
+def update_monthly_ledger(outlet_id, order_total, platform_fee_amount):
 	"""Update monthly revenue ledger with new order"""
 	try:
 		current_month = datetime.now().strftime("%Y-%m")
-		ledger_name = f"MRL-{restaurant_id}-{current_month}"
-		
+		ledger_name = f"MRL-{outlet_id}-{current_month}"
+
 		if not frappe.db.exists("Monthly Revenue Ledger", ledger_name):
 			doc = frappe.get_doc({
 				"doctype": "Monthly Revenue Ledger",
-				"restaurant": restaurant_id,
+				"restaurant": outlet_id,
 				"month": current_month,
 				"total_gmv": 0,
 				"total_platform_fee": 0,
@@ -720,11 +720,11 @@ def update_monthly_ledger(restaurant_id, order_total, platform_fee_amount):
 		frappe.log_error(f"Monthly ledger update failed: {str(e)}", "razorpay.monthly_ledger")
 
 
-def reverse_monthly_ledger(restaurant_id, refund_amount, platform_fee_refund):
+def reverse_monthly_ledger(outlet_id, refund_amount, platform_fee_refund):
 	"""Reverse platform fee in monthly ledger for refunds"""
 	try:
 		current_month = datetime.now().strftime("%Y-%m")
-		ledger_name = f"MRL-{restaurant_id}-{current_month}"
+		ledger_name = f"MRL-{outlet_id}-{current_month}"
 		
 		if frappe.db.exists("Monthly Revenue Ledger", ledger_name):
 			frappe.db.sql(f"""

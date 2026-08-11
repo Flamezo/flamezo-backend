@@ -293,7 +293,7 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 	return {"deducted": int(deducted), "owed": int(owed), "reversed": int(target)}
 
 
-def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None):
+def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None, transaction_type="Earn"):
 	"""
 	General purpose function to add a fixed number of loyalty coins (welcome, referral, etc.).
 	Expiry is always the platform-standard 12 months.
@@ -306,14 +306,14 @@ def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref
 
 	# Always use platform-standard expiry — no per-restaurant override
 	expiry_days = get_expiry_days()  # 30
-	expiry_date = add_days(today(), expiry_days)
-		
+	expiry_date = add_days(today(), expiry_days) if transaction_type == "Earn" else None
+
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
 		"customer": customer,
 		"restaurant": restaurant,
 		"coins": int(coins),
-		"transaction_type": "Earn",
+		"transaction_type": transaction_type,
 		"reason": reason,
 		"reference_doctype": ref_doctype,
 		"reference_name": ref_name,

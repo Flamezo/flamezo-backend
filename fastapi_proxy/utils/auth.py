@@ -35,7 +35,7 @@ class TokenData(BaseModel):
 	"""JWT token payload data"""
 	user_id: str
 	email: str
-	restaurant_access: list = []
+	outlet_access: list = []
 	exp: datetime
 
 
@@ -44,7 +44,7 @@ def create_access_token(data: Dict[str, Any]) -> str:
 	Create JWT access token
 	
 	Args:
-		data: Token payload data (user_id, email, restaurant_access)
+		data: Token payload data (user_id, email, outlet_access)
 	
 	Returns:
 		Encoded JWT token

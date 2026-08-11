@@ -3,7 +3,7 @@
 
 """
 API endpoints for Events
-restaurant_id is optional — omit for consumer-level discovery (returns all active restaurants' events).
+outlet_id is optional — omit for consumer-level discovery (returns all active outlets' events).
 """
 
 import frappe
@@ -13,7 +13,7 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 from flamezo_backend.flamezo.media.utils import format_media_field
 
 
-def _format_event(event, include_restaurant=False, restaurant_meta=None):
+def _format_event(event, include_outlet=False, outlet_meta=None):
 	"""Shared formatter for a single event row."""
 	date_str = formatdate(event["date"], "yyyy-mm-dd") if event.get("date") else ""
 	time_str = format_time(event["time"], "HH:mm:ss") if event.get("time") else ""
@@ -33,10 +33,10 @@ def _format_event(event, include_restaurant=False, restaurant_meta=None):
 		"registration_link": event.get("registration_link", ""),
 	}
 
-	if include_restaurant and restaurant_meta:
-		event_data["restaurantId"] = restaurant_meta.get("restaurant_id", "")
-		event_data["restaurantName"] = restaurant_meta.get("restaurant_name", "")
-		event_data["restaurantCity"] = restaurant_meta.get("city", "")
+	if include_outlet and outlet_meta:
+		event_data["outletId"] = outlet_meta.get("restaurant_id", "")
+		event_data["outletName"] = outlet_meta.get("restaurant_name", "")
+		event_data["outletCity"] = outlet_meta.get("city", "")
 
 	if event.get("repeat_this_event"):
 		event_data["recurring"] = {
@@ -69,30 +69,30 @@ _EVENT_FIELDS = [
 
 
 @frappe.whitelist(allow_guest=True)
-def get_events(restaurant_id=None, featured=None, category=None, upcoming_only=True):
+def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.events.get_events
 
-	restaurant_id optional:
-	  - provided  → events for that restaurant only (existing behaviour)
-	  - omitted   → all active-restaurant events (consumer discovery page)
+	outlet_id optional:
+	  - provided  → events for that outlet only (existing behaviour)
+	  - omitted   → all active-outlet events (consumer discovery page)
 	"""
 	try:
-		consumer_mode = not restaurant_id
+		consumer_mode = not outlet_id
 
 		if consumer_mode:
-			# Fetch all active restaurants once for name/city lookup
-			active_restaurants = frappe.get_all(
+			# Fetch all active outlets once for name/city lookup
+			active_outlets = frappe.get_all(
 				"Restaurant",
 				filters={"is_active": 1},
 				fields=["name", "restaurant_id", "restaurant_name", "city"],
 			)
-			restaurant_map = {r["name"]: r for r in active_restaurants}
-			active_names = list(restaurant_map.keys())
+			outlet_map = {r["name"]: r for r in active_outlets}
+			active_names = list(outlet_map.keys())
 
 			filters = {"restaurant": ["in", active_names], "is_active": 1}
 		else:
-			restaurant = validate_restaurant_for_api(restaurant_id)
+			restaurant = validate_restaurant_for_api(outlet_id)
 			filters = {"restaurant": restaurant, "is_active": 1}
 
 		if featured is not None:
@@ -108,8 +108,8 @@ def get_events(restaurant_id=None, featured=None, category=None, upcoming_only=T
 		formatted_events = []
 		for event in events:
 			if consumer_mode:
-				meta = restaurant_map.get(event.get("restaurant"), {})
-				formatted_events.append(_format_event(event, include_restaurant=True, restaurant_meta=meta))
+				meta = outlet_map.get(event.get("restaurant"), {})
+				formatted_events.append(_format_event(event, include_outlet=True, outlet_meta=meta))
 			else:
 				formatted_events.append(_format_event(event))
 
@@ -127,7 +127,7 @@ def get_event_detail(event_id):
 	GET /api/method/flamezo_backend.flamezo.api.events.get_event_detail
 
 	Returns full details for a single event by its ID.
-	Consumer-facing — no restaurant_id required.
+	Consumer-facing — no outlet_id required.
 	"""
 	try:
 		if not event_id:
@@ -139,7 +139,7 @@ def get_event_detail(event_id):
 			frappe.throw(_("Event not found"), frappe.DoesNotExistError)
 
 		event = events[0]
-		restaurant_meta = {}
+		outlet_meta = {}
 		if event.get("restaurant"):
 			r = frappe.db.get_value(
 				"Restaurant",
@@ -148,9 +148,9 @@ def get_event_detail(event_id):
 				as_dict=True,
 			)
 			if r:
-				restaurant_meta = r
+				outlet_meta = r
 
-		formatted = _format_event(event, include_restaurant=True, restaurant_meta=restaurant_meta)
+		formatted = _format_event(event, include_outlet=True, outlet_meta=outlet_meta)
 		return {"success": True, "data": {"event": formatted}}
 
 	except frappe.DoesNotExistError:
@@ -161,14 +161,14 @@ def get_event_detail(event_id):
 
 
 @frappe.whitelist()
-def save_event(restaurant_id, event_data):
+def save_event(outlet_id, event_data):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.events.save_event
 	Create or update an event
 	"""
 	try:
-		# Validate restaurant and user access
-		restaurant = validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+		# Validate outlet and user access
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 		
 		# Parse event data (handles JSON string from frontend)
 		if isinstance(event_data, str):
@@ -247,16 +247,16 @@ def save_event(restaurant_id, event_data):
 
 
 @frappe.whitelist()
-def delete_event(restaurant_id, event_id):
+def delete_event(outlet_id, event_id):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.events.delete_event
 	Delete an event
 	"""
 	try:
-		# Validate restaurant and user access
-		restaurant = validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+		# Validate outlet and user access
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 		
-		# Verify event belongs to restaurant
+		# Verify event belongs to outlet
 		doc = frappe.get_doc("Event", event_id)
 		if doc.restaurant != restaurant:
 			frappe.throw(_("You don't have access to this event"), exc=frappe.PermissionError)
@@ -277,7 +277,7 @@ def delete_event(restaurant_id, event_id):
 
 
 @frappe.whitelist()
-def toggle_event_status(restaurant_id, event_id, field):
+def toggle_event_status(outlet_id, event_id, field):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.events.toggle_event_status
 	Toggle is_active or featured status
@@ -286,10 +286,10 @@ def toggle_event_status(restaurant_id, event_id, field):
 		if field not in ["is_active", "featured"]:
 			frappe.throw(_("Invalid field"))
 			
-		# Validate restaurant and user access
-		restaurant = validate_restaurant_for_api(restaurant_id, user=frappe.session.user)
+		# Validate outlet and user access
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 		
-		# Verify event belongs to restaurant
+		# Verify event belongs to outlet
 		doc = frappe.get_doc("Event", event_id)
 		if doc.restaurant != restaurant:
 			frappe.throw(_("You don't have access to this event"), exc=frappe.PermissionError)
@@ -317,7 +317,7 @@ def toggle_event_status(restaurant_id, event_id, field):
 
 
 @frappe.whitelist()
-def generate_event_suggestions(restaurant_id, user_prompt=None, poster_base64=None):
+def generate_event_suggestions(outlet_id, user_prompt=None, poster_base64=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.events.generate_event_suggestions
 
@@ -338,7 +338,7 @@ def generate_event_suggestions(restaurant_id, user_prompt=None, poster_base64=No
 		from flamezo_backend.flamezo.api.coin_billing import deduct_coins
 		from frappe.utils import flt
 
-		restaurant = validate_restaurant_for_api(restaurant_id)
+		restaurant = validate_restaurant_for_api(outlet_id)
 		require_plan(restaurant, ["GOLD"])
 
 		COINS_PER_AI_EVENT = 2
@@ -359,7 +359,7 @@ def generate_event_suggestions(restaurant_id, user_prompt=None, poster_base64=No
 				}
 
 		result = generate_events(
-			restaurant_id=restaurant,
+			outlet_id=restaurant,
 			user_prompt=(user_prompt or None),
 			poster_base64=(poster_base64 or None),
 		)

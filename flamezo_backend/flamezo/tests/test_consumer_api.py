@@ -174,14 +174,14 @@ class TestListRestaurants(unittest.TestCase):
         _cleanup([cls.res_a, cls.res_b, cls.res_c])
 
     def _call(self, **kwargs):
-        from flamezo_backend.flamezo.api.restaurant import list_restaurants
+        from flamezo_backend.flamezo.api.outlet import list_restaurants
         result = list_restaurants(**kwargs)
         self.assertTrue(result["success"], msg=f"list_restaurants failed: {result}")
         return result["data"]["restaurants"]
 
     def _find(self, restaurants, res_id):
         for r in restaurants:
-            if r["restaurant_id"] == res_id:
+            if r["outlet_id"] == res_id:
                 return r
         return None
 
@@ -194,7 +194,7 @@ class TestListRestaurants(unittest.TestCase):
     def test_required_fields_present(self):
         restaurants = self._call()
         required = {
-            "restaurant_id", "restaurant_name", "is_active",
+            "outlet_id", "outlet_name", "is_active",
             "logo", "photos", "city", "address",
             "latitude", "longitude", "plan_type",
             "primaryColor", "tagline", "cuisine_type",
@@ -202,31 +202,31 @@ class TestListRestaurants(unittest.TestCase):
         }
         for r in restaurants:
             missing = required - set(r.keys())
-            self.assertEqual(missing, set(), msg=f"Missing fields in {r['restaurant_id']}: {missing}")
+            self.assertEqual(missing, set(), msg=f"Missing fields in {r['outlet_id']}: {missing}")
 
     # --- active_only filter ---
 
     def test_active_only_true_excludes_inactive(self):
         restaurants = self._call(active_only=True)
-        ids = [r["restaurant_id"] for r in restaurants]
+        ids = [r["outlet_id"] for r in restaurants]
         self.assertNotIn(self.res_c, ids, "Inactive restaurant must not appear when active_only=True")
 
     def test_active_only_false_includes_inactive(self):
         restaurants = self._call(active_only=False)
-        ids = [r["restaurant_id"] for r in restaurants]
+        ids = [r["outlet_id"] for r in restaurants]
         self.assertIn(self.res_c, ids, "Inactive restaurant must appear when active_only=False")
 
     # --- city filter ---
 
     def test_city_filter_case_insensitive(self):
         restaurants = self._call(city="surat")
-        ids = [r["restaurant_id"] for r in restaurants]
+        ids = [r["outlet_id"] for r in restaurants]
         self.assertIn(self.res_a, ids)
         self.assertNotIn(self.res_b, ids)
 
     def test_city_filter_uppercase(self):
         restaurants = self._call(city="MUMBAI")
-        ids = [r["restaurant_id"] for r in restaurants]
+        ids = [r["outlet_id"] for r in restaurants]
         self.assertIn(self.res_b, ids)
         self.assertNotIn(self.res_a, ids)
 

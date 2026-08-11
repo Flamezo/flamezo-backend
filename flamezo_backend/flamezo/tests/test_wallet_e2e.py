@@ -316,7 +316,7 @@ class TestGetPointsLedger(unittest.TestCase):
         res = self._call()
         self.assertTrue(res["success"])
         e = res["data"]["entries"][0]
-        for key in ("restaurant_name", "restaurant_id", "points", "type",
+        for key in ("outlet_name", "outlet_id", "points", "type",
                     "reason", "is_settled", "posting_date", "timestamp"):
             self.assertIn(key, e, f"Missing field: {key}")
 

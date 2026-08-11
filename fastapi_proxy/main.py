@@ -37,7 +37,7 @@ from routes import (
 	ui_routes,
 	order_routes,
 	document_routes,
-	restaurant_routes,
+	outlet_routes,
 	frappe_routes,
 	resource_routes,
 	media_routes,
@@ -130,7 +130,7 @@ async def health_check():
 app.include_router(ui_routes.router, prefix="/api/method", tags=["UI APIs"])
 app.include_router(order_routes.router, prefix="/api/method", tags=["Order Management"])
 app.include_router(document_routes.router, prefix="/api/method", tags=["Document Management"])
-app.include_router(restaurant_routes.router, prefix="/api/method", tags=["Restaurant"])
+app.include_router(outlet_routes.router, prefix="/api/method", tags=["Outlet"])
 app.include_router(frappe_routes.router, prefix="/api/method", tags=["Frappe Client"])
 app.include_router(resource_routes.router, prefix="/api/resource", tags=["Resource API"])
 app.include_router(media_routes.router, prefix="/api/media", tags=["Media Management"])

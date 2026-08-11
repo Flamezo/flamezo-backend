@@ -46,7 +46,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Restaurant",
+   "label": "Outlet",
    "options": "Restaurant",
    "reqd": 1,
    "description": "Select the restaurant for this menu extraction"
@@ -54,8 +54,8 @@
   {
    "fieldname": "restaurant_name",
    "fieldtype": "Data",
-   "label": "Restaurant Name (Optional)",
-   "description": "Optional: Restaurant name for API extraction accuracy (auto-filled from Restaurant field)"
+   "label": "Outlet Name (Optional)",
+   "description": "Optional: Outlet name for API extraction accuracy (auto-filled from Outlet field)"
   },
   {
    "default": "1",

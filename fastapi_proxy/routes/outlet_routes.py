@@ -1,5 +1,5 @@
 """
-Restaurant Routes
+Outlet Routes
 
 Maps to: flamezo_backend.flamezo.doctype.restaurant.restaurant.*
 
@@ -55,14 +55,14 @@ async def generate_qr_codes_pdf(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Generate QR codes PDF for restaurant tables
-	
+	Generate QR codes PDF for outlet tables
+
 	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf
 	Type: WRITE
 	Cache: No
 	"""
 	client = get_erpnext_client()
-	
+
 	try:
 		response = await client.call_method(
 			"flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf",
@@ -70,7 +70,7 @@ async def generate_qr_codes_pdf(
 			http_method="POST"
 		)
 		return response
-		
+
 	except Exception as e:
 		logger.error(f"Error in generate_qr_codes_pdf: {str(e)}")
 		raise HTTPException(
@@ -85,14 +85,14 @@ async def get_table_qr_assets(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get branded SVG and PNG QR assets for restaurant tables
-	
+	Get branded SVG and PNG QR assets for outlet tables
+
 	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets
 	Type: READ
 	Cache: Yes (60s)
 	"""
 	client = get_erpnext_client()
-	
+
 	try:
 		response = await client.call_method(
 			"flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets",
@@ -100,7 +100,7 @@ async def get_table_qr_assets(
 			http_method="POST"
 		)
 		return response
-		
+
 	except Exception as e:
 		logger.error(f"Error in get_table_qr_assets: {str(e)}")
 		raise HTTPException(
@@ -115,14 +115,14 @@ async def get_qr_codes_pdf_url(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get QR codes PDF URL for restaurant
-	
+	Get QR codes PDF URL for outlet
+
 	Mirrors: flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url
 	Type: READ
 	Cache: Yes (60s)
 	"""
 	client = get_erpnext_client()
-	
+
 	try:
 		response = await client.call_method(
 			"flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url",
@@ -130,7 +130,7 @@ async def get_qr_codes_pdf_url(
 			http_method="POST"
 		)
 		return response
-		
+
 	except Exception as e:
 		logger.error(f"Error in get_qr_codes_pdf_url: {str(e)}")
 		raise HTTPException(

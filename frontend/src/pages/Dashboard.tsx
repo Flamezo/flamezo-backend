@@ -25,7 +25,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { 
@@ -354,7 +354,7 @@ function LockedInsight({ title, description, children, isUnlocked }: { title: st
 
 // Main Dashboard Component
 export default function Dashboard() {
-  const { selectedRestaurant, setSelectedRestaurant, referralCode, restaurants: allRestaurants, restaurantConfig, outletType } = useRestaurant()
+  const { selectedOutlet, setSelectedOutlet, referralCode, outlets: allRestaurants, outletConfig, outletType } = useOutlet()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isSimulatedRaw, setIsSimulatedState] = useState(() => localStorage.getItem('demoData') === 'true')
@@ -362,7 +362,7 @@ export default function Dashboard() {
     localStorage.setItem('demoData', String(val))
     setIsSimulatedState(val)
   }
-  const { isGold } = useRestaurant()
+  const { isGold } = useOutlet()
   const isAtLeastGold = isGold
   const isAdvancedAnalytics = isGold // Growth Intelligence remains Gold-only
   const { formatAmountNoDecimals } = useCurrency()
@@ -384,14 +384,14 @@ export default function Dashboard() {
 
   const { data: products } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name', 'price', 'is_active', 'restaurant'],
-    filters: selectedRestaurant ? ({ restaurant: selectedRestaurant } as any) : undefined,
+    filters: selectedOutlet ? ({ restaurant: selectedOutlet } as any) : undefined,
     limit: 100
-  }, selectedRestaurant ? `products-dashboard-${selectedRestaurant}` : null)
+  }, selectedOutlet ? `products-dashboard-${selectedOutlet}` : null)
 
-  const currentRestaurant = allRestaurants.find(r => r.name === selectedRestaurant)
+  const currentRestaurant = allRestaurants.find(r => r.name === selectedOutlet)
   
   // Filter outlets by company/brand to ensure only relevant locations are shown
-  const currentCompany = restaurantConfig?.restaurant?.company
+  const currentCompany = outletConfig?.restaurant?.company
   const filteredOutlets = allRestaurants?.filter((r: any) => {
     // If current restaurant has a company, show all restaurants with the same company
     if (currentCompany) {
@@ -400,13 +400,13 @@ export default function Dashboard() {
     // If no company is set, only show the selected restaurant (standalone mode)
     // or if the user is a super-admin/supervisor, they might expect to see something else,
     // but the user specifically asked to fix "all restaurants showing up".
-    return r.name === selectedRestaurant
+    return r.name === selectedOutlet
   }) || []
   
   // Real-time Analytics Summary
   const { data: analytics, isLoading } = useFrappeGetCall('flamezo_backend.flamezo.api.analytics.get_dashboard_summary', {
-    restaurant_id: selectedRestaurant
-  }, selectedRestaurant ? `analytics-dashboard-${selectedRestaurant}` : null)
+    outlet_id: selectedOutlet
+  }, selectedOutlet ? `analytics-dashboard-${selectedOutlet}` : null)
 
   const analyticsData = analytics?.message?.success ? analytics.message : (analytics?.success ? analytics : null)
 
@@ -416,13 +416,13 @@ export default function Dashboard() {
   const todayDate = new Date().toISOString().split('T')[0]
   const { data: appointmentSummaryRaw } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.appointments.get_appointment_summary',
-    { restaurant_id: selectedRestaurant, date: todayDate },
-    isAppointmentIndustry && selectedRestaurant ? `appt-summary-${selectedRestaurant}-${todayDate}` : null
+    { outlet_id: selectedOutlet, date: todayDate },
+    isAppointmentIndustry && selectedOutlet ? `appt-summary-${selectedOutlet}-${todayDate}` : null
   )
   const { data: courtSummaryRaw } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.courts.get_court_booking_summary',
-    { restaurant_id: selectedRestaurant, date: todayDate },
-    isCourtIndustry && selectedRestaurant ? `court-summary-${selectedRestaurant}-${todayDate}` : null
+    { outlet_id: selectedOutlet, date: todayDate },
+    isCourtIndustry && selectedOutlet ? `court-summary-${selectedOutlet}-${todayDate}` : null
   )
   const apptSummary = appointmentSummaryRaw?.message?.success ? appointmentSummaryRaw.message : null
   const courtSummary = courtSummaryRaw?.message?.success ? courtSummaryRaw.message : null
@@ -430,13 +430,13 @@ export default function Dashboard() {
   // QR Scan Analytics
   const { data: qrAnalyticsRaw } = useFrappeGetCall(
     'flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics',
-    { restaurant: selectedRestaurant, days: 30 },
-    selectedRestaurant ? `qr-analytics-${selectedRestaurant}` : null
+    { restaurant: selectedOutlet, days: 30 },
+    selectedOutlet ? `qr-analytics-${selectedOutlet}` : null
   )
   const qrAnalyticsData = qrAnalyticsRaw?.message?.success ? qrAnalyticsRaw.message.data : null
 
   // Pseudo-random generator for realistic restaurant-specific data
-  const seedStr = selectedRestaurant || 'default';
+  const seedStr = selectedOutlet || 'default';
   const baseSeed = seedStr.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
   const rand = (min: number, max: number, offset: number = 0) => {
     const x = Math.sin(baseSeed + offset) * 10000;
@@ -579,7 +579,7 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-sm flex items-center gap-1.5">
             <Activity className="h-4 w-4 text-primary" />
-            Showing rolling 7-day performance for <span className="font-bold text-foreground">{currentRestaurant?.restaurant_name || selectedRestaurant}</span>
+            Showing rolling 7-day performance for <span className="font-bold text-foreground">{currentRestaurant?.outlet_name || selectedOutlet}</span>
           </p>
         </div>
 
@@ -722,7 +722,7 @@ export default function Dashboard() {
                           </div>
                           <span className="text-[10px] font-bold text-white tracking-wider">@customer_{Math.floor(Math.random() * 900) + 100}</span>
                         </div>
-                        <p className="text-[9px] text-white/70 line-clamp-2">Amazing experience at {currentRestaurant?.restaurant_name || selectedRestaurant}! 🔥</p>
+                        <p className="text-[9px] text-white/70 line-clamp-2">Amazing experience at {currentRestaurant?.outlet_name || selectedOutlet}! 🔥</p>
                       </div>
                       <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md rounded-full px-2 py-0.5 border border-white/10 flex items-center gap-1">
                         <Star className="h-2 w-2 text-yellow-400 fill-yellow-400" />
@@ -1149,27 +1149,27 @@ export default function Dashboard() {
                 key={restaurant.name}
                 className={cn(
                   "group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 cursor-pointer",
-                  restaurant.name === selectedRestaurant 
+                  restaurant.name === selectedOutlet 
                     ? "bg-primary/10 border-primary/30 shadow-md shadow-primary/5" 
                     : "bg-muted/30 border-border/40 hover:bg-muted/50"
                 )}
-                onClick={() => setSelectedRestaurant(restaurant.name)}
+                onClick={() => setSelectedOutlet(restaurant.name)}
               >
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                    restaurant.name === selectedRestaurant ? "bg-primary text-white" : "bg-background border border-border text-muted-foreground"
+                    restaurant.name === selectedOutlet ? "bg-primary text-white" : "bg-background border border-border text-muted-foreground"
                   )}>
                     <MapPin className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold truncate max-w-[120px]">{restaurant.restaurant_name || restaurant.name}</p>
+                    <p className="text-sm font-bold truncate max-w-[120px]">{restaurant.outlet_name || restaurant.name}</p>
                     <p className="text-[11px] text-muted-foreground italic">
                       {restaurant.city || 'Standard Area'}
                     </p>
                   </div>
                 </div>
-                {restaurant.name === selectedRestaurant && (
+                {restaurant.name === selectedOutlet && (
                   <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                 )}
               </div>

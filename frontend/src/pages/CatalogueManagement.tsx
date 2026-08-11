@@ -3,7 +3,7 @@ import { Plus, Search, Trash2, Edit2, AlertCircle, FolderPlus, Package, Scissors
   ShoppingBag, Gamepad2, ChevronDown, ChevronRight, Star, Layers, X, Link2, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useFrappePostCall } from '@/lib/frappe'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -67,7 +67,7 @@ interface ItemAddon {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CatalogueManagement() {
-  const { selectedRestaurant, outletType } = useRestaurant()
+  const { selectedOutlet, outletType } = useOutlet()
   const { confirm, ConfirmDialogComponent } = useConfirm()
   const labels = getCatalogueLabel(outletType)
 
@@ -133,16 +133,16 @@ export default function CatalogueManagement() {
   const { call: fetchAddonGroupsApi } = useFrappePostCall('flamezo_backend.flamezo.api.addon_groups.get_addon_groups')
 
   useEffect(() => {
-    if (selectedRestaurant) loadData()
-  }, [selectedRestaurant])
+    if (selectedOutlet) loadData()
+  }, [selectedOutlet])
 
   const loadData = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       setLoading(true)
       const [catRes, catRes2] = await Promise.all([
-        fetchCategories({ restaurant_id: selectedRestaurant }),
-        fetchCatalogue({ restaurant_id: selectedRestaurant }),
+        fetchCategories({ outlet_id: selectedOutlet }),
+        fetchCatalogue({ outlet_id: selectedOutlet }),
       ])
       const cats: CatalogueCategory[] = catRes?.message?.data || catRes?.data || []
       setCategories(cats)
@@ -194,7 +194,7 @@ export default function CatalogueManagement() {
     try {
       setCatSaving(true)
       const res = await saveCategory({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         name: editingCat?.name || null,
         category_name: catName.trim(),
       })
@@ -222,7 +222,7 @@ export default function CatalogueManagement() {
     })
     if (!ok) return
     try {
-      const res = await deleteCategory({ restaurant_id: selectedRestaurant, name: cat.name })
+      const res = await deleteCategory({ outlet_id: selectedOutlet, name: cat.name })
       const success = res?.message?.success ?? res?.success
       if (success) {
         toast.success('Category deleted')
@@ -258,8 +258,8 @@ export default function CatalogueManagement() {
       setLoadingAddons(true)
       try {
         const [addonsRes, groupsRes] = await Promise.all([
-          fetchItemAddonsApi({ restaurant_id: selectedRestaurant, item_id: item.name }),
-          fetchAddonGroupsApi({ restaurant_id: selectedRestaurant, include_items: 1 }),
+          fetchItemAddonsApi({ outlet_id: selectedOutlet, item_id: item.name }),
+          fetchAddonGroupsApi({ outlet_id: selectedOutlet, include_items: 1 }),
         ])
         setItemAddons(addonsRes?.message?.data || addonsRes?.data || [])
         setAllAddonGroups(groupsRes?.message?.data || groupsRes?.data || [])
@@ -290,7 +290,7 @@ export default function CatalogueManagement() {
         is_active: itemData.is_active ? 1 : 0,
       }
       const res = await saveItem({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         name: editingItem?.name || null,
         item_data: JSON.stringify(payload),
       })
@@ -318,7 +318,7 @@ export default function CatalogueManagement() {
     })
     if (!ok) return
     try {
-      const res = await deleteItem({ restaurant_id: selectedRestaurant, name: item.name })
+      const res = await deleteItem({ outlet_id: selectedOutlet, name: item.name })
       const success = res?.message?.success ?? res?.success
       if (success) {
         toast.success(`${labels.singular} deleted`)
@@ -337,7 +337,7 @@ export default function CatalogueManagement() {
     setLinkingGroupId(groupId)
     try {
       const res = await linkAddonApi({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         item_id: editingItem.name,
         addon_group_id: groupId,
       })
@@ -361,7 +361,7 @@ export default function CatalogueManagement() {
     if (!editingItem) return
     try {
       const res = await unlinkAddonApi({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         item_id: editingItem.name,
         addon_group_id: addon.id,
       })
@@ -381,7 +381,7 @@ export default function CatalogueManagement() {
     if (!editingItem) return
     try {
       await toggleAddonApi({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         item_id: editingItem.name,
         addon_group_id: addon.id,
         is_enabled: enabled ? 1 : 0,
@@ -423,7 +423,7 @@ export default function CatalogueManagement() {
     return !linkedGroupIds.has(gId) && matchesSearch && (g.status === 'Active' || !g.status)
   })
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

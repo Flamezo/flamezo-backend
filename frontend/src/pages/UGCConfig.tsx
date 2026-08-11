@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import StoryTemplateFrame from '@/components/StoryTemplateFrame'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +21,7 @@ const isVideo = (t: TemplateRow) =>
   t.kind === 'video' || (!!t.url && /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(t.url))
 
 export default function UGCConfig() {
-  const { selectedRestaurant, restaurants } = useRestaurant()
+  const { selectedOutlet, outlets } = useOutlet()
   const [configName, setConfigName] = useState<string>('')
   const [templates, setTemplates] = useState<TemplateRow[]>([])
 
@@ -45,14 +45,14 @@ export default function UGCConfig() {
 
 const { data: configRes, mutate, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_ugc_config',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `ugc-config-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `ugc-config-${selectedOutlet}` : undefined,
   )
 
   const { data: voucherStatsRes } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.ugc.get_voucher_stats',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant, days: 30 } : undefined,
-    selectedRestaurant ? `ugc-voucher-stats-${selectedRestaurant}` : undefined,
+    selectedOutlet ? { outlet_id: selectedOutlet, days: 30 } : undefined,
+    selectedOutlet ? `ugc-voucher-stats-${selectedOutlet}` : undefined,
   )
   const { call: saveConfig } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.save_ugc_config')
   const { call: deleteTemplate } = useFrappePostCall('flamezo_backend.flamezo.api.ugc.delete_ugc_template')
@@ -84,11 +84,11 @@ useEffect(() => {
   }, [configRes])
 
   const toggleUgc = async () => {
-    if (!selectedRestaurant || togglingUgc) return
+    if (!selectedOutlet || togglingUgc) return
     setTogglingUgc(true)
     const next = !ugcEnabled
     try {
-      const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: { is_active: next ? 1 : 0 } })
+      const res: any = await saveConfig({ outlet_id: selectedOutlet, payload: { is_active: next ? 1 : 0 } })
       const body = res?.message || res
       if (body?.success) {
         setUgcEnabled(next)
@@ -99,7 +99,7 @@ useEffect(() => {
   }
 
   const saveCoupon = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     if (!viewerCouponCode.trim()) { toast.error('Coupon code is required'); return }
     if (!viewerDiscountValue || parseFloat(viewerDiscountValue) <= 0) { toast.error('Discount value must be greater than 0'); return }
     if (viewerDiscountType === 'percent') {
@@ -117,7 +117,7 @@ useEffect(() => {
         viewer_discount_cap: (viewerDiscountType === 'percent' && viewerDiscountCap) ? parseFloat(viewerDiscountCap) : 0,
         viewer_coupon_description: viewerCouponDesc.trim(),
       }
-      const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload: patch })
+      const res: any = await saveConfig({ outlet_id: selectedOutlet, payload: patch })
       const body = res?.message || res
       if (body?.success) { toast.success('Viewer coupon saved'); await mutate() }
       else throw new Error(body?.message || 'Save failed')
@@ -126,10 +126,10 @@ useEffect(() => {
   }
 
   const persistTemplates = async (next: TemplateRow[]) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     try {
       const payload = { templates: next.map(t => ({ media_asset: t.media_asset, label: t.label, is_default: 1 })) }
-      const res: any = await saveConfig({ restaurant_id: selectedRestaurant, payload })
+      const res: any = await saveConfig({ outlet_id: selectedOutlet, payload })
       const body = res?.message || res
       if (body?.success) await mutate()
       else throw new Error(body?.message || 'Save failed')
@@ -157,7 +157,7 @@ useEffect(() => {
   const removeTemplate = async (media_asset: string) => {
     setTemplates([])  // optimistic
     try {
-      const res: any = await deleteTemplate({ restaurant_id: selectedRestaurant, media_asset })
+      const res: any = await deleteTemplate({ outlet_id: selectedOutlet, media_asset })
       const body = res?.message || res
       if (body?.success) { toast.success('Template removed'); await mutate() }
       else throw new Error(body?.message || 'Delete failed')
@@ -186,7 +186,7 @@ useEffect(() => {
           body: JSON.stringify({
             template_url:      tpl.url,
             media_type:        mediaType,
-            restaurant_name:   restaurantName,
+            outlet_name:       outletName,
             coupon_code:       viewerCouponCode || null,
             discount_type:     viewerDiscountType || null,
             discount_value:    viewerDiscountValue ? parseFloat(viewerDiscountValue) : null,
@@ -224,7 +224,7 @@ useEffect(() => {
       if (!cdnUrl) throw new Error('Timed out waiting for download')
 
       const ext  = mediaType === 'video' ? 'mp4' : 'jpg'
-      const filename = `${restaurantName || 'story'}-preview.${ext}`
+      const filename = `${outletName || 'story'}-preview.${ext}`
       const proxyUrl = `/api/method/flamezo_backend.flamezo.api.ai_media.download_proxy?file_url=${encodeURIComponent(cdnUrl)}&filename=${encodeURIComponent(filename)}`
 
       // Fetch the file as a blob and download via a blob URL. A plain <a href>
@@ -252,7 +252,7 @@ useEffect(() => {
     }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return <div className="p-8 text-center text-muted-foreground">Select an outlet to configure UGC cashback.</div>
   }
 
@@ -260,9 +260,9 @@ useEffect(() => {
 
   const tpl = templates[0]
   const vStats = ((voucherStatsRes as any)?.message || voucherStatsRes)?.data
-  const restaurantName = (restaurants as any[]).find(
-    r => r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant
-  )?.restaurant_name || ''
+  const outletName = (outlets as any[]).find(
+    r => r.name === selectedOutlet || r.outlet_id === selectedOutlet
+  )?.outlet_name || ''
 
   const couponIsSet = !!viewerCouponCode.trim() && parseFloat(viewerDiscountValue) > 0
 
@@ -428,7 +428,7 @@ useEffect(() => {
                   discountType={viewerDiscountType || undefined}
                   discountValue={viewerDiscountValue ? parseFloat(viewerDiscountValue) : undefined}
                   offerDescription={viewerCouponDesc || undefined}
-                  restaurantName={restaurantName}
+                  outletName={outletName}
                 />
               </div>
             </CardContent>
@@ -467,7 +467,7 @@ useEffect(() => {
               discountType={viewerDiscountType || undefined}
               discountValue={viewerDiscountValue ? parseFloat(viewerDiscountValue) : undefined}
               offerDescription={viewerCouponDesc || undefined}
-              restaurantName={restaurantName}
+              outletName={outletName}
             />
           </div>
         </DialogContent>
@@ -578,7 +578,7 @@ useEffect(() => {
       </Card>
 
       {/* Staff Verification PIN */}
-      <UGCPinSetupCard restaurantId={selectedRestaurant} />
+      <UGCPinSetupCard outletId={selectedOutlet} />
 
       {/* Platform-managed rules — read-only guidelines */}
       <Card className="bg-muted/30 border-dashed">
@@ -604,7 +604,7 @@ useEffect(() => {
 
 // ─── Staff Verification PIN ───────────────────────────────────────────────────
 
-function UGCPinSetupCard({ restaurantId }: { restaurantId: string }) {
+function UGCPinSetupCard({ outletId }: { outletId: string }) {
   const [pin, setPin] = useState(['', '', '', ''])
   const [isSet, setIsSet] = useState<boolean | null>(null)
   const [currentPin, setCurrentPin] = useState('')
@@ -617,15 +617,15 @@ function UGCPinSetupCard({ restaurantId }: { restaurantId: string }) {
   const { call: getPinStatus } = useFrappePostCall('flamezo_backend.flamezo.api.coupons.get_offer_pin_status')
 
   useEffect(() => {
-    if (!restaurantId) return
-    getPinStatus({ restaurant_id: restaurantId })
+    if (!outletId) return
+    getPinStatus({ outlet_id: outletId })
       .then((res: any) => {
         const payload = res?.message ?? res
         setIsSet(!!payload?.data?.is_set)
         setCurrentPin(payload?.data?.pin || '')
       })
       .catch(() => setIsSet(false))
-  }, [restaurantId])
+  }, [outletId])
 
   const handleDigit = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return
@@ -650,7 +650,7 @@ function UGCPinSetupCard({ restaurantId }: { restaurantId: string }) {
     if (fullPin.length !== 4) { toast.error('Enter all 4 digits'); return }
     setSaving(true)
     try {
-      const res = await setPinCall({ restaurant_id: restaurantId, pin: fullPin })
+      const res = await setPinCall({ outlet_id: outletId, pin: fullPin })
       const payload = (res as any)?.message ?? res
       if (payload?.success) {
         toast.success('PIN saved — staff can now verify UGC stories at the counter')

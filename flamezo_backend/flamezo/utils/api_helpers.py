@@ -53,24 +53,24 @@ def validate_restaurant_for_api(restaurant_id, user=None, allow_inactive=False):
 	"""
 	if not restaurant_id:
 		# Use generic message to prevent log title explosion
-		frappe.throw(_("Restaurant not found"), exc=frappe.DoesNotExistError)
+		frappe.throw(_("Outlet not found"), exc=frappe.DoesNotExistError)
 	
 	# Skip reserved IDs early
 	id_clean = str(restaurant_id).lower()
 	if any(reserved in id_clean for reserved in RESERVED_RESTAURANT_IDS):
 		# Silently return a 404 for known scanners/bots
-		frappe.throw(_("Restaurant not found"), exc=frappe.DoesNotExistError)
+		frappe.throw(_("Outlet not found"), exc=frappe.DoesNotExistError)
 	
 	# Get restaurant name
 	restaurant = get_restaurant_from_id(restaurant_id)
 	
 	if not restaurant:
-		frappe.throw(_("Restaurant not found"), exc=frappe.DoesNotExistError)
+		frappe.throw(_("Outlet not found"), exc=frappe.DoesNotExistError)
 	
 	# Check if restaurant is active
 	if not allow_inactive and not frappe.db.get_value("Restaurant", restaurant, "is_active"):
 		frappe.throw(
-			_("Restaurant {0} is not active").format(restaurant_id),
+			_("Outlet {0} is not active").format(restaurant_id),
 			exc=frappe.ValidationError
 		)
 	
@@ -78,7 +78,7 @@ def validate_restaurant_for_api(restaurant_id, user=None, allow_inactive=False):
 	if user:
 		if not validate_restaurant_access(user, restaurant):
 			frappe.throw(
-				_("You don't have access to restaurant {0}").format(restaurant_id),
+				_("You don't have access to outlet {0}").format(restaurant_id),
 				exc=frappe.PermissionError
 			)
 	

@@ -8,7 +8,7 @@ STRICT RULES:
 """
 
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 
@@ -60,6 +60,11 @@ class Settings(BaseSettings):
 	# Logging
 	log_level: str = "INFO"
 	log_format: str = "json"
+
+	# Borzo Delivery
+	borzo_api_token: Optional[str] = None
+	borzo_webhook_token: Optional[str] = None
+	borzo_mode: Optional[str] = None
 	
 	class Config:
 		env_file = ".env"

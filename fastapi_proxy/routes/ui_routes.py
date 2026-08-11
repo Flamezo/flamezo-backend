@@ -42,9 +42,9 @@ class GetUserPermissionsRequest(BaseModel):
 	doctype: str
 
 
-class GetRestaurantSetupProgressRequest(BaseModel):
-	"""Request for get_restaurant_setup_progress"""
-	restaurant_id: str
+class GetOutletSetupProgressRequest(BaseModel):
+	"""Request for get_outlet_setup_progress"""
+	outlet_id: str
 
 
 # Route Implementations
@@ -144,59 +144,59 @@ async def get_all_doctypes(
 		)
 
 
-@router.post("/flamezo_backend.flamezo.api.ui.get_user_restaurants")
-async def get_user_restaurants(
+@router.post("/flamezo_backend.flamezo.api.ui.get_user_outlets")
+async def get_user_outlets(
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get restaurants for current user
-	
-	Mirrors: flamezo_backend.flamezo.api.ui.get_user_restaurants
+	Get outlets for current user
+
+	Mirrors: flamezo_backend.flamezo.api.ui.get_user_outlets
 	Type: READ
 	Cache: Yes (60s)
 	"""
 	client = get_erpnext_client()
-	
+
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo.api.ui.get_user_restaurants",
+			"flamezo_backend.flamezo.api.ui.get_user_outlets",
 			data={},  # No parameters
 			http_method="POST"
 		)
 		return response
-		
+
 	except Exception as e:
-		logger.error(f"Error in get_user_restaurants: {str(e)}")
+		logger.error(f"Error in get_user_outlets: {str(e)}")
 		raise HTTPException(
 			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 			detail=str(e)
 		)
 
 
-@router.post("/flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress")
-async def get_restaurant_setup_progress(
-	request: GetRestaurantSetupProgressRequest,
+@router.post("/flamezo_backend.flamezo.api.ui.get_outlet_setup_progress")
+async def get_outlet_setup_progress(
+	request: GetOutletSetupProgressRequest,
 	current_user: TokenData = Depends(get_current_user)
 ):
 	"""
-	Get restaurant setup wizard progress
-	
-	Mirrors: flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress
+	Get outlet setup wizard progress
+
+	Mirrors: flamezo_backend.flamezo.api.ui.get_outlet_setup_progress
 	Type: READ
 	Cache: No (real-time status)
 	"""
 	client = get_erpnext_client()
-	
+
 	try:
 		response = await client.call_method(
-			"flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress",
+			"flamezo_backend.flamezo.api.ui.get_outlet_setup_progress",
 			data=request.dict(),
 			http_method="POST"
 		)
 		return response
-		
+
 	except Exception as e:
-		logger.error(f"Error in get_restaurant_setup_progress: {str(e)}")
+		logger.error(f"Error in get_outlet_setup_progress: {str(e)}")
 		raise HTTPException(
 			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 			detail=str(e)

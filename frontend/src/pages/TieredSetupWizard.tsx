@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFrappeGetCall } from '@/lib/frappe'
 import DynamicForm from '@/components/DynamicForm'
 import StaffMembersList from '@/components/StaffMembersList'
-import RestaurantDataList from '@/components/RestaurantDataList'
+import OutletDataList from '@/components/OutletDataList'
 import LegacyContentStep from '@/components/LegacyContentStep'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, ArrowRight, Check, Zap, Loader2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { cn } from '@/lib/utils'
 import { getShownFields } from '@/config/setupWizardFields'
 
@@ -58,7 +58,7 @@ interface SetupProgressResponse {
 export default function TieredSetupWizard() {
   const { stepId: urlSlug } = useParams<{ stepId?: string }>()
   const navigate = useNavigate()
-  const { selectedRestaurant, setSelectedRestaurant, isLoading: contextLoading, restaurants } = useRestaurant()
+  const { selectedOutlet, setSelectedOutlet, isLoading: contextLoading, outlets } = useOutlet()
 
   // Define All Possible Steps
   const allPotentialSteps: WizardStep[] = [
@@ -75,9 +75,9 @@ export default function TieredSetupWizard() {
 
   // Get setup progress from backend
   const { data: progressData, mutate: refreshProgress } = useFrappeGetCall<SetupProgressResponse>(
-    'flamezo_backend.flamezo.api.ui.get_restaurant_setup_progress',
-    { restaurant_id: selectedRestaurant || '' },
-    selectedRestaurant ? `restaurant-progress-${selectedRestaurant}` : null
+    'flamezo_backend.flamezo.api.ui.get_outlet_setup_progress',
+    { outlet_id: selectedOutlet || '' },
+    selectedOutlet ? `outlet-progress-${selectedOutlet}` : null
   )
 
   const progress = progressData?.message || {}
@@ -134,8 +134,8 @@ export default function TieredSetupWizard() {
   }
 
   const completedCount = useMemo(() => {
-    return steps.filter(s => progress[s.id] || (s.id === 'restaurant' && selectedRestaurant)).length
-  }, [steps, progress, selectedRestaurant])
+    return steps.filter(s => progress[s.id] || (s.id === 'restaurant' && selectedOutlet)).length
+  }, [steps, progress, selectedOutlet])
 
   const progressPercentage = (completedCount / steps.length) * 100
 
@@ -145,7 +145,7 @@ export default function TieredSetupWizard() {
     </Badge>
   )
 
-  if (contextLoading || !steps.length || (restaurants.length > 0 && !selectedRestaurant)) {
+  if (contextLoading || !steps.length || (outlets.length > 0 && !selectedOutlet)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -154,7 +154,7 @@ export default function TieredSetupWizard() {
     )
   }
 
-  if (!selectedRestaurant && currentStepIndex > 0) {
+  if (!selectedOutlet && currentStepIndex > 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center max-w-md mx-auto">
         <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
@@ -231,37 +231,37 @@ export default function TieredSetupWizard() {
               {/* Conditional Step Rendering */}
               {currentStep.customComponent === 'StaffMembersList' ? (
                 <StaffMembersList 
-                  key={`wizard-staff-${currentStep.id}-${selectedRestaurant}`}
-                  restaurantId={selectedRestaurant || ''} 
+                  key={`wizard-staff-${currentStep.id}-${selectedOutlet}`}
+                  outletId={selectedOutlet || ''} 
                   onAdd={() => refreshProgress?.()} 
                 />
               ) : currentStep.customComponent === 'LegacyContentStep' ? (
                 <LegacyContentStep 
-                  key={`wizard-legacy-${currentStep.id}-${selectedRestaurant}`}
-                  selectedRestaurant={selectedRestaurant ?? ''} 
+                  key={`wizard-legacy-${currentStep.id}-${selectedOutlet}`}
+                  selectedOutlet={selectedOutlet ?? ''} 
                   onComplete={() => {
                     refreshProgress?.()
                     handleNext()
                   }} 
                 />
               ) : currentStep.view_only ? (
-                <RestaurantDataList 
+                <OutletDataList 
                   doctype={currentStep.doctype} 
-                  restaurantId={selectedRestaurant || ''} 
+                  outletId={selectedOutlet || ''} 
                   titleField={currentStep.id === 'categories' ? 'category_name' : 'product_name'} 
                 />
               ) : (
                 <DynamicForm
-                  key={`wizard-form-${currentStep.id}-${selectedRestaurant}`}
+                  key={`wizard-form-${currentStep.id}-${selectedOutlet}`}
                   doctype={currentStep.doctype}
-                  docname={(currentStep.id === 'restaurant' || currentStep.id === 'config') ? (selectedRestaurant ?? undefined) : undefined}
-                  initialData={{ restaurant: selectedRestaurant }}
+                  docname={(currentStep.id === 'restaurant' || currentStep.id === 'config') ? (selectedOutlet ?? undefined) : undefined}
+                  initialData={{ restaurant: selectedOutlet }}
                   readOnlyFields={['restaurant']}
-                  mode={((currentStep.id === 'restaurant' || currentStep.id === 'config') && selectedRestaurant) ? 'edit' : 'create'}
+                  mode={((currentStep.id === 'restaurant' || currentStep.id === 'config') && selectedOutlet) ? 'edit' : 'create'}
                   onChange={setFormHasChanges}
                   onSave={(data) => {
                     if (currentStep.id === 'restaurant') {
-                      setSelectedRestaurant(data.name || selectedRestaurant)
+                      setSelectedOutlet(data.name || selectedOutlet)
                     }
                     refreshProgress?.()
                     setFormHasChanges(false)
@@ -303,7 +303,7 @@ export default function TieredSetupWizard() {
               <Stepper 
                 steps={steps.map((s, i) => ({ 
                   ...s, 
-                  completed: !!(progress[s.id] || (s.id === 'restaurant' && selectedRestaurant)), 
+                  completed: !!(progress[s.id] || (s.id === 'restaurant' && selectedOutlet)), 
                   active: i === currentStepIndex 
                 }))} 
                 currentStep={currentStepIndex} 

@@ -1390,7 +1390,7 @@ class TestClaimReferralReward(unittest.TestCase):
                  patch("flamezo_backend.flamezo.api.loyalty.get_customer_token", return_value="mock-token"):
                 result = claim_referral_reward(other_res, self._identifier, self._referee_phone)
             self.assertFalse(result.get("success"))
-            self.assertEqual(result.get("error", {}).get("code"), "RESTAURANT_MISMATCH")
+            self.assertEqual(result.get("error", {}).get("code"), "OUTLET_MISMATCH")
         finally:
             cleanup_restaurant(other_res)
 
@@ -1631,7 +1631,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         from flamezo_backend.flamezo.utils.platform_config import get_earn_percentage
         result = update_loyalty_config(
-            restaurant_id=self._res,
+            outlet_id=self._res,
             config={"earn_percentage": 25},
             enable_loyalty=True
         )
@@ -1648,7 +1648,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         """Passing coin_value_in_inr=5 must be overridden; DB must have 1."""
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         result = update_loyalty_config(
-            restaurant_id=self._res,
+            outlet_id=self._res,
             config={"coin_value_in_inr": 5},
             enable_loyalty=True
         )
@@ -1663,7 +1663,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         from flamezo_backend.flamezo.utils.platform_config import PLATFORM_LOYALTY
         result = update_loyalty_config(
-            restaurant_id=self._res,
+            outlet_id=self._res,
             config={"max_coins_per_order": 9999},
             enable_loyalty=True
         )
@@ -1682,7 +1682,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         # Disable
         result = update_loyalty_config(
-            restaurant_id=self._res, config={}, enable_loyalty=False
+            outlet_id=self._res, config={}, enable_loyalty=False
         )
         self.assertTrue(result.get("success"))
         self.assertEqual(
@@ -1690,7 +1690,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         # Re-enable
         result = update_loyalty_config(
-            restaurant_id=self._res, config={}, enable_loyalty=True
+            outlet_id=self._res, config={}, enable_loyalty=True
         )
         self.assertTrue(result.get("success"))
         self.assertEqual(
@@ -1701,7 +1701,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         """After any update, earn_type in DB must always be 'Percentage of Bill'."""
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         update_loyalty_config(
-            restaurant_id=self._res,
+            outlet_id=self._res,
             config={"earn_type": "Flat Coins per Order"},  # restaurant tries to change it
             enable_loyalty=True
         )
@@ -1715,7 +1715,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         """A valid update with only enable toggle must always succeed."""
         from flamezo_backend.flamezo.api.loyalty import update_loyalty_config
         result = update_loyalty_config(
-            restaurant_id=self._res, config={}, enable_loyalty=True
+            outlet_id=self._res, config={}, enable_loyalty=True
         )
         self.assertTrue(result.get("success"))
         self.assertNotIn("error", result)
@@ -2466,7 +2466,7 @@ class TestLoyaltyAnalytics(unittest.TestCase):
         required = [
             "total_coins_issued", "total_coins_redeemed", "active_customers",
             "customers_expiring_soon", "redemption_rate_percent",
-            "avg_balance", "today_redeemed_restaurant",
+            "avg_balance", "today_redeemed_outlet",
         ]
         for key in required:
             self.assertIn(key, data["summary"], f"summary missing key: {key}")

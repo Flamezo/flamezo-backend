@@ -21,7 +21,7 @@ import {
   Zap, Star, Mail, AlertCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { cn } from '@/lib/utils'
 
 // ---------- Types ----------
@@ -48,7 +48,7 @@ interface StaffData {
 }
 
 interface StaffMembersListProps {
-  restaurantId: string
+  outletId: string
   onAdd?: () => void
 }
 
@@ -79,8 +79,8 @@ function StaffAvatar({ src, initials }: { src?: string; initials: string }) {
 
 // ---------- Main Component ----------
 
-export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersListProps) {
-  const { isAdmin, planType } = useRestaurant()
+export default function StaffMembersList({ outletId, onAdd }: StaffMembersListProps) {
+  const { isAdmin, planType } = useOutlet()
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -90,8 +90,8 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
 
   const { data: staffDataRaw, isLoading, mutate } = useFrappeGetCall<{ message: { success: boolean; data: StaffData } }>(
     'flamezo_backend.flamezo.api.staff.get_staff_members',
-    { restaurant_id: restaurantId },
-    restaurantId ? `staff-members-${restaurantId}` : null
+    { outlet_id: outletId },
+    outletId ? `staff-members-${outletId}` : null
   )
 
   const { call: callPost } = useFrappePostCall('flamezo_backend.flamezo.api.staff.invite_staff_member')
@@ -113,7 +113,7 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
     setInviteLoading(true)
     try {
       const res = await callPost({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         email: inviteEmail.trim(),
         full_name: inviteFullName.trim(),
         role: inviteRole,
@@ -137,13 +137,13 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
     } finally {
       setInviteLoading(false)
     }
-  }, [inviteEmail, inviteFullName, inviteRole, restaurantId, callPost, mutate, onAdd])
+  }, [inviteEmail, inviteFullName, inviteRole, outletId, callPost, mutate, onAdd])
 
   const handleRemove = useCallback(async () => {
     if (!removeTarget) return
     try {
       const res = await callRemove({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         restaurant_user_name: removeTarget.name,
       }) as any
       const payload = res?.message ?? res
@@ -158,12 +158,12 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
     } finally {
       setRemoveTarget(null)
     }
-  }, [removeTarget, restaurantId, callRemove, mutate])
+  }, [removeTarget, outletId, callRemove, mutate])
 
   const handleUpdateRole = useCallback(async (member: StaffMember, newRole: 'Restaurant Admin' | 'Restaurant Staff') => {
     try {
       const res = await callUpdate({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         restaurant_user_name: member.name,
         role: newRole,
       }) as any
@@ -177,12 +177,12 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
     } catch (e: any) {
       toast.error(e?.message || 'Something went wrong')
     }
-  }, [restaurantId, callUpdate, mutate])
+  }, [outletId, callUpdate, mutate])
 
   const handleToggleActive = useCallback(async (member: StaffMember) => {
     try {
       const res = await callUpdate({
-        restaurant_id: restaurantId,
+        outlet_id: outletId,
         restaurant_user_name: member.name,
         is_active: !member.is_active,
       }) as any
@@ -196,7 +196,7 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
     } catch (e: any) {
       toast.error(e?.message || 'Something went wrong')
     }
-  }, [restaurantId, callUpdate, mutate])
+  }, [outletId, callUpdate, mutate])
 
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??'

@@ -46,7 +46,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Progress } from '@/components/ui/progress'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -54,7 +54,7 @@ import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 
 export default function GalleryManagement() {
   const navigate = useNavigate()
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -72,9 +72,9 @@ export default function GalleryManagement() {
 
   // Fetch Media Pool
   const { data: poolData, isLoading: isPoolLoading, mutate: mutatePool } = useFrappeGetCall(
-    'flamezo_backend.flamezo.api.restaurant.get_restaurant_media_pool',
-    { restaurant_id: selectedRestaurant },
-    selectedRestaurant ? `media-pool-${selectedRestaurant}` : null
+    'flamezo_backend.flamezo.api.outlet.get_outlet_media_pool',
+    { outlet_id: selectedOutlet },
+    selectedOutlet ? `media-pool-${selectedOutlet}` : null
   )
 
   const mediaPool = useMemo(() => {
@@ -99,12 +99,12 @@ export default function GalleryManagement() {
   )
 
   const initialFilters = useMemo(() => {
-    if (!selectedRestaurant) return []
+    if (!selectedOutlet) return []
     return [
-        { fieldname: 'restaurant', operator: '=', value: selectedRestaurant },
+        { fieldname: 'restaurant', operator: '=', value: selectedOutlet },
         { fieldname: 'is_selected', operator: '=', value: 1 }
     ]
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const {
     data: selectedItems,
@@ -120,7 +120,7 @@ export default function GalleryManagement() {
     searchFields: ['title'],
     orderBy: { field: 'sort_order', order: 'asc' },
     initialPageSize: 100, // Show all selected items
-    debugId: `selected-gallery-${selectedRestaurant}`
+    debugId: `selected-gallery-${selectedOutlet}`
   })
 
   const { call: createGalleryItem } = useFrappePostCall('frappe.client.insert')
@@ -128,7 +128,7 @@ export default function GalleryManagement() {
   const { deleteDoc: deleteGalleryItem } = useFrappeDeleteDoc()
 
   const handleUpload = async (files: File[]) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     if (selectedCount + files.length > 25) {
         toast.error('Gallery limit reached', { description: 'You can only have up to 25 items in your gallery.' })
         return
@@ -141,7 +141,7 @@ export default function GalleryManagement() {
 
         const uploadResult = await uploadToR2({
           ownerDoctype: 'Restaurant',
-          ownerName: selectedRestaurant,
+          ownerName: selectedOutlet,
           mediaRole: activeRole,
           file,
         })
@@ -149,7 +149,7 @@ export default function GalleryManagement() {
         await createGalleryItem({
           doc: {
             doctype: 'Restaurant Gallery Item',
-            restaurant: selectedRestaurant,
+            restaurant: selectedOutlet,
             media_type: mediaType === 'video' ? 'Video' : 'Image',
             url: uploadResult.primary_url,
             title: file.name.split('.')[0],
@@ -170,7 +170,7 @@ export default function GalleryManagement() {
   }
 
   const handleToggleSelection = async (media: any) => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
 
     try {
         if (media.is_in_gallery && media.gallery_item_name) {
@@ -195,7 +195,7 @@ export default function GalleryManagement() {
             await createGalleryItem({
                 doc: {
                     doctype: 'Restaurant Gallery Item',
-                    restaurant: selectedRestaurant,
+                    restaurant: selectedOutlet,
                     media_type: media.type === 'video' ? 'Video' : 'Image',
                     url: media.url,
                     title: media.source_title || 'Imported Asset',
@@ -231,7 +231,7 @@ export default function GalleryManagement() {
         await createGalleryItem({
             doc: {
                 doctype: 'Restaurant Gallery Item',
-                restaurant: selectedRestaurant,
+                restaurant: selectedOutlet,
                 media_type: editingItem.media_type,
                 url: editingItem.url,
                 title: editingItem.title,
@@ -265,7 +265,7 @@ export default function GalleryManagement() {
     }
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <ImageIcon className="h-16 w-16 text-muted-foreground/20 mb-4" />

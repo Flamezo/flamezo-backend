@@ -7,7 +7,7 @@ import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { GroupPicker } from '@/components/GroupPicker'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import Breadcrumb from './Breadcrumb'
 import { BillingNotificationBar } from './BillingNotificationBar'
@@ -140,15 +140,15 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, outletType } = useRestaurant()
+  const { selectedOutlet, setSelectedOutlet, outlets, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isOutletAdmin, outletType } = useOutlet()
   const navigation = buildNavigation(outletType)
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
   const [sidebarHovered, setSidebarHovered] = useState(false) // Hover state for temporary expansion
   const [hoverDisabled, setHoverDisabled] = useState(false) // Temporarily disable hover after toggle
-  const [restaurantDropdownOpen, setRestaurantDropdownOpen] = useState(false)
-  const [restaurantDropdownSearch, setRestaurantDropdownSearch] = useState('')
+  const [outletDropdownOpen, setOutletDropdownOpen] = useState(false)
+  const [outletDropdownSearch, setOutletDropdownSearch] = useState('')
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lockAnimating, setLockAnimating] = useState(false) // Track lock animation state
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
@@ -169,7 +169,7 @@ export default function Layout({ children }: LayoutProps) {
   // Combined isAdmin: true if system admin OR Restaurant Admin via plan context
   // However, for sidebar nav, we might want to distinguish between system-level admin 
   // and restaurant-level admin.
-  const isAdmin = isSystemAdmin || isRestaurantAdmin
+  const isAdmin = isSystemAdmin || isOutletAdmin
 
   // Sync balance when updated from other components (like Recharge Modal)
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function Layout({ children }: LayoutProps) {
     }
     window.addEventListener('coins-updated', handleBalanceUpdate)
     return () => window.removeEventListener('coins-updated', handleBalanceUpdate)
-  }, [selectedRestaurant, refreshConfig])
+  }, [selectedOutlet, refreshConfig])
 
   // Expanded nav groups (persisted in localStorage)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -265,7 +265,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // API calls
   const { call: createRestaurant } = useFrappePostCall('frappe.client.insert')
-  const { call: onboardOwner } = useFrappePostCall<{ success: boolean; message?: string; data?: { email_sent: boolean; onboard_link?: string } }>('flamezo_backend.flamezo.api.admin.admin_onboard_restaurant_owner')
+  const { call: onboardOwner } = useFrappePostCall<{ success: boolean; message?: string; data?: { email_sent: boolean; onboard_link?: string } }>('flamezo_backend.flamezo.api.admin.admin_onboard_outlet_owner')
   const { call: createPaymentLink } = useFrappePostCall<{ success: boolean; payment_link_url?: string; amount?: number; owner_phone?: string; error?: string }>('flamezo_backend.flamezo.api.admin.admin_create_wallet_payment_link')
 
 
@@ -289,8 +289,8 @@ export default function Layout({ children }: LayoutProps) {
   }, [currentUser])
 
   // Handle restaurant change
-  const handleRestaurantChange = (restaurantId: string) => {
-    if (restaurantId === '__create_new__') {
+  const handleRestaurantChange = (outletId: string) => {
+    if (outletId === '__create_new__') {
       // Open create restaurant modal
       setShowCreateModal(true)
       setNewRestaurantData({
@@ -305,15 +305,15 @@ export default function Layout({ children }: LayoutProps) {
       return
     }
 
-    if (restaurantId === '__search__') {
+    if (outletId === '__search__') {
       setShowRestaurantSearch(true)
       setRestaurantSearchQuery('')
       return
     }
 
-    setSelectedRestaurant(restaurantId)
+    setSelectedOutlet(outletId)
     // Dispatch custom event to notify other components
-    window.dispatchEvent(new CustomEvent('restaurant-selected'))
+    window.dispatchEvent(new CustomEvent('outlet-selected'))
   }
 
   // Handle create restaurant submission
@@ -349,9 +349,9 @@ export default function Layout({ children }: LayoutProps) {
 
       if (result?.message) {
         const createdRestaurant = result.message
-        const restaurantName = createdRestaurant.restaurant_name || createdRestaurant.name
+        const outletName = createdRestaurant.restaurant_name || createdRestaurant.name
         const restaurantDocName = createdRestaurant.name || createdRestaurant.restaurant_id
-        const restaurantId = createdRestaurant.restaurant_id || restaurantDocName
+        const outletId = createdRestaurant.restaurant_id || restaurantDocName
 
         toast.success('Merchant created successfully!')
 
@@ -359,7 +359,7 @@ export default function Layout({ children }: LayoutProps) {
         if (sendOnboarding && newRestaurantData.owner_email.trim()) {
           try {
             const onboardRes = await onboardOwner({
-              restaurant_id: restaurantId,
+              outlet_id: outletId,
               owner_name: '',
               owner_email: newRestaurantData.owner_email.trim()
             }) as any
@@ -395,10 +395,10 @@ export default function Layout({ children }: LayoutProps) {
         setSendOnboarding(false)
         setSelectedGroup(null); setSelectedGroupLabel('')
 
-        setSelectedRestaurant(restaurantDocName)
-        window.dispatchEvent(new CustomEvent('restaurant-selected'))
+        setSelectedOutlet(restaurantDocName)
+        window.dispatchEvent(new CustomEvent('outlet-selected'))
 
-        const urlFriendlyName = restaurantName.toLowerCase().replace(/\s+/g, '-')
+        const urlFriendlyName = outletName.toLowerCase().replace(/\s+/g, '-')
         setTimeout(() => {
           navigate(`/setup/${encodeURIComponent(urlFriendlyName)}`, { replace: true })
         }, 100)
@@ -415,24 +415,24 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Get current restaurant details (from list) and fetch the selected restaurant doc directly
-  const currentRestaurant = restaurants.find(r => r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant)
+  // Get current outlet details (from list) and fetch the selected outlet doc directly
+  const currentOutlet = outlets.find(r => r.name === selectedOutlet || r.outlet_id === selectedOutlet)
 
   // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
   const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
-    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['name', 'slug', 'restaurant_id', 'restaurant_name'],
     limit: 1,
   })
   const restaurantDoc = restaurantDocList?.[0] || null
 
-  // Preview URL path: slug preferred, fallback to restaurant_id for all pages
-  const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentRestaurant?.restaurant_id || selectedRestaurant || ''
+  // Preview URL path: slug preferred, fallback to outlet_id for all pages
+  const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentOutlet?.outlet_id || selectedOutlet || ''
 
   const { data: dashboardSummary } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.analytics.get_dashboard_summary',
-    selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
-    selectedRestaurant ? `analytics-header-${selectedRestaurant}` : undefined
+    selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
+    selectedOutlet ? `analytics-header-${selectedOutlet}` : undefined
   )
   const analyticsData = dashboardSummary?.message?.success ? dashboardSummary.message : (dashboardSummary?.success ? dashboardSummary : null)
   const traffic = analyticsData?.traffic || { totalViews: 0, uniqueVisitors: 0, growth: 0 }
@@ -444,7 +444,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // Determine if sidebar should show expanded content (either expanded state or hovered, but not if hover is disabled)
   // Also keep expanded if restaurant select is open — prevents unmounting the Select mid-open
-  const showExpanded = sidebarExpanded || (sidebarHovered && !hoverDisabled) || restaurantDropdownOpen
+  const showExpanded = sidebarExpanded || (sidebarHovered && !hoverDisabled) || outletDropdownOpen
 
   // Handle toggle button click
   const handleToggle = () => {
@@ -485,7 +485,7 @@ export default function Layout({ children }: LayoutProps) {
         onMouseLeave={() => {
           // Delay collapse so that if a dropdown opens in the same tick, we can cancel it
           collapseTimerRef.current = setTimeout(() => {
-            if (!restaurantDropdownOpen) setSidebarHovered(false)
+            if (!outletDropdownOpen) setSidebarHovered(false)
           }, 150)
         }}
       >
@@ -497,14 +497,14 @@ export default function Layout({ children }: LayoutProps) {
           )}>
             {showExpanded ? (
               <DropdownMenu
-                open={restaurantDropdownOpen}
+                open={outletDropdownOpen}
                 onOpenChange={(open) => {
                   if (open && collapseTimerRef.current) {
                     clearTimeout(collapseTimerRef.current)
                     collapseTimerRef.current = null
                   }
-                  if (!open) setRestaurantDropdownSearch('')
-                  setRestaurantDropdownOpen(open)
+                  if (!open) setOutletDropdownSearch('')
+                  setOutletDropdownOpen(open)
                   if (open && !sidebarExpanded) setSidebarHovered(true)
                 }}
               >
@@ -512,20 +512,20 @@ export default function Layout({ children }: LayoutProps) {
                   <button className={cn(
                     "group flex-1 min-w-0 flex items-center gap-2.5 px-2 py-2 rounded text-left",
                     "transition-colors duration-150 hover:bg-sidebar-accent/60 focus:outline-none",
-                    restaurantDropdownOpen && "bg-sidebar-accent/60"
+                    outletDropdownOpen && "bg-sidebar-accent/60"
                   )}>
                     {/* Logo / Avatar */}
-                    {currentRestaurant?.logo ? (
-                      <img src={currentRestaurant.logo} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover border border-border" />
+                    {currentOutlet?.logo ? (
+                      <img src={currentOutlet.logo} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover border border-border" />
                     ) : (
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground text-[12px] font-bold">
-                        {(currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'R').charAt(0).toUpperCase()}
+                        {(currentOutlet?.outlet_name || outlets[0]?.outlet_name || 'R').charAt(0).toUpperCase()}
                       </div>
                     )}
                     {/* Name + tier inline */}
                     <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
                       <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
-                        {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
+                        {currentOutlet?.outlet_name || restaurantDoc?.restaurant_name || outlets[0]?.outlet_name || 'Select Restaurant'}
                       </span>
                       <span
                         className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
@@ -534,7 +534,7 @@ export default function Layout({ children }: LayoutProps) {
                         <Crown className="h-2 w-2" />GOLD
                       </span>
                     </div>
-                    <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150", restaurantDropdownOpen && "rotate-180")} />
+                    <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150", outletDropdownOpen && "rotate-180")} />
                   </button>
                 </DropdownMenuTrigger>
 
@@ -574,8 +574,8 @@ export default function Layout({ children }: LayoutProps) {
                       <input
                         autoFocus
                         placeholder="Search..."
-                        value={restaurantDropdownSearch}
-                        onChange={e => setRestaurantDropdownSearch(e.target.value)}
+                        value={outletDropdownSearch}
+                        onChange={e => setOutletDropdownSearch(e.target.value)}
                         onKeyDown={e => e.stopPropagation()}
                         onPointerDown={e => e.stopPropagation()}
                         className="flex-1 bg-transparent text-[13px] outline-none text-foreground placeholder:text-muted-foreground/60"
@@ -588,41 +588,41 @@ export default function Layout({ children }: LayoutProps) {
                   {/* Restaurant list */}
                   <div className="max-h-[280px] overflow-y-auto py-1">
                     {(() => {
-                      const filtered = restaurants.filter(r =>
-                        r.restaurant_name.toLowerCase().includes(restaurantDropdownSearch.toLowerCase())
+                      const filtered = outlets.filter(r =>
+                        r.outlet_name.toLowerCase().includes(outletDropdownSearch.toLowerCase())
                       )
                       if (filtered.length === 0) return (
                         <div className="px-3 py-5 text-center text-[13px] text-muted-foreground">No results</div>
                       )
-                      return filtered.map((restaurant) => {
-                        const isActive = selectedRestaurant === restaurant.name
+                      return filtered.map((outlet) => {
+                        const isActive = selectedOutlet === outlet.name
                         return (
                           <DropdownMenuItem
-                            key={restaurant.name}
+                            key={outlet.name}
                             className={cn(
                               "flex items-center gap-2.5 px-3 py-2.5 cursor-pointer focus:bg-accent border-b border-border last:border-0",
                               isActive && "bg-accent/50"
                             )}
                             onSelect={() => {
-                              setSelectedRestaurant(restaurant.name)
-                              window.dispatchEvent(new CustomEvent('restaurant-selected'))
+                              setSelectedOutlet(outlet.name)
+                              window.dispatchEvent(new CustomEvent('outlet-selected'))
                             }}
                           >
-                            {restaurant.logo ? (
-                              <img src={restaurant.logo} alt="" className="h-6 w-6 shrink-0 rounded object-cover border border-border" />
+                            {outlet.logo ? (
+                              <img src={outlet.logo} alt="" className="h-6 w-6 shrink-0 rounded object-cover border border-border" />
                             ) : (
                               <div className={cn(
                                 "flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold border",
                                 isActive ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"
                               )}>
-                                {restaurant.restaurant_name.charAt(0).toUpperCase()}
+                                {outlet.outlet_name.charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <span className={cn("text-[13px] truncate block", isActive ? "font-semibold text-foreground" : "font-normal text-foreground/80")}>
-                                {restaurant.restaurant_name}
+                                {outlet.outlet_name}
                               </span>
-                              {!restaurant.is_active && <span className="text-[10px] text-destructive/70 font-medium">Inactive</span>}
+                              {!outlet.is_active && <span className="text-[10px] text-destructive/70 font-medium">Inactive</span>}
                             </div>
                             {isActive && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />}
                           </DropdownMenuItem>
@@ -1265,7 +1265,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             {/* Wallet Balance Chip — always visible beside user avatar */}
-            {coinsBalance !== null && selectedRestaurant && (
+            {coinsBalance !== null && selectedOutlet && (
               <button
                 type="button"
                 onClick={() => setShowTopBarRecharge(true)}
@@ -1430,38 +1430,38 @@ export default function Layout({ children }: LayoutProps) {
           {/* List */}
           <div className="max-h-[380px] overflow-y-auto py-2 px-3 custom-scrollbar">
             {(() => {
-              const filtered = restaurants.filter(r =>
-                r.restaurant_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())
+              const filtered = outlets.filter(r =>
+                r.outlet_name.toLowerCase().includes(restaurantSearchQuery.toLowerCase())
               )
               if (filtered.length === 0) return (
                 <div className="py-10 text-center">
                   <p className="text-[13px] text-muted-foreground">No restaurants found</p>
                 </div>
               )
-              return filtered.map((restaurant) => {
-                const isSelected = selectedRestaurant === restaurant.name
+              return filtered.map((outlet) => {
+                const isSelected = selectedOutlet === outlet.name
                 return (
                   <button
-                    key={restaurant.name}
+                    key={outlet.name}
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-3 transition-colors text-left border-b border-border last:border-0",
                       isSelected ? "bg-accent/50" : "hover:bg-accent/30"
                     )}
                     onClick={() => {
-                      setSelectedRestaurant(restaurant.name)
-                      window.dispatchEvent(new CustomEvent('restaurant-selected'))
+                      setSelectedOutlet(outlet.name)
+                      window.dispatchEvent(new CustomEvent('outlet-selected'))
                       setShowRestaurantSearch(false)
                     }}
                   >
                     {/* Logo or letter avatar */}
-                    {restaurant.logo ? (
-                      <img src={restaurant.logo} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover border border-border" />
+                    {outlet.logo ? (
+                      <img src={outlet.logo} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover border border-border" />
                     ) : (
                       <div className={cn(
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[14px] font-bold border",
                         isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"
                       )}>
-                        {restaurant.restaurant_name.charAt(0).toUpperCase()}
+                        {outlet.outlet_name.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -1469,9 +1469,9 @@ export default function Layout({ children }: LayoutProps) {
                         "text-[14px] truncate",
                         isSelected ? "font-semibold text-foreground" : "font-normal text-foreground/80"
                       )}>
-                        {restaurant.restaurant_name}
+                        {outlet.outlet_name}
                       </p>
-                      {!restaurant.is_active && (
+                      {!outlet.is_active && (
                         <p className="text-[11px] text-destructive/70 font-medium">Inactive</p>
                       )}
                     </div>
@@ -1775,11 +1775,11 @@ export default function Layout({ children }: LayoutProps) {
       </Dialog>
 
       {/* Flamezo Wallet Top-up Modal — triggered from top bar chip */}
-      {selectedRestaurant && (
+      {selectedOutlet && (
         <AiRechargeModal
           open={showTopBarRecharge}
           onClose={() => setShowTopBarRecharge(false)}
-          restaurant={selectedRestaurant}
+          restaurant={selectedOutlet}
           onSuccess={refreshConfig}
         />
       )}
@@ -1787,7 +1787,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Hard Suspension Overlay */}
       {!isActive && billingStatus === 'suspended' && (
         <SuspendedOverlay
-          restaurantName={currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || "Your Restaurant"}
+          outletName={currentOutlet?.outlet_name || restaurantDoc?.restaurant_name || "Your Restaurant"}
         />
       )}
       <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>

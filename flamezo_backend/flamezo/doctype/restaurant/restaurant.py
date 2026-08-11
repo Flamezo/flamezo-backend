@@ -122,7 +122,7 @@ class Restaurant(Document):
 				
 				if not any(role in allowed_roles for role in user_roles):
 					frappe.throw(
-						_("This restaurant is suspended due to billing. Only an administrator can reactivate it. Please clear dues and contact support."),
+						_("This outlet is suspended due to billing. Only an administrator can reactivate it. Please clear dues and contact support."),
 						frappe.PermissionError
 					)
 
@@ -247,7 +247,7 @@ class Restaurant(Document):
 			
 			# Check if Restaurant User already exists
 			if frappe.db.exists("Restaurant User", {"user": user, "restaurant": self.name}):
-				frappe.msgprint(f"Owner {self.owner_email} is already assigned to this restaurant")
+				frappe.msgprint(f"Owner {self.owner_email} is already assigned to this outlet")
 				return
 			
 			# Create Restaurant User (this will auto-create User Permission via Restaurant User hooks)
@@ -269,7 +269,7 @@ class Restaurant(Document):
 			
 			if user_permission_exists:
 				frappe.msgprint(
-					f"✅ Owner {self.owner_email} has been created and assigned to this restaurant with Restaurant Admin role. User Permission created successfully.",
+					f"✅ Owner {self.owner_email} has been created and assigned to this outlet with Restaurant Admin role. User Permission created successfully.",
 					indicator="green"
 				)
 			else:

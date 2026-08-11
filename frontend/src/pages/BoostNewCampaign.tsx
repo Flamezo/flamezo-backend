@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall, useFrappeGetCall, useFrappeGetDoc } from '@/lib/frappe'
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
@@ -59,7 +59,7 @@ interface Campaign {
 // ─── Ad Preview Mockup Sub-component ─────────────────────────────────
 
 interface AdPreviewMockupProps {
-  restaurantName: string
+  outletName: string
   imageUrl?: string
   primaryText: string
   headline: string
@@ -72,7 +72,7 @@ interface AdPreviewMockupProps {
 }
 
 function AdPreviewMockup({
-  restaurantName,
+  outletName,
   imageUrl,
   primaryText,
   headline,
@@ -95,7 +95,7 @@ function AdPreviewMockup({
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold truncate">{restaurantName}</p>
+            <p className="text-[11px] font-semibold truncate">{outletName}</p>
             <p className="text-[9px] text-muted-foreground">Sponsored</p>
           </div>
           <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -159,13 +159,13 @@ function AdPreviewMockup({
 // ─── Component ──────────────────────────────────────────────────
 
 export default function BoostNewCampaign() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Get restaurant name
-  const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', selectedRestaurant ? undefined : null)
-  const restaurantName = (restaurantDoc as any)?.restaurant_name || selectedRestaurant || '{restaurantName}'
+  const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', selectedOutlet || '', selectedOutlet ? undefined : null)
+  const outletName = (restaurantDoc as any)?.restaurant_name || selectedOutlet || '{outletName}'
 
   // Read initial state from URL params (persists across refreshes)
   const urlCampaignId = searchParams.get('id') || ''
@@ -208,20 +208,20 @@ export default function BoostNewCampaign() {
     if (!selectedTemplate) {
       return {
         primaryText: 'Select a template above to preview your Instagram & Facebook campaign ad copy here...',
-        headline: `Flat ₹${offer} OFF at ${restaurantName}`
+        headline: `Flat ₹${offer} OFF at ${outletName}`
       }
     }
 
     let hook = selectedTemplate.hook_formula || ''
     const dishPlaceholder = heroDish.trim() || '[Hero Dish]'
     hook = hook.replace(/{dish}/gi, dishPlaceholder)
-    hook = hook.replace(/{restaurant}/gi, restaurantName)
+    hook = hook.replace(/{restaurant}/gi, outletName)
 
     return {
       primaryText: `✨ ${hook}\n\nGet FLAT ₹${offer} OFF on your next visit! Click 'Get Offer' to claim your exclusive voucher coupon now. Valid for a limited time.`,
-      headline: `Flat ₹${offer} OFF at ${restaurantName}!`
+      headline: `Flat ₹${offer} OFF at ${outletName}!`
     }
-  }, [templateId, heroDish, offer, restaurantName, filteredTemplates])
+  }, [templateId, heroDish, offer, outletName, filteredTemplates])
 
   // Image state
   const [adImageUrl, setAdImageUrl] = useState('')          // final processed creative URL
@@ -269,9 +269,9 @@ export default function BoostNewCampaign() {
 
   // Gallery — same API as Gallery Management page
   const { data: poolData } = useFrappeGetCall(
-    'flamezo_backend.flamezo.api.restaurant.get_restaurant_media_pool',
-    { restaurant_id: selectedRestaurant },
-    selectedRestaurant ? `boost-media-pool-${selectedRestaurant}` : null
+    'flamezo_backend.flamezo.api.outlet.get_outlet_media_pool',
+    { outlet_id: selectedOutlet },
+    selectedOutlet ? `boost-media-pool-${selectedOutlet}` : null
   )
   const existingMedia = useMemo(() => {
     const response = (poolData as any)?.message || poolData
@@ -286,11 +286,11 @@ export default function BoostNewCampaign() {
   const { call: fetchCampaignPerf } = useFrappePostCall('flamezo_backend.flamezo.api.boost.get_boost_performance')
 
   useEffect(() => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
 
     const promises: Promise<any>[] = [
-      fetchPrereqs({ restaurant_id: selectedRestaurant }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
+      fetchPrereqs({ outlet_id: selectedOutlet }).then((r: any) => r?.message?.data || r?.data).catch(() => null),
       fetchTemplates({}).then((r: any) => r?.message?.data || r?.data).catch(() => []),
     ]
 
@@ -342,18 +342,18 @@ export default function BoostNewCampaign() {
 
       setLoading(false)
     })
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const grade = (prereqs?.location_grade || 'A') as 'A' | 'B' | 'C'
 
   // ─── Handlers ─────────────────────────────────────────────────
 
   const handleCreateCampaign = async () => {
-    if (!selectedRestaurant || !templateId) return
+    if (!selectedOutlet || !templateId) return
     setSubmitting(true); setError(null)
     try {
       const res: any = await createCampaign({
-        restaurant_id: selectedRestaurant, template_id: templateId,
+        outlet_id: selectedOutlet, template_id: templateId,
         package_tier: pkg, campaign_duration: duration,
         geo_radius_km: radius, offer_amount: offer,
         hero_dish_name: heroDish.trim() || undefined,
@@ -462,12 +462,12 @@ export default function BoostNewCampaign() {
 
   // Upload a photo from the user's computer, then treat it as the source
   const handleUploadFromComputer = async (file: File) => {
-    if (!file || !selectedRestaurant) return
+    if (!file || !selectedOutlet) return
     setUploadingImage(true)
     try {
       const result = await uploadToR2({
         ownerDoctype: 'Boost Campaign',
-        ownerName: campaign?.campaign_id || selectedRestaurant,
+        ownerName: campaign?.campaign_id || selectedOutlet,
         mediaRole: 'boost_ad_source',
         file,
       })
@@ -818,7 +818,7 @@ export default function BoostNewCampaign() {
                       lat={restaurantDoc?.latitude ? parseFloat(restaurantDoc.latitude) : 21.1702}
                       lng={restaurantDoc?.longitude ? parseFloat(restaurantDoc.longitude) : 72.8311}
                       radius={radius}
-                      restaurantName={restaurantName}
+                      outletName={outletName}
                     />
                   </div>
                 </div>
@@ -951,7 +951,7 @@ export default function BoostNewCampaign() {
                           ₹{offer} OFF
                         </h3>
                         <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-wide truncate max-w-[130px]">
-                          at {restaurantName}
+                          at {outletName}
                         </p>
                       </div>
 
@@ -984,7 +984,7 @@ export default function BoostNewCampaign() {
                 Live Ad Preview
               </h3>
               <AdPreviewMockup
-                restaurantName={restaurantName}
+                outletName={outletName}
                 imageUrl={imagePreview || randomPlaceholderImage}
                 primaryText={mockPreviewCopy.primaryText}
                 headline={mockPreviewCopy.headline}
@@ -1005,7 +1005,7 @@ export default function BoostNewCampaign() {
               {/* Phone Frame — Instagram Mockup */}
               <div className="mx-auto lg:mx-0">
                 <AdPreviewMockup
-                  restaurantName={restaurantName}
+                  outletName={outletName}
                   imageUrl={imagePreview}
                   primaryText={campaign.ad_primary_text}
                   headline={campaign.ad_headline}

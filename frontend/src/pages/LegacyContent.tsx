@@ -12,11 +12,11 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Plus, Edit2, Trash2, Users, Star, Instagram, Image, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { uploadToR2 } from '@/lib/r2Upload'
 
 export default function LegacyContentPage() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
 
@@ -36,12 +36,12 @@ export default function LegacyContentPage() {
   // Get the main legacy content document
   const { data: legacyContent, isLoading: contentLoading, mutate: mutateContent } = useFrappeGetDoc(
     'Legacy Content',
-    selectedRestaurant || '',
-    { enabled: !!selectedRestaurant }
+    selectedOutlet || '',
+    { enabled: !!selectedOutlet }
   )
 
   React.useEffect(() => {
-    if (legacyContent && legacyContent.name === selectedRestaurant) {
+    if (legacyContent && legacyContent.name === selectedOutlet) {
       setHeroData({
         opening_text: legacyContent.opening_text || '',
         paragraph_1: legacyContent.paragraph_1 || ''
@@ -55,24 +55,24 @@ export default function LegacyContentPage() {
         footer_cta_route: legacyContent.footer_cta_route || ''
       })
     }
-  }, [legacyContent, selectedRestaurant])
+  }, [legacyContent, selectedOutlet])
 
   // Get child table data
   const { data: testimonials, mutate: mutateTestimonials } = useFrappeGetDocList('Legacy Testimonial', {
-    filters: [['parent', '=', selectedRestaurant]],
+    filters: [['parent', '=', selectedOutlet]],
     fields: ['name', 'customer_name', 'rating', 'text', 'location', 'avatar', 'display_order'],
     orderBy: { field: 'display_order', order: 'asc' }
   })
 
   const { data: members, mutate: mutateMembers } = useFrappeGetDocList('Legacy Member', {
-    filters: [['parent', '=', selectedRestaurant]],
+    filters: [['parent', '=', selectedOutlet]],
     fields: ['name', 'member_name', 'role', 'image', 'display_order'],
     orderBy: { field: 'display_order', order: 'asc' }
   })
 
 
   const { data: instagramReels, mutate: mutateReels } = useFrappeGetDocList('Legacy Instagram Reel', {
-    filters: [['parent', '=', selectedRestaurant]],
+    filters: [['parent', '=', selectedOutlet]],
     fields: ['name', 'reel_link', 'title', 'display_order'],
     orderBy: { field: 'display_order', order: 'asc' }
   })
@@ -85,7 +85,7 @@ export default function LegacyContentPage() {
 
   const handleGenerateLegacy = async () => {
     try {
-      const res = await generateLegacyContent({ restaurant_id: selectedRestaurant })
+      const res = await generateLegacyContent({ outlet_id: selectedOutlet })
       if (res?.message?.success) {
         toast.success('Legacy content generated successfully')
         mutateContent()
@@ -104,7 +104,7 @@ export default function LegacyContentPage() {
     try {
       const result = await uploadToR2({
         ownerDoctype: 'Legacy Content',
-        ownerName: selectedRestaurant || '',
+        ownerName: selectedOutlet || '',
         mediaRole,
         file
       })
@@ -121,7 +121,7 @@ export default function LegacyContentPage() {
     e.preventDefault()
     try {
       await updateLegacyContent({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         content: {
           openingText: heroData.opening_text,
           paragraph1: heroData.paragraph_1
@@ -138,7 +138,7 @@ export default function LegacyContentPage() {
     e.preventDefault()
     try {
       await updateLegacyContent({
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         footer: {
           mediaSrc: footerData.footer_media_src,
           title: footerData.footer_title,
@@ -165,7 +165,7 @@ export default function LegacyContentPage() {
         await createDoc({
           ...data,
           doctype: doctype,
-          parent: selectedRestaurant,
+          parent: selectedOutlet,
           parenttype: 'Legacy Content',
           parentfield: getChildTableField(doctype)
         })
@@ -375,7 +375,7 @@ export default function LegacyContentPage() {
     )
   }
 
-  if (!selectedRestaurant) {
+  if (!selectedOutlet) {
     return (
       <div className="text-center py-8">
         <p>Please select an outlet to manage legacy content.</p>

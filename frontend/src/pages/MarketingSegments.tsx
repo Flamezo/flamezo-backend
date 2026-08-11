@@ -1,4 +1,4 @@
-import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -88,7 +88,7 @@ const CRITERIA_DATA: Record<string, { description: string; icon: any; color: str
 }
 
 export default function MarketingSegments() {
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedOutlet } = useOutlet()
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [showBuilder, setShowBuilder] = useState(false)
@@ -121,11 +121,11 @@ export default function MarketingSegments() {
   const { call: fetchOptOutStatsApi } = useFrappePostCall('flamezo_backend.flamezo.api.marketing.get_optout_stats')
 
   const load = () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setLoading(true)
     Promise.all([
-      fetchSegments({ restaurant_id: selectedRestaurant }),
-      fetchOptOutStatsApi({ restaurant_id: selectedRestaurant })
+      fetchSegments({ outlet_id: selectedOutlet }),
+      fetchOptOutStatsApi({ outlet_id: selectedOutlet })
     ]).then(([sRes, oRes]: any[]) => {
       if (sRes?.message?.success) {
         setSegments(sRes.message.data || [])
@@ -140,14 +140,14 @@ export default function MarketingSegments() {
 
   useEffect(() => {
     load()
-  }, [selectedRestaurant])
+  }, [selectedOutlet])
 
   const handlePreview = async () => {
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setPreviewing(true)
     try {
       const res = await previewApi({ 
-        restaurant_id: selectedRestaurant,
+        outlet_id: selectedOutlet,
         criteria_type: form.criteria_type,
         filters: {
            days_since_last_visit: form.days_since_last_visit,
@@ -168,11 +168,11 @@ export default function MarketingSegments() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedRestaurant) return
+    if (!selectedOutlet) return
     setSaving(true)
     try {
       const res = await saveSegmentApi({ 
-        restaurant_id: selectedRestaurant, 
+        outlet_id: selectedOutlet, 
         segment_data: { 
           ...form, 
           name: editingName 
@@ -202,7 +202,7 @@ export default function MarketingSegments() {
 
   const handleDelete = async () => {
     try {
-      await deleteSegmentApi({ restaurant_id: selectedRestaurant, segment_name: confirmDelete.name })
+      await deleteSegmentApi({ outlet_id: selectedOutlet, segment_name: confirmDelete.name })
       toast.success('Segment deleted')
       load()
     } catch (e: any) {
