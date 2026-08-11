@@ -785,6 +785,19 @@ def upload_chat_image(request_id, phone, file_content, filename, content_type="i
     if len(raw) > max_bytes:
         frappe.throw(_("Image too large — max 5 MB"))
 
+    # Compress before storing — chat photos are shown small in-app, so a
+    # resized WebP saves a lot of storage with no visible quality loss.
+    try:
+        from flamezo_backend.flamezo.media.processors import compress_image_bytes
+        comp, comp_type, comp_ext = compress_image_bytes(raw)
+        if comp_type:
+            raw = comp
+            content_type = comp_type
+            base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+            filename = f"{base_name}.{comp_ext}"
+    except Exception:
+        pass  # fall back to the original bytes if compression is unavailable
+
     try:
         from flamezo_backend.flamezo.utils.r2 import upload_bytes
         safe_name = f"crowd/{request_id}/{frappe.generate_hash(length=12)}-{filename}"

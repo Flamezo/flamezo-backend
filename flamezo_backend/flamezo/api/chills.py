@@ -626,6 +626,10 @@ def publish_chills(object_key, description, phone, outlet_id=None, audio=None, t
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
+    # Compress the raw upload to a small 720p variant in the background
+    # (same pipeline UGC uses), then swap the URLs and drop the raw.
+    _enqueue_chills_compression(doc.name, object_key)
+
     # Invalidate feed caches — delete per-phone cached pages
     frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
 
@@ -844,9 +848,95 @@ def merchant_publish_chills(
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
+    # Compress in the background (720p + poster), swap URLs, delete the raw.
+    _enqueue_chills_compression(doc.name, object_key)
+
     frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
 
     return {"success": True, "data": {"chills_id": doc.name, "video_url": video_url}}
+
+
+# ── Background compression (reuses the UGC media pipeline) ─────────────────────
+
+def _enqueue_chills_compression(chills_id, raw_object_key):
+    """Queue the transcode job for a freshly-published Chills video. Best-effort:
+    if enqueue fails the reel still plays from its raw upload."""
+    if not raw_object_key:
+        return
+    try:
+        frappe.enqueue(
+            "flamezo_backend.flamezo.api.chills._compress_chills_video",
+            queue="long",
+            timeout=1800,
+            enqueue_after_commit=True,
+            chills_id=chills_id,
+            raw_object_key=raw_object_key,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Chills compress enqueue failed: {chills_id}")
+
+
+def _compress_chills_video(chills_id, raw_object_key):
+    """Transcode a raw Chills upload to a compressed 720p MP4 + poster (the same
+    ffmpeg pipeline UGC uses), point the Chills doc at the compressed CDN URLs,
+    then delete the raw original to keep storage small.
+
+    Idempotent: variant keys are derived from the raw key, so a retry re-uploads
+    to the same paths. Non-fatal: on any failure the reel keeps its raw URL.
+    """
+    import os
+    import tempfile
+    from flamezo_backend.flamezo.media.storage import (
+        download_object, upload_object, delete_object, get_cdn_url,
+    )
+    from flamezo_backend.flamezo.media.processors import process_video
+
+    if not frappe.db.exists("Chills", chills_id):
+        return
+
+    base, _dot, _ext = raw_object_key.rpartition(".")
+    base = base or raw_object_key
+    comp_key = f"{base}_720p.mp4"
+    poster_key = f"{base}_poster.jpg"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        raw_path = os.path.join(tmp, "raw_input")
+        try:
+            download_object(raw_object_key, raw_path)
+            result = process_video(raw_path, tmp) or {}
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Chills transcode failed: {chills_id}")
+            return
+
+        video_path = result.get("video_path")
+        poster_path = result.get("poster_path")
+        if not isinstance(video_path, str) or not os.path.exists(video_path):
+            # Nothing produced — leave the raw upload in place.
+            frappe.log_error(f"Chills transcode produced no output for {chills_id}", "Chills Compress")
+            return
+
+        upload_object(video_path, comp_key, content_type="video/mp4")
+        video_url = get_cdn_url(comp_key)
+
+        thumbnail_url = None
+        if isinstance(poster_path, str) and os.path.exists(poster_path):
+            upload_object(poster_path, poster_key, content_type="image/jpeg")
+            thumbnail_url = get_cdn_url(poster_key)
+
+        updates = {"video_url": video_url}
+        if thumbnail_url:
+            updates["thumbnail_url"] = thumbnail_url
+        # Point the reel at the compressed variant BEFORE deleting the raw so
+        # there is never a window where the URL 404s.
+        frappe.db.set_value("Chills", chills_id, updates, update_modified=False)
+        frappe.db.commit()
+
+        try:
+            delete_object(raw_object_key)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Chills raw cleanup failed: {chills_id}")
+
+    frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
 
 
 @frappe.whitelist(allow_guest=True)
