@@ -664,15 +664,24 @@ def get_outlet_media_pool(outlet_id):
 		}
 		product_label = MEDIA_LABELS.get(outlet_type, "Products & Catalogue")
 
-		if outlet_doc.get("logo"):
+		# Restaurant.logo is the field this pool reads, but a real number of
+		# outlets only ever got their logo written to Restaurant Config (a
+		# separate, older write path — see get_my_restaurants' same fallback
+		# in ui.py) and never had it copied across. Fall back so those outlets
+		# don't show 0 assets despite having a real, live logo.
+		branding_logo = outlet_doc.get("logo")
+		if not branding_logo:
+			branding_logo = frappe.db.get_value("Restaurant Config", {"restaurant": outlet}, "logo")
+
+		if branding_logo:
 			media_pool.append({
-				"url": outlet_doc.logo,
+				"url": branding_logo,
 				"type": "image",
 				"source_title": "Outlet Logo",
 				"source_type": "Branding",
 				"category": "Branding"
 			})
-			seen_urls.add(outlet_doc.logo)
+			seen_urls.add(branding_logo)
 
 		# 1. Menu Product Media
 		product_media = frappe.db.sql("""
