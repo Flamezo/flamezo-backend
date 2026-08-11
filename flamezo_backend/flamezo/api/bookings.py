@@ -1144,3 +1144,170 @@ def get_all_customer_bookings(phone, limit=50):
 	except Exception as e:
 		frappe.log_error(f"get_all_customer_bookings: {e}", "Bookings_Ecosystem")
 		return {"success": False, "error": {"code": "BOOKINGS_FETCH_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_customer_booking_history(phone, limit=50):
+	"""
+	Cross-outlet PAST bookings for a verified customer — the counterpart to
+	get_all_customer_bookings (which is upcoming-only by design). "Past" here
+	means a terminal status (cancelled/completed/rejected/no-show) OR a date
+	that's already gone by, across all four booking types. Powers the
+	Activity screen's Past tab alongside dining orders (get_my_orders) —
+	without this, cancelled/completed table/banquet/appointment/court
+	bookings were invisible in the app entirely.
+	"""
+	try:
+		from flamezo_backend.flamezo.utils.customer_helpers import (
+			normalize_phone, get_phone_variants_for_lookup,
+			validate_customer_session, get_customer_token, is_phone_verified,
+		)
+
+		normalized = normalize_phone(phone)
+		if not normalized or len(normalized) != 10:
+			return {"success": False, "error": {"code": "INVALID_PHONE", "message": "Invalid phone number"}}
+
+		session_token = get_customer_token()
+		if not validate_customer_session(phone, session_token) and not is_phone_verified(phone):
+			return {"success": False, "error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to view your bookings."}}
+
+		phone_variants = get_phone_variants_for_lookup(normalized)
+		ph = ", ".join(["%s"] * len(phone_variants))
+		today_str = today()
+
+		# ── Table Bookings ────────────────────────────────────────────────────
+		def _fetch_table():
+			return frappe.db.sql(
+				"SELECT name, restaurant, `date`, time_slot, status FROM `tabTable Booking` "
+				"WHERE customer_phone IN (" + ph + ") "
+				"AND (`date` < %s OR status IN ('cancelled', 'completed', 'rejected', 'no-show')) "
+				"ORDER BY `date` DESC LIMIT 50",
+				phone_variants + [today_str], as_dict=True,
+			)
+
+		# ── Banquet Bookings ──────────────────────────────────────────────────
+		def _fetch_banquet():
+			return frappe.db.sql(
+				"SELECT name, restaurant, `date`, time_slot, status FROM `tabBanquet Booking` "
+				"WHERE customer_phone IN (" + ph + ") "
+				"AND (`date` < %s OR status IN ('cancelled', 'completed')) "
+				"ORDER BY `date` DESC LIMIT 50",
+				phone_variants + [today_str], as_dict=True,
+			)
+
+		# ── Service Appointments ──────────────────────────────────────────────
+		def _fetch_appointments():
+			return frappe.db.sql(
+				"SELECT name, restaurant, outlet_type, appointment_date, appointment_time, "
+				"catalogue_item_name, sub_item_name, status "
+				"FROM `tabService Appointment` "
+				"WHERE customer_phone IN (" + ph + ") "
+				"AND (appointment_date < %s OR status IN ('Cancelled', 'Completed', 'No Show')) "
+				"ORDER BY appointment_date DESC LIMIT 50",
+				phone_variants + [today_str], as_dict=True,
+			)
+
+		# ── Court Bookings ────────────────────────────────────────────────────
+		def _fetch_court_bookings():
+			return frappe.db.sql(
+				"SELECT name, restaurant, court_name, sport_type, booking_date, "
+				"start_time, end_time, status, payment_status, consumer_fee "
+				"FROM `tabCourt Booking` "
+				"WHERE customer_phone IN (" + ph + ") "
+				"AND (booking_date < %s OR status IN ('Cancelled', 'Completed', 'No Show')) "
+				"ORDER BY booking_date DESC LIMIT 50",
+				phone_variants + [today_str], as_dict=True,
+			)
+
+		table_rows   = _fetch_table()
+		banquet_rows = _fetch_banquet()
+		appt_rows    = _fetch_appointments()
+		court_rows   = _fetch_court_bookings()
+
+		all_rows = table_rows + banquet_rows + appt_rows + court_rows
+		outlet_ids = list({r.get("restaurant") for r in all_rows if r.get("restaurant")})
+		meta = {}
+		if outlet_ids:
+			for m in frappe.get_all(
+				"Restaurant",
+				filters={"name": ["in", outlet_ids]},
+				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
+			):
+				meta[m["name"]] = m
+
+		def _base(r, btype, date_field):
+			m = meta.get(r.get("restaurant"), {})
+			return {
+				"id": r.get("name"),
+				"type": btype,
+				"outletId": r.get("restaurant"),
+				"outletName": m.get("restaurant_name") or r.get("restaurant"),
+				"city": m.get("city") or "",
+				"logo": m.get("logo") or "",
+				"outlet_type": m.get("outlet_type") or "",
+				"date": str(r.get(date_field)) if r.get(date_field) else None,
+				"status": r.get("status"),
+			}
+
+		def _fmt_table(r):
+			b = _base(r, "table", "date")
+			b["timeSlot"] = r.get("time_slot") or ""
+			return b
+
+		def _fmt_banquet(r):
+			b = _base(r, "banquet", "date")
+			b["timeSlot"] = r.get("time_slot") or ""
+			return b
+
+		def _fmt_time(t):
+			if t is None:
+				return ""
+			parts = str(t).split(":")
+			if len(parts) >= 2:
+				return f"{parts[0].zfill(2)}:{parts[1][:2]}"
+			return str(t)[:5]
+
+		def _fmt_appointment(r):
+			b = _base(r, "appointment", "appointment_date")
+			b["timeSlot"]        = _fmt_time(r.get("appointment_time"))
+			b["serviceName"]     = r.get("catalogue_item_name") or ""
+			b["subItemName"]     = r.get("sub_item_name") or ""
+			b["outlet_type"]     = r.get("outlet_type") or b["outlet_type"]
+			return b
+
+		def _fmt_court(r):
+			b = _base(r, "court", "booking_date")
+			start = _fmt_time(r.get("start_time"))
+			end   = _fmt_time(r.get("end_time"))
+			b["timeSlot"]      = f"{start}–{end}" if start and end else start
+			b["courtName"]     = r.get("court_name") or ""
+			b["sportType"]     = r.get("sport_type") or ""
+			b["paymentStatus"] = r.get("payment_status") or ""
+			b["consumerFee"]   = float(r.get("consumer_fee") or 0)
+			return b
+
+		bookings = (
+			[_fmt_table(r)      for r in table_rows]
+			+ [_fmt_banquet(r)  for r in banquet_rows]
+			+ [_fmt_appointment(r) for r in appt_rows]
+			+ [_fmt_court(r)    for r in court_rows]
+		)
+		# Most recent first — this is a history feed, not an upcoming schedule.
+		bookings.sort(key=lambda b: b.get("date") or "", reverse=True)
+
+		try:
+			lim = int(limit)
+		except Exception:
+			lim = 50
+
+		return {
+			"success": True,
+			"data": {
+				"count": len(bookings[:lim]),
+				"bookings": bookings[:lim],
+				"types_included": ["table", "banquet", "appointment", "court"],
+			},
+		}
+	except Exception as e:
+		frappe.log_error(f"get_customer_booking_history: {e}", "Bookings_Ecosystem")
+		return {"success": False, "error": {"code": "BOOKINGS_FETCH_ERROR", "message": str(e)}}
