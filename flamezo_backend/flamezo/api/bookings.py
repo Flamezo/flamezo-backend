@@ -44,23 +44,29 @@ def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_
 		if isinstance(customer_info, str):
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
-		
-		# Production Auth Gate: always require valid session token
+
+		# Production Auth Gate: phone + a valid session are always required —
+		# this used to be `if phone:`, which let anyone create a booking (and
+		# attribute it to any phone) simply by omitting phone from
+		# customer_info. Same class of bug fixed in crowd.py /
+		# table_booking_consumer.py / appointments.py / courts.py.
 		phone = customer_info.get("phone")
-		if phone:
-			session_token = get_customer_token()
-			if not validate_customer_session(phone, session_token):
-				return {
-					"success": False,
-					"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
-				}
-		
+		if not phone:
+			return {
+				"success": False,
+				"error": {"code": "MISSING_PARAM", "message": "customer_info.phone is required"}
+			}
+		session_token = get_customer_token()
+		if not validate_customer_session(phone, session_token):
+			return {
+				"success": False,
+				"error": {"code": "SECURE_SESSION_INVALID", "message": "Please verify your phone to continue."}
+			}
+
 		# Get platform customer for linking
-		platform_customer = None
-		if phone:
-			cust = get_or_create_customer(phone, customer_info.get("fullName"), customer_info.get("email"))
-			platform_customer = cust.name if cust else None
-		
+		cust = get_or_create_customer(phone, customer_info.get("fullName"), customer_info.get("email"))
+		platform_customer = cust.name if cust else None
+
 		# Get user
 		user = frappe.session.user if frappe.session.user != "Guest" else None
 		if not user and not session_id:
@@ -329,22 +335,28 @@ def create_banquet_booking(outlet_id, number_of_guests, event_type, date, time_s
 		if isinstance(customer_info, str):
 			customer_info = json.loads(customer_info) if customer_info else {}
 		customer_info = customer_info or {}
-		
-		# Production Auth Gate: always require valid session token
+
+		# Production Auth Gate: phone + a valid session are always required —
+		# this used to be `if phone:`, which let anyone create a banquet
+		# booking (and attribute it to any phone) simply by omitting phone
+		# from customer_info. Same class of bug fixed in crowd.py /
+		# table_booking_consumer.py / appointments.py / courts.py.
 		phone = customer_info.get("phone")
-		if phone:
-			session_token = get_customer_token()
-			if not validate_customer_session(phone, session_token):
-				return {
-					"success": False,
-					"error": {"code": "SECURE_SESSION_INVALID", "message": "Please log in to complete your booking"}
-				}
-		
+		if not phone:
+			return {
+				"success": False,
+				"error": {"code": "MISSING_PARAM", "message": "customer_info.phone is required"}
+			}
+		session_token = get_customer_token()
+		if not validate_customer_session(phone, session_token):
+			return {
+				"success": False,
+				"error": {"code": "SECURE_SESSION_INVALID", "message": "Please verify your phone to continue."}
+			}
+
 		# Get platform customer for linking
-		platform_customer = None
-		if phone:
-			cust = get_or_create_customer(phone, customer_info.get("fullName"), customer_info.get("email"))
-			platform_customer = cust.name if cust else None
+		cust = get_or_create_customer(phone, customer_info.get("fullName"), customer_info.get("email"))
+		platform_customer = cust.name if cust else None
 		
 		# Get user
 		user = frappe.session.user if frappe.session.user != "Guest" else None

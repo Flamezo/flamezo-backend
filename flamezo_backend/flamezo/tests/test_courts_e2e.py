@@ -37,6 +37,16 @@ _PHONE  = "9100000001"
 _PHONE2 = "9100000002"
 
 
+def _verified_session():
+    """courts.py imports has_active_customer_session by name, so it must be
+    patched at its own bound name — same convention as
+    test_table_booking_e2e.py / test_appointments_e2e.py."""
+    return patch(
+        "flamezo_backend.flamezo.api.courts.has_active_customer_session",
+        return_value=True,
+    )
+
+
 def _make_restaurant(suffix="01"):
     name = f"{_PREFIX}-{suffix}"
     r = make_restaurant(name, outlet_type="sports_court")
@@ -246,12 +256,15 @@ class TestCreateCourtBooking(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.restaurant = _make_restaurant("CB01")
         self.court = _make_court(
             self.restaurant, opening="09:00:00", closing="12:00:00", slot_duration=60
         )
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.restaurant)
 
     @patch("flamezo_backend.flamezo.api.courts._get_razorpay_client")
@@ -401,6 +414,8 @@ class TestGetMyCourtBookings(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.r1 = _make_restaurant("MG01")
         self.r2 = _make_restaurant("MG02")
         self.c1 = _make_court(self.r1)
@@ -410,6 +425,7 @@ class TestGetMyCourtBookings(unittest.TestCase):
         self.b3 = _make_court_booking(self.r1, self.c1, phone=_PHONE2)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.r1)
         _cleanup(self.r2)
 
@@ -435,10 +451,13 @@ class TestCancelCourtBooking(unittest.TestCase):
 
     def setUp(self):
         frappe.set_user("Administrator")
+        self._session_patch = _verified_session()
+        self._session_patch.start()
         self.restaurant = _make_restaurant("CC01")
         self.court = _make_court(self.restaurant)
 
     def tearDown(self):
+        self._session_patch.stop()
         _cleanup(self.restaurant)
 
     @patch("flamezo_backend.flamezo.api.courts._get_razorpay_client")
@@ -475,6 +494,44 @@ class TestCancelCourtBooking(unittest.TestCase):
         res = cancel_court_booking(booking_id=booking, phone=_PHONE)
         self.assertFalse(res["success"])
         self.assertEqual(res["error"]["code"], "INVALID_STATUS")
+
+
+class TestCourtSessionEnforcement(unittest.TestCase):
+    """create_court_booking/get_my_court_bookings/cancel_court_booking used
+    to trust a client-supplied phone with zero session verification —
+    anyone who knew/guessed a real phone number could create a paid
+    booking as that person, read their payment metadata, or cancel their
+    real booking and trigger a live Razorpay refund without consent.
+    These tests verify the fix without the blanket _verified_session()
+    patch the other classes use, since the point here is the unpatched path."""
+
+    def setUp(self):
+        frappe.set_user("Administrator")
+        self.restaurant = _make_restaurant("SE01")
+        self.court = _make_court(self.restaurant)
+
+    def tearDown(self):
+        _cleanup(self.restaurant)
+
+    def test_create_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import create_court_booking
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            create_court_booking(
+                outlet_id=self.restaurant, court_id=self.court,
+                booking_date=add_days(today(), 1), start_time="09:00",
+                customer_name="Test Player", customer_phone=_PHONE,
+            )
+
+    def test_get_my_bookings_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import get_my_court_bookings
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            get_my_court_bookings(phone=_PHONE)
+
+    def test_cancel_without_session_rejected(self):
+        from flamezo_backend.flamezo.api.courts import cancel_court_booking
+        booking = _make_court_booking(self.restaurant, self.court, phone=_PHONE)
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            cancel_court_booking(booking_id=booking, phone=_PHONE)
 
 
 class TestMerchantCourtManagement(unittest.TestCase):
