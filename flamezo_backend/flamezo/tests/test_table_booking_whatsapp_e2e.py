@@ -78,7 +78,7 @@ class TestBuildParams(unittest.TestCase):
         self.assertEqual(len(params), 4)
         self.assertIn("Test Guest", params[0])
         self.assertIn(_PHONE, params[0])
-        self.assertEqual(params[1], "3 guests")
+        self.assertEqual(params[1], "a table for 3")
         self.assertEqual(params[3], "Tonight, around 8")
 
     def test_notes_appended_to_time_param(self):

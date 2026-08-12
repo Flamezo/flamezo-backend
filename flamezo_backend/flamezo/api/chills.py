@@ -11,6 +11,15 @@ from flamezo_backend.flamezo.utils import redis_counters as rc
 MAX_NICHE_TAGS = 8
 MAX_CUSTOM_TAGS = 5
 
+# ── Duration cap ────────────────────────────────────────────────────────────
+# Chills is discovery content (decide-in-seconds swiping), not storytelling —
+# short-form completion rates drop off sharply past ~30-40s, and this app's
+# own uploaded content rarely runs longer anyway. Enforced here (the
+# authoritative check) AND client-side in chills_upload_screen.dart's
+# kMaxChillsDurationSeconds (fail fast, don't waste upload bandwidth on a
+# video that'll just get rejected) — keep both in sync if this ever changes.
+MAX_CHILLS_DURATION_SECONDS = 60
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 def _require_phone(phone):
@@ -30,6 +39,35 @@ def _require_session(phone):
 
 def _redis_key(prefix, *parts):
     return f"chills:{prefix}:" + ":".join(str(p) for p in parts)
+
+
+def _reject_if_too_long(object_key):
+    """Authoritative duration check — downloads the raw upload and probes it
+    with ffprobe (the client-side check is trust-nothing UX, easily bypassed
+    by a direct API call). Best-effort: if the file can't be probed for any
+    reason, don't block the publish over an infra hiccup — the length cap is
+    a product decision, not a security boundary, so failing open here is the
+    right tradeoff (mirrors this module's existing best-effort patterns)."""
+    import os
+    import tempfile
+    from flamezo_backend.flamezo.media.storage import download_object
+    from flamezo_backend.flamezo.media.processors import VideoProcessor
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            local_path = os.path.join(tmp, "probe_input")
+            download_object(object_key, local_path)
+            meta = VideoProcessor(local_path, tmp).get_metadata()
+            duration = meta.get("duration") or 0
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Chills duration probe failed: {object_key}")
+        return
+
+    if duration > MAX_CHILLS_DURATION_SECONDS:
+        frappe.throw(
+            _(f"Chills videos can be up to {MAX_CHILLS_DURATION_SECONDS} seconds — this one is {int(duration)}s. Trim it and try again."),
+            frappe.ValidationError,
+        )
 
 
 def _parse_list(val):
@@ -610,6 +648,8 @@ def publish_chills(object_key, description, phone, outlet_id=None, audio=None, t
     if not object_exists(object_key):
         frappe.throw(_("Video not found on storage. Please upload first."))
 
+    _reject_if_too_long(object_key)
+
     video_url = public_url(object_key)
     thumbnail_url = public_url(thumbnail_key) if thumbnail_key else ""
 
@@ -818,6 +858,8 @@ def merchant_publish_chills(
     outlet = _resolve_outlet(outlet_id)
     _assert_outlet_access(outlet, phone=phone)
 
+    _reject_if_too_long(object_key)
+
     video_url = public_url(object_key)
     thumbnail_url = public_url(thumbnail_key) if thumbnail_key else ""
 
@@ -878,8 +920,15 @@ def _enqueue_chills_compression(chills_id, raw_object_key):
 
 def _compress_chills_video(chills_id, raw_object_key):
     """Transcode a raw Chills upload to a compressed 720p MP4 + poster (the same
-    ffmpeg pipeline UGC uses), point the Chills doc at the compressed CDN URLs,
-    then delete the raw original to keep storage small.
+    ffmpeg pipeline UGC uses), point the Chills doc at the compressed CDN URLs.
+
+    The raw original is kept (NOT deleted) — Aug 2026 change. R2 storage is
+    ~$0.015/GB-month with no egress fees, so keeping it costs almost nothing,
+    and it means a future pipeline improvement (better codec, different
+    resolution, a bug fix) can re-derive a new variant from the real source
+    instead of re-compressing an already-lossy file — the same pattern
+    Instagram/TikTok/YouTube all follow (never serve the raw master directly,
+    but never destroy it either).
 
     Idempotent: variant keys are derived from the raw key, so a retry re-uploads
     to the same paths. Non-fatal: on any failure the reel keeps its raw URL.
@@ -887,7 +936,7 @@ def _compress_chills_video(chills_id, raw_object_key):
     import os
     import tempfile
     from flamezo_backend.flamezo.media.storage import (
-        download_object, upload_object, delete_object, get_cdn_url,
+        download_object, upload_object, get_cdn_url,
     )
     from flamezo_backend.flamezo.media.processors import process_video
 
@@ -926,15 +975,10 @@ def _compress_chills_video(chills_id, raw_object_key):
         updates = {"video_url": video_url}
         if thumbnail_url:
             updates["thumbnail_url"] = thumbnail_url
-        # Point the reel at the compressed variant BEFORE deleting the raw so
-        # there is never a window where the URL 404s.
+        # Point the reel at the compressed variant. The raw original is
+        # intentionally left in place at raw_object_key — see docstring.
         frappe.db.set_value("Chills", chills_id, updates, update_modified=False)
         frappe.db.commit()
-
-        try:
-            delete_object(raw_object_key)
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Chills raw cleanup failed: {chills_id}")
 
     frappe.cache().delete_value(_redis_key("feed", "anon", "start", 10))
 
