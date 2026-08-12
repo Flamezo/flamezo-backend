@@ -27,6 +27,7 @@
   "whatsapp_cloud_api_business_id",
   "order_whatsapp_template_name",
   "table_booking_whatsapp_template_name",
+  "booking_customer_whatsapp_template_name",
   "section_marketing_costs",
   "marketing_sms_cost_per_msg",
   "marketing_sms_coins_per_msg",
@@ -175,7 +176,13 @@
    "fieldname": "table_booking_whatsapp_template_name",
    "fieldtype": "Data",
    "label": "Booking Lead Template Name",
-   "description": "Approved Meta UTILITY template used to alert an outlet the instant a customer requests a table (4 generic body params: customer name+phone, what they want e.g. 'a table for 4', date, preferred time + any notes). Body is booking-type-agnostic by design (works for table/banquet/appointment/court alerts, not table-specific wording) — same template is meant to be reused once those dispatch jobs exist. No table is held — this is a lead handoff, not a confirmed reservation. Live template: flamezo_booking_request (WABA 1297593562334650, submitted for review)."
+   "description": "Approved Meta UTILITY template used to alert an outlet the instant a customer requests a table (4 generic body params: customer name+phone, what they want e.g. 'a table for 4', date, preferred time + any notes). Body is booking-type-agnostic by design (works for table/banquet/appointment/court alerts, not table-specific wording) — same template is meant to be reused once those dispatch jobs exist. No table is held — this is a lead handoff, not a confirmed reservation. Live template: flamezo_booking_request (WABA 1297593562334650)."
+  },
+  {
+   "fieldname": "booking_customer_whatsapp_template_name",
+   "fieldtype": "Data",
+   "label": "Booking Confirmation Template Name (Customer)",
+   "description": "Approved Meta UTILITY template that confirms to the CUSTOMER their request was sent (4 generic body params: first name, outlet name, what was requested, date+time). Same booking-type-agnostic design as the merchant-side template — reusable for banquet/appointment once those flows exist. Live template: flamezo_booking_sent (WABA 1297593562334650)."
   },
   {
    "fieldname": "section_marketing_costs",
