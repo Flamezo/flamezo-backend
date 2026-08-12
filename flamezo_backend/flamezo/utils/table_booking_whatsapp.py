@@ -8,6 +8,17 @@ was checked, nothing is promised to the customer. This message is purely
 "a customer wants to visit you" — the outlet handles it like any other
 walk-in or phone-in request, at their own discretion.
 
+Uses the shared `flamezo_booking_request` Meta template (WABA
+1297593562334650), whose body is deliberately booking-type-agnostic:
+  "You have a new booking request from {{1}} for {{2}}.
+   Date: {{3}}  Time: {{4}}  ..."
+{{2}} is a short human phrase describing what was requested ("a table for
+4" here) rather than table-specific wording, so the exact same template
+can be reused by banquet/appointment/court dispatch jobs later — each
+just builds its own {{2}} phrase ("a banquet for 50 guests", "a haircut
+appointment", "a court slot") and calls send_whatsapp_cloud_message the
+same way. No new template submission needed per booking type.
+
 Enqueued, idempotent (Table Booking.is_sent_to_whatsapp) and retried — it
 never blocks or fails booking creation.
 """
@@ -21,9 +32,9 @@ MAX_ATTEMPTS = 3
 
 def build_table_booking_params(booking_doc, outlet_name):
     """
-    4 BODY params for the table-booking lead template:
+    4 BODY params for the shared booking-lead template:
       {{1}} customer name (+ phone)
-      {{2}} party size
+      {{2}} what's requested — "a table for N" (table-booking's phrasing)
       {{3}} date
       {{4}} preferred time + any notes
 
@@ -37,7 +48,8 @@ def build_table_booking_params(booking_doc, outlet_name):
     cust_phone = booking_doc.customer_phone or ""
     p1 = f"{cust_name} ({cust_phone})" if cust_phone else cust_name
 
-    p2 = f"{booking_doc.number_of_diners or 1} guests"
+    diners = booking_doc.number_of_diners or 1
+    p2 = f"a table for {diners}"
     p3 = str(booking_doc.date) if booking_doc.date else ""
 
     p4 = booking_doc.time_slot or ""
@@ -123,7 +135,7 @@ def send_test_table_booking_whatsapp(phone):
 
     sample_params = [
         "Test Customer (9876543210)",   # {{1}} customer
-        "4 guests",                     # {{2}} party size
+        "a table for 4",                # {{2}} what's requested
         "2026-08-15",                   # {{3}} date
         "Tonight, around 8 — Note: window seat if possible",  # {{4}} time + notes
     ]
