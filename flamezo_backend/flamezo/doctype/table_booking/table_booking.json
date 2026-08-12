@@ -31,6 +31,8 @@
   "reminder_sent",
   "is_sent_to_whatsapp",
   "whatsapp_send_status",
+  "is_sent_to_customer_whatsapp",
+  "customer_whatsapp_send_status",
   "section_break_timestamps",
   "confirmed_at",
   "confirmed_by",
@@ -203,6 +205,20 @@
    "fieldname": "whatsapp_send_status",
    "fieldtype": "Data",
    "label": "WhatsApp Send Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "is_sent_to_customer_whatsapp",
+   "fieldtype": "Check",
+   "label": "Customer Notified via WhatsApp",
+   "default": "0",
+   "read_only": 1,
+   "description": "Set once the 'they've been notified' confirmation has been sent to the customer"
+  },
+  {
+   "fieldname": "customer_whatsapp_send_status",
+   "fieldtype": "Data",
+   "label": "Customer WhatsApp Send Status",
    "read_only": 1
   },
   {

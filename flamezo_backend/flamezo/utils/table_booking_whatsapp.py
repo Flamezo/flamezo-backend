@@ -120,6 +120,88 @@ def dispatch_table_booking_whatsapp(booking_name, attempt=1):
         safe_log_error("WhatsApp Table Booking Lead Dispatch Error", frappe.get_traceback())
 
 
+def build_customer_confirmation_params(booking_doc, outlet_name):
+    """
+    4 BODY params for the shared customer-confirmation template
+    (flamezo_booking_sent):
+      {{1}} customer first name
+      {{2}} outlet name
+      {{3}} what was requested — same phrase style as the merchant alert
+      {{4}} date + time, combined into one readable string
+
+    Same booking-type-agnostic design as build_table_booking_params — {{3}}
+    is a human phrase ("a table for 4"), not table-specific wording, so
+    banquet/appointment can reuse this template too.
+    """
+    def _one_line(s):
+        return " ".join(str(s).split())
+
+    first_name = (booking_doc.customer_name or "there").split()[0]
+    diners = booking_doc.number_of_diners or 1
+    p3 = f"a table for {diners}"
+
+    date_str = str(booking_doc.date) if booking_doc.date else ""
+    time_str = booking_doc.time_slot or ""
+    p4 = f"{date_str}, {time_str}" if date_str and time_str else (date_str or time_str)
+
+    return [_one_line(first_name), _one_line(outlet_name), _one_line(p3), _one_line(p4)]
+
+
+def dispatch_table_booking_customer_confirmation(booking_name, attempt=1):
+    """Background job: confirm to the CUSTOMER their request was sent.
+    Idempotent + retried, same pattern as dispatch_table_booking_whatsapp —
+    never blocks or fails booking creation, and failing here is silent to
+    the customer (the in-app confirmation screen already told them)."""
+    try:
+        if frappe.db.get_value("Table Booking", booking_name, "is_sent_to_customer_whatsapp"):
+            return  # already sent — idempotent
+
+        booking = frappe.get_doc("Table Booking", booking_name)
+        if not booking.customer_phone:
+            frappe.db.set_value("Table Booking", booking_name, "customer_whatsapp_send_status",
+                                "No customer phone on booking", update_modified=False)
+            return
+
+        restaurant = frappe.get_doc("Restaurant", booking.restaurant)
+
+        settings = frappe.get_single("Flamezo Settings")
+        template = getattr(settings, "booking_customer_whatsapp_template_name", None)
+        if not template:
+            frappe.db.set_value("Table Booking", booking_name, "customer_whatsapp_send_status",
+                                "No template configured (Flamezo Settings)", update_modified=False)
+            return
+
+        params = build_customer_confirmation_params(booking, restaurant.restaurant_name)
+
+        ok, info = send_whatsapp_cloud_message(
+            booking.customer_phone, template, params, settings=settings,
+        )
+
+        if ok:
+            frappe.db.set_value("Table Booking", booking_name, {
+                "is_sent_to_customer_whatsapp": 1,
+                "customer_whatsapp_send_status": f"Sent ({info or 'ok'})",
+            }, update_modified=False)
+            frappe.logger().info(f"WhatsApp booking confirmation sent: {booking_name} → {booking.customer_phone}")
+        elif attempt < MAX_ATTEMPTS:
+            frappe.db.set_value("Table Booking", booking_name, "customer_whatsapp_send_status",
+                                f"Retry {attempt}/{MAX_ATTEMPTS}: {str(info)[:80]}", update_modified=False)
+            frappe.enqueue(
+                "flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_customer_confirmation",
+                booking_name=booking_name,
+                attempt=attempt + 1,
+                queue="short",
+                job_id=f"wa_customer_confirm_{booking_name}_attempt_{attempt + 1}",
+            )
+        else:
+            frappe.db.set_value("Table Booking", booking_name, "customer_whatsapp_send_status",
+                                f"FAILED after {MAX_ATTEMPTS}: {str(info)[:80]}", update_modified=False)
+            safe_log_error("WhatsApp Customer Confirmation Send Failed", f"Booking {booking_name}: {info}")
+
+    except Exception:
+        safe_log_error("WhatsApp Customer Confirmation Dispatch Error", frappe.get_traceback())
+
+
 @frappe.whitelist()
 def send_test_table_booking_whatsapp(phone):
     """

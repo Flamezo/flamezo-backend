@@ -194,3 +194,130 @@ class TestDispatch(unittest.TestCase):
             tbw.dispatch_table_booking_whatsapp("TBK-DOES-NOT-EXIST")
         except Exception as e:
             self.fail(f"dispatch_table_booking_whatsapp raised {e!r} — must be best-effort")
+
+
+class TestBuildCustomerParams(unittest.TestCase):
+
+    def setUp(self):
+        _cleanup()
+        self.rest = _make_rest()
+
+    def tearDown(self):
+        _cleanup()
+
+    def test_params_shape(self):
+        b = _make_booking(self.rest.name)
+        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        self.assertEqual(len(params), 4)
+        self.assertEqual(params[0], "Test")  # first name only, from "Test Guest"
+        self.assertEqual(params[1], self.rest.restaurant_name)
+        self.assertEqual(params[2], "a table for 3")
+        self.assertIn("Tonight, around 8", params[3])
+
+    def test_first_name_only(self):
+        b = _make_booking(self.rest.name)
+        b.customer_name = "Multi Word Full Name"
+        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        self.assertEqual(params[0], "Multi")
+
+    def test_missing_name_falls_back(self):
+        b = _make_booking(self.rest.name)
+        b.customer_name = ""
+        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        self.assertEqual(params[0], "there")
+
+
+class TestCustomerConfirmationDispatch(unittest.TestCase):
+
+    def setUp(self):
+        _cleanup()
+        self.rest = _make_rest()
+        self.settings_patch = patch(
+            "frappe.get_single",
+            return_value=frappe._dict({"booking_customer_whatsapp_template_name": "flamezo_booking_sent"}),
+        )
+
+    def tearDown(self):
+        _cleanup()
+
+    def test_success_marks_sent(self):
+        b = _make_booking(self.rest.name)
+        with self.settings_patch, patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message",
+            return_value=(True, "wamid.456"),
+        ) as mock_send:
+            tbw.dispatch_table_booking_customer_confirmation(b.name)
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args.args[0], _PHONE)
+        sent, status = frappe.db.get_value(
+            "Table Booking", b.name, ["is_sent_to_customer_whatsapp", "customer_whatsapp_send_status"]
+        )
+        self.assertEqual(sent, 1)
+        self.assertIn("Sent", status)
+
+    def test_idempotent_already_sent_skips(self):
+        b = _make_booking(self.rest.name)
+        frappe.db.set_value("Table Booking", b.name, "is_sent_to_customer_whatsapp", 1)
+        frappe.db.commit()
+        with self.settings_patch, patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message"
+        ) as mock_send:
+            tbw.dispatch_table_booking_customer_confirmation(b.name)
+        mock_send.assert_not_called()
+
+    def test_no_customer_phone_recorded_no_crash(self):
+        b = _make_booking(self.rest.name)
+        frappe.db.set_value("Table Booking", b.name, "customer_phone", "")
+        frappe.db.commit()
+        with self.settings_patch, patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message"
+        ) as mock_send:
+            tbw.dispatch_table_booking_customer_confirmation(b.name)
+        mock_send.assert_not_called()
+        status = frappe.db.get_value("Table Booking", b.name, "customer_whatsapp_send_status")
+        self.assertIn("No customer phone", status)
+
+    def test_no_template_configured_recorded_no_crash(self):
+        b = _make_booking(self.rest.name)
+        with patch("frappe.get_single", return_value=frappe._dict({})), patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message"
+        ) as mock_send:
+            tbw.dispatch_table_booking_customer_confirmation(b.name)
+        mock_send.assert_not_called()
+        status = frappe.db.get_value("Table Booking", b.name, "customer_whatsapp_send_status")
+        self.assertIn("No template configured", status)
+
+    def test_failure_retries_via_enqueue(self):
+        b = _make_booking(self.rest.name)
+        with self.settings_patch, patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message",
+            return_value=(False, "Meta API error"),
+        ), patch("frappe.enqueue") as mock_enqueue:
+            tbw.dispatch_table_booking_customer_confirmation(b.name, attempt=1)
+        mock_enqueue.assert_called_once()
+        self.assertEqual(mock_enqueue.call_args.kwargs.get("attempt"), 2)
+
+    def test_failure_gives_up_after_max_attempts(self):
+        b = _make_booking(self.rest.name)
+        with self.settings_patch, patch(
+            "flamezo_backend.flamezo.utils.table_booking_whatsapp.send_whatsapp_cloud_message",
+            return_value=(False, "Meta API error"),
+        ), patch("frappe.enqueue") as mock_enqueue:
+            tbw.dispatch_table_booking_customer_confirmation(b.name, attempt=tbw.MAX_ATTEMPTS)
+        mock_enqueue.assert_not_called()
+        status = frappe.db.get_value("Table Booking", b.name, "customer_whatsapp_send_status")
+        self.assertIn("FAILED", status)
+
+    def test_exception_never_propagates(self):
+        b = _make_booking(self.rest.name)
+        with patch("frappe.get_single", side_effect=RuntimeError("boom")):
+            try:
+                tbw.dispatch_table_booking_customer_confirmation(b.name)
+            except Exception as e:
+                self.fail(f"dispatch_table_booking_customer_confirmation raised {e!r} — must be best-effort")
+
+    def test_nonexistent_booking_never_propagates(self):
+        try:
+            tbw.dispatch_table_booking_customer_confirmation("TBK-DOES-NOT-EXIST")
+        except Exception as e:
+            self.fail(f"dispatch_table_booking_customer_confirmation raised {e!r} — must be best-effort")
