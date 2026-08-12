@@ -453,13 +453,17 @@ class TestCreateEnqueuesWhatsappAlert(unittest.TestCase):
                 phone=_PHONE_A, outlet_id=self.rest.name,
                 date=add_days(today(), 2), time_slot="19:00", number_of_diners=2,
             )
-        mock_enqueue.assert_called_once()
-        call = mock_enqueue.call_args
-        self.assertEqual(
-            call.args[0] if call.args else call.kwargs.get("method"),
-            "flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_whatsapp",
-        )
-        self.assertEqual(call.kwargs.get("booking_name"), result["data"]["booking_id"])
+        # One job alerts the outlet, one confirms to the customer — both
+        # best-effort and enqueued, neither can block the booking itself.
+        self.assertEqual(mock_enqueue.call_count, 2)
+        methods = [
+            (c.args[0] if c.args else c.kwargs.get("method"))
+            for c in mock_enqueue.call_args_list
+        ]
+        self.assertIn("flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_whatsapp", methods)
+        self.assertIn("flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_customer_confirmation", methods)
+        for c in mock_enqueue.call_args_list:
+            self.assertEqual(c.kwargs.get("booking_name"), result["data"]["booking_id"])
 
     def test_status_is_pending_not_confirmed(self):
         # The customer must never be told anything is confirmed — nothing

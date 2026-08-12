@@ -155,6 +155,13 @@ def create_table_booking(phone, outlet_id, date, time_slot, number_of_diners,
         queue="short",
         booking_name=doc.name,
     )
+    # Same for the customer-facing confirmation — the in-app screen already
+    # tells them "they've been notified", this is a best-effort extra nudge.
+    frappe.enqueue(
+        "flamezo_backend.flamezo.utils.table_booking_whatsapp.dispatch_table_booking_customer_confirmation",
+        queue="short",
+        booking_name=doc.name,
+    )
 
     return {
         "success": True,
