@@ -39,7 +39,7 @@ from frappe.utils import add_to_date, cint, now_datetime
 FOLLOWER_ELIGIBILITY_FLOOR = 1500  # creator-program-fundamentals-v1-locked.md Section 1
 INSTAGRAM_SCOPE = "instagram_business_basic"
 
-AUTHORIZE_URL = "https://api.instagram.com/oauth/authorize"
+AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize"  # verified Aug 2026 against Meta's live Business Login guide — api.instagram.com is the older/stale domain for this specific step
 SHORT_TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 LONG_TOKEN_URL = "https://graph.instagram.com/access_token"
 REFRESH_TOKEN_URL = "https://graph.instagram.com/refresh_access_token"
@@ -118,6 +118,19 @@ def instagram_callback(code: str, state: str) -> dict:
 	return _apply_connection_result(phone, ig_user_id, long_token, expires_in_seconds, profile)
 
 
+def _unwrap_ig_response(data):
+	"""Meta's own current docs for this product render the short-token-exchange
+	and /me example responses inconsistently — sometimes a flat JSON object,
+	sometimes the same fields nested one level down under `data: [{...}]`
+	(verified ambiguous even reading the live docs, Aug 2026 — the long-token
+	exchange and refresh endpoints are confirmed flat, so this is only needed
+	here). Handle both shapes rather than betting the whole login flow on
+	one unverifiable guess."""
+	if isinstance(data, dict) and isinstance(data.get("data"), list) and data["data"]:
+		return data["data"][0]
+	return data
+
+
 def _exchange_code_for_short_token(code, client_id, client_secret, redirect_uri):
 	response = requests.post(
 		SHORT_TOKEN_URL,
@@ -132,7 +145,10 @@ def _exchange_code_for_short_token(code, client_id, client_secret, redirect_uri)
 	if response.status_code != 200:
 		frappe.log_error(f"Instagram short-token exchange failed: {response.text}", "Creator Onboarding")
 		frappe.throw(_("Couldn't connect to Instagram. Please try again."), frappe.ValidationError)
-	data = response.json()
+	data = _unwrap_ig_response(response.json())
+	if "access_token" not in data or "user_id" not in data:
+		frappe.log_error(f"Instagram short-token exchange — unrecognized response shape: {response.text}", "Creator Onboarding")
+		frappe.throw(_("Couldn't connect to Instagram. Please try again."), frappe.ValidationError)
 	return data["access_token"], data["user_id"]
 
 
@@ -156,7 +172,7 @@ def _fetch_profile(access_token):
 	if response.status_code != 200:
 		frappe.log_error(f"Instagram profile fetch failed: {response.text}", "Creator Onboarding")
 		frappe.throw(_("Couldn't read your Instagram profile. Please try again."), frappe.ValidationError)
-	return response.json()
+	return _unwrap_ig_response(response.json())
 
 
 def _apply_connection_result(phone, ig_user_id, long_token, expires_in_seconds, profile):

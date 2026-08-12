@@ -39,6 +39,21 @@ function formatDuration(secs: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+// Chills is discovery content, not storytelling — keep it short. Enforced
+// here (fail fast, don't upload a doomed file) AND authoritatively
+// server-side in chills.py's MAX_CHILLS_DURATION_SECONDS. Keep both in sync.
+const MAX_CHILLS_DURATION_SECONDS = 60
+
+async function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    const url = URL.createObjectURL(file)
+    video.src = url
+    video.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(video.duration) }
+    video.onerror = () => { URL.revokeObjectURL(url); resolve(0) }
+  })
+}
+
 async function captureVideoThumbnail(file: File): Promise<Blob | null> {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -126,6 +141,11 @@ export default function ChillsUpload() {
   const handleVideoSelected = useCallback(async (file: File) => {
     if (!file.type.startsWith('video/')) { toast.error('Please select a video file.'); return }
     if (file.size > 500 * 1024 * 1024) { toast.error('Video must be under 500 MB.'); return }
+    const duration = await getVideoDuration(file)
+    if (duration > MAX_CHILLS_DURATION_SECONDS) {
+      toast.error(`Chills videos can be up to ${MAX_CHILLS_DURATION_SECONDS} seconds — this one is ${Math.round(duration)}s. Trim it and try again.`)
+      return
+    }
     const url = URL.createObjectURL(file)
     setVideoFile(file)
     setVideoPreviewUrl(url)
