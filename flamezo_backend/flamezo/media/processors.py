@@ -220,16 +220,34 @@ class VideoProcessor:
 			return {}
 	
 	def create_720p_variant(self):
-		"""Create 720p MP4 variant"""
+		"""Create 720p MP4 variant.
+
+		Quality settings (Aug 2026 pass — see product-docs research on
+		cost-vs-quality tradeoffs): CRF 22 with a maxrate/bufsize cap, not the
+		previous CRF 28. CRF 28 was well into visibly-soft/artifact territory
+		(x264's own default is 23; 22-23 is the standard "visually
+		near-lossless" range for social/short-form delivery) — on R2, storage
+		is ~$0.015/GB-month with ZERO egress fees, so the larger files CRF 22
+		produces cost us almost nothing, while the blur it fixes was a real,
+		user-visible quality problem. `-preset fast` is kept deliberately —
+		at a fixed CRF, preset trades encode COMPUTE time for file SIZE, not
+		quality; `medium`/`slow` would only shrink files ~10-15% at ~2x the
+		compute cost, which is a bad trade when storage is this cheap and
+		egress is free. The maxrate/bufsize cap keeps worst-case bitrate (and
+		therefore cost) bounded on high-motion/detailed footage instead of
+		letting CRF-only mode spike freely.
+		"""
 		try:
 			output_path = os.path.join(self.output_dir, "video_720p.mp4")
-			
+
 			cmd = [
 				'ffmpeg',
 				'-i', self.source_path,
 				'-vf', 'scale=-2:720',  # -2 maintains aspect ratio with even width
 				'-c:v', 'libx264',
-				'-crf', '28',
+				'-crf', '22',
+				'-maxrate', '4M',
+				'-bufsize', '8M',
 				'-preset', 'fast',
 				'-c:a', 'aac',
 				'-b:a', '128k',

@@ -208,6 +208,76 @@ class TestInstagramCallback(unittest.TestCase):
 				onboarding.instagram_callback("bad_code", state)
 
 
+class TestUnwrapIgResponse(unittest.TestCase):
+	"""Meta's own live docs render the short-token-exchange and /me example
+	responses inconsistently — flat in some places, nested under
+	`data: [{...}]` in others (verified ambiguous Aug 2026, both against a
+	live doc fetch). _unwrap_ig_response must handle both without the caller
+	having to guess which shape a given response actually is."""
+
+	def test_flat_shape_passed_through_unchanged(self):
+		flat = {"access_token": "tok", "user_id": "123"}
+		self.assertEqual(onboarding._unwrap_ig_response(flat), flat)
+
+	def test_nested_data_array_shape_unwrapped(self):
+		nested = {"data": [{"access_token": "tok", "user_id": "123", "permissions": "instagram_business_basic"}]}
+		self.assertEqual(
+			onboarding._unwrap_ig_response(nested),
+			{"access_token": "tok", "user_id": "123", "permissions": "instagram_business_basic"},
+		)
+
+	def test_empty_data_array_falls_back_to_original(self):
+		# An empty `data: []` isn't a valid unwrap target — pass the original
+		# dict through so the caller's own "field missing" check catches it
+		# with a clear error, rather than this silently returning {}.
+		empty = {"data": []}
+		self.assertEqual(onboarding._unwrap_ig_response(empty), empty)
+
+	def test_non_dict_input_passed_through(self):
+		self.assertEqual(onboarding._unwrap_ig_response("not a dict"), "not a dict")
+
+
+class TestExchangeCodeForShortToken(unittest.TestCase):
+	def test_flat_response_shape(self):
+		resp = MagicMock(status_code=200)
+		resp.json.return_value = {"access_token": "short_tok", "user_id": "998877"}
+		with patch("flamezo_backend.flamezo.api.creator_onboarding.requests.post", return_value=resp):
+			token, user_id = onboarding._exchange_code_for_short_token("code", "cid", "secret", "https://x/cb")
+		self.assertEqual(token, "short_tok")
+		self.assertEqual(user_id, "998877")
+
+	def test_nested_data_array_response_shape(self):
+		resp = MagicMock(status_code=200)
+		resp.json.return_value = {"data": [{"access_token": "short_tok", "user_id": "998877"}]}
+		with patch("flamezo_backend.flamezo.api.creator_onboarding.requests.post", return_value=resp):
+			token, user_id = onboarding._exchange_code_for_short_token("code", "cid", "secret", "https://x/cb")
+		self.assertEqual(token, "short_tok")
+		self.assertEqual(user_id, "998877")
+
+	def test_unrecognized_shape_throws_friendly_error_not_keyerror(self):
+		resp = MagicMock(status_code=200, text='{"unexpected": "shape"}')
+		resp.json.return_value = {"unexpected": "shape"}
+		with patch("flamezo_backend.flamezo.api.creator_onboarding.requests.post", return_value=resp):
+			with self.assertRaises(frappe.exceptions.ValidationError):
+				onboarding._exchange_code_for_short_token("code", "cid", "secret", "https://x/cb")
+
+
+class TestFetchProfile(unittest.TestCase):
+	def test_flat_response_shape(self):
+		resp = MagicMock(status_code=200)
+		resp.json.return_value = {"followers_count": 9000, "username": "mockcreator"}
+		with patch("flamezo_backend.flamezo.api.creator_onboarding.requests.get", return_value=resp):
+			profile = onboarding._fetch_profile("tok")
+		self.assertEqual(profile["followers_count"], 9000)
+
+	def test_nested_data_array_response_shape(self):
+		resp = MagicMock(status_code=200)
+		resp.json.return_value = {"data": [{"followers_count": 9000, "username": "mockcreator"}]}
+		with patch("flamezo_backend.flamezo.api.creator_onboarding.requests.get", return_value=resp):
+			profile = onboarding._fetch_profile("tok")
+		self.assertEqual(profile["followers_count"], 9000)
+
+
 class TestGetValidAccessToken(unittest.TestCase):
 	def setUp(self):
 		_cleanup()
