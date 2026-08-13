@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import now_datetime, get_datetime, add_days
 
 from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
+from flamezo_backend.flamezo.utils.link_preview import fetch_link_preview
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -559,17 +560,25 @@ def _assert_chat_access(request_id, phone):
 
 def _format_message(m):
     return {
-        "id":               m.name,
-        "request_id":       m.request_id,
-        "sender_phone":     m.sender_phone,
-        "sender_name":      m.sender_name or "",
-        "sender_image":     m.sender_image or "",
-        "sender_interests": [i.strip() for i in (m.sender_interests or "").split(",") if i.strip()],
-        "message_type":     m.message_type,
-        "message":          m.message or "",
-        "image_url":        m.image_url or "",
-        "is_system":        bool(m.is_system),
-        "created_at":       str(m.created_at) if m.created_at else str(m.creation),
+        "id":                  m.name,
+        "request_id":          m.request_id,
+        "sender_phone":        m.sender_phone,
+        "sender_name":         m.sender_name or "",
+        "sender_image":        m.sender_image or "",
+        "sender_interests":    [i.strip() for i in (m.sender_interests or "").split(",") if i.strip()],
+        "message_type":        m.message_type,
+        "message":             m.message or "",
+        "image_url":           m.image_url or "",
+        "preview_title":       m.get("preview_title") or "",
+        "preview_description": m.get("preview_description") or "",
+        "preview_image":       m.get("preview_image") or "",
+        "location_lat":        m.get("location_lat") or None,
+        "location_lng":        m.get("location_lng") or None,
+        "shared_outlet_id":    m.get("shared_outlet_id") or "",
+        "shared_outlet_name":  m.get("shared_outlet_name") or "",
+        "shared_outlet_image": m.get("shared_outlet_image") or "",
+        "is_system":           bool(m.is_system),
+        "created_at":          str(m.created_at) if m.created_at else str(m.creation),
     }
 
 
@@ -600,7 +609,10 @@ def get_messages(request_id, phone=None, before_id=None, limit=40):
         "Crowd Chat Message",
         filters=filters,
         fields=["name", "request_id", "sender_phone", "sender_name", "sender_image",
-                "sender_interests", "message_type", "message", "image_url", "is_system",
+                "sender_interests", "message_type", "message", "image_url",
+                "preview_title", "preview_description", "preview_image",
+                "location_lat", "location_lng", "shared_outlet_id", "shared_outlet_name", "shared_outlet_image",
+                "is_system",
                 "created_at", "creation"],
         order_by="created_at desc",
         limit_page_length=limit + 1,
@@ -671,7 +683,10 @@ def poll_messages(request_id, phone, after_id=None):
             "Crowd Chat Message",
             filters={"request_id": request_id, "creation": (">", after_creation)},
             fields=["name", "request_id", "sender_phone", "sender_name", "sender_image",
-                    "sender_interests", "message_type", "message", "image_url", "is_system",
+                    "sender_interests", "message_type", "message", "image_url",
+                "preview_title", "preview_description", "preview_image",
+                "location_lat", "location_lng", "shared_outlet_id", "shared_outlet_name", "shared_outlet_image",
+                "is_system",
                     "created_at", "creation"],
             order_by="creation asc",
             limit_page_length=100,
@@ -694,16 +709,39 @@ def poll_messages(request_id, phone, after_id=None):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_link_preview(request_id, phone, url):
+    """WhatsApp-style composer preview — fetches title/description/image for
+    a URL the customer is typing, before they send it. Gated the same as
+    every other chat endpoint (private room, real session) since it's an
+    authenticated user triggering a server-side outbound fetch."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not request_id:
+        frappe.throw(_("request_id is required"))
+    _assert_chat_access(request_id, phone)
+
+    preview = fetch_link_preview((url or "").strip())
+    return {"success": True, "data": {"preview": preview}}
+
+
+@frappe.whitelist(allow_guest=True)
 def send_message(request_id, phone, message=None, message_type="text", image_url=None,
-                 sender_name=None, sender_image=None, sender_interests=None):
+                 sender_name=None, sender_image=None, sender_interests=None,
+                 preview_title=None, preview_description=None, preview_image=None,
+                 location_lat=None, location_lng=None,
+                 shared_outlet_id=None, shared_outlet_name=None, shared_outlet_image=None):
     phone = _require_phone(phone)
     _require_session(phone)
     if not request_id:
         frappe.throw(_("request_id is required"))
     if message_type == "text" and not (message or "").strip():
         frappe.throw(_("message cannot be empty"))
-    if message_type == "image" and not image_url:
-        frappe.throw(_("image_url is required for image messages"))
+    if message_type in ("image", "video") and not image_url:
+        frappe.throw(_("image_url is required for image/video messages"))
+    if message_type == "location" and (location_lat is None or location_lng is None):
+        frappe.throw(_("location_lat and location_lng are required for location messages"))
+    if message_type == "outlet" and not shared_outlet_id:
+        frappe.throw(_("shared_outlet_id is required for outlet messages"))
 
     _assert_chat_access(request_id, phone)
 
@@ -726,17 +764,25 @@ def send_message(request_id, phone, message=None, message_type="text", image_url
             sender_image = (profile.image if profile else None) or ""
 
     doc = frappe.get_doc({
-        "doctype":           "Crowd Chat Message",
-        "request_id":        request_id,
-        "sender_phone":      phone,
-        "sender_name":       sender_name,
-        "sender_image":      sender_image,
-        "sender_interests":  sender_interests or "",
-        "message_type":      message_type,
-        "message":           (message or "").strip(),
-        "image_url":         image_url or "",
-        "is_system":         0,
-        "created_at":        frappe.utils.now_datetime(),
+        "doctype":             "Crowd Chat Message",
+        "request_id":          request_id,
+        "sender_phone":        phone,
+        "sender_name":         sender_name,
+        "sender_image":        sender_image,
+        "sender_interests":    sender_interests or "",
+        "message_type":        message_type,
+        "message":             (message or "").strip(),
+        "image_url":           image_url or "",
+        "preview_title":       preview_title or "",
+        "preview_description": preview_description or "",
+        "preview_image":       preview_image or "",
+        "location_lat":        location_lat,
+        "location_lng":        location_lng,
+        "shared_outlet_id":    shared_outlet_id or "",
+        "shared_outlet_name":  shared_outlet_name or "",
+        "shared_outlet_image": shared_outlet_image or "",
+        "is_system":           0,
+        "created_at":          frappe.utils.now_datetime(),
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
@@ -755,13 +801,16 @@ def send_message(request_id, phone, message=None, message_type="text", image_url
         pass
 
     # Enqueue Expo push notifications (best-effort, non-blocking)
+    _push_previews = {
+        "image": "📷 Photo", "video": "🎥 Video", "location": "📍 Location", "outlet": "📌 Shared an outlet",
+    }
     frappe.enqueue(
         "flamezo_backend.flamezo.api.crowd._send_crowd_chat_push",
         queue="short",
         request_id=request_id,
         sender_phone=phone,
         sender_name=sender_name or "",
-        message_preview=message if message_type == "text" else "",
+        message_preview=message if message_type == "text" else _push_previews.get(message_type, ""),
         now=False,
     )
 
@@ -770,10 +819,15 @@ def send_message(request_id, phone, message=None, message_type="text", image_url
 
 @frappe.whitelist(allow_guest=True)
 def upload_chat_image(request_id, phone, file_content, filename, content_type="image/jpeg"):
-    """Upload an image to R2 and return the public URL for use in send_message."""
+    """Upload an image or video to R2 (base64-in-JSON, same as before) and
+    return the public URL for use in send_message. Video isn't compressed —
+    no ffmpeg dependency here, deliberately lightweight — just capped smaller
+    since it rides over the same base64-in-JSON RPC body as everything else."""
     phone = _require_phone(phone)
     _require_session(phone)
     _assert_chat_access(request_id, phone)
+
+    is_video = content_type.startswith("video/")
 
     import base64
     try:
@@ -781,22 +835,24 @@ def upload_chat_image(request_id, phone, file_content, filename, content_type="i
     except Exception:
         frappe.throw(_("Invalid base64 file_content"))
 
-    max_bytes = 5 * 1024 * 1024  # 5 MB
+    max_bytes = 15 * 1024 * 1024 if is_video else 5 * 1024 * 1024
     if len(raw) > max_bytes:
-        frappe.throw(_("Image too large — max 5 MB"))
+        frappe.throw(_("File too large — max {0} MB").format(max_bytes // (1024 * 1024)))
 
     # Compress before storing — chat photos are shown small in-app, so a
     # resized WebP saves a lot of storage with no visible quality loss.
-    try:
-        from flamezo_backend.flamezo.media.processors import compress_image_bytes
-        comp, comp_type, comp_ext = compress_image_bytes(raw)
-        if comp_type:
-            raw = comp
-            content_type = comp_type
-            base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
-            filename = f"{base_name}.{comp_ext}"
-    except Exception:
-        pass  # fall back to the original bytes if compression is unavailable
+    # Video is stored as-is (no re-encode, keeps this endpoint dependency-free).
+    if not is_video:
+        try:
+            from flamezo_backend.flamezo.media.processors import compress_image_bytes
+            comp, comp_type, comp_ext = compress_image_bytes(raw)
+            if comp_type:
+                raw = comp
+                content_type = comp_type
+                base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+                filename = f"{base_name}.{comp_ext}"
+        except Exception:
+            pass  # fall back to the original bytes if compression is unavailable
 
     try:
         from flamezo_backend.flamezo.utils.r2 import upload_bytes

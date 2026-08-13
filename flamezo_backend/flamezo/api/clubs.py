@@ -6,6 +6,7 @@ from frappe.utils import now_datetime, today
 
 from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
 from flamezo_backend.flamezo.utils import redis_counters as rc
+from flamezo_backend.flamezo.api.flamezo import _format_outlet_card, _batch_active_offers_count, _DISCOVERY_FIELDS
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -235,7 +236,7 @@ def follow_club(club_id, phone):
 
 # ── club posts ────────────────────────────────────────────────────────────────
 
-def _format_post(p, chills_map=None, liked_set=None, views_map=None):
+def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=None):
     liked_set = liked_set or set()
     post = {
         "id": p.name,
@@ -246,6 +247,7 @@ def _format_post(p, chills_map=None, liked_set=None, views_map=None):
         "comments_count": p.comments_count or 0,
         "views_count": (views_map or {}).get(p.name, getattr(p, "views_count", 0) or 0),
         "is_liked": p.name in liked_set,
+        "tagged_outlets": (tagged_map or {}).get(p.name, []),
         "created_at": str(p.creation) if p.creation else "",
     }
     if p.post_type == "image":
@@ -277,6 +279,36 @@ def _get_post_like_set(phone, post_ids):
         as_dict=True,
     )
     return {r.post for r in rows}
+
+
+def _get_tagged_outlets_map(post_ids):
+    """Batch-fetch each post's tagged outlets (the restaurants featured in a
+    post — e.g. "Best 5 cafes in Surat") to avoid N+1, same pattern as
+    `_get_post_like_set`. Reuses `_format_outlet_card` so a tagged outlet is
+    shaped exactly like every other outlet card in the app (full
+    OutletListItem — CollaboratorsBlock renders these via FlamezoGroupItem,
+    which needs rating/image/offers, not just an id+name).
+    {post_id: [outlet_card_dict, ...]}"""
+    if not post_ids:
+        return {}
+    post_placeholders = ",".join(["%s"] * len(post_ids))
+    outlet_cols = ", ".join(f"r.{f}" for f in _DISCOVERY_FIELDS)
+    rows = frappe.db.sql(
+        f"""
+        SELECT t.post AS tag_post, {outlet_cols}
+        FROM `tabCreator Club Post Tag` t
+        JOIN `tabRestaurant` r ON r.name = t.outlet
+        WHERE t.post IN ({post_placeholders})
+        ORDER BY t.creation ASC
+        """,
+        post_ids,
+        as_dict=True,
+    )
+    offers_map = _batch_active_offers_count([r.name for r in rows]) if rows else {}
+    tagged_map = {}
+    for r in rows:
+        tagged_map.setdefault(r.tag_post, []).append(_format_outlet_card(r, None, None, offers_map))
+    return tagged_map
 
 
 def _club_creator_phone(club_id):
@@ -353,12 +385,102 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
         "club_post_views", [p.name for p in posts],
         {p.name: p.views_count or 0 for p in posts},
     )
+    tagged_map = _get_tagged_outlets_map([p.name for p in posts])
 
     return {"success": True, "data": {
-        "posts": [_format_post(p, chills_map, liked_set, views_map) for p in posts],
+        "posts": [_format_post(p, chills_map, liked_set, views_map, tagged_map) for p in posts],
         "page": page,
         "has_more": has_more,
         "is_admin": bool(phone) and normalize_phone(phone) == _club_creator_phone(club_id),
+    }}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_creator_feed(phone=None, limit=20, cursor=None):
+    """"Latest from Creators" home feed — real posts aggregated across
+    clubs, not the single-club view get_club_posts gives. Personalized to
+    clubs the caller follows; falls back to recent posts across all active
+    clubs when they follow none (new user) or aren't logged in, so the feed
+    is never empty. Keyset-paginated on (creation, name) — page/offset
+    would skip/duplicate rows as new posts land across many clubs at once,
+    same reasoning as get_club_post_comments' cursor."""
+    phone = _optional_verified_phone(phone)
+    limit = min(int(limit), 50)
+
+    conditions = ["cc.is_active=1"]
+    params = []
+
+    member_clubs = _get_member_set(phone) if phone else set()
+    if member_clubs:
+        placeholders = ",".join(["%s"] * len(member_clubs))
+        conditions.append(f"cp.club IN ({placeholders})")
+        params += list(member_clubs)
+
+    if cursor:
+        cursor_row = frappe.db.get_value("Creator Club Post", cursor, "creation")
+        if cursor_row:
+            conditions.append("(cp.creation < %s OR (cp.creation = %s AND cp.name < %s))")
+            params += [cursor_row, cursor_row, cursor]
+
+    where = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.content,
+               cp.likes_count, cp.comments_count, cp.views_count, cp.creation,
+               cc.club_name, cc.cover_image AS club_cover_image, cc.followers_count,
+               fc.display_name AS creator_display_name, fc.profile_image AS creator_profile_image
+        FROM `tabCreator Club Post` cp
+        JOIN `tabCreator Club` cc ON cc.name = cp.club
+        LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
+        WHERE {where}
+        ORDER BY cp.creation DESC, cp.name DESC
+        LIMIT %s
+        """,
+        params + [limit + 1],
+        as_dict=True,
+    )
+
+    has_more = len(rows) > limit
+    posts = rows[:limit]
+    post_ids = [p.name for p in posts]
+
+    chills_ids = [p.reel for p in posts if p.post_type == "chills" and p.reel]
+    chills_map = {}
+    if chills_ids:
+        placeholders = ",".join(["%s"] * len(chills_ids))
+        chills_rows = frappe.db.sql(
+            f"""
+            SELECT name, video_url, thumbnail_url, description, likes_count, views_count
+            FROM `tabChills`
+            WHERE name IN ({placeholders})
+            """,
+            chills_ids,
+            as_dict=True,
+        )
+        chills_map = {c.name: c for c in chills_rows}
+
+    liked_set = _get_post_like_set(phone, post_ids)
+    views_map = rc.get_counts("club_post_views", post_ids, {p.name: p.views_count or 0 for p in posts})
+    tagged_map = _get_tagged_outlets_map(post_ids)
+    member_set = _get_member_set(phone)
+
+    formatted = []
+    for p in posts:
+        item = _format_post(p, chills_map, liked_set, views_map, tagged_map)
+        item.update({
+            "club_name": p.club_name or "",
+            "club_cover_image": p.club_cover_image or "",
+            "creator_name": p.creator_display_name or "",
+            "creator_image": p.creator_profile_image or "",
+            "is_following": p.club in member_set,
+        })
+        formatted.append(item)
+
+    return {"success": True, "data": {
+        "posts": formatted,
+        "has_more": has_more,
+        "next_cursor": posts[-1].name if posts else None,
+        "is_personalized": bool(member_clubs),
     }}
 
 
@@ -385,7 +507,7 @@ def record_club_post_view(post_id, phone=None):
 # ── club post mutations ──────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def create_club_post(club_id, phone, post_type, content=None, image_key=None, reel_id=None):
+def create_club_post(club_id, phone, post_type, content=None, image_key=None, reel_id=None, tagged_outlet_ids=None):
     phone = _require_phone(phone)
     _require_session(phone)
     if not club_id:
@@ -397,6 +519,20 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
     if not club:
         frappe.throw(_("Club not found"), frappe.DoesNotExistError)
     _require_club_admin(club_id, phone)
+
+    # Comma-separated outlet ids featured in this post (e.g. "Best 5 cafes
+    # in Surat" tags those 5 outlets) — same convention as other list-ish
+    # params elsewhere in this API (e.g. sender_interests). Silently drops
+    # any id that isn't a real, active outlet — never lets a bad id 500 the
+    # whole post.
+    tag_ids = [t.strip() for t in (tagged_outlet_ids or "").split(",") if t.strip()]
+    tag_ids = list(dict.fromkeys(tag_ids))[:5]  # dedupe, cap at 5 tagged outlets
+    if tag_ids:
+        valid = frappe.db.sql_list(
+            f"""SELECT name FROM `tabRestaurant` WHERE is_active=1 AND name IN ({",".join(["%s"] * len(tag_ids))})""",
+            tag_ids,
+        )
+        tag_ids = [t for t in tag_ids if t in valid]
 
     image_url = None
     if post_type == "text" and not (content and content.strip()):
@@ -449,6 +585,12 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
         "reel": reel_id if post_type == "chills" else None,
     })
     doc.insert(ignore_permissions=True)
+
+    for tag_outlet_id in tag_ids:
+        frappe.get_doc({
+            "doctype": "Creator Club Post Tag", "post": doc.name, "outlet": tag_outlet_id,
+        }).insert(ignore_permissions=True)
+
     frappe.db.commit()
 
     # Fanned out off the request path — a club can have thousands of
@@ -468,7 +610,8 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
             ["name", "video_url", "thumbnail_url", "description", "likes_count", "views_count"],
             as_dict=True,
         )}
-    return {"success": True, "data": _format_post(doc, chills_map)}
+    tagged_map = _get_tagged_outlets_map([doc.name]) if tag_ids else {}
+    return {"success": True, "data": _format_post(doc, chills_map, tagged_map=tagged_map)}
 
 
 def _notify_club_members_new_post(post_id, club_id):
@@ -512,6 +655,10 @@ def delete_club_post(post_id, phone):
         "SELECT name FROM `tabCreator Club Post Like` WHERE post=%s", post_id
     ):
         frappe.delete_doc("Creator Club Post Like", like_id, ignore_permissions=True)
+    for tag_id in frappe.db.sql_list(
+        "SELECT name FROM `tabCreator Club Post Tag` WHERE post=%s", post_id
+    ):
+        frappe.delete_doc("Creator Club Post Tag", tag_id, ignore_permissions=True)
     frappe.delete_doc("Creator Club Post", post_id, ignore_permissions=True)
     frappe.db.commit()
     return {"success": True, "data": {"id": post_id}}

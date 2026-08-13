@@ -704,6 +704,65 @@ class TestCrowdChat(unittest.TestCase):
         self.assertEqual(result["message_type"], "image")
         self.assertEqual(result["image_url"], "https://cdn.flamezo.in/test/photo.jpg")
 
+    def test_send_video_message(self):
+        result = _data(crowd.send_message(
+            request_id=self.req.name,
+            phone=_PHONE_A,
+            message="",
+            message_type="video",
+            image_url="https://cdn.flamezo.in/test/clip.mp4",
+            sender_name="Creator",
+        ))
+        self.assertEqual(result["message_type"], "video")
+        self.assertEqual(result["image_url"], "https://cdn.flamezo.in/test/clip.mp4")
+
+    def test_video_message_requires_url(self):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.send_message(
+                request_id=self.req.name, phone=_PHONE_A, message="", message_type="video",
+            )
+
+    def test_send_location_message(self):
+        result = _data(crowd.send_message(
+            request_id=self.req.name,
+            phone=_PHONE_A,
+            message="",
+            message_type="location",
+            location_lat=21.1702,
+            location_lng=72.8311,
+            sender_name="Creator",
+        ))
+        self.assertEqual(result["message_type"], "location")
+        self.assertAlmostEqual(result["location_lat"], 21.1702, places=4)
+        self.assertAlmostEqual(result["location_lng"], 72.8311, places=4)
+
+    def test_location_message_requires_coords(self):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.send_message(
+                request_id=self.req.name, phone=_PHONE_A, message="", message_type="location",
+            )
+
+    def test_send_outlet_share_message(self):
+        result = _data(crowd.send_message(
+            request_id=self.req.name,
+            phone=_PHONE_A,
+            message="",
+            message_type="outlet",
+            shared_outlet_id="OUT-001",
+            shared_outlet_name="The Good Spot",
+            shared_outlet_image="https://cdn.flamezo.in/outlets/out-001.jpg",
+            sender_name="Creator",
+        ))
+        self.assertEqual(result["message_type"], "outlet")
+        self.assertEqual(result["shared_outlet_id"], "OUT-001")
+        self.assertEqual(result["shared_outlet_name"], "The Good Spot")
+
+    def test_outlet_share_requires_outlet_id(self):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.send_message(
+                request_id=self.req.name, phone=_PHONE_A, message="", message_type="outlet",
+            )
+
     def test_send_system_message(self):
         # System messages can be sent by creator with is_system flag via direct doc insert
         doc = frappe.get_doc({
@@ -795,8 +854,35 @@ class TestCrowdChat(unittest.TestCase):
         msgs = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_A))["messages"]
         msg = msgs[-1]
         for field in ("id", "request_id", "sender_phone", "sender_name",
-                      "message_type", "message", "image_url", "is_system", "created_at"):
+                      "message_type", "message", "image_url",
+                      "preview_title", "preview_description", "preview_image",
+                      "is_system", "created_at"):
             self.assertIn(field, msg, f"Missing field: {field}")
+
+    def test_send_message_with_link_preview_stored_and_returned(self):
+        result = _data(crowd.send_message(
+            request_id=self.req.name,
+            phone=_PHONE_A,
+            message="check this out https://example.com",
+            sender_name="Creator",
+            preview_title="Example Site",
+            preview_description="An example description",
+            preview_image="https://example.com/img.png",
+        ))
+        self.assertEqual(result["preview_title"], "Example Site")
+        self.assertEqual(result["preview_description"], "An example description")
+        self.assertEqual(result["preview_image"], "https://example.com/img.png")
+
+        msgs = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_A))["messages"]
+        self.assertEqual(msgs[-1]["preview_title"], "Example Site")
+
+    def test_send_message_without_preview_returns_empty_strings(self):
+        result = _data(crowd.send_message(
+            request_id=self.req.name, phone=_PHONE_A, message="plain text", sender_name="A",
+        ))
+        self.assertEqual(result["preview_title"], "")
+        self.assertEqual(result["preview_description"], "")
+        self.assertEqual(result["preview_image"], "")
 
     def test_pagination_has_more(self):
         for i in range(45):
@@ -886,6 +972,75 @@ class TestCrowdChat(unittest.TestCase):
         msgs = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_A))["messages"]
         img_msgs = [m for m in msgs if m["message_type"] == "image"]
         self.assertEqual(img_msgs[-1]["image_url"], url)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestGetLinkPreview — composer preview endpoint (same access model as chat)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestGetLinkPreview(unittest.TestCase):
+    """
+    get_link_preview is gated identically to send_message/get_messages —
+    it's just a private chat-room-scoped fetch trigger. fetch_link_preview
+    itself is mocked out here; it has its own real-network tests elsewhere.
+    """
+
+    def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
+        _cleanup_crowd()
+        self.req, self.member_b_id = _approved_member_request()
+
+    def tearDown(self):
+        _cleanup_crowd()
+        self._session_patch.stop()
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_creator_can_fetch_preview(self, mock_fetch):
+        mock_fetch.return_value = {
+            "url": "https://example.com",
+            "title": "Example",
+            "description": "An example site",
+            "image": "https://example.com/img.png",
+        }
+        result = _data(crowd.get_link_preview(
+            request_id=self.req.name, phone=_PHONE_A, url="https://example.com",
+        ))
+        self.assertEqual(result["preview"]["title"], "Example")
+        mock_fetch.assert_called_once_with("https://example.com")
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_approved_member_can_fetch_preview(self, mock_fetch):
+        mock_fetch.return_value = None
+        result = _data(crowd.get_link_preview(
+            request_id=self.req.name, phone=_PHONE_B, url="https://example.com",
+        ))
+        self.assertIsNone(result["preview"])
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_pending_member_cannot_fetch_preview(self, mock_fetch):
+        crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Pending C")
+        with self.assertRaises(frappe.exceptions.PermissionError):
+            crowd.get_link_preview(request_id=self.req.name, phone=_PHONE_C, url="https://example.com")
+        mock_fetch.assert_not_called()
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_non_member_cannot_fetch_preview(self, mock_fetch):
+        with self.assertRaises(frappe.exceptions.PermissionError):
+            crowd.get_link_preview(request_id=self.req.name, phone=_PHONE_C, url="https://example.com")
+        mock_fetch.assert_not_called()
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_no_phone_throws_authentication_error(self, mock_fetch):
+        with self.assertRaises(frappe.exceptions.AuthenticationError):
+            crowd.get_link_preview(request_id=self.req.name, phone=None, url="https://example.com")
+        mock_fetch.assert_not_called()
+
+    @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
+    def test_missing_request_id_throws(self, mock_fetch):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.get_link_preview(request_id=None, phone=_PHONE_A, url="https://example.com")
+        mock_fetch.assert_not_called()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1180,8 +1335,8 @@ class TestUploadChatImage(unittest.TestCase):
         _cleanup_crowd()
         # Clean up any Frappe File docs created during tests
         frappe.db.sql(
-            "DELETE FROM `tabFile` WHERE file_name LIKE %s",
-            ["crowd-test-%.png"]
+            "DELETE FROM `tabFile` WHERE file_name LIKE %s OR file_name LIKE %s",
+            ["crowd-test-%.png", "crowd-test-%.mp4"]
         )
         frappe.db.commit()
 
@@ -1207,6 +1362,32 @@ class TestUploadChatImage(unittest.TestCase):
                 file_content=big_b64,
                 filename="big.png",
             )
+
+    def test_video_too_large_throws(self):
+        import base64
+        big_b64 = base64.b64encode(b"X" * (15 * 1024 * 1024 + 1)).decode()
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.upload_chat_image(
+                request_id=self.req.name,
+                phone=_PHONE_A,
+                file_content=big_b64,
+                filename="big.mp4",
+                content_type="video/mp4",
+            )
+
+    def test_video_under_image_cap_but_over_it_is_allowed(self):
+        # A video between the 5MB image cap and the 15MB video cap must pass —
+        # confirms the higher cap actually applies when content_type is video/*.
+        import base64
+        mid_b64 = base64.b64encode(b"X" * (6 * 1024 * 1024)).decode()
+        result = _data(crowd.upload_chat_image(
+            request_id=self.req.name,
+            phone=_PHONE_A,
+            file_content=mid_b64,
+            filename="crowd-test-clip.mp4",
+            content_type="video/mp4",
+        ))
+        self.assertIn("url", result)
 
     def test_invalid_base64_throws(self):
         with self.assertRaises(frappe.exceptions.ValidationError):
