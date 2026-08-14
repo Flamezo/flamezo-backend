@@ -141,7 +141,27 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
   const { selectedOutlet, setSelectedOutlet, outlets, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isOutletAdmin, outletType } = useOutlet()
-  const navigation = buildNavigation(outletType)
+  // Live-event tab — shows on the outlet's dashboard while it hosts an
+  // upcoming/ongoing (or recurring) event, and disappears once the event is over.
+  const { data: activeEventsResp } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.events.get_outlet_active_events',
+    { restaurant: selectedOutlet || '' },
+    selectedOutlet ? `active-events-${selectedOutlet}` : 'active-events-none',
+  )
+  const activeEvents = ((activeEventsResp as any)?.message?.data?.events || []) as any[]
+  const navigation = (() => {
+    const base = buildNavigation(outletType)
+    if (activeEvents.length === 0) return base
+    const eventItem = { type: 'link', name: 'Live Event', href: '/my-event', icon: PartyPopper } as NavItem
+    // Sit it next to Customers / Table Booking, not at the very top.
+    const idx = base.findIndex((it) => it.type === 'link' && (it.href === '/customers' || it.href === '/bookings'))
+    if (idx >= 0) {
+      const copy = [...base]
+      copy.splice(idx + 1, 0, eventItem)
+      return copy
+    }
+    return [...base, eventItem]
+  })()
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed

@@ -105,7 +105,7 @@ _DISCOVERY_FIELDS = [
 	"name", "restaurant_name", "logo", "latitude", "longitude",
 	"city", "plan_type", "onboarding_date", "description", "outlet_type",
 	"contact_phone", "whatsapp_number", "instagram_url",
-	"is_featured", "is_signature", "rating", "review_count",
+	"is_featured", "limelight_start_date", "limelight_end_date", "is_signature", "rating", "review_count",
 	"cuisines", "price_range", "amenities_mask", "hours_json",
 	"total_orders",
 ]
@@ -119,6 +119,16 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 			_haversine_km(user_lat, user_lon, flt(r["latitude"]), flt(r["longitude"])), 1
 		)
 	hours_raw = r.get("hours_json") or ""
+
+	is_featured_live = False
+	if r.get("is_featured"):
+		is_featured_live = True
+		today_date = getdate(today())
+		if r.get("limelight_start_date") and getdate(r.get("limelight_start_date")) > today_date:
+			is_featured_live = False
+		if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
+			is_featured_live = False
+
 	return {
 		"id": r["name"],
 		"outlet_name": r["restaurant_name"],
@@ -133,7 +143,7 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 		"phone": r.get("contact_phone") or "",
 		"whatsapp": r.get("whatsapp_number") or "",
 		"instagram_url": r.get("instagram_url") or "",
-		"is_featured": bool(r.get("is_featured")),
+		"is_featured": is_featured_live,
 		"is_signature": bool(r.get("is_signature")),
 		"rating": flt(r.get("rating") or 0) or None,
 		"review_count": cint(r.get("review_count") or 0),
@@ -215,7 +225,7 @@ def get_all_outlets(
 				params.extend(types)
 
 		if cint(is_featured) or section == "featured":
-			sql_filters.append("r.is_featured = 1")
+			sql_filters.append("r.is_featured = 1 AND (r.limelight_start_date IS NULL OR CURDATE() >= r.limelight_start_date) AND (r.limelight_end_date IS NULL OR CURDATE() <= r.limelight_end_date)")
 
 		if cint(is_signature):
 			sql_filters.append("r.is_signature = 1")
@@ -249,7 +259,7 @@ def get_all_outlets(
 		elif user_lat and user_lon:
 			order_by = "r.onboarding_date DESC"  # will re-sort by distance in Python
 		else:
-			order_by = "r.is_featured DESC, r.onboarding_date DESC"
+			order_by = "(r.is_featured = 1 AND (r.limelight_start_date IS NULL OR CURDATE() >= r.limelight_start_date) AND (r.limelight_end_date IS NULL OR CURDATE() <= r.limelight_end_date)) DESC, r.onboarding_date DESC"
 
 		where_clause = " AND ".join(sql_filters)
 
@@ -403,10 +413,10 @@ def get_outlets_for_map(
 		rows = frappe.db.sql(
 			f"""
 			SELECT name, restaurant_name, logo, latitude, longitude,
-			       outlet_type, is_featured
+			       outlet_type, is_featured, limelight_start_date, limelight_end_date
 			FROM `tabRestaurant`
 			WHERE {where}
-			ORDER BY is_featured DESC, onboarding_date DESC
+			ORDER BY (is_featured = 1 AND (limelight_start_date IS NULL OR CURDATE() >= limelight_start_date) AND (limelight_end_date IS NULL OR CURDATE() <= limelight_end_date)) DESC, onboarding_date DESC
 			LIMIT 2000
 			""",
 			params,
@@ -428,6 +438,7 @@ def get_outlets_for_map(
 			rows = [r for r in rows if offers_map.get(r["name"], 0) > 0]
 
 		site_url = frappe.utils.get_url()
+		today_date = getdate(today())
 		markers = []
 		for r in rows:
 			distance_km = None
@@ -437,6 +448,15 @@ def get_outlets_for_map(
 				)
 				if r_km is not None and distance_km > r_km:
 					continue  # exact Haversine cut past the bounding-box pre-filter
+
+			is_featured_live = False
+			if r.get("is_featured"):
+				is_featured_live = True
+				if r.get("limelight_start_date") and getdate(r.get("limelight_start_date")) > today_date:
+					is_featured_live = False
+				if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
+					is_featured_live = False
+
 			markers.append({
 				"id": r["name"],
 				"name": r["restaurant_name"],
@@ -444,7 +464,7 @@ def get_outlets_for_map(
 				"lat": flt(r["latitude"]),
 				"lng": flt(r["longitude"]),
 				"outlet_type": r.get("outlet_type") or "dining",
-				"is_featured": bool(r.get("is_featured")),
+				"is_featured": is_featured_live,
 				"active_offers_count": offers_map.get(r["name"], 0),
 				"distance_km": distance_km,
 			})
