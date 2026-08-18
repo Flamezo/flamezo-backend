@@ -273,6 +273,9 @@ scheduler_events = {
 			# ledger entries (03:30 IST, after overnight wallet top-ups settle).
 			"flamezo_backend.flamezo.tasks.commission_tasks.retry_wallet_settlements",
 			"flamezo_backend.flamezo.tasks.commission_tasks.clear_expired_throttles",
+			# Events — once a day, deactivate events whose date/time is over
+			# (they drop off the app feed and to the bottom of the list).
+			"flamezo_backend.flamezo.api.events.deactivate_past_events",
 		],
 		# The 23:59 floor-recovery cron was retired when the ₹399 monthly floor
 		# was removed from the model. `process_daily_subscription_floors` and

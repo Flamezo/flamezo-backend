@@ -83,6 +83,7 @@ export function TimePicker({
       }}>
         <PopoverTrigger asChild>
           <Button
+            type="button"
             variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal h-9 px-3 transition-all",
@@ -98,43 +99,47 @@ export function TimePicker({
             </span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0 rounded-xl overflow-hidden shadow-2xl border-primary/10" align="start">
-          <div className="bg-primary text-primary-foreground p-6 flex flex-col items-center gap-1">
-            <div className="flex items-baseline gap-2">
+        <PopoverContent className="w-[248px] p-0 rounded-xl overflow-hidden shadow-2xl border-primary/10" align="start" collisionPadding={12}>
+          <div className="bg-primary text-primary-foreground p-3 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
+                type="button"
                 onClick={() => setView("hours")}
                 className={cn(
-                  "text-5xl font-bold transition-opacity",
+                  "text-3xl font-bold transition-opacity",
                   view === "hours" ? "opacity-100" : "opacity-50 hover:opacity-80"
                 )}
               >
                 {String(hour).padStart(2, "0")}
               </button>
-              <span className="text-5xl font-light opacity-50">:</span>
+              <span className="text-3xl font-light opacity-50">:</span>
               <button
+                type="button"
                 onClick={() => setView("minutes")}
                 className={cn(
-                  "text-5xl font-bold transition-opacity",
+                  "text-3xl font-bold transition-opacity",
                   view === "minutes" ? "opacity-100" : "opacity-50 hover:opacity-80"
                 )}
               >
                 {String(minute).padStart(2, "0")}
               </button>
-              <div className="ml-4 flex flex-col gap-1">
+              <div className="ml-3 flex flex-col gap-1">
                 <button
+                  type="button"
                   onClick={() => togglePeriod("AM")}
                   className={cn(
-                    "text-xs font-bold px-2 py-1 rounded transition-colors",
-                    period === "AM" ? "bg-white/20 text-white" : "opacity-50 hover:opacity-100"
+                    "text-sm font-bold px-3 py-1 rounded-md transition-colors",
+                    period === "AM" ? "bg-white text-primary shadow-sm" : "bg-white/15 text-white/80 hover:bg-white/25"
                   )}
                 >
                   AM
                 </button>
                 <button
+                  type="button"
                   onClick={() => togglePeriod("PM")}
                   className={cn(
-                    "text-xs font-bold px-2 py-1 rounded transition-colors",
-                    period === "PM" ? "bg-white/20 text-white" : "opacity-50 hover:opacity-100"
+                    "text-sm font-bold px-3 py-1 rounded-md transition-colors",
+                    period === "PM" ? "bg-white text-primary shadow-sm" : "bg-white/15 text-white/80 hover:bg-white/25"
                   )}
                 >
                   PM
@@ -143,7 +148,7 @@ export function TimePicker({
             </div>
           </div>
 
-          <div className="p-6 bg-background">
+          <div className="p-4 bg-background">
             <ClockDial
               view={view}
               value={view === "hours" ? hour : minute}
@@ -152,7 +157,7 @@ export function TimePicker({
           </div>
 
           <div className="px-4 py-3 bg-muted/50 border-t flex justify-end gap-2">
-             <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="font-semibold text-primary">OK</Button>
+             <Button type="button" variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="font-semibold text-primary">OK</Button>
           </div>
         </PopoverContent>
       </Popover>
@@ -220,7 +225,7 @@ function ClockDial({ view, value, onSelect }: { view: View, value: number, onSel
   return (
     <div 
       ref={dialRef}
-      className="relative w-[230px] h-[230px] rounded-full bg-muted/30 mx-auto select-none touch-none"
+      className="relative w-[176px] h-[176px] rounded-full bg-muted/30 mx-auto select-none touch-none"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -234,8 +239,8 @@ function ClockDial({ view, value, onSelect }: { view: View, value: number, onSel
       {/* Hand */}
       <div 
         className="absolute top-1/2 left-1/2 w-0.5 bg-primary origin-bottom transition-transform duration-200 ease-out pointer-events-none"
-        style={{ 
-          height: "82px", 
+        style={{
+          height: "62px",
           transform: `translate(-50%, -100%) rotate(${rotation}deg)`
         }}
       >
@@ -247,7 +252,7 @@ function ClockDial({ view, value, onSelect }: { view: View, value: number, onSel
       {items.map((item, i) => {
         const angle = (view === "hours" ? item * 30 : (i * 5) * 6) - 90
         const radian = (angle * Math.PI) / 180
-        const radius = 82 // Optimized radius for better alignment
+        const radius = 62 // Optimized radius for better alignment
         const x = Math.cos(radian) * radius
         const y = Math.sin(radian) * radius
         

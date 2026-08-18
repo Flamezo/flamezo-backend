@@ -13,6 +13,21 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 from flamezo_backend.flamezo.media.utils import format_media_field
 
 
+def _parse_media(raw):
+	"""Parse the Event media_gallery JSON into a safe list of {type, url}."""
+	try:
+		items = frappe.parse_json(raw or "[]")
+	except Exception:
+		return []
+	if not isinstance(items, list):
+		return []
+	out = []
+	for m in items:
+		if isinstance(m, dict) and m.get("url"):
+			out.append({"type": m.get("type") or "image", "url": m.get("url")})
+	return out
+
+
 def _format_event(event, include_outlet=False, outlet_meta=None):
 	"""Shared formatter for a single event row."""
 	date_str = formatdate(event["date"], "yyyy-mm-dd") if event.get("date") else ""
@@ -31,6 +46,7 @@ def _format_event(event, include_outlet=False, outlet_meta=None):
 		"image_src": event.get("image_src", ""),
 		"google_maps_link": event.get("google_maps_link", ""),
 		"registration_link": event.get("registration_link", ""),
+		"media": _parse_media(event.get("media_gallery")),
 	}
 
 	if include_outlet and outlet_meta:
@@ -64,7 +80,7 @@ _EVENT_FIELDS = [
 	"date", "time", "location", "category", "featured", "status", "is_active",
 	"repeat_this_event", "repeat_on", "repeat_till", "google_maps_link",
 	"registration_link", "monday", "tuesday", "wednesday", "thursday",
-	"friday", "saturday", "sunday", "restaurant",
+	"friday", "saturday", "sunday", "restaurant", "media_gallery",
 ]
 
 
@@ -80,6 +96,7 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 	try:
 		consumer_mode = not outlet_id
 
+		or_filters = None
 		if consumer_mode:
 			# Fetch all active outlets once for name/city lookup
 			active_outlets = frappe.get_all(
@@ -90,7 +107,12 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 			outlet_map = {r["name"]: r for r in active_outlets}
 			active_names = list(outlet_map.keys())
 
-			filters = {"restaurant": ["in", active_names], "is_active": 1}
+			# Global events feed: show events that belong to an active outlet OR
+			# platform events with no merchant attached (restaurant unset).
+			filters = {"is_active": 1}
+			or_filters = [["restaurant", "is", "not set"]]
+			if active_names:
+				or_filters.append(["restaurant", "in", active_names])
 		else:
 			restaurant = validate_restaurant_for_api(outlet_id)
 			filters = {"restaurant": restaurant, "is_active": 1}
@@ -103,6 +125,7 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 			filters["status"] = ["in", ["upcoming", "recurring"]]
 
 		events = frappe.get_all("Event", fields=_EVENT_FIELDS, filters=filters,
+								or_filters=or_filters,
 								order_by="display_order asc, title asc")
 
 		formatted_events = []
@@ -119,6 +142,102 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 		frappe.log_error(f"Error in get_events: {str(e)}")
 		return {"success": False, "error": {"code": "EVENT_FETCH_ERROR", "message": str(e)}}
 
+
+
+@frappe.whitelist(allow_guest=True)
+def join_event(event_id):
+	"""An app user joins an event. Their details are pulled from their session
+	and stored so the merchant sees who joined. Idempotent per (event, customer)."""
+	from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
+
+	token = get_customer_token()
+	if not token:
+		return {"success": False, "error": {"code": "UNAUTHORIZED", "message": "Please sign in to join."}}
+	customer_id = get_customer_from_token(token)
+	if not customer_id:
+		return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Session expired. Sign in again."}}
+	if not event_id or not frappe.db.exists("Event", event_id):
+		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Event not found."}}
+
+	if frappe.db.exists("Event Registration", {"event": event_id, "customer": customer_id}):
+		return {"success": True, "data": {"joined": True, "already_joined": True}}
+
+	cust = frappe.db.get_value("Customer", customer_id, ["customer_name", "phone"], as_dict=True) or {}
+	doc = frappe.get_doc({
+		"doctype": "Event Registration",
+		"event": event_id,
+		"customer": customer_id,
+		"customer_name": cust.get("customer_name") or "",
+		"customer_phone": cust.get("phone") or "",
+		"joined_at": frappe.utils.now_datetime(),
+	})
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "data": {"joined": True}}
+
+
+@frappe.whitelist(allow_guest=True)
+def leave_event(event_id):
+	"""An app user cancels their event join."""
+	from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
+
+	token = get_customer_token()
+	customer_id = get_customer_from_token(token) if token else None
+	if not customer_id:
+		return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Please sign in."}}
+	name = frappe.db.exists("Event Registration", {"event": event_id, "customer": customer_id})
+	if name:
+		frappe.delete_doc("Event Registration", name, ignore_permissions=True, force=True)
+		frappe.db.commit()
+	return {"success": True, "data": {"joined": False}}
+
+
+def deactivate_past_events():
+	"""Scheduled: auto-deactivate non-recurring events once their time is over —
+	either the event date has passed, or it's today and the end time is done.
+	Deactivated events (is_active=0, status='past') drop off the app feed and
+	fall to the bottom of the dashboard list. Recurring events are left alone.
+	"""
+	try:
+		frappe.db.sql(
+			"""
+			UPDATE `tabEvent`
+			SET is_active = 0, status = 'past'
+			WHERE is_active = 1
+			  AND COALESCE(repeat_this_event, 0) = 0
+			  AND date IS NOT NULL
+			  AND (
+			        date < CURDATE()
+			     OR (date = CURDATE() AND end_time IS NOT NULL AND end_time < CURTIME())
+			  )
+			"""
+		)
+		frappe.db.commit()
+	except Exception as e:
+		frappe.log_error(f"deactivate_past_events failed: {e}", "Events Auto-Deactivate")
+
+
+@frappe.whitelist()
+def get_outlet_active_events(outlet_id):
+	"""Events an outlet is currently hosting — upcoming/ongoing (date >= today)
+	or recurring. Non-recurring events drop out automatically once their date
+	passes, so the merchant dashboard's Event tab disappears after the event.
+	"""
+	try:
+		if not outlet_id:
+			return {"success": True, "data": {"events": []}}
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
+		rows = frappe.get_all(
+			"Event",
+			filters={"restaurant": restaurant, "is_active": 1},
+			or_filters=[["date", ">=", today()], ["repeat_this_event", "=", 1]],
+			fields=_EVENT_FIELDS,
+			order_by="date asc, title asc",
+		)
+		return {"success": True, "data": {"events": [_format_event(r) for r in rows]}}
+	except Exception as e:
+		frappe.log_error(f"Error in get_outlet_active_events: {str(e)}")
+		return {"success": False, "error": {"code": "EVENT_FETCH_ERROR", "message": str(e)}}
 
 
 @frappe.whitelist(allow_guest=True)
