@@ -15,6 +15,14 @@
   "message_type",
   "message",
   "image_url",
+  "preview_title",
+  "preview_description",
+  "preview_image",
+  "location_lat",
+  "location_lng",
+  "shared_outlet_id",
+  "shared_outlet_name",
+  "shared_outlet_image",
   "is_system",
   "created_at"
  ],
@@ -51,7 +59,7 @@
    "fieldname": "message_type",
    "fieldtype": "Select",
    "label": "Message Type",
-   "options": "text\nimage\nsystem",
+   "options": "text\nimage\nvideo\nlocation\noutlet\nsystem",
    "default": "text",
    "reqd": 1
   },
@@ -63,7 +71,47 @@
   {
    "fieldname": "image_url",
    "fieldtype": "Data",
-   "label": "Image URL"
+   "label": "Media URL (image or video)"
+  },
+  {
+   "fieldname": "preview_title",
+   "fieldtype": "Data",
+   "label": "Link Preview Title"
+  },
+  {
+   "fieldname": "preview_description",
+   "fieldtype": "Small Text",
+   "label": "Link Preview Description"
+  },
+  {
+   "fieldname": "preview_image",
+   "fieldtype": "Data",
+   "label": "Link Preview Image URL"
+  },
+  {
+   "fieldname": "location_lat",
+   "fieldtype": "Float",
+   "label": "Shared Location Latitude"
+  },
+  {
+   "fieldname": "location_lng",
+   "fieldtype": "Float",
+   "label": "Shared Location Longitude"
+  },
+  {
+   "fieldname": "shared_outlet_id",
+   "fieldtype": "Data",
+   "label": "Shared Outlet ID"
+  },
+  {
+   "fieldname": "shared_outlet_name",
+   "fieldtype": "Data",
+   "label": "Shared Outlet Name"
+  },
+  {
+   "fieldname": "shared_outlet_image",
+   "fieldtype": "Data",
+   "label": "Shared Outlet Image URL"
   },
   {
    "fieldname": "is_system",

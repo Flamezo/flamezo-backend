@@ -22,6 +22,7 @@ interface AddressAutocompleteProps {
   readOnly?: boolean
   description?: string
   id?: string
+  placeholder?: string
 }
 
 declare global {
@@ -42,6 +43,7 @@ export default function AddressAutocomplete({
   readOnly = false,
   description,
   id = 'address',
+  placeholder = 'Search for the outlet address...',
 }: AddressAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -302,7 +304,7 @@ export default function AddressAutocomplete({
           }}
           readOnly={readOnly}
           required={required}
-          placeholder="Search for your restaurant address..."
+          placeholder={placeholder}
           className={cn(
             'pl-9 pr-4',
             readOnly && 'opacity-60 cursor-not-allowed bg-muted'

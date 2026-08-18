@@ -19,6 +19,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
 import json
 import math
+import hashlib
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,6 +58,36 @@ def _batch_active_offers_count(outlet_ids):
 		GROUP BY restaurant
 		""",
 		outlet_ids + [today_str, today_str],
+		as_dict=True,
+	)
+	return {r.restaurant: r.cnt for r in rows}
+
+
+def _batch_engagement_count(outlet_ids, days=30):
+	"""
+	Single SQL query — {outlet_id: count} of recent `Analytics Event` rows
+	(qr_scan / menu_view / item_view) per outlet, last `days` days.
+
+	This is the real "how popular is this outlet right now" signal post the
+	Aug 2026 pivot away from cart/ordering — `Restaurant.total_orders` is
+	dead (nothing writes to it anymore; analytics.py's own order-stats query
+	is stubbed to an always-empty dummy table). Menu/item views and QR scans
+	are what's actually live-tracked per outlet today.
+	"""
+	if not outlet_ids:
+		return {}
+	cutoff = add_days(today(), -days)
+	placeholders = ",".join(["%s"] * len(outlet_ids))
+	rows = frappe.db.sql(
+		f"""
+		SELECT restaurant, COUNT(*) AS cnt
+		FROM `tabAnalytics Event`
+		WHERE event_type IN ('qr_scan', 'menu_view', 'item_view')
+		  AND restaurant IN ({placeholders})
+		  AND creation >= %s
+		GROUP BY restaurant
+		""",
+		outlet_ids + [cutoff],
 		as_dict=True,
 	)
 	return {r.restaurant: r.cnt for r in rows}
@@ -105,7 +136,7 @@ _DISCOVERY_FIELDS = [
 	"name", "restaurant_name", "logo", "latitude", "longitude",
 	"city", "plan_type", "onboarding_date", "description", "outlet_type",
 	"contact_phone", "whatsapp_number", "instagram_url",
-	"is_featured", "is_signature", "rating", "review_count",
+	"is_featured", "limelight_start_date", "limelight_end_date", "is_signature", "rating", "review_count",
 	"cuisines", "price_range", "amenities_mask", "hours_json",
 	"total_orders",
 ]
@@ -119,6 +150,16 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 			_haversine_km(user_lat, user_lon, flt(r["latitude"]), flt(r["longitude"])), 1
 		)
 	hours_raw = r.get("hours_json") or ""
+
+	is_featured_live = False
+	if r.get("is_featured"):
+		is_featured_live = True
+		today_date = getdate(today())
+		if r.get("limelight_start_date") and getdate(r.get("limelight_start_date")) > today_date:
+			is_featured_live = False
+		if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
+			is_featured_live = False
+
 	return {
 		"id": r["name"],
 		"outlet_name": r["restaurant_name"],
@@ -133,7 +174,7 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 		"phone": r.get("contact_phone") or "",
 		"whatsapp": r.get("whatsapp_number") or "",
 		"instagram_url": r.get("instagram_url") or "",
-		"is_featured": bool(r.get("is_featured")),
+		"is_featured": is_featured_live,
 		"is_signature": bool(r.get("is_signature")),
 		"rating": flt(r.get("rating") or 0) or None,
 		"review_count": cint(r.get("review_count") or 0),
@@ -215,7 +256,7 @@ def get_all_outlets(
 				params.extend(types)
 
 		if cint(is_featured) or section == "featured":
-			sql_filters.append("r.is_featured = 1")
+			sql_filters.append("r.is_featured = 1 AND (r.limelight_start_date IS NULL OR CURDATE() >= r.limelight_start_date) AND (r.limelight_end_date IS NULL OR CURDATE() <= r.limelight_end_date)")
 
 		if cint(is_signature):
 			sql_filters.append("r.is_signature = 1")
@@ -249,7 +290,7 @@ def get_all_outlets(
 		elif user_lat and user_lon:
 			order_by = "r.onboarding_date DESC"  # will re-sort by distance in Python
 		else:
-			order_by = "r.is_featured DESC, r.onboarding_date DESC"
+			order_by = "(r.is_featured = 1 AND (r.limelight_start_date IS NULL OR CURDATE() >= r.limelight_start_date) AND (r.limelight_end_date IS NULL OR CURDATE() <= r.limelight_end_date)) DESC, r.onboarding_date DESC"
 
 		where_clause = " AND ".join(sql_filters)
 
@@ -313,6 +354,244 @@ def get_all_outlets(
 	except Exception as e:
 		frappe.log_error(f"Error in flamezo.get_all_outlets: {str(e)}")
 		return {"success": False, "error": {"code": "DISCOVERY_ERROR", "message": str(e)}}
+
+
+# ── 1a. Discovery — Home Feed (composite, mutually-exclusive sections) ────────
+
+_FEED_SECTION_TARGETS = {
+	"signature": 10,
+	"limelight": 6,
+	"new_to_flamezo": 5,
+	"popular": 5,
+}
+
+
+def _seeded_tiebreak_key(seed, outlet_id):
+	"""Deterministic per-(seed, outlet) pseudo-random float in [0, 1).
+
+	Used as a tiebreaker whenever a section's real ranking signal has no
+	variance yet (e.g. every outlet sharing the same onboarding_date, or
+	rating/engagement all zero on freshly seeded data) — sorting on a
+	constant would otherwise freeze a section on whichever rows happen to
+	come back first from SQL forever. Same seed -> same order every call
+	(cache-friendly, no flicker on refresh); a new seed reshuffles who wins
+	the tiebreak, so exposure rotates fairly across the merchant base
+	instead of a handful of outlets permanently owning the top slots.
+	"""
+	h = hashlib.md5(f"{seed}:{outlet_id}".encode()).hexdigest()
+	return int(h[:8], 16) / 0xFFFFFFFF
+
+
+@frappe.whitelist(allow_guest=True)
+def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None, outlet_type=None, is_signature=None, rotation_seed=None):
+	"""
+	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_discovery_feed
+
+	Composite home-feed endpoint — returns several pre-curated, MUTUALLY
+	EXCLUSIVE sections ("signature", "limelight", "new_to_flamezo",
+	"popular") in one call.
+
+	Why this exists: get_all_outlets returns one ordered list, and the app
+	was slicing that SAME list five different ways (outlets.take(5) for
+	limelight, outlets.take(3) for new-to-flamezo, outlets.take(3).reversed
+	for popular picks) — so the top few outlets by the *one* server-side
+	sort order appeared in every section simultaneously. This endpoint moves
+	section composition server-side: each section ranks by its own real
+	signal, and every outlet already claimed is excluded from the rest, so
+	sections never overlap. Allocation order is signal-strength, not display
+	order — see the comment above the allocation code for why.
+
+	Graceful fallback for flat/sparse data: when a section's real signal has
+	no variance (dev/seed data — every onboarding_date identical, ratings
+	all 0, no recorded engagement events, nobody flagged is_featured/is_signature)
+	it falls back to `_seeded_tiebreak_key`, a stable-but-rotating shuffle keyed
+	on the day (by default) — see that function's docstring. This is also
+	the fairness mechanism in production: it's what keeps "In the limelight"
+	from being monopolized by the same 5-6 merchants forever once real
+	signals exist too, since anything short of an outright ranking win still
+	rotates through the tiebreak over time.
+
+	If a section's eligible pool (after exclusions) is smaller than its
+	target count, it just returns fewer — never backfilled with duplicates
+	from another section.
+
+	Parameters:
+	  latitude, longitude, radius_km — optional geo filter/sort, same as get_all_outlets
+	  city, outlet_type              — optional filters, same as get_all_outlets
+	  is_signature                   — when truthy, restricts the ENTIRE pool to
+	                                    is_signature=1 first (mirrors the app's
+	                                    Everyday/Signatures tab toggle — on the
+	                                    Signatures tab every section should only
+	                                    ever surface signature merchants)
+	  rotation_seed                  — override the default (today's date) rotation
+	                                    window; mainly for testing determinism/rotation
+	"""
+	try:
+		user_lat = flt(latitude) if latitude else None
+		user_lon = flt(longitude) if longitude else None
+		seed = rotation_seed or today()
+
+		lat_b = round(user_lat, 2) if user_lat else None
+		lon_b = round(user_lon, 2) if user_lon else None
+		cache_key = f"flamezo:feed:{lat_b}:{lon_b}:{city or ''}:{outlet_type or ''}:{cint(is_signature)}:{seed}"
+		if frappe.session.user == "Guest":
+			cached = frappe.cache().get_value(cache_key)
+			if cached:
+				return json.loads(cached)
+
+		sql_filters = ["r.is_active = 1"]
+		params = []
+		if cint(is_signature):
+			sql_filters.append("r.is_signature = 1")
+		if city:
+			sql_filters.append("r.city LIKE %s")
+			params.append(f"%{city}%")
+		if outlet_type:
+			types = [t.strip() for t in str(outlet_type).split(",") if t.strip()]
+			if types:
+				phs = ",".join(["%s"] * len(types))
+				sql_filters.append(f"r.outlet_type IN ({phs})")
+				params.extend(types)
+		if user_lat and user_lon and radius_km:
+			r_km = flt(radius_km)
+			lat_delta = r_km / 111.0
+			lon_delta = r_km / (111.0 * math.cos(math.radians(user_lat)))
+			sql_filters.append("r.latitude  BETWEEN %s AND %s")
+			sql_filters.append("r.longitude BETWEEN %s AND %s")
+			params += [user_lat - lat_delta, user_lat + lat_delta,
+					   user_lon - lon_delta, user_lon + lon_delta]
+
+		where_clause = " AND ".join(sql_filters)
+		fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
+		# One wide pool feeds every section — capped generously so rotation
+		# actually has room to rotate through the merchant base rather than
+		# always drawing from the same first-30 rows.
+		pool_limit = 300
+		sql = f"""
+			SELECT {fields_csv}
+			FROM `tabRestaurant` r
+			WHERE {where_clause}
+			LIMIT {pool_limit}
+		"""
+		rows = frappe.db.sql(sql, params, as_dict=True)
+
+		rest_names = [r["name"] for r in rows]
+		offers_map = _batch_active_offers_count(rest_names)
+		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in rows]
+		if user_lat and user_lon:
+			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
+
+		onboard_map = {r["name"]: str(r.get("onboarding_date") or "") for r in rows}
+		# NOT total_orders — that field is dead post-pivot (see
+		# _batch_engagement_count's docstring). Real menu/item-view + QR-scan
+		# activity is the live "popular" signal now.
+		engagement_map = _batch_engagement_count(rest_names)
+
+		used = set()
+
+		def _rot(card):
+			return _seeded_tiebreak_key(seed, card["id"])
+
+		def _take(candidates, sort_key, n, reverse=False):
+			avail = [c for c in candidates if c["id"] not in used]
+			avail.sort(key=sort_key, reverse=reverse)
+			picked = avail[:n]
+			used.update(c["id"] for c in picked)
+			return picked
+
+		# Allocation ORDER matters here, and it's deliberately not just
+		# "signature, limelight, new, popular" top to bottom. Sections with a
+		# strong, specific real signal (an explicit is_signature/is_featured
+		# flag, a genuine onboarding_date, a genuine order count) should claim
+		# their standout candidates BEFORE any section that has to fall back
+		# to a generic/tied ranking. Caught by a mock-data test: with
+		# limelight's fallback (plain rating, which ties constantly on sparse
+		# data) allocated 2nd, it was grabbing outlets that were the clear,
+		# correct winners for "new_to_flamezo"/"popular" purely because its
+		# tiebreak got first pick of the pool — an editorially-weak section
+		# was starving editorially-strong ones of their obvious picks.
+		#
+		# Fixed order: 1) signature (explicit flag) 2) limelight's FEATURED
+		# claims only (explicit flag — real editorial intent, so it still
+		# gets first pick among featured outlets specifically) 3) new_to_flamezo
+		# (strong specific signal) 4) popular (strong specific signal)
+		# 5) limelight's fallback fill, LAST, from whatever's left — this is
+		# the weak/tie-prone ranking, so it only ever mops up leftovers
+		# instead of pre-empting a stronger section's true winner.
+
+		# 1. Signature — flagged merchants, best-rated first, seeded tiebreak.
+		signature = _take(
+			[c for c in pool if c["is_signature"]],
+			lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
+			_FEED_SECTION_TARGETS["signature"],
+		)
+
+		# 2a. Limelight, featured claims — explicit is_featured=1 flag, so
+		#     these outlets are claimed for limelight up front regardless of
+		#     what other sections might also want them.
+		limelight_featured = _take(
+			[c for c in pool if c["is_featured"]],
+			lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
+			_FEED_SECTION_TARGETS["limelight"],
+		)
+
+		# 3. New to Flamezo — most-recently-onboarded; seeded tiebreak covers
+		#    the (current, real) case where every row shares one onboarding_date.
+		#    reverse=True so `_take` actually keeps the NEWEST n (sorting
+		#    ascending and slicing [:n] — the original approach here — silently
+		#    picked the OLDEST n instead; caught by a mock-data test where the
+		#    genuinely-newest outlet was missing from the result entirely).
+		new_to_flamezo = _take(
+			pool,
+			lambda c: (onboard_map.get(c["id"], ""), _rot(c)),
+			_FEED_SECTION_TARGETS["new_to_flamezo"],
+			reverse=True,
+		)
+
+		# 4. Popular — recent (30d) menu/item-view + QR-scan activity desc;
+		#    falls back to rating×review_count, then seeded tiebreak, when an
+		#    outlet has no recorded engagement yet.
+		popular = _take(
+			pool,
+			lambda c: (-engagement_map.get(c["id"], 0), -((c["rating"] or 0) * c["review_count"]), _rot(c)),
+			_FEED_SECTION_TARGETS["popular"],
+		)
+
+		# 2b. Limelight, fallback fill — only runs if the featured claims
+		#     above didn't fill the section; draws from whatever's left
+		#     AFTER the strong-signal sections have taken their picks.
+		limelight_remaining = _FEED_SECTION_TARGETS["limelight"] - len(limelight_featured)
+		limelight_fallback = (
+			_take(
+				pool,
+				lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
+				limelight_remaining,
+			)
+			if limelight_remaining > 0
+			else []
+		)
+		limelight = limelight_featured + limelight_fallback
+
+		response = {
+			"success": True,
+			"data": {
+				"signature": signature,
+				"limelight": limelight,
+				"new_to_flamezo": new_to_flamezo,
+				"popular": popular,
+				"rotation_seed": seed,
+				"pool_size": len(pool),
+			},
+		}
+
+		if frappe.session.user == "Guest":
+			frappe.cache().set_value(cache_key, json.dumps(response), expires_in_sec=120)
+
+		return response
+
+	except Exception as e:
+		frappe.log_error(f"Error in flamezo.get_discovery_feed: {str(e)}")
+		return {"success": False, "error": {"code": "DISCOVERY_FEED_ERROR", "message": str(e)}}
 
 
 # ── 1b. Map Markers — ultra-lightweight ───────────────────────────────────────
@@ -403,10 +682,10 @@ def get_outlets_for_map(
 		rows = frappe.db.sql(
 			f"""
 			SELECT name, restaurant_name, logo, latitude, longitude,
-			       outlet_type, is_featured
+			       outlet_type, is_featured, limelight_start_date, limelight_end_date
 			FROM `tabRestaurant`
 			WHERE {where}
-			ORDER BY is_featured DESC, onboarding_date DESC
+			ORDER BY (is_featured = 1 AND (limelight_start_date IS NULL OR CURDATE() >= limelight_start_date) AND (limelight_end_date IS NULL OR CURDATE() <= limelight_end_date)) DESC, onboarding_date DESC
 			LIMIT 2000
 			""",
 			params,
@@ -428,6 +707,7 @@ def get_outlets_for_map(
 			rows = [r for r in rows if offers_map.get(r["name"], 0) > 0]
 
 		site_url = frappe.utils.get_url()
+		today_date = getdate(today())
 		markers = []
 		for r in rows:
 			distance_km = None
@@ -437,6 +717,15 @@ def get_outlets_for_map(
 				)
 				if r_km is not None and distance_km > r_km:
 					continue  # exact Haversine cut past the bounding-box pre-filter
+
+			is_featured_live = False
+			if r.get("is_featured"):
+				is_featured_live = True
+				if r.get("limelight_start_date") and getdate(r.get("limelight_start_date")) > today_date:
+					is_featured_live = False
+				if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
+					is_featured_live = False
+
 			markers.append({
 				"id": r["name"],
 				"name": r["restaurant_name"],
@@ -444,7 +733,7 @@ def get_outlets_for_map(
 				"lat": flt(r["latitude"]),
 				"lng": flt(r["longitude"]),
 				"outlet_type": r.get("outlet_type") or "dining",
-				"is_featured": bool(r.get("is_featured")),
+				"is_featured": is_featured_live,
 				"active_offers_count": offers_map.get(r["name"], 0),
 				"distance_km": distance_km,
 			})

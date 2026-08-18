@@ -36,6 +36,8 @@ const AdminMerchantManagement = lazy(() => import('./pages/AdminMerchantManageme
 const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails'))
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
+const AdminEventDetail = lazy(() => import('./pages/AdminEventDetail'))
+const MyOutletEvent = lazy(() => import('./pages/MyOutletEvent'))
 const AIEnhancementPage = lazy(() => import('./pages/AIEnhancementPage'))
 const AIGalleryPage = lazy(() => import('./pages/AIGalleryPage'))
 const AIMenuThemeBackgroundPage = lazy(() => import('./pages/AIMenuThemeBackgroundPage'))
@@ -112,6 +114,8 @@ function AppContent() {
 								<Route path="/admin/merchants/:id" element={<AdminMerchantDetailsPage />} />
 								<Route path="/admin/customers" element={<AdminCustomerManagement />} />
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
+								<Route path="/admin/events" element={<Events />} />
+								<Route path="/admin/events/:id" element={<AdminEventDetail />} />
 
 
 								<Route element={<FeatureProtectedRoute feature="coupons" />}>
@@ -140,9 +144,10 @@ function AppContent() {
 									<Route path="/bookings" element={<Bookings />} />
 								</Route>
 
-								<Route element={<FeatureProtectedRoute feature="events" />}>
-									<Route path="/events" element={<Events />} />
-								</Route>
+								{/* Events moved to /admin/events (admin-only, cross-merchant). */}
+								<Route path="/events" element={<Navigate to="/admin/events" replace />} />
+								{/* Outlet's own live-event tab (appears while an event is on). */}
+								<Route path="/my-event" element={<MyOutletEvent />} />
 
 								<Route element={<FeatureProtectedRoute feature="customer" />}>
 									<Route path="/customers" element={<Customers />} />

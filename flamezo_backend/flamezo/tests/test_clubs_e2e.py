@@ -203,6 +203,7 @@ def _make_chills_for_club(creator_name, outlet_name):
 def _cleanup_clubs():
     frappe.db.sql("DELETE FROM `tabCreator Club Post Like` WHERE post IN (SELECT name FROM `tabCreator Club Post` WHERE content LIKE 'test%')")
     frappe.db.sql("DELETE FROM `tabCreator Club Post Comment` WHERE post IN (SELECT name FROM `tabCreator Club Post` WHERE content LIKE 'test%')")
+    frappe.db.sql("DELETE FROM `tabCreator Club Post Tag` WHERE post IN (SELECT name FROM `tabCreator Club Post` WHERE content LIKE 'test%')")
     frappe.db.sql("DELETE FROM `tabCreator Club Post` WHERE content LIKE 'test%'")
     frappe.db.sql("DELETE FROM `tabCreator Club Member` WHERE customer_phone IN (%s, %s)", [_PHONE_A, _PHONE_B])
     frappe.db.sql("DELETE FROM `tabCreator Club` WHERE description='Test club description'")
@@ -550,6 +551,109 @@ class TestGetClubPosts(unittest.TestCase):
         self.assertTrue(result["has_more"])
         self.assertEqual(len(result["posts"]), 2)
 
+    def test_tagged_outlets_included(self):
+        post = _make_post(self.club.name, "text", "test post with fixture tag")
+        frappe.get_doc({"doctype": "Creator Club Post Tag", "post": post.name, "outlet": self.outlet}).insert(ignore_permissions=True)
+        result = clubs.get_club_posts(self.club.name)["data"]
+        p = next(p for p in result["posts"] if p["id"] == post.name)
+        self.assertEqual(len(p["tagged_outlets"]), 1)
+        self.assertEqual(p["tagged_outlets"][0]["id"], self.outlet)
+
+    def test_no_tagged_outlets_by_default(self):
+        post = _make_post(self.club.name, "text", "test post no tags")
+        result = clubs.get_club_posts(self.club.name)["data"]
+        p = next(p for p in result["posts"] if p["id"] == post.name)
+        self.assertEqual(p["tagged_outlets"], [])
+
+
+class TestCreatorFeed(unittest.TestCase):
+    """
+    get_creator_feed — the real "Latest from Creators" home feed, aggregated
+    across clubs (unlike get_club_posts, which is scoped to one club).
+      - personalized to clubs the caller follows
+      - falls back to a global feed (all active clubs) when the caller
+        follows nothing, or isn't logged in
+      - keyset-paginated, newest first
+      - reuses the same likes/tags/chills formatting as get_club_posts
+    """
+
+    def setUp(self):
+        _cleanup_clubs()
+        self.creator = _make_creator(_PHONE_A)
+        self.club_a = _make_club(self.creator.name, "Test Feed Club A")
+        self.club_b = _make_club(self.creator.name, "Test Feed Club B")
+        self.outlet = _ensure_outlet()
+
+    def tearDown(self):
+        _cleanup_clubs()
+
+    def test_global_fallback_when_not_following_anything(self):
+        _make_post(self.club_a.name, "text", "test global feed post A")
+        _make_post(self.club_b.name, "text", "test global feed post B")
+        with _verified_session():
+            result = clubs.get_creator_feed(phone=_PHONE_B)["data"]
+        contents = [p["content"] for p in result["posts"]]
+        self.assertIn("test global feed post A", contents)
+        self.assertIn("test global feed post B", contents)
+        self.assertFalse(result["is_personalized"])
+
+    def test_anonymous_call_gets_global_feed(self):
+        _make_post(self.club_a.name, "text", "test anon feed post")
+        result = clubs.get_creator_feed()["data"]
+        contents = [p["content"] for p in result["posts"]]
+        self.assertIn("test anon feed post", contents)
+
+    def test_personalized_to_followed_clubs_only(self):
+        _make_post(self.club_a.name, "text", "test followed club post")
+        _make_post(self.club_b.name, "text", "test unfollowed club post")
+        with _verified_session():
+            clubs.follow_club(self.club_a.name, _PHONE_B)
+            result = clubs.get_creator_feed(phone=_PHONE_B)["data"]
+        contents = [p["content"] for p in result["posts"]]
+        self.assertIn("test followed club post", contents)
+        self.assertNotIn("test unfollowed club post", contents)
+        self.assertTrue(result["is_personalized"])
+
+    def test_newest_first(self):
+        p1 = _make_post(self.club_a.name, "text", "test order post 1")
+        p2 = _make_post(self.club_a.name, "text", "test order post 2")
+        result = clubs.get_creator_feed()["data"]
+        ids = [p["id"] for p in result["posts"]]
+        self.assertLess(ids.index(p2.name), ids.index(p1.name))
+
+    def test_author_club_info_included(self):
+        _make_post(self.club_a.name, "text", "test author info post")
+        result = clubs.get_creator_feed()["data"]
+        p = next(p for p in result["posts"] if p["content"] == "test author info post")
+        self.assertEqual(p["club_name"], "Test Feed Club A")
+        self.assertEqual(p["creator_name"], self.creator.display_name)
+
+    def test_tagged_outlets_included_in_feed(self):
+        post = _make_post(self.club_a.name, "text", "test feed tag post")
+        frappe.get_doc({"doctype": "Creator Club Post Tag", "post": post.name, "outlet": self.outlet}).insert(ignore_permissions=True)
+        result = clubs.get_creator_feed()["data"]
+        p = next(p for p in result["posts"] if p["id"] == post.name)
+        self.assertEqual(len(p["tagged_outlets"]), 1)
+        self.assertEqual(p["tagged_outlets"][0]["id"], self.outlet)
+
+    def test_pagination_cursor(self):
+        for i in range(5):
+            _make_post(self.club_a.name, "text", f"test cursor post {i}")
+        page1 = clubs.get_creator_feed(limit=2)["data"]
+        self.assertTrue(page1["has_more"])
+        self.assertEqual(len(page1["posts"]), 2)
+        page2 = clubs.get_creator_feed(limit=2, cursor=page1["next_cursor"])["data"]
+        page1_ids = {p["id"] for p in page1["posts"]}
+        page2_ids = {p["id"] for p in page2["posts"]}
+        self.assertEqual(page1_ids & page2_ids, set())
+
+    def test_inactive_club_posts_excluded(self):
+        inactive = _make_club(self.creator.name, "Test Feed Inactive Club", is_active=0)
+        _make_post(inactive.name, "text", "test inactive club feed post")
+        result = clubs.get_creator_feed()["data"]
+        contents = [p["content"] for p in result["posts"]]
+        self.assertNotIn("test inactive club feed post", contents)
+
 
 class TestCreateClubPost(unittest.TestCase):
 
@@ -615,6 +719,44 @@ class TestCreateClubPost(unittest.TestCase):
         inactive = _make_club(self.creator.name, "Test Inactive Create", is_active=0)
         with _verified_session(), self.assertRaises(frappe.exceptions.DoesNotExistError):
             clubs.create_club_post(inactive.name, _PHONE_A, "text", content="test post on inactive club")
+
+    # ── outlet tagging ───────────────────────────────────────────────────────
+
+    def test_tagged_outlets_stored_and_returned(self):
+        with _verified_session():
+            result = clubs.create_club_post(
+                self.club.name, _PHONE_A, "text", content="test tagged post", tagged_outlet_ids=self.outlet,
+            )["data"]
+        self.assertEqual(len(result["tagged_outlets"]), 1)
+        self.assertEqual(result["tagged_outlets"][0]["id"], self.outlet)
+
+    def test_tagging_nonexistent_outlet_is_dropped(self):
+        with _verified_session():
+            result = clubs.create_club_post(
+                self.club.name, _PHONE_A, "text", content="test bad tag post", tagged_outlet_ids="OUTLET-DOES-NOT-EXIST",
+            )["data"]
+        self.assertEqual(result["tagged_outlets"], [])
+
+    def test_tagging_capped_at_five(self):
+        others = [f"{_CLUB_OUTLET}-cap-{i}" for i in range(7)]
+        for o in others:
+            make_restaurant(o, restaurant_name=f"Test Tag Cap Outlet {o}")
+        try:
+            with _verified_session():
+                result = clubs.create_club_post(
+                    self.club.name, _PHONE_A, "text", content="test tag cap post",
+                    tagged_outlet_ids=",".join(others),
+                )["data"]
+            self.assertEqual(len(result["tagged_outlets"]), 5)
+        finally:
+            for o in others:
+                frappe.db.sql("DELETE FROM `tabCreator Club Post Tag` WHERE outlet=%s", o)
+                frappe.delete_doc("Restaurant", o, ignore_permissions=True, force=True)
+
+    def test_no_tags_by_default(self):
+        with _verified_session():
+            result = clubs.create_club_post(self.club.name, _PHONE_A, "text", content="test untagged post")["data"]
+        self.assertEqual(result["tagged_outlets"], [])
 
 
 class TestDeleteClubPost(unittest.TestCase):
