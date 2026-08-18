@@ -1465,9 +1465,8 @@ def admin_create_event(title, restaurant=None, description=None, category=None, 
 
 @frappe.whitelist()
 def admin_get_event_detail(event_id):
-    """Full event detail for admin/supervisor. Joined-customer/attendee tracking
-    is not built yet, so `attendees_available` is False and the list is empty —
-    the UI shows a 'coming soon' state until an event-registration system exists."""
+    """Full event detail for admin/supervisor, including joined-customer/attendee
+    tracking via Event Registration."""
     if not is_supervisor():
         frappe.throw("Permission denied", frappe.PermissionError)
 

@@ -218,14 +218,15 @@ def deactivate_past_events():
 
 
 @frappe.whitelist()
-def get_outlet_active_events(restaurant):
+def get_outlet_active_events(outlet_id):
 	"""Events an outlet is currently hosting — upcoming/ongoing (date >= today)
 	or recurring. Non-recurring events drop out automatically once their date
 	passes, so the merchant dashboard's Event tab disappears after the event.
 	"""
 	try:
-		if not restaurant:
+		if not outlet_id:
 			return {"success": True, "data": {"events": []}}
+		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 		rows = frappe.get_all(
 			"Event",
 			filters={"restaurant": restaurant, "is_active": 1},

@@ -145,7 +145,7 @@ export default function Layout({ children }: LayoutProps) {
   // upcoming/ongoing (or recurring) event, and disappears once the event is over.
   const { data: activeEventsResp } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.events.get_outlet_active_events',
-    { restaurant: selectedOutlet || '' },
+    { outlet_id: selectedOutlet || '' },
     selectedOutlet ? `active-events-${selectedOutlet}` : 'active-events-none',
   )
   const activeEvents = ((activeEventsResp as any)?.message?.data?.events || []) as any[]
