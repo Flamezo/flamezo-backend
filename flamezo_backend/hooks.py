@@ -318,6 +318,16 @@ scheduler_events = {
 		"30 18 28-31 * *": [
 			"flamezo_backend.flamezo.tasks.loyalty_tasks.reset_referral_cycles_monthly"
 		],
+		# Hot Drops: proactive merchant nudge ~2h before real meal-time rush
+		# windows — dining/cafe outlets with no active/upcoming Hot Drop and a
+		# registered push token get a "post one now" push. 10:30 IST (lunch
+		# rush ~12:30) and 17:30 IST (dinner rush ~19:30).
+		"30 10 * * *": [
+			"flamezo_backend.flamezo.tasks.hot_drops_tasks.nudge_before_lunch_rush"
+		],
+		"30 17 * * *": [
+			"flamezo_backend.flamezo.tasks.hot_drops_tasks.nudge_before_dinner_rush"
+		],
 		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)
 		"0 2 * * 0": [
 			"flamezo_backend.flamezo.tasks.recommendation_tasks.run_weekly_recommendation_refresh"

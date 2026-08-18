@@ -30,6 +30,7 @@ import {
 import { EmptyState } from '@/components/EmptyState'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
 import { AISuggestionsModal, type AISuggestion, type InputMode } from '@/components/coupons/AISuggestionsModal'
+import { HotDropDialog } from '@/components/coupons/HotDropDialog'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -268,6 +269,8 @@ export default function Coupons() {
   const [aiModalMode, setAiModalMode] = useState<InputMode>('auto')
   const [aiPrefilledForm, setAiPrefilledForm] = useState<Partial<typeof BLANK_FORM> | null>(null)
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
+  const [hotDropDialogOpen, setHotDropDialogOpen] = useState(false)
+  const [hotDropPresetCoupon, setHotDropPresetCoupon] = useState<string | null>(null)
 
   const initialFilters = useMemo(() => {
     if (!selectedOutlet) return []
@@ -623,6 +626,14 @@ export default function Coupons() {
                   <SelectItem value="google_review">Google Review</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                size="sm" variant="outline"
+                className="border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-900 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                onClick={() => { setHotDropPresetCoupon(null); setHotDropDialogOpen(true) }}
+              >
+                <Flame className="h-4 w-4 mr-1.5" />
+                Post Hot Drop
+              </Button>
               <Button size="sm" onClick={() => { setAiPrefilledForm(null); setIsCreateDialogOpen(true) }}>
                 <Plus className="h-4 w-4 mr-1.5" />
                 Create Coupon
@@ -784,6 +795,16 @@ export default function Coupons() {
                           >
                             <Edit className="h-3.5 w-3.5 mr-1.5" />Edit
                           </Button>
+                          {coupon.is_active === 1 && (
+                            <Button
+                              variant="outline" size="sm"
+                              className="h-8 w-8 p-0 text-orange-500 hover:bg-orange-50 hover:border-orange-300 dark:hover:bg-orange-950/30"
+                              title="Feature as Hot Drop"
+                              onClick={() => { setHotDropPresetCoupon(coupon.name); setHotDropDialogOpen(true) }}
+                            >
+                              <Flame className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="outline" size="sm"
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:border-destructive/30"
@@ -842,6 +863,18 @@ export default function Coupons() {
         onUseSuggestion={handleUseAISuggestion}
         onSaveAll={handleSaveAllAISuggestions}
         walletBalance={(restaurant as any)?.coins_balance ?? 0}
+      />
+
+      {/* Hot Drop dialog */}
+      <HotDropDialog
+        open={hotDropDialogOpen}
+        onClose={() => setHotDropDialogOpen(false)}
+        outletId={selectedOutlet!}
+        presetCouponName={hotDropPresetCoupon}
+        coupons={(coupons || [])
+          .filter((c: any) => c.is_active === 1)
+          .map((c: any) => ({ name: c.name, code: c.code, description: c.description }))}
+        onSaved={() => mutate()}
       />
 
       {/* Delete confirmation */}
