@@ -179,6 +179,9 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
             COALESCE(r.razorpay_kyc_status, '') as razorpay_kyc_status,
             COALESCE(r.route_mode, '') as route_mode,
             COALESCE(r.is_signature, 0) as is_signature,
+            COALESCE(r.is_featured, 0) as is_featured,
+            r.limelight_start_date,
+            r.limelight_end_date,
             COALESCE(r.outlet_type, 'dining') as outlet_type
         """
 
@@ -650,6 +653,7 @@ def admin_update_outlet_settings(outlet_id, updates):
         # Allow most fields for admin updates
         allowed_fields = [
             'platform_fee_percent', 'is_active', 'is_featured', 'is_signature',
+            'limelight_start_date', 'limelight_end_date',
             'restaurant_name', 'owner_email',
             'owner_phone', 'owner_name', 'billing_status', 'mandate_status',
             'enable_loyalty', 'enable_dine_in',
@@ -1339,6 +1343,199 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
             "total": int(total),
             "page": page,
             "page_size": page_size,
+        }
+    }
+
+
+@frappe.whitelist()
+def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort_order='desc', status=None):
+    """Platform-wide event list for admin/supervisor — every merchant's events
+    with the outlet name joined in. Mirrors admin_get_all_customers."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    page      = max(1, int(page))
+    page_size = max(1, min(500, int(page_size)))
+    offset    = (page - 1) * page_size
+
+    conds  = ["1=1"]
+    params: list = []
+    if search:
+        conds.append("(e.title LIKE %s OR e.category LIKE %s OR e.location LIKE %s OR r.restaurant_name LIKE %s)")
+        s = f"%{search}%"
+        params += [s, s, s, s]
+    if status in ("upcoming", "recurring", "past"):
+        conds.append("e.status = %s")
+        params.append(status)
+
+    _sort_map = {
+        "title":    "e.title",
+        "date":     "e.date",
+        "created":  "e.creation",
+        "modified": "e.modified",
+        "outlet":   "r.restaurant_name",
+        "category": "e.category",
+    }
+    sort_col  = _sort_map.get(sort_by, "e.date")
+    order_dir = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+    where     = " AND ".join(conds)
+
+    rows = frappe.db.sql(f"""
+        SELECT
+            e.name, e.title, e.category, e.status, e.is_active, e.featured,
+            e.date, e.time, e.end_time, e.location, e.image_src,
+            e.restaurant, COALESCE(r.restaurant_name, e.restaurant) AS outlet_name
+        FROM `tabEvent` e
+        LEFT JOIN `tabRestaurant` r ON r.name = e.restaurant
+        WHERE {where}
+        ORDER BY {sort_col} {order_dir}
+        LIMIT %s OFFSET %s
+    """, params + [page_size, offset], as_dict=True)
+
+    total = frappe.db.sql(f"""
+        SELECT COUNT(*) AS cnt
+        FROM `tabEvent` e
+        LEFT JOIN `tabRestaurant` r ON r.name = e.restaurant
+        WHERE {where}
+    """, params, as_dict=True)[0].cnt
+
+    return {
+        "success": True,
+        "data": {
+            "events": [
+                {
+                    "id":          r.name,
+                    "title":       r.title or r.name,
+                    "category":    r.category or "",
+                    "status":      r.status or "",
+                    "is_active":   int(r.is_active or 0),
+                    "featured":    int(r.featured or 0),
+                    "date":        str(r.date) if r.date else None,
+                    "time":        str(r.time) if r.time else None,
+                    "end_time":    str(r.end_time) if r.end_time else None,
+                    "location":    r.location or "",
+                    "image_src":   r.image_src or "",
+                    "outlet":      r.restaurant or "",
+                    "outlet_name": r.outlet_name or r.restaurant or "",
+                }
+                for r in rows
+            ],
+            "total": int(total),
+            "page": page,
+            "page_size": page_size,
+        }
+    }
+
+
+@frappe.whitelist()
+def admin_create_event(title, restaurant=None, description=None, category=None, date=None,
+                       time=None, end_time=None, location=None, google_maps_link=None,
+                       registration_link=None, image_src=None, featured=0, status="upcoming"):
+    """Create a platform Event (admin/supervisor). An event is standalone —
+    `restaurant` is OPTIONAL and only links it to a merchant when one is given."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+    if not (title or "").strip():
+        frappe.throw("Event title is required")
+    # Merchant is optional; validate only when one was actually provided.
+    if restaurant and not frappe.db.exists("Restaurant", restaurant):
+        frappe.throw("The selected merchant does not exist")
+
+    doc = frappe.get_doc({
+        "doctype": "Event",
+        "restaurant": restaurant or None,
+        "title": title.strip(),
+        "description": description or "",
+        "category": category or "",
+        "date": date or None,
+        "time": time or None,
+        "end_time": end_time or None,
+        "location": location or "",
+        "google_maps_link": google_maps_link or "",
+        "registration_link": registration_link or "",
+        "image_src": image_src or "",
+        "featured": 1 if str(featured) in ("1", "true", "yes", "True") else 0,
+        "status": status if status in ("upcoming", "recurring", "past") else "upcoming",
+        "is_active": 1,
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "data": {"id": doc.name, "title": doc.title}}
+
+
+@frappe.whitelist()
+def admin_get_event_detail(event_id):
+    """Full event detail for admin/supervisor, including joined-customer/attendee
+    tracking via Event Registration."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    if not frappe.db.exists("Event", event_id):
+        return {"success": False, "error": "Event not found"}
+
+    e = frappe.get_doc("Event", event_id)
+    outlet_name = ""
+    if e.restaurant:
+        outlet_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") or ""
+
+    days = [d for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") if e.get(d)]
+
+    try:
+        media = json.loads(e.get("media_gallery") or "[]")
+        if not isinstance(media, list):
+            media = []
+    except Exception:
+        media = []
+
+    attendee_rows = frappe.get_all(
+        "Event Registration",
+        filters={"event": event_id},
+        fields=["customer", "customer_name", "customer_phone", "joined_at"],
+        order_by="joined_at desc",
+    )
+    attendees = [
+        {
+            "id": a.customer or "",
+            "name": a.customer_name or a.customer_phone or "Guest",
+            "phone": a.customer_phone or "",
+            "joined_at": str(a.joined_at) if a.joined_at else "",
+        }
+        for a in attendee_rows
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "event": {
+                "id":               e.name,
+                "title":            e.title or e.name,
+                "description":      e.description or "",
+                "category":         e.category or "",
+                "status":           e.status or "",
+                "is_active":        int(e.is_active or 0),
+                "featured":         int(e.featured or 0),
+                "date":             str(e.date) if e.date else None,
+                "time":             str(e.time) if e.time else None,
+                "end_time":         str(e.end_time) if e.end_time else None,
+                "location":         e.location or "",
+                "google_maps_link": e.get("google_maps_link") or "",
+                "registration_link": e.get("registration_link") or "",
+                "image_src":        e.image_src or "",
+                "image_alt":        e.get("image_alt") or "",
+                "media":            media,
+                "repeat_this_event": int(e.get("repeat_this_event") or 0),
+                "repeat_on":        e.get("repeat_on") or "",
+                "repeat_till":      str(e.repeat_till) if e.get("repeat_till") else None,
+                "repeat_days":      days,
+                "display_order":    int(e.get("display_order") or 0),
+                "created":          str(e.creation),
+                "modified":         str(e.modified),
+            },
+            "outlet":      e.restaurant or "",
+            "outlet_name": outlet_name or e.restaurant or "",
+            "attendees": attendees,
+            "attendees_count": len(attendees),
+            "attendees_available": True,
         }
     }
 

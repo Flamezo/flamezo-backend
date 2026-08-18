@@ -52,6 +52,7 @@ import {
   Store,
   Star,
   Columns3,
+  Sparkles,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -61,6 +62,7 @@ import { BranchGroupTools } from '@/components/BranchGroupTools'
 import { SearchableSelect } from '@/components/SearchableSelect'
 import { BranchAccessDialog } from '@/components/BranchAccessDialog'
 import { UpdateSuccessShareModal } from '@/components/UpdateSuccessShareModal'
+import { UpdateLimelightModal } from '@/components/UpdateLimelightModal'
 
 interface Merchant {
   name: string
@@ -73,6 +75,9 @@ interface Merchant {
   coins_balance: number
   platform_fee_percent: number
   is_signature?: number
+  is_featured?: number
+  limelight_start_date?: string | null
+  limelight_end_date?: string | null
   creation: string
   modified: string
   // Razorpay Route hybrid state (May 2026)
@@ -102,7 +107,9 @@ const COLUMN_DEFS = [
   { id: 'id', label: 'ID' },
   { id: 'success_share', label: 'Success Share' },
   { id: 'route_kyc', label: 'Route KYC' },
+  { id: 'active', label: 'Active' },
   { id: 'signature', label: 'Signature' },
+  { id: 'limelight', label: 'Limelight' },
   { id: 'phone', label: 'Phone' },
   { id: 'coins_balance', label: 'Coins Balance' },
   { id: 'mandate_status', label: 'Mandate' },
@@ -112,7 +119,10 @@ const COLUMN_DEFS = [
 
 type ColumnId = typeof COLUMN_DEFS[number]['id']
 
-const DEFAULT_VISIBLE_COLUMNS: ColumnId[] = ['type', 'id', 'success_share', 'route_kyc', 'signature']
+// 'active' and 'limelight' were always-visible merchant controls before the
+// toggleable-columns feature existed -- default them visible so this merge
+// doesn't silently hide a control admins already relied on.
+const DEFAULT_VISIBLE_COLUMNS: ColumnId[] = ['type', 'id', 'success_share', 'route_kyc', 'active', 'signature', 'limelight']
 const VISIBLE_COLUMNS_STORAGE_KEY = 'admin-merchants-visible-columns'
 
 interface AdminStats {
@@ -236,6 +246,9 @@ export default function AdminMerchantManagement() {
   // succeeds — set to the merchant just toggled, null when closed.
   const [shareUpdateTarget, setShareUpdateTarget] = useState<Merchant | null>(null)
   const [isSavingShareRate, setIsSavingShareRate] = useState(false)
+
+  const [limelightUpdateTarget, setLimelightUpdateTarget] = useState<Merchant | null>(null)
+  const [isSavingLimelight, setIsSavingLimelight] = useState(false)
 
   // Modals state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -470,6 +483,56 @@ export default function AdminMerchantManagement() {
       toast.error('Success Share update failed')
     } finally {
       setIsSavingShareRate(false)
+    }
+  }
+
+  const handleLimelightToggle = async (merchant: Merchant, nextValue: boolean) => {
+    if (nextValue) {
+      setLimelightUpdateTarget(merchant)
+    } else {
+      try {
+        setUpdating(merchant.name)
+        const res = await updateSettings({
+          outlet_id: merchant.outlet_id,
+          updates: JSON.stringify({ is_featured: 0, limelight_start_date: null, limelight_end_date: null }),
+        }) as any
+        if (res?.message?.success) {
+          toast.success('Removed from Limelight')
+          await loadMerchants()
+        } else {
+          toast.error(res?.message?.error || 'Failed to remove from Limelight')
+        }
+      } catch (error) {
+        toast.error('Limelight update failed')
+      } finally {
+        setUpdating(null)
+      }
+    }
+  }
+
+  const handleUpdateLimelight = async (startDate: string, endDate: string | null) => {
+    if (!limelightUpdateTarget) return
+    try {
+      setIsSavingLimelight(true)
+      const res = await updateSettings({
+        outlet_id: limelightUpdateTarget.outlet_id,
+        updates: JSON.stringify({ 
+          is_featured: 1,
+          limelight_start_date: startDate,
+          limelight_end_date: endDate
+        }),
+      }) as any
+      if (res?.message?.success) {
+        toast.success(`Limelight schedule set`)
+        loadMerchants()
+        setLimelightUpdateTarget(null)
+      } else {
+        toast.error(res?.message?.error || 'Failed to update Limelight schedule')
+      }
+    } catch (error) {
+      toast.error('Limelight schedule update failed')
+    } finally {
+      setIsSavingLimelight(false)
     }
   }
 
@@ -1104,7 +1167,9 @@ export default function AdminMerchantManagement() {
                       {isColumnVisible('id') && <TableHead>ID</TableHead>}
                       {isColumnVisible('success_share') && <TableHead>Success Share</TableHead>}
                       {isColumnVisible('route_kyc') && <TableHead>Route KYC</TableHead>}
+                      {isColumnVisible('active') && <TableHead className="text-center">Active</TableHead>}
                       {isColumnVisible('signature') && <TableHead className="text-center">Signature</TableHead>}
+                      {isColumnVisible('limelight') && <TableHead className="text-center">Limelight</TableHead>}
                       {isColumnVisible('phone') && <TableHead>Phone</TableHead>}
                       {isColumnVisible('coins_balance') && <TableHead className="text-right">Coins Balance</TableHead>}
                       {isColumnVisible('mandate_status') && <TableHead>Mandate</TableHead>}
@@ -1228,12 +1293,61 @@ export default function AdminMerchantManagement() {
                             return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
                           })()}
                         </TableCell>}
+                        {/* Active/inactive — ON (green) = live in the consumer
+                            app; OFF = hidden from the app (outlet not ready).
+                            Compact so it doesn't eat row space. */}
+                        {isColumnVisible('active') && <TableCell className="text-center">
+                          <Switch
+                            checked={!!merchant.is_active}
+                            disabled={updating === merchant.name}
+                            onCheckedChange={() => handleStatusToggle(merchant.name, merchant.is_active)}
+                            title={merchant.is_active ? 'Live in app — tap to take offline' : 'Hidden from app — tap to bring online'}
+                            aria-label="Toggle merchant visibility in the app"
+                            className="data-[state=checked]:bg-emerald-500"
+                          />
+                        </TableCell>}
                         {isColumnVisible('signature') && <TableCell className="text-center">
                           <Switch
                             checked={!!merchant.is_signature}
                             disabled={updating === merchant.name}
                             onCheckedChange={(checked) => handleSignatureToggle(merchant, checked)}
+                            thumbIcon={
+                              <Star
+                                className={cn(
+                                  "h-3 w-3",
+                                  merchant.is_signature
+                                    ? "fill-amber-500 text-amber-500"
+                                    : "fill-muted-foreground text-muted-foreground"
+                                )}
+                              />
+                            }
                           />
+                        </TableCell>}
+                        {isColumnVisible('limelight') && <TableCell className="text-center">
+                          {(() => {
+                            let isLive = !!merchant.is_featured
+                            if (isLive) {
+                              const today = new Date().toISOString().split('T')[0]
+                              if (merchant.limelight_end_date && merchant.limelight_end_date < today) isLive = false
+                            }
+                            return (
+                              <Switch
+                                checked={isLive}
+                                disabled={updating === merchant.name}
+                                onCheckedChange={(checked) => handleLimelightToggle(merchant, checked)}
+                                thumbIcon={
+                                  <Sparkles
+                                    className={cn(
+                                      "h-3 w-3",
+                                      isLive
+                                        ? "fill-indigo-500 text-indigo-500"
+                                        : "fill-muted-foreground text-muted-foreground"
+                                    )}
+                                  />
+                                }
+                              />
+                            )
+                          })()}
                         </TableCell>}
                         {isColumnVisible('phone') && <TableCell>
                           <span className="text-xs text-muted-foreground">{merchant.owner_phone || '—'}</span>
@@ -1472,6 +1586,13 @@ export default function AdminMerchantManagement() {
         currentRate={Number(shareUpdateTarget?.platform_fee_percent ?? 0)}
         onConfirm={handleUpdateShareRate}
         isSaving={isSavingShareRate}
+      />
+
+      <UpdateLimelightModal
+        open={!!limelightUpdateTarget}
+        onOpenChange={(open) => { if (!open) setLimelightUpdateTarget(null) }}
+        merchantName={limelightUpdateTarget?.outlet_name ?? ''}
+        onConfirm={handleUpdateLimelight}
       />
 
       <Dialog open={isOnboardingModalOpen} onOpenChange={setIsOnboardingModalOpen}>

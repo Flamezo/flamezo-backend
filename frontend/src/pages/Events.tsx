@@ -24,10 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink, Sparkles } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink, Sparkles, Store } from 'lucide-react'
 import EventAIModal, { type AIEvent } from '@/components/events/EventAIModal'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
+import { useNavigate } from 'react-router-dom'
 import { useOutlet } from '@/contexts/OutletContext'
+import { MerchantSearchSelect, type MerchantRef } from '@/components/MerchantSearchSelect'
+import AddressAutocomplete from '@/components/ui/AddressAutocomplete'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -44,6 +47,7 @@ import { Upload, X } from 'lucide-react'
 
 
 export default function Events() {
+  const navigate = useNavigate()
   const { selectedOutlet, isGold } = useOutlet()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
@@ -55,18 +59,17 @@ export default function Events() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<{ name: string; title: string } | null>(null)
 
+  // Admin, cross-merchant Events tab — show events from ALL merchants (plus
+  // platform events with no merchant), not just the currently selected outlet.
   const initialFilters = useMemo(() => {
-    if (!selectedOutlet) return []
-    const f: FilterCondition[] = [{ fieldname: 'restaurant', operator: '=', value: selectedOutlet }]
-
+    const f: FilterCondition[] = []
     if (filterType === 'active') {
       f.push({ fieldname: 'is_active', operator: '=', value: 1 })
     } else if (filterType === 'inactive') {
       f.push({ fieldname: 'is_active', operator: '=', value: 0 })
     }
-
     return f
-  }, [selectedOutlet, filterType])
+  }, [filterType])
 
   const {
     data: events,
@@ -81,12 +84,13 @@ export default function Events() {
     setSearchQuery
   } = useDataTable({
     doctype: 'Event',
-    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'media_gallery', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'restaurant', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
     initialFilters,
     searchFields: ['title', 'category', 'description', 'location'],
-    orderBy: { field: 'creation', order: 'desc' },
+    // Active events first, inactive (past/deactivated) fall to the bottom.
+    orderBy: { field: 'is_active desc, creation', order: 'desc' },
     initialPageSize: 12,
-    debugId: `events-${selectedOutlet}-${filterType}`
+    debugId: `events-all-${filterType}`
   })
 
   const { call: createEvent } = useFrappePostCall('frappe.client.insert')
@@ -116,7 +120,8 @@ export default function Events() {
         doc: {
           doctype: 'Event',
           ...mappedData,
-          restaurant: selectedOutlet,
+          // Merchant picked in the modal wins; else default to the current outlet.
+          restaurant: mappedData.restaurant || selectedOutlet,
         }
       })
       toast.success('Event created successfully')
@@ -164,21 +169,8 @@ export default function Events() {
   }
 
 
-  if (!selectedOutlet) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
-        <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mb-4">
-          <Calendar className="h-10 w-10 text-muted-foreground/30" />
-        </div>
-        <h3 className="text-xl font-semibold mb-2">Select an Outlet</h3>
-        <p className="text-muted-foreground max-w-sm">Pick an outlet to start managing events and special occasions.</p>
-      </div>
-    )
-  }
-
-  if (!isGold) {
-    return <LockedFeature feature="events" requiredPlan={['GOLD']} />
-  }
+  // Admin cross-merchant Events tab (like Merchant Management) — no outlet
+  // selection or plan gating; it lists every merchant's events.
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -266,8 +258,12 @@ export default function Events() {
                         !event.is_active && "opacity-75 grayscale-[0.5]"
                       )}
                     >
-                      {/* Thumbnail Image */}
-                      <div className="aspect-[16/9] w-full overflow-hidden bg-muted relative">
+                      {/* Thumbnail Image — click to open the event detail */}
+                      <div
+                        className="aspect-[16/9] w-full overflow-hidden bg-muted relative cursor-pointer"
+                        onClick={() => navigate(`/admin/events/${encodeURIComponent(event.name)}`)}
+                        title="View event details"
+                      >
                         {event.image_src ? (
                           <img
                             src={event.image_src}
@@ -307,6 +303,12 @@ export default function Events() {
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                               <Calendar className="h-3.5 w-3.5" />
                               {eventDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs font-medium">
+                              <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                              {event.restaurant
+                                ? <span className="text-muted-foreground truncate">Organised by <span className="text-foreground">{event.restaurant}</span></span>
+                                : <span className="text-muted-foreground italic">Platform event</span>}
                             </div>
                           </div>
                           
@@ -461,7 +463,7 @@ export default function Events() {
   )
 }
 
-function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
+export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMerchant, merchantName }: any) {
   const { selectedOutlet } = useOutlet()
   const [formData, setFormData] = useState({
     title: '',
@@ -482,6 +484,68 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
     display_order: 0,
   })
   const [isUploading, setIsUploading] = useState(false)
+  // Optional organising merchant. Empty on create → falls back to the current
+  // outlet; on edit it's prefilled from the event's linked merchant.
+  const [merchant, setMerchant] = useState<MerchantRef | null>(null)
+  // Media gallery — up to 5 items, at most 1 video (so 4 images + 1 video, or 5 images).
+  const [media, setMedia] = useState<{ type: 'image' | 'video'; url: string }[]>([])
+
+  useEffect(() => {
+    setMerchant(event?.restaurant ? { id: event.restaurant, name: merchantName || event.restaurant } : null)
+    // Prefill existing media so editing other fields never drops it. Accepts
+    // either `media` (already-parsed array, from the outlet event API) or the
+    // raw `media_gallery` JSON string (from the dashboard list query).
+    try {
+      if (Array.isArray(event?.media)) {
+        setMedia(event.media)
+      } else {
+        const arr = event?.media_gallery ? JSON.parse(event.media_gallery) : []
+        setMedia(Array.isArray(arr) ? arr : [])
+      }
+    } catch { setMedia([]) }
+  }, [event, open])
+
+  const videoCount = media.filter((m) => m.type === 'video').length
+
+  // One combined uploader: multi-select up to 5 (1 video + 4 images, or 5
+  // images). The first image becomes the cover (image_src) used on cards.
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (e.target) e.target.value = ''
+    if (files.length === 0) return
+    let current = [...media]
+    setIsUploading(true)
+    for (const file of files) {
+      if (current.length >= 5) { toast.error('Up to 5 media items only'); break }
+      const kind: 'image' | 'video' = file.type.startsWith('video') ? 'video' : 'image'
+      if (kind === 'video' && current.some((m) => m.type === 'video')) {
+        toast.error('Only 1 video allowed — extra video skipped'); continue
+      }
+      try {
+        const result = await uploadToR2({
+          ownerDoctype: 'Restaurant',
+          ownerName: merchant?.id || selectedOutlet || 'Restaurant',
+          mediaRole: 'event_image',
+          file,
+        })
+        if (result.primary_url) current = [...current, { type: kind, url: result.primary_url }]
+      } catch (err: any) {
+        toast.error(err?.message || `Failed to upload ${file.name}`)
+      }
+    }
+    setIsUploading(false)
+    setMedia(current)
+    const firstImage = current.find((m) => m.type === 'image')
+    setFormData((prev) => ({ ...prev, image_src: firstImage?.url || current[0]?.url || prev.image_src }))
+  }
+  const removeMedia = (i: number) => {
+    setMedia((prev) => {
+      const next = prev.filter((_, idx) => idx !== i)
+      const firstImage = next.find((m) => m.type === 'image')
+      setFormData((fd) => ({ ...fd, image_src: firstImage?.url || next[0]?.url || '' }))
+      return next
+    })
+  }
 
   useEffect(() => {
     if (event) {
@@ -537,7 +601,7 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(formData)
+    onSave({ ...formData, restaurant: merchant?.id || '', media_gallery: JSON.stringify(media) })
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -654,6 +718,12 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
             </div>
 
             <div className="space-y-2 col-span-2">
+              <Label>Organised by outlet {!lockMerchant && <span className="text-muted-foreground font-normal">(optional)</span>}</Label>
+              <MerchantSearchSelect value={merchant} onChange={setMerchant} disabled={lockMerchant} placeholder="Search outlet by name / city…" />
+              {!lockMerchant && <p className="text-[11px] text-muted-foreground">Type to search — the top matches load from the server. Leave empty for a platform event.</p>}
+            </div>
+
+            <div className="space-y-2 col-span-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
@@ -694,7 +764,24 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
               <Label htmlFor="date">Start Date</Label>
               <DatePicker
                 value={formData.date}
-                onChange={(val) => setFormData({ ...formData, date: val })}
+                onChange={(val) => {
+                  if (val) {
+                    // Full-date compare (year+month+day) — a future month/year
+                    // is fine even if the day-of-month is smaller than today's.
+                    const picked = new Date(`${val}T00:00:00`)
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    if (!isNaN(picked.getTime()) && picked < today) {
+                      const y = today.getFullYear()
+                      const m = String(today.getMonth() + 1).padStart(2, '0')
+                      const d = String(today.getDate()).padStart(2, '0')
+                      toast.error("Event date can't be in the past — set to today")
+                      setFormData({ ...formData, date: `${y}-${m}-${d}` })
+                      return
+                    }
+                  }
+                  setFormData({ ...formData, date: val })
+                }}
               />
             </div>
 
@@ -723,17 +810,22 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
             </div>
 
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
+              <AddressAutocomplete
                 id="location"
+                label="Outlet Address (type a place — auto-fills the Google Maps link)"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                placeholder="Main Hall / Rooftop / Garden"
+                onChange={(v) => setFormData((prev) => ({ ...prev, location: v }))}
+                onLocationSelect={(d) => setFormData((prev) => ({
+                  ...prev,
+                  location: d.address || prev.location,
+                  google_maps_link: (d as any).googleMapUrl || prev.google_maps_link,
+                }))}
+                placeholder="Search the outlet address…"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="google_maps_link">Google Maps URL</Label>
+              <Label htmlFor="google_maps_link">Google Maps URL <span className="text-muted-foreground font-normal text-[10px]">(auto-filled)</span></Label>
               <Input
                 id="google_maps_link"
                 value={formData.google_maps_link}
@@ -775,36 +867,38 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
             </div>
 
             <div className="space-y-2 col-span-2">
-              <Label>Event Image</Label>
-              {formData.image_src ? (
-                <div className="relative group rounded-xl overflow-hidden aspect-video border bg-muted">
-                  <img src={formData.image_src} alt="Preview" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setFormData({ ...formData, image_src: '' })}
-                      className="rounded-full h-8 w-8 p-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
+              <Label>Event Image / Video</Label>
+              {media.length > 0 && (
+                <div className="grid grid-cols-5 gap-2">
+                  {media.map((m, i) => (
+                    <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border bg-muted">
+                      {m.type === 'video'
+                        ? <video src={m.url} className="w-full h-full object-cover" muted />
+                        : <img src={m.url} alt="" className="w-full h-full object-cover" />}
+                      {m.type === 'video' && <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/60 text-white px-1 rounded">VIDEO</span>}
+                      {i === 0 && <span className="absolute top-1 left-1 text-[8px] font-bold bg-primary text-white px-1 rounded">COVER</span>}
+                      <button type="button" onClick={() => removeMedia(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
+              )}
+              {media.length < 5 && (
                 <div className="relative">
                   <input
                     type="file"
-                    id="event-image-upload"
-                    accept="image/*"
-                    onChange={handleImageUpload}
+                    id="event-media-upload"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={handleMediaUpload}
                     disabled={isUploading}
                     className="hidden"
                   />
                   <label
-                    htmlFor="event-image-upload"
+                    htmlFor="event-media-upload"
                     className={cn(
-                      "flex flex-col items-center justify-center gap-3 py-10 border-2 border-dashed rounded-xl cursor-pointer transition-all hover:bg-accent hover:border-primary/50",
+                      "flex flex-col items-center justify-center gap-3 py-8 border-2 border-dashed rounded-xl cursor-pointer transition-all hover:bg-accent hover:border-primary/50",
                       isUploading && "opacity-50 pointer-events-none"
                     )}
                   >
@@ -816,12 +910,13 @@ function EventDialog({ open, onClose, event, onSave, aiGenerated }: any) {
                       )}
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-semibold">{isUploading ? 'Uploading Image...' : 'Upload Event Image'}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Recommended size: 1200x675 (16:9)</p>
+                      <p className="text-sm font-semibold">{isUploading ? 'Uploading…' : 'Upload Event Image / Video'}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Up to 5 — 1 video + 4 images, or 5 images. First image is the cover.</p>
                     </div>
                   </label>
                 </div>
               )}
+              <p className="text-[11px] text-muted-foreground">{media.length}/5 added{videoCount ? ' · includes 1 video' : ''}</p>
             </div>
           </div>
 

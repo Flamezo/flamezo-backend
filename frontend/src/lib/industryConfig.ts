@@ -176,6 +176,7 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
     { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
     { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
     { type: 'link', name: 'Merchant Management', href: '/admin/merchants', icon: Shield, adminOnly: true },
+    { type: 'link', name: 'Event Management', href: '/admin/events', icon: PartyPopper, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
     {
       type: 'group',
@@ -281,7 +282,6 @@ function industryBookingsItems(outletType: string): NavItem[] {
       const label = outletType === 'fitness' ? 'Class Bookings' : 'Appointments'
       return [
         { type: 'link', name: label, href: '/appointments', icon: Calendar, feature: 'tableBooking' },
-        { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
       ]
     }
     case 'sports_court':
@@ -291,16 +291,13 @@ function industryBookingsItems(outletType: string): NavItem[] {
     case 'sports_venue':
       return [
         { type: 'link', name: 'Slot Bookings', href: '/appointments', icon: Calendar, feature: 'tableBooking' },
-        { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
       ]
     case 'fashion':
       return [
-        { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
       ]
     default:
       return [
         { type: 'link', name: 'Table Bookings', href: '/bookings', icon: Calendar, feature: 'tableBooking' },
-        { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
       ]
   }
 }

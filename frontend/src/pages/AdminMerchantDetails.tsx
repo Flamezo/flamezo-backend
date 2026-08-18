@@ -43,6 +43,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
 import { UpdateSuccessShareModal } from '@/components/UpdateSuccessShareModal'
+import { UpdateLimelightModal } from '@/components/UpdateLimelightModal'
 
 interface Merchant {
   name: string
@@ -128,6 +129,7 @@ function AdminMerchantDetailsPage() {
   // so it never fires a second, separate API call on this page.
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareModalBaseRate, setShareModalBaseRate] = useState(0)
+  const [showLimelightModal, setShowLimelightModal] = useState(false)
 
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -791,7 +793,14 @@ function AdminMerchantDetailsPage() {
                     </div>
                     <Switch
                       checked={!!merchant.is_featured}
-                      onCheckedChange={(checked) => setMerchant({...merchant, is_featured: checked ? 1 : 0})}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setMerchant({...merchant, is_featured: 1})
+                          setShowLimelightModal(true)
+                        } else {
+                          setMerchant({...merchant, is_featured: 0, limelight_start_date: null, limelight_end_date: null})
+                        }
+                      }}
                     />
                   </div>
 
@@ -1434,6 +1443,27 @@ function AdminMerchantDetailsPage() {
         onConfirm={(newRate) => {
           setMerchant({ ...merchant, platform_fee_percent: newRate })
           setShowShareModal(false)
+        }}
+      />
+
+      <UpdateLimelightModal
+        open={showLimelightModal}
+        onOpenChange={(open) => {
+          setShowLimelightModal(open)
+          if (!open && !merchant.limelight_start_date) {
+            // Revert switch if they cancel out of the modal without confirming dates
+            setMerchant(prev => ({...prev, is_featured: 0}))
+          }
+        }}
+        merchantName={merchant.restaurant_name}
+        onConfirm={(startDate, endDate) => {
+          setMerchant({ 
+            ...merchant, 
+            is_featured: 1,
+            limelight_start_date: startDate,
+            limelight_end_date: endDate
+          })
+          setShowLimelightModal(false)
         }}
       />
 

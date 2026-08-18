@@ -11,6 +11,7 @@
   "title",
   "image_src",
   "image_alt",
+  "media_gallery",
   "column_break_1",
   "description",
   "date",
@@ -45,8 +46,13 @@
    "in_standard_filter": 1,
    "label": "Outlet",
    "options": "Restaurant",
-   "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "media_gallery",
+   "fieldtype": "Long Text",
+   "label": "Media Gallery (JSON)",
+   "description": "JSON array of up to 5 media items: [{\"type\":\"image|video\",\"url\":\"...\"}]. Max 1 video."
   },
   {
    "fieldname": "title",

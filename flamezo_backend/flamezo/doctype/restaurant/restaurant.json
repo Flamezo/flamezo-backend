@@ -125,6 +125,8 @@
   "section_break_discovery",
   "is_featured",
   "is_signature",
+  "limelight_start_date",
+  "limelight_end_date",
   "rating",
   "review_count",
   "column_break_discovery",
@@ -881,6 +883,16 @@
    "in_list_view": 1,
    "label": "Signature (Flamezo Curated)",
    "description": "Awarded by Flamezo team based on ambience, food quality, and value. Powers the Signatures mode in the consumer app."
+  },
+  {
+   "fieldname": "limelight_start_date",
+   "fieldtype": "Date",
+   "label": "Limelight Start Date"
+  },
+  {
+   "fieldname": "limelight_end_date",
+   "fieldtype": "Date",
+   "label": "Limelight End Date"
   },
   {
    "fieldname": "rating",

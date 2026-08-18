@@ -588,6 +588,58 @@ def _diversity_pass(scored_candidates):
     return result
 
 
+# ── Outlet round-robin interleave ────────────────────────────────────────────────
+
+def _interleave_by_outlet(ids, shuffle_outlets=True):
+    """
+    Round-robin an ordered list of chills_ids across their outlets so the feed
+    never shows one merchant's clips back-to-back and EVERY merchant surfaces
+    near the top of the very first batch.
+
+    Nothing is dropped — every id in `ids` is returned exactly once. Within a
+    single outlet the incoming relative order (recency / engagement) is kept.
+
+    This is the light-weight counterpart to `_diversity_pass` (which needs
+    fully-scored candidates). It exists for the cold-start / trending / fallback
+    paths, where the source query orders purely by an engagement score. Freshly
+    uploaded content all ties at score 0, so MySQL hands it back in physical
+    (upload) order — i.e. grouped merchant-by-merchant. This restores mixing.
+    """
+    if not ids or len(ids) < 3:
+        return list(ids)
+
+    placeholders = ",".join(["%s"] * len(ids))
+    rows = frappe.db.sql(
+        "SELECT name, outlet FROM `tabChills` WHERE name IN ({})".format(placeholders),
+        list(ids),
+        as_dict=True,
+    )
+    outlet_of = {r.name: (r.outlet or r.name) for r in rows}
+
+    buckets = {}
+    order   = []   # outlet visitation order (first-seen)
+    for cid in ids:
+        outlet = outlet_of.get(cid, cid)
+        if outlet not in buckets:
+            buckets[outlet] = []
+            order.append(outlet)
+        buckets[outlet].append(cid)
+
+    # Only one merchant → nothing to interleave; preserve original order.
+    if len(order) < 2:
+        return list(ids)
+
+    if shuffle_outlets:
+        random.shuffle(order)
+
+    result = []
+    while any(buckets[o] for o in order):
+        for o in order:
+            if buckets[o]:
+                result.append(buckets[o].pop(0))
+    return result
+
+
 # ── New content injection ──────────────────────────────────────────────────────
 
 def _get_new_content_ids(watched_set):
@@ -658,7 +710,7 @@ def _exhaustion_fallback(watched_set):
         )
         unwatched = [r.name for r in rows if r.name not in watched_set]
         if unwatched:
-            return unwatched[:QUEUE_SIZE]
+            return _interleave_by_outlet(unwatched[:QUEUE_SIZE])
 
     # Tier 3: allow rewatches
     rows = frappe.db.sql(
@@ -671,7 +723,7 @@ def _exhaustion_fallback(watched_set):
         [QUEUE_SIZE],
         as_dict=True,
     )
-    return [r.name for r in rows]
+    return _interleave_by_outlet([r.name for r in rows])
 
 
 # ── Trending (cold start) ──────────────────────────────────────────────────────
@@ -736,7 +788,10 @@ def _build_and_cache_queue(phone, lat, lng):
                 )
                 sup_map = {r.name: r.outlet for r in cands_for_sup}
                 trending_all = [cid for cid in trending_all if sup_map.get(cid) not in sup_outlet_ids]
-        trending = trending_all[:QUEUE_SIZE]
+        # Round-robin across merchants FIRST (the trending query orders purely
+        # by engagement, so 0-engagement fresh uploads come back grouped by
+        # merchant), THEN inject new content at its reserved slots.
+        trending = _interleave_by_outlet(trending_all[:QUEUE_SIZE])
         queue    = _inject_new_content(trending, new_ids, watched_set)
         _cache_set(_rk("queue", phone), queue, QUEUE_TTL)
         return queue
@@ -856,7 +911,7 @@ def _build_general_fallback_queue(phone):
     ids = [r["id"] for r in reels if r.get("id")]
 
     fresh = [cid for cid in ids if cid not in watched_set]
-    return (fresh or ids)[:QUEUE_SIZE]
+    return _interleave_by_outlet((fresh or ids)[:QUEUE_SIZE])
 
 
 # ── Public API endpoints ───────────────────────────────────────────────────────
