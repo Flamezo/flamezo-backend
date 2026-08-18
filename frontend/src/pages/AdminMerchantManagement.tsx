@@ -10,10 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from "@/components/ui/input"
@@ -47,6 +51,7 @@ import {
   Loader2,
   Store,
   Star,
+  Columns3,
   Sparkles,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
@@ -93,6 +98,32 @@ const OUTLET_TYPE_META: Record<string, { label: string; cls: string }> = {
   sports_venue:  { label: 'Play · Sports',        cls: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-400 dark:border-cyan-800' },
   fashion:       { label: 'Fashion · Accessories',cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' },
 }
+
+// Toggleable table columns — "Merchant" and "Actions" are always shown and
+// aren't part of this list. Persisted per-browser in localStorage so each
+// admin's picks stick around across sessions.
+const COLUMN_DEFS = [
+  { id: 'type', label: 'Type' },
+  { id: 'id', label: 'ID' },
+  { id: 'success_share', label: 'Success Share' },
+  { id: 'route_kyc', label: 'Route KYC' },
+  { id: 'active', label: 'Active' },
+  { id: 'signature', label: 'Signature' },
+  { id: 'limelight', label: 'Limelight' },
+  { id: 'phone', label: 'Phone' },
+  { id: 'coins_balance', label: 'Coins Balance' },
+  { id: 'mandate_status', label: 'Mandate' },
+  { id: 'route_mode', label: 'Route Mode' },
+  { id: 'created', label: 'Created' },
+] as const
+
+type ColumnId = typeof COLUMN_DEFS[number]['id']
+
+// 'active' and 'limelight' were always-visible merchant controls before the
+// toggleable-columns feature existed -- default them visible so this merge
+// doesn't silently hide a control admins already relied on.
+const DEFAULT_VISIBLE_COLUMNS: ColumnId[] = ['type', 'id', 'success_share', 'route_kyc', 'active', 'signature', 'limelight']
+const VISIBLE_COLUMNS_STORAGE_KEY = 'admin-merchants-visible-columns'
 
 interface AdminStats {
   total: number
@@ -339,6 +370,26 @@ export default function AdminMerchantManagement() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [syncingName, setSyncingName] = useState<string | null>(null)
   const [optimisticTypes, setOptimisticTypes] = useState<Record<string, string>>({})
+
+  // Adjustable columns — which optional columns show in the merchants
+  // table, saved per-browser so admins don't have to re-pick every visit.
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
+    try {
+      const raw = localStorage.getItem(VISIBLE_COLUMNS_STORAGE_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      if (Array.isArray(parsed) && parsed.every((c) => COLUMN_DEFS.some((d) => d.id === c))) {
+        return parsed
+      }
+    } catch {}
+    return DEFAULT_VISIBLE_COLUMNS
+  })
+  useEffect(() => {
+    try { localStorage.setItem(VISIBLE_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns)) } catch {}
+  }, [visibleColumns])
+  const isColumnVisible = (id: ColumnId) => visibleColumns.includes(id)
+  const toggleColumn = (id: ColumnId) => {
+    setVisibleColumns((prev) => prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id])
+  }
 
   const { data: rawPlatformSettings, mutate: loadPlatformSettings } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.admin.get_platform_settings',
@@ -887,6 +938,36 @@ export default function AdminMerchantManagement() {
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
             </Button>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" title="Columns">
+                  <Columns3 className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuLabel className="text-xs">Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {COLUMN_DEFS.map((col) => (
+                  <DropdownMenuCheckboxItem
+                    key={col.id}
+                    checked={isColumnVisible(col.id)}
+                    onCheckedChange={() => toggleColumn(col.id)}
+                    onSelect={(e) => e.preventDefault()}
+                    className="text-xs"
+                  >
+                    {col.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-xs text-muted-foreground"
+                  onSelect={(e) => { e.preventDefault(); setVisibleColumns(DEFAULT_VISIBLE_COLUMNS) }}
+                >
+                  Reset to default
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="h-5 w-px bg-border mx-1" />
 
             {/* Page size */}
@@ -1077,25 +1158,31 @@ export default function AdminMerchantManagement() {
           ) : (
             <>
               <div className="rounded-md border overflow-x-auto">
+                <TooltipProvider delayDuration={300}>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 z-20 bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] min-w-[250px]">Merchant</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Success Share</TableHead>
-                      <TableHead>Route KYC</TableHead>
-                      <TableHead className="text-center">Active</TableHead>
-                      <TableHead className="text-center">Signature</TableHead>
-                      <TableHead className="text-center">Limelight</TableHead>
+                      <TableHead className="sticky left-0 z-20 bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] w-[280px] min-w-[280px] max-w-[280px]">Merchant</TableHead>
+                      {isColumnVisible('type') && <TableHead>Type</TableHead>}
+                      {isColumnVisible('id') && <TableHead>ID</TableHead>}
+                      {isColumnVisible('success_share') && <TableHead>Success Share</TableHead>}
+                      {isColumnVisible('route_kyc') && <TableHead>Route KYC</TableHead>}
+                      {isColumnVisible('active') && <TableHead className="text-center">Active</TableHead>}
+                      {isColumnVisible('signature') && <TableHead className="text-center">Signature</TableHead>}
+                      {isColumnVisible('limelight') && <TableHead className="text-center">Limelight</TableHead>}
+                      {isColumnVisible('phone') && <TableHead>Phone</TableHead>}
+                      {isColumnVisible('coins_balance') && <TableHead className="text-right">Coins Balance</TableHead>}
+                      {isColumnVisible('mandate_status') && <TableHead>Mandate</TableHead>}
+                      {isColumnVisible('route_mode') && <TableHead>Route Mode</TableHead>}
+                      {isColumnVisible('created') && <TableHead>Created</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {merchants.map((merchant: any) => (
                       <TableRow key={merchant.name} className="group">
-                        <TableCell className="sticky left-0 z-10 bg-background group-hover:bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] transition-colors">
-                          <div className="flex items-center gap-2">
+                        <TableCell className="sticky left-0 z-10 bg-background group-hover:bg-muted shadow-[inset_-1px_0_0_theme(colors.border)] transition-colors w-[280px] min-w-[280px] max-w-[280px]">
+                          <div className="flex items-center gap-2 min-w-0">
                             {/* Status dot — green = Online (is_active=1),
                                 red = Offline. Pulses subtly on Online to
                                 signal "live". */}
@@ -1109,9 +1196,18 @@ export default function AdminMerchantManagement() {
                               title={merchant.is_active ? "Online — live" : "Offline"}
                               aria-label={merchant.is_active ? "Online" : "Offline"}
                             />
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold truncate flex items-center gap-1.5">
-                                {merchant.outlet_name}
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <Tooltip delayDuration={300}>
+                                  <TooltipTrigger asChild>
+                                    <span className="font-semibold text-xs truncate min-w-0 flex-1 cursor-default">
+                                      {merchant.outlet_name}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" align="start">
+                                    {merchant.outlet_name}
+                                  </TooltipContent>
+                                </Tooltip>
                                 {(!!merchant.is_signature || Math.abs(Number(merchant.platform_fee_percent ?? 0) - 11) < 0.001) && (
                                   <Star
                                     className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500"
@@ -1123,7 +1219,7 @@ export default function AdminMerchantManagement() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        {isColumnVisible('type') && <TableCell>
                           {(() => {
                             const type = optimisticTypes[merchant.outlet_id] || merchant.outlet_type || 'dining'
                             const m = OUTLET_TYPE_META[type] || { label: type, cls: 'bg-stone-50 text-stone-600 border-stone-200' }
@@ -1158,11 +1254,11 @@ export default function AdminMerchantManagement() {
                               </Select>
                             )
                           })()}
-                        </TableCell>
-                        <TableCell>
+                        </TableCell>}
+                        {isColumnVisible('id') && <TableCell>
                           <code className="text-[10px] bg-muted px-1 rounded">{merchant.outlet_id}</code>
-                        </TableCell>
-                        <TableCell>
+                        </TableCell>}
+                        {isColumnVisible('success_share') && <TableCell>
                           {(() => {
                             // Success Share %. Legacy (grandfathered 1.5%) reads
                             // amber; everything else emerald. Signature status is
@@ -1182,8 +1278,8 @@ export default function AdminMerchantManagement() {
                               </Badge>
                             )
                           })()}
-                        </TableCell>
-                        <TableCell>
+                        </TableCell>}
+                        {isColumnVisible('route_kyc') && <TableCell>
                           {(() => {
                             const k = merchant.razorpay_kyc_status || ''
                             const map: Record<string, { label: string; cls: string }> = {
@@ -1196,11 +1292,11 @@ export default function AdminMerchantManagement() {
                             const m = map[k] || { label: k || 'Not started', cls: 'bg-stone-50 text-stone-500 border-stone-200' }
                             return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
                           })()}
-                        </TableCell>
+                        </TableCell>}
                         {/* Active/inactive — ON (green) = live in the consumer
                             app; OFF = hidden from the app (outlet not ready).
                             Compact so it doesn't eat row space. */}
-                        <TableCell className="text-center">
+                        {isColumnVisible('active') && <TableCell className="text-center">
                           <Switch
                             checked={!!merchant.is_active}
                             disabled={updating === merchant.name}
@@ -1209,8 +1305,8 @@ export default function AdminMerchantManagement() {
                             aria-label="Toggle merchant visibility in the app"
                             className="data-[state=checked]:bg-emerald-500"
                           />
-                        </TableCell>
-                        <TableCell className="text-center">
+                        </TableCell>}
+                        {isColumnVisible('signature') && <TableCell className="text-center">
                           <Switch
                             checked={!!merchant.is_signature}
                             disabled={updating === merchant.name}
@@ -1226,8 +1322,8 @@ export default function AdminMerchantManagement() {
                               />
                             }
                           />
-                        </TableCell>
-                        <TableCell className="text-center">
+                        </TableCell>}
+                        {isColumnVisible('limelight') && <TableCell className="text-center">
                           {(() => {
                             let isLive = !!merchant.is_featured
                             if (isLive) {
@@ -1252,7 +1348,33 @@ export default function AdminMerchantManagement() {
                               />
                             )
                           })()}
-                        </TableCell>
+                        </TableCell>}
+                        {isColumnVisible('phone') && <TableCell>
+                          <span className="text-xs text-muted-foreground">{merchant.owner_phone || '—'}</span>
+                        </TableCell>}
+                        {isColumnVisible('coins_balance') && <TableCell className="text-right">
+                          <span className="text-xs font-mono">{Number(merchant.coins_balance ?? 0).toLocaleString('en-IN')}</span>
+                        </TableCell>}
+                        {isColumnVisible('mandate_status') && <TableCell>
+                          {(() => {
+                            const s = merchant.mandate_status || ''
+                            const map: Record<string, { label: string; cls: string }> = {
+                              active:   { label: 'Active',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                              inactive: { label: 'Inactive', cls: 'bg-stone-50 text-stone-500 border-stone-200' },
+                              failed:   { label: 'Failed',   cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                            }
+                            const m = map[s] || { label: 'Not set', cls: 'bg-stone-50 text-stone-500 border-stone-200' }
+                            return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
+                          })()}
+                        </TableCell>}
+                        {isColumnVisible('route_mode') && <TableCell>
+                          <span className="text-xs text-muted-foreground">{merchant.route_mode || '—'}</span>
+                        </TableCell>}
+                        {isColumnVisible('created') && <TableCell>
+                          <span className="text-xs text-muted-foreground">
+                            {merchant.creation ? new Date(merchant.creation).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          </span>
+                        </TableCell>}
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -1298,6 +1420,7 @@ export default function AdminMerchantManagement() {
                     ))}
                   </TableBody>
                 </Table>
+                </TooltipProvider>
               </div>
 
               <DataPagination
