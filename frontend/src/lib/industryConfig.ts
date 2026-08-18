@@ -36,6 +36,7 @@ import {
   Film,
   Upload,
   Play,
+  Flame,
 } from 'lucide-react'
 
 export type OutletType =
@@ -104,6 +105,7 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
   return [
     { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
     { type: 'link', name: 'Manage Offer/Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
+    { type: 'link', name: 'Hot Drops', href: '/hot-drops', icon: Flame, feature: 'coupons' },
     {
       type: 'group',
       id: 'loyalty-growth',

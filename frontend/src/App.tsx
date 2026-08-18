@@ -32,6 +32,7 @@ const RecommendationsEngine = lazy(() => import('./pages/RecommendationsEngine')
 const Customers = lazy(() => import('./pages/Customers'))
 const Bookings = lazy(() => import('./pages/Bookings'))
 const Coupons = lazy(() => import('./pages/Coupons'))
+const HotDrops = lazy(() => import('./pages/HotDrops'))
 const AdminMerchantManagement = lazy(() => import('./pages/AdminMerchantManagement'))
 const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails'))
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
@@ -116,6 +117,7 @@ function AppContent() {
 
 								<Route element={<FeatureProtectedRoute feature="coupons" />}>
 									<Route path="/coupons" element={<Coupons />} />
+									<Route path="/hot-drops" element={<HotDrops />} />
 								</Route>
 
 

@@ -1,0 +1,112 @@
+{
+ "actions": [],
+ "autoname": "HOTDROP-.YYYY.-.#####",
+ "creation": "2026-08-13 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "coupon",
+  "deal_label",
+  "column_break_1",
+  "starts_at",
+  "ends_at",
+  "is_active",
+  "story_images"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "coupon",
+   "fieldtype": "Link",
+   "label": "Linked Coupon",
+   "options": "Coupon",
+   "description": "Optional — leave blank for a teaser Hot Drop with no formal redeemable code (standalone mode)."
+  },
+  {
+   "fieldname": "deal_label",
+   "fieldtype": "Data",
+   "label": "Deal Label",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Short punchy headline shown on the card, e.g. \"1+1 Biryani\"."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "starts_at",
+   "fieldtype": "Datetime",
+   "label": "Starts At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "ends_at",
+   "fieldtype": "Datetime",
+   "label": "Ends At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "description": "Merchant kill-switch — unchecking this ends the drop immediately regardless of ends_at."
+  },
+  {
+   "fieldname": "story_images",
+   "fieldtype": "Long Text",
+   "label": "Story Images (JSON)",
+   "description": "JSON array of R2 public image URLs, in display order. Empty/null falls back to the outlet's gallery cover photo at read time."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-08-13 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Hot Drop",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Restaurant Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Staff"
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "sort_field": "starts_at",
+ "sort_order": "DESC",
+ "track_changes": 0
+}
