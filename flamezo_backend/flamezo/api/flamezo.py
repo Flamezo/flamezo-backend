@@ -17,6 +17,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_customer_from_token,
 )
 from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
+from flamezo_backend.flamezo.utils.outlet_media import batch_resolve_outlet_media
 import json
 import math
 import hashlib
@@ -142,7 +143,7 @@ _DISCOVERY_FIELDS = [
 ]
 
 
-def _format_outlet_card(r, user_lat, user_lon, offers_map):
+def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 	"""Format a single outlet record for the discovery feed."""
 	distance_km = None
 	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
@@ -160,10 +161,15 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 		if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
 			is_featured_live = False
 
+	media = (media_map or {}).get(r["name"]) or []
+
 	return {
 		"id": r["name"],
 		"outlet_name": r["restaurant_name"],
 		"logo": r.get("logo") or "",
+		# Batch-resolved (see batch_resolve_outlet_media): curated Gallery photo
+		# first, food/product photo fallback, then logo — no per-card round trip.
+		"cover_image": media[0]["url"] if media else (r.get("logo") or ""),
 		"latitude": r.get("latitude"),
 		"longitude": r.get("longitude"),
 		"city": r.get("city") or "",
@@ -308,16 +314,18 @@ def get_all_outlets(
 		"""
 		restaurants = frappe.db.sql(sql, params, as_dict=True)
 
-		# ── Batch offers count (single query, zero N+1) ───────────────────────────
+		# ── Batch offers count + cover media (fixed query count, zero N+1) ────────
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
+		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=1, logos=logos_map)
 
 		# ── has_offer filter (post-query, uses the same offers_map) ──────────────
 		if cint(has_offer):
 			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
 		# ── Format cards ──────────────────────────────────────────────────────────
-		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in restaurants]
+		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in restaurants]
 
 		# ── open_now filter (post-format, uses is_open_now computed per card) ────
 		if cint(open_now):
@@ -477,7 +485,9 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
-		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in rows]
+		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=1, logos=logos_map)
+		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
 
