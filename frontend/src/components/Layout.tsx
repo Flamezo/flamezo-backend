@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers, Calculator, Utensils, Coffee, HeartPulse, Dumbbell, ShoppingBag, Trophy, Swords } from 'lucide-react'
+import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, CreditCard, Settings, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark, Layers, Calculator, Utensils, Coffee, HeartPulse, Dumbbell, ShoppingBag, Trophy, Swords } from 'lucide-react'
 import { buildNavigation, type NavItem, type NavLink, type NavGroup } from '@/lib/industryConfig'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { GroupPicker } from '@/components/GroupPicker'
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useOutlet } from '@/contexts/OutletContext'
@@ -275,6 +276,18 @@ export default function Layout({ children }: LayoutProps) {
     outlet_type: 'dining',
     is_signature: false,
     platform_fee_percent: NORMAL_SHARE,
+    // Same Google Places picker as the Setup Wizard's Merchant Profile step —
+    // captured here at creation time so the outlet's Google Places photo
+    // sync (fires on activation) has the authoritative place_id from the
+    // start, instead of guessing later via a fuzzy name+address search.
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
+    google_map_url: '',
+    google_place_id: '',
   })
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
@@ -321,6 +334,14 @@ export default function Layout({ children }: LayoutProps) {
         outlet_type: 'dining',
         is_signature: false,
         platform_fee_percent: NORMAL_SHARE,
+        address: '',
+        city: '',
+        state: '',
+        zip_code: '',
+        latitude: null,
+        longitude: null,
+        google_map_url: '',
+        google_place_id: '',
       })
       return
     }
@@ -363,7 +384,16 @@ export default function Layout({ children }: LayoutProps) {
           // Signature (11%) vs normal (7%) tier + the (possibly edited) rate.
           is_signature: newRestaurantData.is_signature ? 1 : 0,
           platform_fee_percent: Number(newRestaurantData.platform_fee_percent) || NORMAL_SHARE,
-          is_active: 1
+          is_active: 1,
+          // Captured from the Google Places picker above, if selected.
+          address: newRestaurantData.address.trim() || undefined,
+          city: newRestaurantData.city || undefined,
+          state: newRestaurantData.state || undefined,
+          zip_code: newRestaurantData.zip_code || undefined,
+          latitude: newRestaurantData.latitude ?? undefined,
+          longitude: newRestaurantData.longitude ?? undefined,
+          google_map_url: newRestaurantData.google_map_url || undefined,
+          google_place_id: newRestaurantData.google_place_id || undefined,
         }
       })
 
@@ -411,7 +441,12 @@ export default function Layout({ children }: LayoutProps) {
 
         // ── Close & Navigate ────────────────────────────────────────────
         setShowCreateModal(false)
-        setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining', is_signature: false, platform_fee_percent: NORMAL_SHARE })
+        setNewRestaurantData({
+          restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '', outlet_type: 'dining',
+          is_signature: false, platform_fee_percent: NORMAL_SHARE,
+          address: '', city: '', state: '', zip_code: '', latitude: null, longitude: null,
+          google_map_url: '', google_place_id: '',
+        })
         setSendOnboarding(false)
         setSelectedGroup(null); setSelectedGroupLabel('')
 
@@ -441,7 +476,7 @@ export default function Layout({ children }: LayoutProps) {
   // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
   const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
-    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name'],
+    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name', 'is_signature'],
     limit: 1,
   })
   const restaurantDoc = restaurantDocList?.[0] || null
@@ -547,12 +582,9 @@ export default function Layout({ children }: LayoutProps) {
                       <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
                         {currentOutlet?.outlet_name || restaurantDoc?.restaurant_name || outlets[0]?.outlet_name || 'Select Restaurant'}
                       </span>
-                      <span
-                        className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
-                        style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', color: '#FFF8E7' }}
-                      >
-                        <Crown className="h-2 w-2" />GOLD
-                      </span>
+                      {restaurantDoc?.is_signature ? (
+                        <Star className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />
+                      ) : null}
                     </div>
                     <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150", outletDropdownOpen && "rotate-180")} />
                   </button>
@@ -1620,6 +1652,31 @@ export default function Layout({ children }: LayoutProps) {
                   newRestaurantData.outlet_type === 'fashion' ? 'e.g. The Style Loft' :
                   'e.g. Pizza Palace'
                 }
+              />
+            </div>
+
+            {/* Address — same Google Places picker used in the Setup Wizard */}
+            <div className="space-y-2">
+              <AddressAutocomplete
+                id="address"
+                label="Address"
+                value={newRestaurantData.address}
+                onChange={(addr) => setNewRestaurantData(prev => ({ ...prev, address: addr }))}
+                onLocationSelect={({ address, latitude, longitude, city, state, zipCode, googleMapUrl, placeId }) => {
+                  setNewRestaurantData(prev => ({
+                    ...prev,
+                    address,
+                    latitude: latitude ?? prev.latitude,
+                    longitude: longitude ?? prev.longitude,
+                    city: city || prev.city,
+                    state: state || prev.state,
+                    zip_code: zipCode || prev.zip_code,
+                    google_map_url: googleMapUrl || prev.google_map_url,
+                    google_place_id: placeId || prev.google_place_id,
+                  }))
+                }}
+                readOnly={isCreating}
+                description="Pick from the suggestions so the outlet's location and Google Places photos resolve automatically — typing a plain address without selecting won't capture these."
               />
             </div>
 
