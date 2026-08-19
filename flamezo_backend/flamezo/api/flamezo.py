@@ -1292,6 +1292,7 @@ def upload_customer_photo():
 		# Compress the avatar — a resized WebP keeps it sharp at the sizes a
 		# profile photo is ever shown while cutting storage sharply.
 		save_name = file.filename or f"avatar_{customer_id}.jpg"
+		comp_type = None
 		try:
 			from flamezo_backend.flamezo.media.processors import compress_image_bytes
 			comp, comp_type, comp_ext = compress_image_bytes(content, max_dim=1024)
@@ -1302,35 +1303,43 @@ def upload_customer_photo():
 		except Exception:
 			pass  # keep the original bytes if compression is unavailable
 
-		from frappe.utils.file_manager import save_file
-
-		# The custom X-Customer-Token auth does not create a real Frappe login, so
-		# this request runs as the Guest user — which cannot create File docs and
-		# would raise PermissionError (surfaced to the app as HTTP 403). We have
-		# already validated the customer session above, so elevate to a trusted
-		# user for the save only, then restore.
-		original_user = frappe.session.user
+		# R2/CDN first (same storage every other photo in the app uses — fast,
+		# cached, no local disk). Falls back to a local Frappe File only if R2
+		# itself is unavailable, so an upload never hard-fails on that.
 		try:
-			frappe.set_user("Administrator")
-			frappe.flags.ignore_permissions = True
+			from flamezo_backend.flamezo.media.storage import upload_bytes
+			object_key = f"customers/{customer_id}/avatar-{frappe.generate_hash(length=10)}.{save_name.rsplit('.', 1)[-1]}"
+			file_url = upload_bytes(object_key, content, content_type=comp_type or content_type)
+		except Exception:
+			from frappe.utils.file_manager import save_file
 
-			file_doc = save_file(
-				fname=save_name,
-				content=content,
-				dt="Customer",
-				dn=customer_id,
-				decode=False,
-				is_private=0,
-				folder="Home/Attachments",
-			)
+			# The custom X-Customer-Token auth does not create a real Frappe login,
+			# so this request runs as the Guest user — which cannot create File
+			# docs and would raise PermissionError (surfaced to the app as HTTP
+			# 403). We have already validated the customer session above, so
+			# elevate to a trusted user for the save only, then restore.
+			original_user = frappe.session.user
+			try:
+				frappe.set_user("Administrator")
+				frappe.flags.ignore_permissions = True
+				file_doc = save_file(
+					fname=save_name,
+					content=content,
+					dt="Customer",
+					dn=customer_id,
+					decode=False,
+					is_private=0,
+					folder="Home/Attachments",
+				)
+				file_url = file_doc.file_url
+			finally:
+				frappe.flags.ignore_permissions = False
+				frappe.set_user(original_user)
 
-			frappe.db.set_value("Customer", customer_id, "image", file_doc.file_url)
-			frappe.db.commit()
-		finally:
-			frappe.flags.ignore_permissions = False
-			frappe.set_user(original_user)
+		frappe.db.set_value("Customer", customer_id, "image", file_url)
+		frappe.db.commit()
 
-		return {"success": True, "file_url": file_doc.file_url}
+		return {"success": True, "file_url": file_url}
 
 	except Exception as e:
 		frappe.log_error(f"Error in flamezo.upload_customer_photo: {str(e)}")
