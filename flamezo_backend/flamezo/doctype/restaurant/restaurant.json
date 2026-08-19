@@ -122,6 +122,9 @@
   "google_review_url",
   "google_insights_data",
   "google_refresh_token",
+  "google_place_id",
+  "google_place_photos_synced_at",
+  "google_place_photos_count",
   "section_break_discovery",
   "is_featured",
   "is_signature",
@@ -834,6 +837,26 @@
    "fieldtype": "Password",
    "label": "Google Refresh Token",
    "hidden": 1
+  },
+  {
+   "fieldname": "google_place_id",
+   "fieldtype": "Data",
+   "label": "Google Place ID",
+   "read_only": 1,
+   "description": "Resolved via Places API text search on outlet name + address. Used to fetch photos for the Gallery Discovery Pool."
+  },
+  {
+   "fieldname": "google_place_photos_synced_at",
+   "fieldtype": "Datetime",
+   "label": "Google Photos Last Synced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "google_place_photos_count",
+   "fieldtype": "Int",
+   "label": "Google Photos Synced Count",
+   "read_only": 1,
+   "default": "0"
   },
   {
    "fieldname": "outlet_type",
