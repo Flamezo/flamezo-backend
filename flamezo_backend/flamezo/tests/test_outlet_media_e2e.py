@@ -27,7 +27,7 @@ def _make_rest(suffix, **kwargs):
     return r.name
 
 
-def _make_gallery_item(restaurant, url, sort_order=0, is_selected=1):
+def _make_gallery_item(restaurant, url, sort_order=0, is_selected=1, source=None):
     doc = frappe.get_doc({
         "doctype": "Restaurant Gallery Item",
         "restaurant": restaurant,
@@ -36,6 +36,7 @@ def _make_gallery_item(restaurant, url, sort_order=0, is_selected=1):
         "title": f"Gallery {sort_order}",
         "is_selected": is_selected,
         "sort_order": sort_order,
+        "source": source,
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
@@ -174,6 +175,20 @@ class TestBatchResolveOutletMedia(unittest.TestCase):
         finally:
             _cleanup(rest_a)
             _cleanup(rest_b)
+
+    def test_google_places_ranks_first_within_gallery_tier(self):
+        """A pre-existing merchant-uploaded gallery row (earlier sort_order)
+        must NOT bury a real Google Places photo (later sort_order) — Google
+        Places photos rank first within the selected-gallery tier regardless
+        of insertion order."""
+        rest = _make_rest("GPRANK01")
+        try:
+            _make_gallery_item(rest, "https://cdn.example.com/menu-upload.jpg", sort_order=1, source="Menu Product")
+            _make_gallery_item(rest, "https://cdn.example.com/google-photo.jpg", sort_order=26, source="Google Places")
+            result = batch_resolve_outlet_media([rest], limit_per_outlet=4)
+            self.assertEqual(result[rest][0]["url"], "https://cdn.example.com/google-photo.jpg")
+        finally:
+            _cleanup(rest)
 
     def test_limit_per_outlet_respected(self):
         rest = _make_rest("LIMIT01")
