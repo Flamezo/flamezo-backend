@@ -205,8 +205,11 @@ def get_catalogue(outlet_id=None):
 			# Ensure primary image first
 			media.sort(key=lambda m: (0 if m["is_primary"] else 1))
 
-			price = flt(item.price)
 			original_price = flt(item.original_price) if item.original_price else None
+			# No selling price set → show the MRP as the price.
+			price = flt(item.price)
+			if price <= 0 and original_price:
+				price = original_price
 			prefix = (item.price_prefix or "").strip()
 
 			items_by_category.setdefault(item.category, []).append({
@@ -276,8 +279,10 @@ def get_catalogue_item(item_id=None, outlet_id=None):
 		if not doc.is_active:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Item not available"}}
 
-		price = flt(doc.price)
 		original_price = flt(doc.original_price) if doc.original_price else None
+		price = flt(doc.price)
+		if price <= 0 and original_price:
+			price = original_price
 		prefix = (doc.price_prefix or "").strip()
 
 		media = sorted(

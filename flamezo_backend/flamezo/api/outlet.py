@@ -641,6 +641,25 @@ def get_outlet_detail(outlet_id):
 		return {"success": False, "error": {"code": "DETAIL_FETCH_ERROR", "message": str(e)}}
 
 
+_BEVERAGE_KW = ("beverage", "drink", "juice", "coffee", "tea", "shake", "mocktail",
+	"cocktail", "smoothie", "soda", "water", "lassi", "latte", "cappuccino",
+	"espresso", "mojito", "boba", "cooler", "soft drink", "hot drink", "brew")
+_COMBO_KW = ("combo", "package", "thali", "meal", "platter", "feast", "family",
+	"set menu", "hamper", "bundle")
+
+
+def _menu_section(*texts):
+	"""Auto-distribute a menu image into Combos / Beverages / Food by the item's
+	category + name. Combo wins first (it contains both food & drink), then
+	beverage keywords, else it's Food."""
+	blob = " ".join(t for t in texts if t).lower()
+	if any(k in blob for k in _COMBO_KW):
+		return "Combos"
+	if any(k in blob for k in _BEVERAGE_KW):
+		return "Beverages"
+	return "Food"
+
+
 @frappe.whitelist()
 def get_outlet_media_pool(outlet_id):
 	"""
@@ -688,17 +707,34 @@ def get_outlet_media_pool(outlet_id):
 			seen_urls.add(branding_logo)
 
 		# 1. Menu Product Media
-		product_media = frappe.db.sql("""
-			SELECT pm.media_url as url, pm.media_type as type, p.product_name as source_title, 'Menu Product' as source_type
+		# The override column / section doctype only exist after `bench migrate`;
+		# degrade gracefully (auto-sort only) until then instead of erroring out.
+		_has_sec = frappe.db.has_column("Media Asset", "menu_section")
+		_sec_sel = ", ma.menu_section as section_override" if _has_sec else ""
+		_sec_join = "LEFT JOIN `tabMedia Asset` ma ON pm.media_asset = ma.name" if _has_sec else ""
+		product_media = frappe.db.sql(f"""
+			SELECT pm.media_url as url, pm.media_type as type, p.product_name as source_title,
+			       'Menu Product' as source_type, pm.media_asset as media_asset,
+			       p.name as product_name, p.category_name as subcategory{_sec_sel}
 			FROM `tabProduct Media` pm
 			JOIN `tabMenu Product` p ON pm.parent = p.name
+			{_sec_join}
 			WHERE p.restaurant = %s
 		""", (outlet,), as_dict=1)
 
+		# Dish photos are deliberately listed in TWO folders, not moved between
+		# them: the products folder stays the merchant's familiar home for
+		# catalogue media, while Menu Images shows the same photos split into
+		# sections by the outlet's own Menu Categories (Food, Beverages,
+		# Desserts...). Same underlying image — two ways in.
 		for m in product_media:
 			if m.url and m.url not in seen_urls:
+				m['subcategory'] = m.get('subcategory') or "Uncategorised"
+				# Merchant override wins; else auto-sort into Food / Beverages / Combos.
+				m['menu_section'] = m.get('section_override') or _menu_section(m.get('subcategory'), m.get('source_title'))
 				m['category'] = product_label
 				media_pool.append(m)
+				media_pool.append({**m, "category": "Menu Images"})
 				seen_urls.add(m.url)
 
 		# 1b. AI-generated images (enhanced_image_url) — surface every generated
@@ -717,21 +753,30 @@ def get_outlet_media_pool(outlet_id):
 					"source_title": a.source_title or "AI Generated",
 					"source_type": "AI Generated",
 					"category": product_label,
+					"subcategory": "AI Generated",
 				})
 				seen_urls.add(a.url)
 
 		# 1c. Catalogue Item Media (non-food outlets — fashion, wellness, etc.)
 		catalogue_media = frappe.db.sql("""
-			SELECT cim.media_url as url, cim.media_type as type, ci.item_name as source_title, 'Catalogue' as source_type
+			SELECT cim.media_url as url, cim.media_type as type, ci.item_name as source_title,
+			       'Catalogue' as source_type, cc.category_name as subcategory
 			FROM `tabCatalogue Item Media` cim
 			JOIN `tabCatalogue Item` ci ON cim.parent = ci.name
+			LEFT JOIN `tabCatalogue Category` cc ON ci.category = cc.name
 			WHERE ci.restaurant = %s
 		""", (outlet,), as_dict=1)
 		for c in catalogue_media:
 			if c.url and c.url not in seen_urls:
 				c['category'] = product_label
+				c['subcategory'] = c.get('subcategory') or "Uncategorised"
 				media_pool.append(c)
 				seen_urls.add(c.url)
+
+		# NOTE: the scanned menu-card photos (Menu Image Item) are deliberately NOT
+		# in this pool. They are extractor input, not showable assets — the rows
+		# render broken in the dashboard and are not something a merchant would
+		# publish. Menu Images shows the parsed dish photos instead.
 
 		# 2. Events
 		events = frappe.get_all(
@@ -779,12 +824,26 @@ def get_outlet_media_pool(outlet_id):
 						item['is_selected'] = g.is_selected
 						item['gallery_item_name'] = g.name
 
+		# Merchant-created (possibly empty) Menu Images sections, so a folder the
+		# merchant added shows even before any image is moved into it.
+		custom_sections = []
+		if frappe.db.exists("DocType", "Outlet Media Section"):
+			custom_sections = [
+				r.section_name for r in frappe.get_all(
+					"Outlet Media Section",
+					filters={"restaurant": outlet, "section_kind": "menu"},
+					fields=["section_name"],
+					order_by="creation asc",
+				)
+			]
+
 		return {
 			"success": True,
 			"data": {
 				"media": media_pool,
 				"product_category_label": product_label,
-				"outlet_type": outlet_type
+				"outlet_type": outlet_type,
+				"custom_menu_sections": custom_sections
 			}
 		}
 	except Exception as e:
@@ -796,3 +855,50 @@ def get_outlet_media_pool(outlet_id):
 				"message": str(e)
 			}
 		}
+
+
+@frappe.whitelist()
+def add_menu_section(outlet_id, section_name):
+	"""Create a (possibly empty) custom Menu Images section for this outlet."""
+	outlet = validate_restaurant_for_api(outlet_id)
+	name = (section_name or "").strip()
+	if not name:
+		return {"success": False, "error": {"code": "BAD_NAME", "message": "Section name required"}}
+	if not frappe.db.exists("Outlet Media Section", {"restaurant": outlet, "section_name": name, "section_kind": "menu"}):
+		frappe.get_doc({
+			"doctype": "Outlet Media Section",
+			"restaurant": outlet,
+			"section_name": name,
+			"section_kind": "menu",
+		}).insert(ignore_permissions=True)
+		frappe.db.commit()
+	return {"success": True}
+
+
+@frappe.whitelist()
+def delete_menu_section(outlet_id, section_name):
+	"""Remove a custom section; images assigned to it fall back to auto-sort."""
+	outlet = validate_restaurant_for_api(outlet_id)
+	for r in frappe.get_all("Outlet Media Section", filters={"restaurant": outlet, "section_name": section_name, "section_kind": "menu"}):
+		frappe.delete_doc("Outlet Media Section", r.name, ignore_permissions=True)
+	for r in frappe.get_all("Media Asset", filters={"restaurant": outlet, "menu_section": section_name}):
+		frappe.db.set_value("Media Asset", r.name, "menu_section", None)
+	frappe.db.commit()
+	return {"success": True}
+
+
+@frappe.whitelist()
+def move_media_to_section(outlet_id, media_asset_id, section_name):
+	"""Assign a menu image to a section (override the auto-sort). Empty = back to auto."""
+	outlet = validate_restaurant_for_api(outlet_id)
+	asset_restaurant = frappe.db.get_value("Media Asset", media_asset_id, "restaurant")
+	if not asset_restaurant:
+		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Image not found"}}
+	# The asset must actually belong to the outlet the caller is authorized
+	# for — without this check, any dashboard user could pass any other
+	# outlet's media_asset_id and reassign its menu section.
+	if asset_restaurant != outlet:
+		return {"success": False, "error": {"code": "FORBIDDEN", "message": "Image does not belong to this outlet"}}
+	frappe.db.set_value("Media Asset", media_asset_id, "menu_section", (section_name or "").strip() or None)
+	frappe.db.commit()
+	return {"success": True}

@@ -620,7 +620,8 @@ def format_product_from_row_minimal(product_row, media_rows=None, has_customizat
 	product = {
 		"id": product_row["id"],
 		"name": product_row["name"],
-		"price": flt(product_row.get("price")),
+		# No selling price set → show the MRP (original_price) as the price.
+		"price": flt(product_row.get("price")) or flt(product_row.get("original_price") or 0),
 		"category": product_row.get("category"),
 		"description": product_row.get("description") or "",
 		"isVegetarian": bool(product_row.get("is_vegetarian")),
@@ -786,7 +787,8 @@ def format_product(product_doc):
 	product = {
 		"id": product_doc.product_id,
 		"name": product_doc.product_name,
-		"price": flt(product_doc.price),
+		# No selling price set → show the MRP (original_price) as the price.
+		"price": flt(product_doc.price) or flt(product_doc.original_price or 0),
 		"category": product_doc.category_name,
 		"description": product_doc.description or "",
 		"isVegetarian": bool(product_doc.is_vegetarian),
