@@ -447,8 +447,6 @@ function AdminMerchantDetailsPage() {
               </div>
               <div className="text-muted-foreground font-mono text-sm flex flex-wrap items-center gap-2">
                 <span className="shrink-0">ID: {merchant.restaurant_id}</span>
-                <Separator className="hidden sm:block h-3 w-px mx-1 bg-muted-foreground/30" /> 
-                <span className="flex items-center gap-1.5 shrink-0"><Globe className="h-3 w-3" /> {merchant.subdomain || 'no-subdomain'}.flamezo.in</span>
               </div>
             </div>
           </div>

@@ -49,6 +49,7 @@
   "alt_text",
   "caption",
   "display_order",
+  "menu_section",
   "section_variants",
   "media_variants"
  ],
@@ -297,6 +298,11 @@
    "label": "Display Order",
    "default": "0",
    "non_negative": 1
+  },
+  {
+   "fieldname": "menu_section",
+   "fieldtype": "Data",
+   "label": "Menu Section Override"
   },
   {
    "fieldname": "section_variants",

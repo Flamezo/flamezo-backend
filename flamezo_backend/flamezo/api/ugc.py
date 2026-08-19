@@ -67,6 +67,47 @@ PLATFORM_INSTRUCTIONS = (
 	"Tomorrow, upload a screen recording of your story's view count — you get that many "
 	"rupees back as Flamezo Cash, up to 100% of your bill."
 )
+# The claim journey, in the order the diner walks it. Kept beside the copy above
+# so the explainer popup in the web and Flutter apps never drifts from the flow
+# the backend actually enforces.
+PLATFORM_STEPS = [
+	{
+		"title": "Pay your bill",
+		"detail": "Settle the bill through Flamezo at this outlet.",
+	},
+	{
+		"title": "Share the story",
+		"detail": "Post the outlet's story frame to your Instagram, Facebook, or WhatsApp Story.",
+	},
+	{
+		"title": "Show staff to verify",
+		"detail": "Show the posted story to our staff — they confirm it with a PIN.",
+	},
+	{
+		"title": "Upload your view count",
+		"detail": "Next day, screen-record your story's view count and upload it within 48 hours.",
+	},
+	{
+		"title": "Get your cashback",
+		"detail": "Views become rupees, up to 100% of your bill — credited as an outlet voucher.",
+	},
+]
+
+PLATFORM_REDEEM_STEPS = [
+	{
+		"title": "Visit again",
+		"detail": f"Come back to this outlet within {UGC_CASHBACK_VALIDITY_DAYS} days.",
+	},
+	{
+		"title": "Show your voucher",
+		"detail": "Show the voucher code to the staff, who unlock it by entering their secret PIN on your phone.",
+	},
+	{
+		"title": "Pick your free dish",
+		"detail": f"Based on your new bill, pick a free dish (worth up to {PLATFORM_VOUCHER_PER_VISIT_PCT}% of the bill) and the staff will apply it!",
+	},
+]
+
 PLATFORM_TERMS = (
 	"Cashback = your story's view count in rupees, capped at your bill (max ₹2,000). "
 	"Credited as a restaurant voucher — pick a free dish worth up to 33% of your next bill on each return visit. "
@@ -87,6 +128,35 @@ PLATFORM_ABSOLUTE_CAP = 0          # 0 = no extra ₹ ceiling beyond the bill
 PLATFORM_PROOF_WINDOW_HOURS = 48
 PLATFORM_AI_PROVIDER = "Gemini"
 PLATFORM_AI_CONFIDENCE = 0.85
+
+# ── Explainer detail served to the diner apps ────────────────────────────────
+# Derived from the rule constants directly above, so the numbers a diner reads
+# in the popup are the same ones the backend enforces — they cannot drift.
+
+def _platform_facts():
+	"""Headline numbers for the explainer, as label/value pairs."""
+	return [
+		{"label": "Max cashback", "value": f"{PLATFORM_CASHBACK_PERCENT_CAP}% of your bill"},
+		{"label": "Minimum bill", "value": f"₹{PLATFORM_MIN_ORDER}"},
+		{"label": "Upload window", "value": f"{PLATFORM_PROOF_WINDOW_HOURS} hours"},
+		{"label": "Voucher validity", "value": f"{UGC_CASHBACK_VALIDITY_DAYS} days"},
+		{"label": "Claims allowed", "value": f"{PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D} per outlet / 30 days"},
+		{"label": "Story must stay live", "value": "24 hours"},
+	]
+
+
+def _platform_terms_list():
+	"""The terms blob, broken into readable bullets for the explainer popup."""
+	return [
+		"Your cashback equals your story's view count in rupees, capped at your bill amount.",
+		"It is credited as a voucher for this outlet — not cash, and not usable elsewhere.",
+		"Redeem it on return visits: pick a free dish worth up to 33% of that visit's bill.",
+		f"The voucher is valid for {UGC_CASHBACK_VALIDITY_DAYS} days from the day it is issued.",
+		"Your story must stay live for at least 24 hours — deleting it early voids the claim.",
+		f"After staff verify your story, you have {PLATFORM_PROOF_WINDOW_HOURS} hours to upload your view-count recording.",
+		f"You can claim up to {PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D} times at this outlet every 30 days. Other outlets are unlimited.",
+		"Views that appear edited, inflated, or fraudulent are rejected, and repeat offenders lose eligibility.",
+	]
 # Voucher rules — platform-fixed, non-editable by restaurants.
 PLATFORM_VOUCHER_EARNING_CAP = 2000   # ₹ — max voucher any single claim can issue
 PLATFORM_VOUCHER_PER_VISIT_PCT = 33   # % of each visit's bill = max free-dish budget
@@ -883,7 +953,24 @@ def get_outlet_ugc_status(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		config = _get_active_config(restaurant)
 		active = _is_ugc_active(config) if config else False
-		return _ok({"ugc_active": active})
+		return _ok({
+			"ugc_active": active,
+			# Platform-fixed explainer copy. Served from here so the web app and the
+			# Flutter app render the same words without either hardcoding them —
+			# these are the same constants the order-scoped endpoints return.
+			"headline": PLATFORM_HEADLINE,
+			"instructions": PLATFORM_INSTRUCTIONS,
+			"terms": PLATFORM_TERMS,
+			"steps": PLATFORM_STEPS,
+			"redeem_steps": PLATFORM_REDEEM_STEPS,
+			"facts": _platform_facts(),
+			"terms_list": _platform_terms_list(),
+			"min_order_amount": PLATFORM_MIN_ORDER,
+			"cashback_percent_cap": PLATFORM_CASHBACK_PERCENT_CAP,
+			"proof_window_hours": PLATFORM_PROOF_WINDOW_HOURS,
+			"validity_days": UGC_CASHBACK_VALIDITY_DAYS,
+			"max_claims_per_30d": PLATFORM_MAX_CLAIMS_PER_RESTAURANT_30D,
+		})
 	except frappe.DoesNotExistError:
 		return _ok({"ugc_active": False})
 	except Exception as e:
@@ -1670,6 +1757,35 @@ def get_my_ugc_vouchers(outlet_id=None):
 			fields=["name", "voucher_code", "restaurant", "original_amount", "balance", "issued_at", "expires_at"],
 			order_by="expires_at asc",
 		)
+
+		# Consolidate: multiple active vouchers for the same outlet collapse into
+		# ONE combined coupon so the diner never sees stacked/double coupons on the
+		# Pay Bill page. Sum the balances onto the latest-expiring voucher (keeps
+		# the most redemption time) and void the rest; the single kept code then
+		# holds the full balance, so redemption drains all of it.
+		by_outlet = {}
+		for r in rows:
+			by_outlet.setdefault(r["restaurant"], []).append(r)
+		merged_rows = []
+		mutated = False
+		for _rest, grp in by_outlet.items():
+			if len(grp) == 1:
+				merged_rows.append(grp[0])
+				continue
+			keeper = grp[-1]  # rows are expires_at asc → last = latest expiry
+			extra = sum(flt(g["balance"]) for g in grp if g is not keeper)
+			if extra > 0:
+				keeper["balance"] = flt(keeper["balance"]) + extra
+				frappe.db.set_value("UGC Voucher", keeper["name"], "balance", keeper["balance"])
+				for g in grp:
+					if g is keeper:
+						continue
+					frappe.db.set_value("UGC Voucher", g["name"], {"balance": 0, "status": "expired"})
+				mutated = True
+			merged_rows.append(keeper)
+		if mutated:
+			frappe.db.commit()
+		rows = merged_rows
 
 		# Resolve restaurant meta
 		restaurant_names = list({r["restaurant"] for r in rows})
