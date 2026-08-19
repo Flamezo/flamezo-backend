@@ -7,10 +7,11 @@ formatter (flamezo.py) and outlet detail (outlet.py) so a feed of N outlets
 costs a fixed 2 SQL queries total, never N+1 per-card round trips.
 
 Priority per outlet, first non-empty wins:
-  1. Curated Gallery — Restaurant Gallery Item, is_selected=1, sort_order asc.
-     This is what a merchant explicitly picked to show off (via Gallery
-     Management's Active Showcase), including anything synced in from
-     Google Places photos.
+  1. Curated Gallery — Restaurant Gallery Item, is_selected=1. Within this
+     tier, Google Places photos rank first (real, recognisable shots of the
+     actual place — the strongest signal we have), then everything else by
+     sort_order. This is what a merchant explicitly picked to show off via
+     Gallery Management's Active Showcase, plus anything synced from Google.
   2. Food/product photos — Product Media on the outlet's active Menu
      Products, display_order asc. "The food images we use right now" —
      kept as the fallback exactly as before, just resolved in the same
@@ -36,13 +37,17 @@ def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None):
     result = {oid: [] for oid in outlet_ids}
     placeholders = ",".join(["%s"] * len(outlet_ids))
 
-    # 1. Curated gallery — single query across every outlet.
+    # 1. Curated gallery — single query across every outlet. Google Places
+    # photos rank first within this tier (source_rank 0), everything else
+    # after (source_rank 1), then sort_order — so a merchant's pre-existing
+    # menu-photo gallery rows never bury the real Google photos.
     gallery_rows = frappe.db.sql(
         f"""
-        SELECT restaurant, url, media_type as type, title, sort_order
+        SELECT restaurant, url, media_type as type, title, sort_order,
+               (source != 'Google Places') as source_rank
         FROM `tabRestaurant Gallery Item`
         WHERE restaurant IN ({placeholders}) AND is_selected = 1
-        ORDER BY restaurant, sort_order ASC
+        ORDER BY restaurant, source_rank ASC, sort_order ASC
         """,
         outlet_ids,
         as_dict=True,

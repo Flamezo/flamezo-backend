@@ -354,7 +354,11 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
             "media_type": "Image",
             "url": cdn_url,
             "title": f"{r.restaurant_name} — Google Photo {i+1}",
-            "is_selected": 0,  # requires manual curation before it goes live in Active Showcase
+            # Auto-selected: real Google Places photos of the actual outlet are
+            # the strongest cover-image signal we have, so they go live in the
+            # Gallery immediately (batch_resolve_outlet_media additionally
+            # ranks them ahead of any other selected gallery item).
+            "is_selected": 1,
             "sort_order": existing_max_sort + i + 1,
             "source": "Google Places",
         })
