@@ -888,10 +888,17 @@ def delete_menu_section(outlet_id, section_name):
 
 
 @frappe.whitelist()
-def move_media_to_section(media_asset_id, section_name):
+def move_media_to_section(outlet_id, media_asset_id, section_name):
 	"""Assign a menu image to a section (override the auto-sort). Empty = back to auto."""
-	if not frappe.db.exists("Media Asset", media_asset_id):
+	outlet = validate_restaurant_for_api(outlet_id)
+	asset_restaurant = frappe.db.get_value("Media Asset", media_asset_id, "restaurant")
+	if not asset_restaurant:
 		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Image not found"}}
+	# The asset must actually belong to the outlet the caller is authorized
+	# for — without this check, any dashboard user could pass any other
+	# outlet's media_asset_id and reassign its menu section.
+	if asset_restaurant != outlet:
+		return {"success": False, "error": {"code": "FORBIDDEN", "message": "Image does not belong to this outlet"}}
 	frappe.db.set_value("Media Asset", media_asset_id, "menu_section", (section_name or "").strip() or None)
 	frappe.db.commit()
 	return {"success": True}

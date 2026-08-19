@@ -229,8 +229,9 @@ export default function GalleryManagement() {
 
   const handleMoveSection = async (media: any, section: string) => {
     if (!media?.media_asset) { toast.error('This image cannot be moved (no media record)'); return }
+    if (!selectedOutlet) return
     try {
-      await moveMediaToSection({ media_asset_id: media.media_asset, section_name: section })
+      await moveMediaToSection({ outlet_id: selectedOutlet, media_asset_id: media.media_asset, section_name: section })
       toast.success(`Moved to ${section}`)
       setEditingItem(null)
       mutatePool()
