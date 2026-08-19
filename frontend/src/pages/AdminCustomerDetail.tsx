@@ -14,10 +14,12 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   ChevronLeft, RefreshCw, Trash2, Coins, Phone, Calendar,
-  ShoppingBag, Star, Gift, ArrowUpRight, ArrowDownLeft,
+  ShoppingBag, Gift, ArrowUpRight, ArrowDownLeft,
   Video, UserCheck, UserX, Wallet, TrendingUp, Store,
   Plus, Minus, Ticket, Users, ExternalLink, ChevronRight,
-  Eye,
+  Eye, MapPin, Smartphone, Percent, Zap,
+  CalendarClock, Dumbbell, Scissors, Receipt, Heart, Bookmark,
+  MessageCircle, Flag, ShieldAlert, Activity as ActivityIcon,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,12 +28,27 @@ interface FullProfile {
   customer: {
     id: string; name: string; phone: string; email: string
     birthday: string | null; created: string; verified_at: string | null
+    first_verified_at_restaurant: string | null; last_visited: string | null
+    opted_out_of_marketing: boolean
   }
-  stats: { total_spend: number; loyalty_balance: number
-    lifetime_earned: number; total_redeemed: number; restaurants_visited: number
+  stats: {
+    restaurants_visited: number; total_orders: number; total_spend: number
+    avg_order_value: number; total_bookings: number
+    loyalty_balance: number; lifetime_earned: number; total_redeemed: number
+    ugc_wallet_balance: number; coupons_used: number; total_coupon_savings: number
+    fraud_flagged: boolean
   }
+  outlets_visited: {
+    restaurant: string; outlet_name: string; visit_count: number
+    total_spent: number; last_visited: string | null
+    orders: number; table_bookings: number; banquet_bookings: number
+    court_bookings: number; service_appointments: number
+  }[]
+  orders: any[]
   table_bookings: any[]
   banquet_bookings: any[]
+  court_bookings: any[]
+  service_appointments: any[]
   loyalty: { balance: number; lifetime_earned: number; entries: any[] }
   referral: {
     referred_by: {
@@ -40,6 +57,18 @@ interface FullProfile {
     referrals_made: any[]
   }
   ugc: any[]
+  ugc_vouchers: any[]
+  ugc_voucher_redemptions: any[]
+  ugc_fraud_flags: any[]
+  coupon_usage: any[]
+  offer_claims: any[]
+  addresses: any[]
+  sessions: any[]
+  engagement: {
+    chills_likes: number; chills_saves: number; chills_outlet_follows: number
+    creator_club_memberships: number; crowd_messages_sent: number
+    crowd_groups_joined: number; crowd_reports_filed: number; crowd_reports_against: number
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -189,7 +218,7 @@ export default function AdminCustomerDetail() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [profile, setProfile] = useState<FullProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'loyalty' | 'referral' | 'ugc'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'activity' | 'loyalty' | 'referral' | 'ugc'>('overview')
 
   // Detail dialogs
   
@@ -272,19 +301,24 @@ export default function AdminCustomerDetail() {
     </div>
   )
 
-  const { customer, stats, table_bookings, loyalty, referral, ugc } = profile
+  const {
+    customer, stats, outlets_visited, orders, table_bookings, banquet_bookings,
+    court_bookings, service_appointments, loyalty, referral, ugc,
+    ugc_vouchers, ugc_voucher_redemptions, ugc_fraud_flags,
+    coupon_usage, offer_claims, addresses, sessions, engagement,
+  } = profile
 
-  // Restaurants the customer has loyalty with — source for the manual adjustment picker.
-  const visitedRestaurants = [...new Map(
-    (loyalty?.entries || [])
-      .filter((e: any) => e.restaurant)
-      .map((e: any) => [e.restaurant, e.outlet_name || e.restaurant])
-  ).entries()] as [string, string][]
+  // Every outlet this customer has actually engaged with — source for the manual
+  // adjustment picker (richer/more complete than the old loyalty-only dedup).
+  const visitedRestaurants = outlets_visited.map(o => [o.restaurant, o.outlet_name] as [string, string])
 
+  const totalBookings = table_bookings.length + banquet_bookings.length + court_bookings.length + service_appointments.length
+  const totalEngagement = Object.values(engagement || {}).reduce((a, b) => a + (b || 0), 0)
 
-  const tabs: { id: typeof activeTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
+  const tabs: { id: typeof activeTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number; alert?: boolean }[] = [
     { id: 'overview',  label: 'Overview',  icon: UserCheck },
-    
+    { id: 'orders',    label: 'Orders',    icon: Receipt,     count: orders.length },
+    { id: 'activity',  label: 'Activity',  icon: ActivityIcon, count: totalBookings + coupon_usage.length + offer_claims.length, alert: stats.fraud_flagged },
     { id: 'loyalty',   label: 'Loyalty',   icon: Wallet,      count: loyalty.entries.length },
     { id: 'referral',  label: 'Referral',  icon: UserX,       count: referral.referrals_made.length },
     { id: 'ugc',       label: 'UGC',       icon: Video,       count: ugc.length },
@@ -331,11 +365,20 @@ export default function AdminCustomerDetail() {
               {customer.verified_at && (
                 <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 dark:bg-green-950/20 text-[10px]">Verified</Badge>
               )}
+              {stats.fraud_flagged && (
+                <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950/20 text-[10px] gap-1">
+                  <ShieldAlert className="w-3 h-3" /> UGC Fraud Flag
+                </Badge>
+              )}
+              {customer.opted_out_of_marketing && (
+                <Badge variant="outline" className="text-muted-foreground text-[10px]">Opted out of marketing</Badge>
+              )}
             </div>
             <div className="flex items-center gap-4 mt-1.5 text-sm text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{customer.phone || '—'}</span>
               {customer.birthday && <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />Born {fmtDate(customer.birthday)}</span>}
               <span>Joined {fmtDate(customer.created)}</span>
+              {customer.last_visited && <span>Last visit {fmtDateTime(customer.last_visited)}</span>}
               {customer.email && <span>{customer.email}</span>}
             </div>
           </div>
@@ -359,6 +402,7 @@ export default function AdminCustomerDetail() {
             {t.count !== undefined && t.count > 0 && (
               <span className="ml-1 bg-muted text-muted-foreground rounded-full text-[10px] px-1.5 py-0.5">{t.count}</span>
             )}
+            {t.alert && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
           </button>
         ))}
       </div>
@@ -370,15 +414,35 @@ export default function AdminCustomerDetail() {
         {activeTab === 'overview' && (
           <div className="space-y-6 max-w-5xl">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              
-              <StatCard icon={Store}         label="Outlets"     value={fmt(stats.restaurants_visited)} sub="unique visited" />
-              <StatCard icon={Wallet}        label="Cash Balance"    value={fmtR(stats.loyalty_balance)}    sub="spendable now" accent="border-primary/30 bg-primary/5" />
+              <StatCard icon={Store}         label="Outlets"      value={fmt(stats.restaurants_visited)} sub="unique visited" />
+              <StatCard icon={ShoppingBag}   label="Orders"       value={fmt(stats.total_orders)}        sub={`avg ${fmtR(stats.avg_order_value)}`} />
+              <StatCard icon={Receipt}       label="Total Spend"  value={fmtR(stats.total_spend)}        sub="lifetime, completed orders" />
+              <StatCard icon={Wallet}        label="Cash Balance" value={fmtR(stats.loyalty_balance)}    sub="spendable now" accent="border-primary/30 bg-primary/5" />
               <StatCard icon={TrendingUp}    label="Lifetime Earned" value={fmtR(stats.lifetime_earned)} />
               <StatCard icon={ArrowDownLeft} label="Total Redeemed"  value={fmtR(stats.total_redeemed)} />
               <StatCard icon={Gift}          label="UGC Claims"      value={fmt(ugc.length)}               sub={`${ugc.filter((u: any) => u.status === 'credited').length} credited`} />
+              <StatCard icon={Ticket}        label="UGC Wallet"      value={fmtR(stats.ugc_wallet_balance)} sub="active voucher balance" />
+              <StatCard icon={Percent}       label="Coupons Used"    value={fmt(stats.coupons_used)}        sub={`${fmtR(stats.total_coupon_savings)} saved`} />
+              <StatCard icon={CalendarClock} label="Bookings"        value={fmt(stats.total_bookings)}      sub="table + banquet + court + service" />
+              <StatCard icon={ActivityIcon}  label="Engagement"      value={fmt(totalEngagement)}           sub="chills, crowd, clubs" />
             </div>
 
-
+            {stats.fraud_flagged && (
+              <Card className="border-red-300 dark:border-red-800">
+                <CardContent className="px-4 py-4 flex items-center gap-3">
+                  <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-600">Active UGC fraud flag</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ugc_fraud_flags.find((f: any) => f.is_active)?.reason || 'This customer has been flagged for suspected UGC fraud.'}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="ml-auto gap-1 text-xs" onClick={() => setActiveTab('activity')}>
+                    View details <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {referral.referred_by && (
               <Card className="border-blue-200 dark:border-blue-800">
@@ -399,6 +463,341 @@ export default function AdminCustomerDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Outlets visited */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <p className="text-sm font-semibold flex items-center gap-2"><Store className="w-4 h-4 text-primary" />Outlets Visited ({outlets_visited.length})</p>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {outlets_visited.length === 0
+                  ? <p className="text-sm text-muted-foreground py-6 text-center">No visits recorded yet — no orders or bookings at any outlet.</p>
+                  : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Outlet</TableHead>
+                            <TableHead>Visits</TableHead>
+                            <TableHead>Orders</TableHead>
+                            <TableHead>Bookings</TableHead>
+                            <TableHead>Spend</TableHead>
+                            <TableHead>Last Visited</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {outlets_visited.map((o) => (
+                            <TableRow key={o.restaurant}>
+                              <TableCell className="text-sm font-medium">{o.outlet_name}</TableCell>
+                              <TableCell className="font-semibold">{fmt(o.visit_count)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{fmt(o.orders)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {fmt(o.table_bookings + o.banquet_bookings + o.court_bookings + o.service_appointments)}
+                              </TableCell>
+                              <TableCell className="font-semibold text-primary">{fmtR(o.total_spent)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{o.last_visited ? fmtDateTime(o.last_visited) : '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                }
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ORDERS */}
+        {activeTab === 'orders' && (
+          <div className="max-w-5xl">
+            {orders.length === 0
+              ? <p className="text-muted-foreground text-sm py-12 text-center">No orders yet</p>
+              : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order</TableHead>
+                        <TableHead>Outlet</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Payment</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orders.map((o: any) => (
+                        <TableRow key={o.name}>
+                          <TableCell className="text-sm font-medium">{o.order_number || o.order_id}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{o.outlet_name}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground capitalize">{(o.order_type || '').replace('_', ' ')}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className={cn('text-[10px]',
+                              o.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                              o.status === 'cancelled' ? 'text-red-600 bg-red-50 border-red-200' :
+                              'text-amber-700 bg-amber-50 border-amber-200'
+                            )}>{o.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className={cn('text-[10px]',
+                              o.payment_status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                              o.payment_status === 'failed' || o.payment_status === 'refunded' ? 'text-red-600 bg-red-50 border-red-200' :
+                              'text-amber-700 bg-amber-50 border-amber-200'
+                            )}>{o.payment_status}</Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold">{fmtR(o.total)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{fmtDateTime(o.creation)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+            }
+          </div>
+        )}
+
+        {/* ACTIVITY */}
+        {activeTab === 'activity' && (
+          <div className="space-y-5 max-w-5xl">
+
+            {/* Bookings */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <p className="text-sm font-semibold flex items-center gap-2"><CalendarClock className="w-4 h-4 text-primary" />Bookings ({totalBookings})</p>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-4">
+                {totalBookings === 0
+                  ? <p className="text-sm text-muted-foreground py-4 text-center">No bookings yet</p>
+                  : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Outlet</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Details</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {table_bookings.map((b: any) => (
+                            <TableRow key={`tb-${b.name}`}>
+                              <TableCell className="text-xs"><Badge variant="outline" className="text-[10px] gap-1"><Users className="w-2.5 h-2.5" />Table</Badge></TableCell>
+                              <TableCell className="text-sm">{b.outlet_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{fmtDate(b.date)} · {b.time_slot}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{b.booking_number}</TableCell>
+                              <TableCell><Badge variant="secondary" className="text-[10px]">{b.status}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                          {banquet_bookings.map((b: any) => (
+                            <TableRow key={`bb-${b.name}`}>
+                              <TableCell className="text-xs"><Badge variant="outline" className="text-[10px] gap-1"><Gift className="w-2.5 h-2.5" />Banquet</Badge></TableCell>
+                              <TableCell className="text-sm">{b.outlet_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{fmtDate(b.date)} · {b.time_slot}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{b.event_type} · {b.booking_number}</TableCell>
+                              <TableCell><Badge variant="secondary" className="text-[10px]">{b.status}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                          {court_bookings.map((b: any) => (
+                            <TableRow key={`cb-${b.name}`}>
+                              <TableCell className="text-xs"><Badge variant="outline" className="text-[10px] gap-1"><Dumbbell className="w-2.5 h-2.5" />Court</Badge></TableCell>
+                              <TableCell className="text-sm">{b.outlet_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{fmtDate(b.booking_date)} · {b.start_time}–{b.end_time}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{b.court_name} · {b.sport_type} · {fmtR(b.slot_price)}</TableCell>
+                              <TableCell><Badge variant="secondary" className="text-[10px]">{b.status}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                          {service_appointments.map((b: any) => (
+                            <TableRow key={`sa-${b.name}`}>
+                              <TableCell className="text-xs"><Badge variant="outline" className="text-[10px] gap-1"><Scissors className="w-2.5 h-2.5" />Service</Badge></TableCell>
+                              <TableCell className="text-sm">{b.outlet_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{fmtDate(b.appointment_date)} · {b.appointment_time}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{b.catalogue_item_name}{b.sub_item_name ? ` · ${b.sub_item_name}` : ''}</TableCell>
+                              <TableCell><Badge variant="secondary" className="text-[10px]">{b.status}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                }
+              </CardContent>
+            </Card>
+
+            {/* Coupons & Offers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2"><Percent className="w-4 h-4 text-primary" />Coupon Usage ({coupon_usage.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  {coupon_usage.length === 0
+                    ? <p className="text-sm text-muted-foreground py-4 text-center">No coupons used yet</p>
+                    : (
+                      <div className="space-y-2">
+                        {coupon_usage.map((c: any) => (
+                          <div key={c.name} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                            <div>
+                              <p className="font-medium">{c.coupon}</p>
+                              <p className="text-xs text-muted-foreground">{c.outlet_name} · {fmtDate(c.usage_date)}</p>
+                            </div>
+                            <span className="font-semibold text-green-600">−{fmtR(c.discount_amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2"><Zap className="w-4 h-4 text-primary" />Offer / Hot Drop Claims ({offer_claims.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  {offer_claims.length === 0
+                    ? <p className="text-sm text-muted-foreground py-4 text-center">No offers claimed yet</p>
+                    : (
+                      <div className="space-y-2">
+                        {offer_claims.map((c: any) => (
+                          <div key={c.name} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                            <div>
+                              <p className="font-medium">{c.coupon_code}</p>
+                              <p className="text-xs text-muted-foreground">{c.outlet_name} · {fmtDateTime(c.claimed_at)}</p>
+                            </div>
+                            <Badge variant="secondary" className={cn('text-[10px]', c.is_paid ? 'text-green-700 bg-green-50 border-green-200' : 'text-amber-700 bg-amber-50 border-amber-200')}>
+                              {c.is_paid ? `Paid ${fmtR(c.paid_amount)}` : 'Claimed'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Saved Addresses & Sessions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" />Saved Addresses ({addresses.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  {addresses.length === 0
+                    ? <p className="text-sm text-muted-foreground py-4 text-center">No saved addresses</p>
+                    : (
+                      <div className="space-y-2">
+                        {addresses.map((a: any) => (
+                          <div key={a.name} className="text-sm border-b last:border-0 pb-2 last:pb-0">
+                            <p className="font-medium flex items-center gap-1.5">{a.label || a.address_type}
+                              {a.is_default && <Badge variant="secondary" className="text-[9px]">Default</Badge>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{[a.address_line_1, a.area, a.city, a.pincode].filter(Boolean).join(', ')}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2"><Smartphone className="w-4 h-4 text-primary" />Recent Sessions ({sessions.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  {sessions.length === 0
+                    ? <p className="text-sm text-muted-foreground py-4 text-center">No session history</p>
+                    : (
+                      <div className="space-y-2">
+                        {sessions.map((s: any, i: number) => (
+                          <div key={i} className="text-sm border-b last:border-0 pb-2 last:pb-0">
+                            <p className="font-medium">{s.device_info || 'Unknown device'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.ip_address} · {s.last_used_at ? fmtDateTime(s.last_used_at) : '—'}
+                              {s.revoked && <span className="text-red-600"> · revoked</span>}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* UGC Fraud Flags */}
+            {ugc_fraud_flags.length > 0 && (
+              <Card className="border-red-300 dark:border-red-800">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2 text-red-600"><ShieldAlert className="w-4 h-4" />UGC Fraud Flags ({ugc_fraud_flags.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {ugc_fraud_flags.map((f: any) => (
+                      <div key={f.name} className="text-sm border-b last:border-0 pb-2 last:pb-0">
+                        <p className="flex items-center gap-2">
+                          <Badge variant="secondary" className={cn('text-[10px]', f.is_active ? 'text-red-600 bg-red-50 border-red-200' : 'text-gray-500 bg-gray-50')}>
+                            {f.is_active ? 'Active' : 'Cleared'}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{f.outlet_name} · {fmtDateTime(f.creation)}</span>
+                        </p>
+                        {f.reason && <p className="text-xs text-muted-foreground mt-1">{f.reason}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Social / Community Engagement */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <p className="text-sm font-semibold flex items-center gap-2"><ActivityIcon className="w-4 h-4 text-primary" />Social & Community Engagement</p>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Chills Likes</p><p className="font-semibold">{fmt(engagement.chills_likes)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Bookmark className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Chills Saves</p><p className="font-semibold">{fmt(engagement.chills_saves)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Store className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Outlets Followed</p><p className="font-semibold">{fmt(engagement.chills_outlet_follows)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Creator Clubs Joined</p><p className="font-semibold">{fmt(engagement.creator_club_memberships)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Crowd Messages Sent</p><p className="font-semibold">{fmt(engagement.crowd_messages_sent)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Crowd Groups Joined</p><p className="font-semibold">{fmt(engagement.crowd_groups_joined)}</p></div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2.5 flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-muted-foreground" />
+                    <div><p className="text-xs text-muted-foreground">Reports Filed</p><p className="font-semibold">{fmt(engagement.crowd_reports_filed)}</p></div>
+                  </div>
+                  <div className={cn('rounded-md border px-3 py-2.5 flex items-center gap-2', engagement.crowd_reports_against > 0 && 'border-red-300 dark:border-red-800')}>
+                    <ShieldAlert className={cn('w-4 h-4', engagement.crowd_reports_against > 0 ? 'text-red-500' : 'text-muted-foreground')} />
+                    <div><p className="text-xs text-muted-foreground">Reported By Others</p><p className={cn('font-semibold', engagement.crowd_reports_against > 0 && 'text-red-600')}>{fmt(engagement.crowd_reports_against)}</p></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
           </div>
         )}
 
@@ -543,7 +942,7 @@ export default function AdminCustomerDetail() {
 
         {/* UGC */}
         {activeTab === 'ugc' && (
-          <div className="max-w-5xl">
+          <div className="max-w-5xl space-y-5">
             {ugc.length === 0
               ? <p className="text-muted-foreground text-sm py-12 text-center">No UGC submissions yet</p>
               : (
@@ -598,6 +997,74 @@ export default function AdminCustomerDetail() {
                 </div>
               )
             }
+
+            {/* UGC Vouchers */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <p className="text-sm font-semibold flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" />UGC Vouchers ({ugc_vouchers.length})</p>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {ugc_vouchers.length === 0
+                  ? <p className="text-sm text-muted-foreground py-4 text-center">No vouchers issued yet</p>
+                  : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Outlet</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Balance</TableHead>
+                            <TableHead>Issued</TableHead>
+                            <TableHead>Expires</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ugc_vouchers.map((v: any) => (
+                            <TableRow key={v.name}>
+                              <TableCell className="text-sm font-mono">{v.voucher_code}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{v.outlet_name}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className={cn('text-[10px]',
+                                  v.status === 'active' ? 'text-green-700 bg-green-50 border-green-200' :
+                                  v.status === 'expired' ? 'text-gray-500 bg-gray-50' :
+                                  'text-amber-700 bg-amber-50 border-amber-200'
+                                )}>{v.status}</Badge>
+                              </TableCell>
+                              <TableCell className="font-semibold">{fmtR(v.balance)} <span className="text-xs text-muted-foreground font-normal">/ {fmtR(v.original_amount)}</span></TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{fmtDate(v.issued_at)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{v.expires_at ? fmtDate(v.expires_at) : '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                }
+              </CardContent>
+            </Card>
+
+            {/* UGC Voucher Redemptions */}
+            {ugc_voucher_redemptions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <p className="text-sm font-semibold flex items-center gap-2"><Receipt className="w-4 h-4 text-primary" />Voucher Redemptions ({ugc_voucher_redemptions.length})</p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {ugc_voucher_redemptions.map((r: any) => (
+                      <div key={r.name} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                        <div>
+                          <p className="font-medium">{r.dish_name || r.outlet_name}</p>
+                          <p className="text-xs text-muted-foreground">{r.outlet_name} · bill {fmtR(r.bill_amount)} · {fmtDateTime(r.redeemed_at)}</p>
+                        </div>
+                        <span className="font-semibold text-green-600">−{fmtR(r.amount_used)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
