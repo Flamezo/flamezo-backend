@@ -224,6 +224,13 @@ doc_events = {
 		"on_update": "flamezo_backend.flamezo.api.onboarding.auto_sync_onboarding_display",
 	},
 
+	# New/reactivated outlets get their Google Places photos fetched into the
+	# Gallery Discovery Pool automatically — no manual "sync" step needed for
+	# merchants onboarding from here on.
+	"Restaurant": {
+		"on_update": "flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_photos_on_activation",
+	},
+
 	"Table Booking": {
 		"after_insert": "flamezo_backend.flamezo.api.customers.update_customer_last_visited",
 	},
@@ -331,6 +338,12 @@ scheduler_events = {
 		# Recommendations: weekly refresh for all active restaurants (Sunday 02:00)
 		"0 2 * * 0": [
 			"flamezo_backend.flamezo.tasks.recommendation_tasks.run_weekly_recommendation_refresh"
+		],
+		# Google Places photo sync — catch-all for any active outlet that
+		# slipped past the on-activation hook (bulk import, direct DB flip).
+		# Bounded batch per run; see google_places_photos.backfill_missing_google_photos.
+		"0 4 * * 0": [
+			"flamezo_backend.flamezo.api.google_places_photos.backfill_missing_google_photos"
 		],
 		# Creator Program — weekly score/payout run, Mondays 03:00 IST (before
 		# the 03:45 commission autopay sweep). See creator-weekly-score-

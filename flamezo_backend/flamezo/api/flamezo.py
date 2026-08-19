@@ -17,6 +17,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_customer_from_token,
 )
 from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
+from flamezo_backend.flamezo.utils.outlet_media import batch_resolve_outlet_media
 import json
 import math
 import hashlib
@@ -142,7 +143,7 @@ _DISCOVERY_FIELDS = [
 ]
 
 
-def _format_outlet_card(r, user_lat, user_lon, offers_map):
+def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 	"""Format a single outlet record for the discovery feed."""
 	distance_km = None
 	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
@@ -160,10 +161,19 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map):
 		if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
 			is_featured_live = False
 
+	media = (media_map or {}).get(r["name"]) or []
+	cover_images = [m["url"] for m in media if m.get("url")]
+
 	return {
 		"id": r["name"],
 		"outlet_name": r["restaurant_name"],
 		"logo": r.get("logo") or "",
+		# Batch-resolved (see batch_resolve_outlet_media): curated Gallery photo
+		# first, food/product photo fallback, then logo — no per-card round trip.
+		"cover_image": cover_images[0] if cover_images else (r.get("logo") or ""),
+		# Up to a few images per card so the app can auto-rotate the visible
+		# card's photo instead of showing just one static shot.
+		"cover_images": cover_images or ([r["logo"]] if r.get("logo") else []),
 		"latitude": r.get("latitude"),
 		"longitude": r.get("longitude"),
 		"city": r.get("city") or "",
@@ -308,16 +318,18 @@ def get_all_outlets(
 		"""
 		restaurants = frappe.db.sql(sql, params, as_dict=True)
 
-		# ── Batch offers count (single query, zero N+1) ───────────────────────────
+		# ── Batch offers count + cover media (fixed query count, zero N+1) ────────
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
+		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
 
 		# ── has_offer filter (post-query, uses the same offers_map) ──────────────
 		if cint(has_offer):
 			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
 		# ── Format cards ──────────────────────────────────────────────────────────
-		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in restaurants]
+		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in restaurants]
 
 		# ── open_now filter (post-format, uses is_open_now computed per card) ────
 		if cint(open_now):
@@ -477,7 +489,9 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
-		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map) for r in rows]
+		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
+		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
 
@@ -1292,6 +1306,7 @@ def upload_customer_photo():
 		# Compress the avatar — a resized WebP keeps it sharp at the sizes a
 		# profile photo is ever shown while cutting storage sharply.
 		save_name = file.filename or f"avatar_{customer_id}.jpg"
+		comp_type = None
 		try:
 			from flamezo_backend.flamezo.media.processors import compress_image_bytes
 			comp, comp_type, comp_ext = compress_image_bytes(content, max_dim=1024)
@@ -1302,35 +1317,43 @@ def upload_customer_photo():
 		except Exception:
 			pass  # keep the original bytes if compression is unavailable
 
-		from frappe.utils.file_manager import save_file
-
-		# The custom X-Customer-Token auth does not create a real Frappe login, so
-		# this request runs as the Guest user — which cannot create File docs and
-		# would raise PermissionError (surfaced to the app as HTTP 403). We have
-		# already validated the customer session above, so elevate to a trusted
-		# user for the save only, then restore.
-		original_user = frappe.session.user
+		# R2/CDN first (same storage every other photo in the app uses — fast,
+		# cached, no local disk). Falls back to a local Frappe File only if R2
+		# itself is unavailable, so an upload never hard-fails on that.
 		try:
-			frappe.set_user("Administrator")
-			frappe.flags.ignore_permissions = True
+			from flamezo_backend.flamezo.media.storage import upload_bytes
+			object_key = f"customers/{customer_id}/avatar-{frappe.generate_hash(length=10)}.{save_name.rsplit('.', 1)[-1]}"
+			file_url = upload_bytes(object_key, content, content_type=comp_type or content_type)
+		except Exception:
+			from frappe.utils.file_manager import save_file
 
-			file_doc = save_file(
-				fname=save_name,
-				content=content,
-				dt="Customer",
-				dn=customer_id,
-				decode=False,
-				is_private=0,
-				folder="Home/Attachments",
-			)
+			# The custom X-Customer-Token auth does not create a real Frappe login,
+			# so this request runs as the Guest user — which cannot create File
+			# docs and would raise PermissionError (surfaced to the app as HTTP
+			# 403). We have already validated the customer session above, so
+			# elevate to a trusted user for the save only, then restore.
+			original_user = frappe.session.user
+			try:
+				frappe.set_user("Administrator")
+				frappe.flags.ignore_permissions = True
+				file_doc = save_file(
+					fname=save_name,
+					content=content,
+					dt="Customer",
+					dn=customer_id,
+					decode=False,
+					is_private=0,
+					folder="Home/Attachments",
+				)
+				file_url = file_doc.file_url
+			finally:
+				frappe.flags.ignore_permissions = False
+				frappe.set_user(original_user)
 
-			frappe.db.set_value("Customer", customer_id, "image", file_doc.file_url)
-			frappe.db.commit()
-		finally:
-			frappe.flags.ignore_permissions = False
-			frappe.set_user(original_user)
+		frappe.db.set_value("Customer", customer_id, "image", file_url)
+		frappe.db.commit()
 
-		return {"success": True, "file_url": file_doc.file_url}
+		return {"success": True, "file_url": file_url}
 
 	except Exception as e:
 		frappe.log_error(f"Error in flamezo.upload_customer_photo: {str(e)}")

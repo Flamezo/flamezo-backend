@@ -1543,9 +1543,13 @@ def admin_get_event_detail(event_id):
 @frappe.whitelist()
 def admin_get_customer_full_profile(customer_id):
     """
-    Full platform-level customer profile for admin/supervisor.
-    Returns profile, all orders (across all restaurants), bookings,
-    full loyalty ledger, referral relationship, UGC submissions.
+    Full platform-level "Customer 360" profile for admin/supervisor.
+    Aggregates every doctype that links back to this customer (by Customer ID
+    where available, falling back to phone for phone-only doctypes) so nothing
+    about the customer's cross-outlet history is missed: orders, all booking
+    types, per-outlet visit/spend breakdown, loyalty ledger, referrals, UGC
+    submissions/vouchers/redemptions/fraud flags, coupon & offer activity,
+    saved addresses, recent sessions/devices, and social/community engagement.
     """
     if not is_supervisor():
         frappe.throw("Permission denied", frappe.PermissionError)
@@ -1554,9 +1558,20 @@ def admin_get_customer_full_profile(customer_id):
         return {"success": False, "error": "Customer not found"}
 
     customer = frappe.get_doc("Customer", customer_id)
-    orders = []
+    phone = customer.phone
 
-    # ── Table & Banquet Bookings ───────────────────────────────────────────────
+    # ── Orders (across all restaurants) ────────────────────────────────────────
+    orders = frappe.get_all(
+        "Order",
+        filters={"platform_customer": customer_id},
+        fields=["name", "order_id", "order_number", "restaurant", "status", "payment_status",
+                "payment_method", "order_type", "acquisition_source", "subtotal", "discount",
+                "loyalty_discount", "loyalty_coins_redeemed", "coupon", "tax", "total", "creation"],
+        order_by="creation desc",
+        limit_page_length=200
+    )
+
+    # ── Table, Banquet, Court Bookings & Service Appointments ──────────────────
     table_bookings = frappe.get_all(
         "Table Booking",
         filters={"platform_customer": customer_id},
@@ -1571,6 +1586,23 @@ def admin_get_customer_full_profile(customer_id):
         order_by="creation desc",
         limit_page_length=50
     )
+    # Court Booking / Service Appointment only carry customer_phone, no Customer link.
+    court_bookings = frappe.get_all(
+        "Court Booking",
+        filters={"customer_phone": phone},
+        fields=["name", "restaurant", "court_name", "sport_type", "booking_date", "start_time",
+                "end_time", "slot_price", "consumer_fee", "payment_status", "status", "creation"],
+        order_by="creation desc",
+        limit_page_length=100
+    ) if phone else []
+    service_appointments = frappe.get_all(
+        "Service Appointment",
+        filters={"customer_phone": phone},
+        fields=["name", "restaurant", "catalogue_item_name", "sub_item_name", "sub_item_price",
+                "appointment_date", "appointment_time", "duration_minutes", "status", "creation"],
+        order_by="creation desc",
+        limit_page_length=100
+    ) if phone else []
 
     # ── Loyalty Ledger (full, all restaurants) ────────────────────────────────
     loyalty_entries = frappe.get_all(
@@ -1621,7 +1653,7 @@ def admin_get_customer_full_profile(customer_id):
         r["referee_name"]  = rd.get("customer_name", r.referee)
         r["referee_phone"] = rd.get("phone", "")
 
-    # ── UGC Submissions ───────────────────────────────────────────────────────
+    # ── UGC Submissions, Vouchers, Redemptions, Fraud Flags ────────────────────
     ugc_submissions = frappe.get_all(
         "UGC Story Submission",
         filters={"customer": customer_id},
@@ -1641,13 +1673,105 @@ def admin_get_customer_full_profile(customer_id):
             except Exception:
                 pass
 
+    ugc_vouchers = frappe.get_all(
+        "UGC Voucher",
+        filters={"customer": customer_id},
+        fields=["name", "voucher_code", "restaurant", "status", "ugc_submission",
+                "original_amount", "balance", "issued_at", "expires_at", "pin_activated_at"],
+        order_by="issued_at desc",
+        limit_page_length=50
+    )
+    ugc_voucher_redemptions = frappe.get_all(
+        "UGC Voucher Redemption",
+        filters={"customer": customer_id},
+        fields=["name", "voucher", "restaurant", "order", "redeemed_at", "bill_amount",
+                "amount_used", "balance_before", "balance_after", "dish_name", "dish_price"],
+        order_by="redeemed_at desc",
+        limit_page_length=100
+    )
+    ugc_fraud_flags = frappe.get_all(
+        "UGC Fraud Flag",
+        filters={"customer": customer_id},
+        fields=["name", "is_active", "blocked_until", "restaurant", "reference_submission", "reason", "creation"],
+        order_by="creation desc",
+        limit_page_length=20
+    )
+
+    # ── Coupon Usage & Offer Claims (Hot Drops / deals) ────────────────────────
+    coupon_usage = frappe.get_all(
+        "Coupon Usage",
+        filters={"customer": customer_id},
+        fields=["name", "coupon", "order", "usage_date", "discount_amount", "restaurant"],
+        order_by="usage_date desc",
+        limit_page_length=100
+    )
+    offer_claims = frappe.get_all(
+        "Offer Claim",
+        or_filters=(
+            [{"customer": customer_id}, {"customer_phone": phone}] if phone else [{"customer": customer_id}]
+        ),
+        fields=["name", "restaurant", "coupon", "coupon_code", "claimed_at", "locked_until",
+                "is_paid", "paid_amount", "paid_at"],
+        order_by="claimed_at desc",
+        limit_page_length=100
+    )
+
+    # ── Saved Addresses ──────────────────────────────────────────────────────
+    addresses = frappe.get_all(
+        "Customer Address",
+        filters={"customer": customer_id},
+        fields=["name", "label", "address_type", "is_default", "address_line_1",
+                "area", "city", "pincode", "delivery_notes"],
+        order_by="is_default desc, creation desc",
+        limit_page_length=20
+    )
+
+    # ── Recent Sessions / Devices (never expose session_token) ────────────────
+    sessions = frappe.get_all(
+        "Customer Session",
+        or_filters=(
+            [{"customer": customer_id}, {"phone": phone}] if phone else [{"customer": customer_id}]
+        ),
+        fields=["device_info", "ip_address", "last_used_at", "revoked", "expires_at"],
+        order_by="last_used_at desc",
+        limit_page_length=10
+    )
+
+    # ── Social / Community Engagement (aggregate counts — high-volume tables) ─
+    engagement = {}
+    if phone:
+        engagement = {
+            "chills_likes":            frappe.db.count("Chills Like", {"customer_phone": phone}),
+            "chills_saves":            frappe.db.count("Chills Save", {"customer_phone": phone}),
+            "chills_outlet_follows":   frappe.db.count("Chills Outlet Follow", {"customer_phone": phone}),
+            "creator_club_memberships": frappe.db.count("Creator Club Member", {"customer_phone": phone}),
+            "crowd_messages_sent":     frappe.db.count("Crowd Chat Message", {"sender_phone": phone}),
+            "crowd_groups_joined":     frappe.db.count("Crowd Request Member", {"customer_phone": phone, "status": "approved"}),
+            "crowd_reports_filed":     frappe.db.count("Crowd Report", {"reporter_phone": phone}),
+            "crowd_reports_against":   frappe.db.count("Crowd Report", {"reported_phone": phone}),
+        }
+    else:
+        engagement = {k: 0 for k in (
+            "chills_likes", "chills_saves", "chills_outlet_follows", "creator_club_memberships",
+            "crowd_messages_sent", "crowd_groups_joined", "crowd_reports_filed", "crowd_reports_against",
+        )}
+
     # ── Restaurant names map ──────────────────────────────────────────────────
     all_rest_ids = set(
         [b.restaurant for b in table_bookings] +
         [b.restaurant for b in banquet_bookings] +
+        [b.restaurant for b in court_bookings] +
+        [b.restaurant for b in service_appointments] +
+        [o.restaurant for o in orders] +
         [e.restaurant for e in loyalty_entries] +
-        [u.restaurant for u in ugc_submissions]
+        [u.restaurant for u in ugc_submissions] +
+        [v.restaurant for v in ugc_vouchers] +
+        [r.restaurant for r in ugc_voucher_redemptions] +
+        [f.restaurant for f in ugc_fraud_flags] +
+        [c.restaurant for c in coupon_usage] +
+        [c.restaurant for c in offer_claims]
     )
+    all_rest_ids.discard(None)
     rest_name_map = {}
     if all_rest_ids:
         rest_rows = frappe.get_all(
@@ -1658,6 +1782,44 @@ def admin_get_customer_full_profile(customer_id):
 
     def rn(rid):
         return rest_name_map.get(rid, rid)
+
+    # ── Outlets-visited breakdown ──────────────────────────────────────────────
+    # Every distinct place this customer has actually engaged with in person:
+    # orders (spend + visit signal), plus each booking type (visit signal only).
+    outlet_stats = {}
+
+    def _touch(rid, when, spend=0, kind=None):
+        if not rid:
+            return
+        s = outlet_stats.setdefault(rid, {
+            "restaurant": rid, "outlet_name": rn(rid),
+            "visit_count": 0, "total_spent": 0.0, "last_visited": None,
+            "orders": 0, "table_bookings": 0, "banquet_bookings": 0,
+            "court_bookings": 0, "service_appointments": 0,
+        })
+        s["visit_count"] += 1
+        s["total_spent"] += float(spend or 0)
+        if kind:
+            s[kind] += 1
+        w = str(when) if when else None
+        if w and (not s["last_visited"] or w > s["last_visited"]):
+            s["last_visited"] = w
+
+    for o in orders:
+        _touch(o.restaurant, o.creation, spend=o.total if o.payment_status == "completed" else 0, kind="orders")
+    for b in table_bookings:
+        _touch(b.restaurant, b.creation, kind="table_bookings")
+    for b in banquet_bookings:
+        _touch(b.restaurant, b.creation, kind="banquet_bookings")
+    for b in court_bookings:
+        _touch(b.restaurant, b.creation, kind="court_bookings")
+    for b in service_appointments:
+        _touch(b.restaurant, b.creation, kind="service_appointments")
+
+    outlets_visited = sorted(outlet_stats.values(), key=lambda s: s["last_visited"] or "", reverse=True)
+
+    completed_orders = [o for o in orders if o.payment_status == "completed"]
+    total_spend = sum(float(o.total or 0) for o in completed_orders)
 
     return {
         "success": True,
@@ -1670,12 +1832,29 @@ def admin_get_customer_full_profile(customer_id):
                 "birthday":     str(customer.date_of_birth) if customer.date_of_birth else None,
                 "created":      str(customer.creation),
                 "verified_at":  str(customer.verified_at) if customer.verified_at else None,
+                "first_verified_at_restaurant": rn(customer.first_verified_at_restaurant) if customer.first_verified_at_restaurant else None,
+                "last_visited": str(customer.last_visited) if customer.last_visited else None,
+                "opted_out_of_marketing": bool(customer.opted_out_of_marketing),
             },
             "stats": {
-                "loyalty_balance": balance,
-                "lifetime_earned": lifetime_earned,
-                "total_redeemed":  sum(e.coins for e in loyalty_entries if e.transaction_type == "Redeem" and e.is_settled),
+                "restaurants_visited": len(outlets_visited),
+                "total_orders":        len(orders),
+                "total_spend":         total_spend,
+                "avg_order_value":     (total_spend / len(completed_orders)) if completed_orders else 0,
+                "total_bookings":      len(table_bookings) + len(banquet_bookings) + len(court_bookings) + len(service_appointments),
+                "loyalty_balance":     balance,
+                "lifetime_earned":     lifetime_earned,
+                "total_redeemed":      sum(e.coins for e in loyalty_entries if e.transaction_type == "Redeem" and e.is_settled),
+                "ugc_wallet_balance":  sum(float(v.balance or 0) for v in ugc_vouchers if v.status == "active"),
+                "coupons_used":        len(coupon_usage),
+                "total_coupon_savings": sum(float(c.discount_amount or 0) for c in coupon_usage),
+                "fraud_flagged":       any(f.is_active for f in ugc_fraud_flags),
             },
+            "outlets_visited": outlets_visited,
+            "orders": [
+                {**dict(o), "outlet_name": rn(o.restaurant)}
+                for o in orders
+            ],
             "table_bookings": [
                 {**dict(b), "outlet_name": rn(b.restaurant)}
                 for b in table_bookings
@@ -1683,6 +1862,14 @@ def admin_get_customer_full_profile(customer_id):
             "banquet_bookings": [
                 {**dict(b), "outlet_name": rn(b.restaurant)}
                 for b in banquet_bookings
+            ],
+            "court_bookings": [
+                {**dict(b), "outlet_name": rn(b.restaurant)}
+                for b in court_bookings
+            ],
+            "service_appointments": [
+                {**dict(b), "outlet_name": rn(b.restaurant)}
+                for b in service_appointments
             ],
             "loyalty": {
                 "balance":        balance,
@@ -1707,6 +1894,29 @@ def admin_get_customer_full_profile(customer_id):
                 {**dict(u), "outlet_name": rn(u.restaurant)}
                 for u in ugc_submissions
             ],
+            "ugc_vouchers": [
+                {**dict(v), "outlet_name": rn(v.restaurant)}
+                for v in ugc_vouchers
+            ],
+            "ugc_voucher_redemptions": [
+                {**dict(r), "outlet_name": rn(r.restaurant)}
+                for r in ugc_voucher_redemptions
+            ],
+            "ugc_fraud_flags": [
+                {**dict(f), "outlet_name": rn(f.restaurant)}
+                for f in ugc_fraud_flags
+            ],
+            "coupon_usage": [
+                {**dict(c), "outlet_name": rn(c.restaurant)}
+                for c in coupon_usage
+            ],
+            "offer_claims": [
+                {**dict(c), "outlet_name": rn(c.restaurant)}
+                for c in offer_claims
+            ],
+            "addresses": [dict(a) for a in addresses],
+            "sessions": [dict(s) for s in sessions],
+            "engagement": engagement,
         }
     }
 

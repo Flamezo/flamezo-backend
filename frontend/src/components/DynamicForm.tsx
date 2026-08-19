@@ -773,8 +773,8 @@ export default function DynamicForm({
               label={field.label}
               value={value || ''}
               onChange={(addr) => handleFieldChange('address', addr)}
-              onLocationSelect={({ address, latitude, longitude, city, state, zipCode, googleMapUrl }) => {
-                console.log('[DynamicForm] Address Selected:', { address, latitude, longitude, city, state, zipCode, googleMapUrl })
+              onLocationSelect={({ address, latitude, longitude, city, state, zipCode, googleMapUrl, placeId }) => {
+                console.log('[DynamicForm] Address Selected:', { address, latitude, longitude, city, state, zipCode, googleMapUrl, placeId })
                 handleFieldChange('address', address)
                 if (latitude !== null) {
                   handleFieldChange('latitude', latitude)
@@ -793,6 +793,13 @@ export default function DynamicForm({
                 }
                 if (googleMapUrl) {
                   handleFieldChange('google_map_url', googleMapUrl)
+                }
+                if (placeId) {
+                  // The authoritative Places ID — captured directly from the picker,
+                  // so the outlet's Google Places photo sync (on activation) can skip
+                  // the fuzzy name+address text search entirely and go straight to
+                  // fetching photos.
+                  handleFieldChange('google_place_id', placeId)
                 }
                 // Lock address component fields since they were auto-filled from Google
                 setAddressComponentsLocked(true)

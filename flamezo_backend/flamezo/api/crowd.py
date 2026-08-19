@@ -855,10 +855,10 @@ def upload_chat_image(request_id, phone, file_content, filename, content_type="i
             pass  # fall back to the original bytes if compression is unavailable
 
     try:
-        from flamezo_backend.flamezo.utils.r2 import upload_bytes
+        from flamezo_backend.flamezo.media.storage import upload_bytes
         safe_name = f"crowd/{request_id}/{frappe.generate_hash(length=12)}-{filename}"
-        url = upload_bytes(raw, safe_name, content_type=content_type)
-    except ImportError:
+        url = upload_bytes(safe_name, raw, content_type=content_type)
+    except Exception:
         # Fallback: save decoded bytes as Frappe file (not base64 string)
         import base64 as _b64
         file_doc = frappe.get_doc({
