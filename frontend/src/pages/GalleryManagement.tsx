@@ -42,7 +42,9 @@ import {
   Calendar,
   Zap,
   Crown,
-  Upload as UploadIcon
+  ScrollText,
+  Upload as UploadIcon,
+  Download as DownloadIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Progress } from '@/components/ui/progress'
@@ -51,6 +53,7 @@ import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
+import { downloadMedia, mediaFilename } from '@/lib/downloadMedia'
 
 export default function GalleryManagement() {
   const navigate = useNavigate()
@@ -63,6 +66,21 @@ export default function GalleryManagement() {
     return localStorage.getItem('gallery-management-active-tab') || 'selection'
   })
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  // Second level inside "Menu Images" → Food / Beverages / Combos.
+  const [selectedSubFolder, setSelectedSubFolder] = useState<string | null>(null)
+  const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null)
+
+  const handleDownload = async (media: any) => {
+    setDownloadingUrl(media.url)
+    try {
+      await downloadMedia(media.url, mediaFilename(media.url, media.source_title, media.type === 'video' ? 'mp4' : 'jpg'))
+      toast.success('Saved to your device')
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not download this file')
+    } finally {
+      setDownloadingUrl(null)
+    }
+  }
   const [uploadCategory, setUploadCategory] = useState<string>('Gallery Uploads')
 
   // Persist tab selection
@@ -93,10 +111,69 @@ export default function GalleryManagement() {
   }, [poolData])
   const isFoodOutlet = outletType === 'dining' || outletType === 'cafe'
 
+  // Merchant-created (possibly empty) Menu Images sections. Declared before the
+  // SECTIONS/MENU_SUBFOLDERS memos that read it (avoid temporal-dead-zone crash).
+  const customMenuSections = useMemo<string[]>(() => {
+    const response = (poolData as any)?.message || poolData
+    return response?.data?.custom_menu_sections || []
+  }, [poolData])
+
   const CATEGORIES = useMemo(
-    () => ['Branding', productLabel, 'Events', 'Gallery Uploads'],
+    () => ['Branding', productLabel, 'Menu Images', 'Events', 'Gallery Uploads'],
     [productLabel],
   )
+
+  // Group the open folder's media into sections by sub-category. Real categories
+  // sort first alphabetically; the two catch-all buckets always sink to the end.
+  const SECTIONS = useMemo<Array<[string | null, any[]]>>(() => {
+    const items = mediaPool.filter((m: any) => (m.category || 'General') === selectedFolder)
+
+    // Menu Images is two-level: pick a sub-folder (Food/Beverages/Combos) →
+    // flat grid of just that section's photos. The sub-folder tiles are
+    // rendered separately (see MENU_SUBFOLDERS); here we only build the grid.
+    if (selectedFolder === 'Menu Images') {
+      if (!selectedSubFolder) return []
+      // Food outlets split by auto Food/Beverages/Combos; other outlets
+      // (fashion, wellness…) split by their own product categories.
+      const key = isFoodOutlet ? 'menu_section' : 'subcategory'
+      const def = isFoodOutlet ? 'Food' : 'Uncategorised'
+      return [[null, items.filter((m: any) => (m[key] || def) === selectedSubFolder)]]
+    }
+
+    const subs = Array.from(new Set(items.map((m: any) => m.subcategory).filter(Boolean))) as string[]
+    if (!subs.length) return [[null, items]]
+
+    const LAST = ['Uncategorised', 'AI Generated']
+    subs.sort((a, b) => {
+      const ra = LAST.indexOf(a), rb = LAST.indexOf(b)
+      if (ra !== rb) return (ra === -1 ? -1 : ra) - (rb === -1 ? -1 : rb)
+      return a.localeCompare(b)
+    })
+    return subs.map((sub) => [sub, items.filter((m: any) => m.subcategory === sub)])
+  }, [mediaPool, selectedFolder, selectedSubFolder, isFoodOutlet])
+
+  // Sub-folder tiles inside Menu Images. Food outlets → Food / Beverages /
+  // Combos (auto, order fixed, extras like new packages append). Non-food
+  // outlets → the outlet's own product categories (Shirts, Pants…).
+  const MENU_SUBFOLDERS = useMemo<Array<{ name: string; count: number }>>(() => {
+    const items = mediaPool.filter((m: any) => (m.category || 'General') === 'Menu Images')
+    const key = isFoodOutlet ? 'menu_section' : 'subcategory'
+    const def = isFoodOutlet ? 'Food' : 'Uncategorised'
+    const val = (m: any) => m[key] || def
+    let names: string[]
+    if (isFoodOutlet) {
+      const ORDER = ['Food', 'Beverages', 'Combos']
+      const extras = Array.from(new Set(items.map(val).filter((s: string) => s && !ORDER.includes(s)))) as string[]
+      names = [...ORDER, ...extras]
+    } else {
+      names = (Array.from(new Set(items.map(val).filter(Boolean))) as string[]).sort()
+    }
+    // Merchant-created sections always show (even empty) so they can be filled.
+    names = Array.from(new Set([...names, ...customMenuSections]))
+    return names
+      .map((name) => ({ name, count: items.filter((m: any) => val(m) === name).length }))
+      .filter((f) => f.count > 0 || customMenuSections.includes(f.name))
+  }, [mediaPool, isFoodOutlet, customMenuSections])
 
   const initialFilters = useMemo(() => {
     if (!selectedOutlet) return []
@@ -124,6 +201,41 @@ export default function GalleryManagement() {
   })
 
   const { call: createGalleryItem } = useFrappePostCall('frappe.client.insert')
+  const { call: addMenuSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.add_menu_section')
+  const { call: deleteMenuSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.delete_menu_section')
+  const { call: moveMediaToSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.move_media_to_section')
+
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
+  const [newSectionName, setNewSectionName] = useState('')
+  const [addingSection, setAddingSection] = useState(false)
+
+  const handleAddSection = async () => {
+    const name = newSectionName.trim()
+    if (!name || !selectedOutlet) return
+    // Don't create a section that already exists (auto or custom), case-insensitive.
+    const exists = [...MENU_SUBFOLDERS.map((f) => f.name), ...customMenuSections]
+      .some((s) => s.toLowerCase() === name.toLowerCase())
+    if (exists) { toast.error(`"${name}" already exists`); return }
+    setAddingSection(true)
+    try {
+      await addMenuSection({ outlet_id: selectedOutlet, section_name: name })
+      toast.success(`Section "${name}" added`)
+      setNewSectionName('')
+      setAddSectionOpen(false)
+      mutatePool()
+    } catch (e: any) { toast.error(getFrappeError(e)) }
+    finally { setAddingSection(false) }
+  }
+
+  const handleMoveSection = async (media: any, section: string) => {
+    if (!media?.media_asset) { toast.error('This image cannot be moved (no media record)'); return }
+    try {
+      await moveMediaToSection({ media_asset_id: media.media_asset, section_name: section })
+      toast.success(`Moved to ${section}`)
+      setEditingItem(null)
+      mutatePool()
+    } catch (e: any) { toast.error(getFrappeError(e)) }
+  }
   const { updateDoc: updateGalleryItem } = useFrappeUpdateDoc()
   const { deleteDoc: deleteGalleryItem } = useFrappeDeleteDoc()
 
@@ -317,7 +429,7 @@ export default function GalleryManagement() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedFolder(null); }} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedFolder(null); setSelectedSubFolder(null); }} className="w-full">
         <div className="flex justify-center mb-8">
             <TabsList className="bg-muted/30 p-1.5 rounded-xl border border-border inline-flex h-14 items-center">
                 <TabsTrigger 
@@ -469,6 +581,10 @@ export default function GalleryManagement() {
                             Icon = Zap;
                             colorClass = "text-amber-500 bg-amber-500/10 fill-amber-500/5";
                         }
+                        if (category === 'Menu Images') {
+                            Icon = ScrollText;
+                            colorClass = "text-rose-500 bg-rose-500/10 fill-rose-500/5";
+                        }
                         if (category === 'Gallery Uploads') {
                             Icon = ImageIcon;
                             colorClass = "text-emerald-500 bg-emerald-500/10 fill-emerald-500/5";
@@ -477,7 +593,7 @@ export default function GalleryManagement() {
                         return (
                             <button 
                                 key={category}
-                                onClick={() => setSelectedFolder(category)}
+                                onClick={() => { setSelectedFolder(category); setSelectedSubFolder(null); }}
                                 className="group flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-primary/[0.02] hover:shadow-sm transition-all text-left"
                             >
                                 <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", colorClass)}>
@@ -496,25 +612,74 @@ export default function GalleryManagement() {
                 /* Folder Content View */
                 <div className="space-y-6">
                     <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => setSelectedFolder(null)}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (selectedFolder === 'Menu Images' && selectedSubFolder) setSelectedSubFolder(null)
+                              else setSelectedFolder(null)
+                            }}
                             className="font-bold text-xs"
                         >
                             <ArrowLeft className="h-3.5 w-3.5 mr-2" />
-                            Back to Library
+                            {(selectedFolder === 'Menu Images' && selectedSubFolder) ? 'Back to Menu Images' : 'Back to Library'}
                         </Button>
                         <div className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4 text-primary" />
-                            <span className="font-bold text-sm text-foreground">{selectedFolder}</span>
+                            <span className="font-bold text-sm text-foreground">{selectedFolder}{selectedSubFolder ? ` / ${selectedSubFolder}` : ''}</span>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {mediaPool
-                            .filter((m: any) => (m.category || 'General') === selectedFolder)
-                            .map((media: any) => {
+                    {/* Menu Images → sub-folder tiles (Food / Beverages / Combos). */}
+                    {selectedFolder === 'Menu Images' && !selectedSubFolder && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {MENU_SUBFOLDERS.map((f) => {
+                          const Icon = f.name === 'Beverages' ? Utensils : f.name === 'Combos' ? Layers : ShoppingBag
+                          return (
+                            <button
+                              key={f.name}
+                              onClick={() => setSelectedSubFolder(f.name)}
+                              className="group flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-primary/[0.02] hover:shadow-sm transition-all text-left"
+                            >
+                              <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 text-rose-500 bg-rose-500/10">
+                                <Icon className="h-6 w-6" strokeWidth={2} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{f.name}</p>
+                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{f.count} Assets</p>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
+                            </button>
+                          )
+                        })}
+                        {/* + Add Section */}
+                        <button
+                          onClick={() => { setNewSectionName(''); setAddSectionOpen(true); }}
+                          className="group flex items-center gap-4 p-4 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/[0.02] transition-all text-left"
+                        >
+                          <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 text-primary bg-primary/10">
+                            <Plus className="h-6 w-6" strokeWidth={2} />
+                          </div>
+                          <p className="text-sm font-bold text-muted-foreground group-hover:text-primary transition-colors">Add Section</p>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* One section per sub-category — the outlet's own Menu Categories
+                        (Food, Beverages, Desserts...), so they track the live menu.
+                        Folders without sub-categories fall back to a single flat grid. */}
+                    {SECTIONS.map(([sectionName, sectionItems]) => (
+                      <div key={sectionName || '__all__'} className="space-y-4">
+                        {sectionName && (
+                          <div className="flex items-center gap-2 pt-2">
+                            <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                            <h3 className="font-bold text-sm text-foreground">{sectionName}</h3>
+                            <span className="text-[11px] font-bold text-muted-foreground">{sectionItems.length}</span>
+                            <div className="flex-1 h-px bg-border ml-2" />
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {sectionItems.map((media: any) => {
                                 const isSelected = !!media.is_selected && !!media.is_in_gallery;
                                 return (
                                     <div 
@@ -556,6 +721,18 @@ export default function GalleryManagement() {
                                                 >
                                                     {isSelected ? "Selected" : "Add to Gallery"}
                                                 </Button>
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    title="Save to device"
+                                                    disabled={downloadingUrl === media.url}
+                                                    className="h-8 w-8 ml-2 shrink-0 rounded-md shadow-lg bg-white/90 hover:bg-white text-black border-none"
+                                                    onClick={(e) => { e.stopPropagation(); handleDownload(media); }}
+                                                >
+                                                    {downloadingUrl === media.url
+                                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        : <DownloadIcon className="h-3.5 w-3.5" />}
+                                                </Button>
                                             </div>
                                         </div>
 
@@ -586,7 +763,9 @@ export default function GalleryManagement() {
                                     </div>
                                 );
                             })}
-                    </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               )}
             </CardContent>
@@ -607,7 +786,9 @@ export default function GalleryManagement() {
                 <div className="space-y-3">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Folder</Label>
                   <div className="flex flex-col gap-1.5">
-                    {CATEGORIES.map((cat) => {
+                    {/* Menu Images is derived from the live menu — images go on the
+                        product itself, not uploaded loose into this folder */}
+                    {CATEGORIES.filter((cat) => cat !== 'Menu Images').map((cat) => {
                       let Icon = Folder;
                       if (cat === productLabel) Icon = isFoodOutlet ? Utensils : ShoppingBag;
                       if (cat === 'Events') Icon = Calendar;
@@ -701,6 +882,36 @@ export default function GalleryManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Section Dialog */}
+      <Dialog open={addSectionOpen} onOpenChange={setAddSectionOpen}>
+        <DialogContent className="sm:max-w-[380px] rounded-2xl border border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">New Section</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase">Section Name</Label>
+            <Input
+              autoFocus
+              value={newSectionName}
+              onChange={(e) => setNewSectionName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddSection() }}
+              placeholder="e.g. Desserts"
+              className="h-11 rounded-lg font-medium px-4"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddSectionOpen(false)} className="font-bold">Cancel</Button>
+            <Button
+              onClick={handleAddSection}
+              disabled={!newSectionName.trim() || addingSection}
+              className="font-bold bg-primary text-white"
+            >
+              {addingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Section'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Dialog */}
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent className="sm:max-w-[400px] rounded-2xl border border-border shadow-2xl p-0 overflow-hidden">
@@ -728,8 +939,23 @@ export default function GalleryManagement() {
                         className="h-10 rounded-lg border-border font-medium px-4"
                         />
                     </div>
+                    {editingItem.category === 'Menu Images' && editingItem.media_asset && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-muted-foreground uppercase">Move to Section</Label>
+                        <select
+                          value={editingItem.menu_section || ''}
+                          onChange={(e) => handleMoveSection(editingItem, e.target.value)}
+                          className="h-10 w-full rounded-lg border border-border font-medium px-3 bg-background text-sm"
+                        >
+                          <option value="">Auto</option>
+                          {MENU_SUBFOLDERS.map((f) => (
+                            <option key={f.name} value={f.name}>{f.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                 </div>
-                
+
                 <div className="aspect-video rounded-lg overflow-hidden bg-muted border border-border relative">
                     {editingItem.media_type === 'Video' ? (
                     <video src={encodeURI(editingItem.url)} className="w-full h-full object-cover" controls />

@@ -698,14 +698,16 @@ def generate_qr_codes_pdf_worker(restaurant, layout, background_image, qr_type, 
 
 
 @frappe.whitelist(allow_guest=True)
-def record_qr_scan(restaurant_id, table_number=None, order_type=None):
+def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_type=None):
 	"""
 	Record a QR scan event for analytics.
 	Called from ONO Menu landing page when table_no or order_type is in URL.
+	Accepts `outlet_id` (current API contract) or legacy `restaurant_id`.
 	"""
 	try:
+		restaurant_id = outlet_id or restaurant_id
 		if not restaurant_id:
-			return {"success": False, "error": "Missing restaurant_id"}
+			return {"success": False, "error": "Missing outlet_id"}
 		
 		restaurant_name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
 		if not restaurant_name:
