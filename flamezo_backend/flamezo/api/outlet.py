@@ -480,7 +480,7 @@ def get_outlet_detail(outlet_id):
 	  phone, whatsapp, instagram_url, description, tagline,
 	  rating, review_count, cuisines[], price_range, amenities_mask, hours_json,
 	  is_featured, is_open_now, active_offers_count,
-	  photos[] (first 4 gallery items),
+	  photos[] (first 12 gallery items),
 	  enable_dine_in, enable_loyalty,
 	  google_review_url, enable_table_booking
 	"""
@@ -532,11 +532,16 @@ def get_outlet_detail(outlet_id):
 			as_dict=True,
 		) or {}
 
-		# Gallery: first 4 selected photos, falling back to food/product photos
+		# Gallery: first 12 selected photos, falling back to food/product photos
 		# then logo if the merchant hasn't curated a showcase — same batched
-		# resolver the discovery feed uses (see utils/outlet_media.py).
+		# resolver the discovery feed uses (see utils/outlet_media.py). Was
+		# capped at 4 (far below the discovery card's 6 and the dedicated
+		# gallery viewer's 25) — the detail page's HeroCollage widget was
+		# already built to handle a scrollable N-image collage, it just
+		# never got fed more than 4. Same priority order either way
+		# (curated gallery -> food photos -> logo), just a higher cap.
 		photos = batch_resolve_outlet_media(
-			[rest_name], limit_per_outlet=4, logos={rest_name: r.get("logo") or ""}
+			[rest_name], limit_per_outlet=12, logos={rest_name: r.get("logo") or ""}
 		).get(rest_name, [])
 
 		# Active offers count (single SQL, no N+1)

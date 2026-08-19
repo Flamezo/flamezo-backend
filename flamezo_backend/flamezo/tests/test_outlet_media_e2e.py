@@ -280,14 +280,18 @@ class TestOutletDetailPhotosFallback(unittest.TestCase):
         finally:
             _cleanup(rest)
 
-    def test_detail_photos_capped_at_four(self):
+    def test_detail_photos_capped_at_twelve(self):
+        # Was capped at 4 (far below the discovery card's 6 and the full
+        # gallery viewer's 25, and below what HeroCollage was actually built
+        # to display) — raised to 12. Create more than that so this test
+        # still actually exercises the cap, not just "return everything".
         from flamezo_backend.flamezo.api.outlet import get_outlet_detail
-        rest = _make_rest("DET04")
+        rest = _make_rest("DET12")
         try:
-            for i in range(6):
+            for i in range(15):
                 _make_gallery_item(rest, f"https://cdn.example.com/det-{i}.jpg", sort_order=i)
             result = get_outlet_detail(rest)
-            self.assertEqual(len(result["data"]["photos"]), 4)
+            self.assertEqual(len(result["data"]["photos"]), 12)
         finally:
             _cleanup(rest)
 
