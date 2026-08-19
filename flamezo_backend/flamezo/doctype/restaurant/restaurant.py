@@ -698,18 +698,28 @@ def generate_qr_codes_pdf_worker(restaurant, layout, background_image, qr_type, 
 
 
 @frappe.whitelist(allow_guest=True)
-def record_qr_scan(restaurant_id, table_number=None, order_type=None):
+def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_type=None):
 	"""
 	Record a QR scan event for analytics.
-	Called from ONO Menu landing page when table_no or order_type is in URL.
+	Called from the flamezo-web menu landing page when table_no or order_type is in URL.
+
+	outlet_id is the current param name (flamezo-web's outlet-context.tsx sends
+	{outlet_id: ...} — matches the project-wide restaurant->outlet terminology
+	migration). restaurant_id is kept as a fallback for any older caller still
+	using it. This function used to require restaurant_id ONLY, silently
+	breaking every real scan once the frontend switched to outlet_id — found
+	2026-08-19 while debugging a live merchant's scan count going to zero
+	(fire-and-forget .catch() on the frontend meant it failed with zero
+	visible symptoms for ~12 days before anyone noticed).
 	"""
 	try:
-		if not restaurant_id:
-			return {"success": False, "error": "Missing restaurant_id"}
-		
-		restaurant_name = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+		resolved_id = outlet_id or restaurant_id
+		if not resolved_id:
+			return {"success": False, "error": "Missing outlet_id"}
+
+		restaurant_name = frappe.db.get_value("Restaurant", {"restaurant_id": resolved_id}, "name")
 		if not restaurant_name:
-			return {"success": False, "error": f"Restaurant {restaurant_id} not found"}
+			return {"success": False, "error": f"Restaurant {resolved_id} not found"}
 
 		# table_number validation (if provided)
 		table_val = None

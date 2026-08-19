@@ -9,6 +9,7 @@ import frappe
 from frappe import _
 from frappe.utils import get_url, cint
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api, get_restaurant_context
+from flamezo_backend.flamezo.utils.outlet_media import batch_resolve_outlet_media
 
 
 @frappe.whitelist(allow_guest=True)
@@ -531,14 +532,12 @@ def get_outlet_detail(outlet_id):
 			as_dict=True,
 		) or {}
 
-		# Gallery: first 4 selected photos
-		photos = frappe.get_all(
-			"Restaurant Gallery Item",
-			filters={"restaurant": rest_name, "is_selected": 1},
-			fields=["url", "media_type as type", "title"],
-			order_by="sort_order asc",
-			limit=4,
-		)
+		# Gallery: first 4 selected photos, falling back to food/product photos
+		# then logo if the merchant hasn't curated a showcase — same batched
+		# resolver the discovery feed uses (see utils/outlet_media.py).
+		photos = batch_resolve_outlet_media(
+			[rest_name], limit_per_outlet=4, logos={rest_name: r.get("logo") or ""}
+		).get(rest_name, [])
 
 		# Active offers count (single SQL, no N+1)
 		today_str = today()
