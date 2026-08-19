@@ -20,11 +20,24 @@ Flow per outlet:
      and need a human pick before going live in the app.
 
 Whitelisted entrypoints:
-  - resolve_google_place_id(outlet_id)      — single outlet, id resolution only
+  - resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None)
+      — single outlet, id resolution only. override_query/manual_place_id are the
+        manual-fallback path for outlets Text Search can't confidently match.
   - sync_outlet_photos_from_google(outlet_id, max_photos=None) — full sync, one outlet
-  - bulk_sync_google_photos(outlet_ids=None, max_photos=None)  — many outlets, enqueued
+  - bulk_sync_google_photos(outlet_ids=None, max_photos=None)  — many outlets, inline
+  - list_outlets_needing_manual_google_photos() — outlets that failed auto-resolution,
+        for the "do it manually" fallback path
+
+Future-merchant automation (see hooks.py):
+  - auto_sync_google_photos_on_activation(doc, method) — doc_event on Restaurant
+        on_update: the moment a new outlet flips is_active 0→1, enqueues a sync
+        so photos are ready before the merchant ever opens Gallery Management.
+  - backfill_missing_google_photos() — weekly scheduled catch-all for any active
+        outlet that slipped through (bulk import, direct DB flip, etc.), bounded
+        per run to control API cost.
 """
 
+import difflib
 import hashlib
 import io
 import json
@@ -59,7 +72,7 @@ def _search_place(query):
         headers={
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.photos,places.rating,places.businessStatus",
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.photos,places.rating,places.businessStatus,places.primaryType",
         },
         json={"textQuery": query, "maxResultCount": 1},
         timeout=15,
@@ -70,13 +83,69 @@ def _search_place(query):
     return places[0] if places else None
 
 
-@frappe.whitelist()
-def resolve_google_place_id(outlet_id):
+_GENERIC_NAME_WORDS = {
+    "restaurant", "cafe", "coffee", "the", "and", "bar", "grill", "kitchen",
+    "house", "dine", "dining", "family", "hotel", "food", "court", "mart",
+    "corner", "point", "hub", "zone", "world", "mall", "complex", "surat",
+}
+_MISMATCH_TYPES = {"shopping_mall", "lodging", "premise", "point_of_interest"}
+
+
+def _match_confidence(outlet_name, place):
     """
-    Resolve and persist google_place_id for one outlet via Places Text Search
-    on "{restaurant_name}, {address}". Idempotent — no-ops if already resolved
-    (pass force=1 via bulk caller internals to re-resolve, not exposed here
-    since Place IDs are stable and re-resolving costs an API call for nothing).
+    How confident are we that `place` (a Text Search result) is actually the
+    outlet, not just the mall/building/street it happens to sit in?
+
+    Text Search on "{name}, {address}" can and does match the wrong entity —
+    e.g. an outlet inside a mall resolving to the mall itself — especially
+    for short/generic outlet names. Two independent signals, either is enough
+    to reject a match outright before it gets silently linked and synced
+    against the wrong place's photos:
+      - the matched place's primaryType is itself a mall/building/POI, not a
+        food/service business
+      - the matched display name shares no meaningful word with the outlet
+        name AND scores low on fuzzy string similarity
+    Returns (is_confident: bool, reason: str | None).
+    """
+    matched_name = (place.get("displayName", {}) or {}).get("text", "")
+    primary_type = place.get("primaryType", "")
+
+    if primary_type in _MISMATCH_TYPES:
+        return False, f"matched place is a '{primary_type}', not the outlet itself"
+
+    a = re.sub(r"[^a-z0-9\s]", "", (outlet_name or "").lower())
+    b = re.sub(r"[^a-z0-9\s]", "", (matched_name or "").lower())
+    a_words = {w for w in a.split() if len(w) >= 4 and w not in _GENERIC_NAME_WORDS}
+    b_words = {w for w in b.split() if len(w) >= 4 and w not in _GENERIC_NAME_WORDS}
+
+    shares_word = bool(a_words & b_words)
+    ratio = difflib.SequenceMatcher(None, a, b).ratio()
+
+    if shares_word or ratio >= 0.55:
+        return True, None
+    return False, f"matched name '{matched_name}' doesn't resemble outlet name '{outlet_name}' (similarity {ratio:.2f})"
+
+
+@frappe.whitelist()
+def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None):
+    """
+    Resolve and persist google_place_id for one outlet.
+
+    Normal path: Places Text Search on "{restaurant_name}, {address}".
+    Idempotent — no-ops if already resolved (Place IDs are stable, no reason
+    to re-search and burn an API call).
+
+    Manual fallback path (for the outlets auto-search can't confidently
+    match — wrong/incomplete address, a very generic name, brand-new outlet
+    Google hasn't indexed yet):
+      - override_query: retry Text Search with a hand-written query instead
+        of the auto-built "name, address" one (e.g. add a landmark or drop a
+        typo'd address component).
+      - manual_place_id: skip search entirely and set a Place ID an admin
+        looked up themselves via Google's own Place ID Finder tool
+        (https://developers.google.com/maps/documentation/places/web-service/place-id).
+        Verified against Places Details before saving, so a bad paste fails
+        loudly instead of silently linking the wrong place.
     """
     if not is_supervisor():
         frappe.throw(_("Permission denied"), frappe.PermissionError)
@@ -89,13 +158,39 @@ def resolve_google_place_id(outlet_id):
         ["restaurant_name", "address", "city", "google_place_id"],
         as_dict=True,
     )
-    if r.google_place_id:
+
+    if manual_place_id:
+        api_key = _get_api_key()
+        try:
+            resp = requests.get(
+                f"https://places.googleapis.com/v1/places/{manual_place_id}",
+                headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": "id,displayName,photos"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            place = resp.json()
+        except requests.RequestException as e:
+            return {"success": False, "error": f"Could not verify manual place_id: {e}"}
+
+        frappe.db.set_value("Restaurant", outlet_id, "google_place_id", place["id"])
+        frappe.db.commit()
+        return {
+            "success": True, "already_resolved": False, "manual": True,
+            "google_place_id": place["id"],
+            "matched_name": place.get("displayName", {}).get("text"),
+            "photos_available": len(place.get("photos") or []),
+        }
+
+    if r.google_place_id and not override_query:
         return {"success": True, "already_resolved": True, "google_place_id": r.google_place_id}
 
-    if not r.restaurant_name or not (r.address or r.city):
-        return {"success": False, "error": "Outlet has no name/address to search with"}
+    if override_query:
+        query = override_query
+    else:
+        if not r.restaurant_name or not (r.address or r.city):
+            return {"success": False, "error": "Outlet has no name/address to search with — needs manual_place_id"}
+        query = f"{r.restaurant_name}, {r.address or r.city}"
 
-    query = f"{r.restaurant_name}, {r.address or r.city}"
     try:
         place = _search_place(query)
     except requests.RequestException as e:
@@ -103,7 +198,17 @@ def resolve_google_place_id(outlet_id):
         return {"success": False, "error": f"Places search failed: {e}"}
 
     if not place:
-        return {"success": False, "error": "No matching place found on Google"}
+        return {"success": False, "error": "No matching place found on Google — needs manual_place_id or override_query"}
+
+    confident, reason = _match_confidence(r.restaurant_name, place)
+    if not confident:
+        return {
+            "success": False,
+            "error": f"Low-confidence match rejected: {reason}",
+            "candidate_place_id": place["id"],
+            "candidate_name": place.get("displayName", {}).get("text"),
+            "hint": "Verify by hand and call resolve_google_place_id(outlet_id, manual_place_id=...) if the candidate is actually correct, or override_query=... to retry with a better search string.",
+        }
 
     place_id = place["id"]
     frappe.db.set_value("Restaurant", outlet_id, "google_place_id", place_id)
@@ -319,3 +424,77 @@ def bulk_sync_google_photos(outlet_ids=None, max_photos=None, only_active=1):
         "total_outlets": len(outlet_ids),
         "results": results,
     }
+
+
+@frappe.whitelist()
+def list_outlets_needing_manual_google_photos():
+    """
+    Outlets that could not be auto-resolved/synced — i.e. is_active but has
+    no google_place_id and no synced_at timestamp. This is the worklist for
+    the "do it manually" fallback: an admin looks each one up via Google's
+    Place ID Finder and calls resolve_google_place_id(outlet_id, manual_place_id=...),
+    or falls back further to uploading photos by hand through the existing
+    Gallery Management upload flow if the outlet genuinely isn't on Google Maps.
+    """
+    if not is_supervisor():
+        frappe.throw(_("Permission denied"), frappe.PermissionError)
+
+    return frappe.get_all(
+        "Restaurant",
+        filters={"is_active": 1, "google_place_id": ["in", ["", None]]},
+        fields=["name", "restaurant_name", "address", "city", "outlet_type"],
+        order_by="creation desc",
+    )
+
+
+def auto_sync_google_photos_on_activation(doc, method=None):
+    """
+    Restaurant doc_event (on_update) — the moment a new outlet flips
+    is_active 0→1, enqueue a background sync so Google Places photos are
+    already sitting in the Gallery Media Library before the merchant/admin
+    ever opens Gallery Management. Safe to fire repeatedly (sync is
+    dedup'd/idempotent); only actually enqueues on the 0→1 transition so it
+    doesn't re-run on every unrelated save.
+    """
+    if not doc.has_value_changed("is_active") or not doc.is_active:
+        return
+    if doc.google_place_photos_synced_at:
+        return  # already synced at some point — activation toggling off/on shouldn't re-trigger
+
+    frappe.enqueue(
+        "flamezo_backend.flamezo.api.google_places_photos.sync_outlet_photos_from_google",
+        outlet_id=doc.name,
+        queue="long",
+        timeout=300,
+        is_async=True,
+        now=False,
+        enqueue_after_commit=True,
+    )
+
+
+def backfill_missing_google_photos():
+    """
+    Weekly scheduled catch-all (see hooks.py scheduler_events) — finds active
+    outlets that never got synced (missed the on_update hook: bulk import,
+    direct DB flip, activated before this feature existed) and enqueues them,
+    a bounded batch per run so a large backlog doesn't spike Places API cost
+    in one go.
+    """
+    BATCH_SIZE = 20
+    outlet_ids = frappe.get_all(
+        "Restaurant",
+        filters={"is_active": 1, "google_place_photos_synced_at": ["is", "not set"]},
+        pluck="name",
+        limit_page_length=BATCH_SIZE,
+    )
+    for outlet_id in outlet_ids:
+        frappe.enqueue(
+            "flamezo_backend.flamezo.api.google_places_photos.sync_outlet_photos_from_google",
+            outlet_id=outlet_id,
+            queue="long",
+            timeout=300,
+            is_async=True,
+            now=False,
+        )
+    if outlet_ids:
+        frappe.logger().info(f"backfill_missing_google_photos: enqueued {len(outlet_ids)} outlets")
