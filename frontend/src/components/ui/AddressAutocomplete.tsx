@@ -16,6 +16,7 @@ interface AddressAutocompleteProps {
     state?: string
     zipCode?: string
     googleMapUrl?: string
+    placeId?: string
   }) => void
   label?: string
   required?: boolean
@@ -259,14 +260,18 @@ export default function AddressAutocomplete({
 
               onChange(finalAddress)
 
-              onLocationSelect?.({ 
-                address: finalAddress, 
-                latitude: lat, 
+              onLocationSelect?.({
+                address: finalAddress,
+                latitude: lat,
                 longitude: lng,
                 city: city,
                 state: state,
                 zipCode: zipCode,
-                googleMapUrl: place.url || `https://maps.google.com/?q=${encodeURIComponent(finalAddress)}`
+                googleMapUrl: place.url || `https://maps.google.com/?q=${encodeURIComponent(finalAddress)}`,
+                // The authoritative Places ID, already resolved by the picker itself —
+                // saving this now means the outlet's Google Places photo sync never
+                // has to guess via a fuzzy name+address text search later.
+                placeId,
               })
 
               // Refresh session token
