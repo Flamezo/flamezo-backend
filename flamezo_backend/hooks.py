@@ -7,6 +7,7 @@ app_license = "mit"
 
 # CI/CD: Auto-deployment enabled via GitHub Actions
 # Last deployment test: 2025-12-24
+# Migrated to AWS Lightsail (Mumbai) - 2026-08-20, CI/CD push-trigger test
 
 
 # required_apps = []
