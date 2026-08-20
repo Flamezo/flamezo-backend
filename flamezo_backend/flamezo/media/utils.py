@@ -25,7 +25,7 @@ def get_allowed_roles():
 		"Menu Category": ["category_image"],
 		"Home Feature": ["home_feature_image"],
 		"Restaurant": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
-		"Restaurant Config": ["restaurant_config_logo", "restaurant_config_hero_video", "apple_touch_icon"],
+		"Restaurant Config": ["restaurant_config_hero_video", "apple_touch_icon"],
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],
 		"Offer": ["offer_image"],

@@ -270,7 +270,7 @@ def _clone_gallery(source, target):
 # Presentation-only fields. Identity / social / security / per-branch state are
 # deliberately excluded (restaurant_name, *_link, whatsapp, pins, tokens, paid/status/history).
 _BRANDING_FIELDS = [
-	"tagline", "subtitle", "description", "default_theme", "logo", "logo_size",
+	"tagline", "subtitle", "description", "default_theme", "logo_size",
 	"hero_video", "apple_touch_icon", "menu_layout", "qr_background",
 	"menu_theme_background_enabled", "menu_theme_background_active",
 	"menu_theme_wallpapers", "menu_theme_main_index", "menu_theme_selected_items",
@@ -283,13 +283,20 @@ def _clone_branding(source, target):
 	branches of a brand match. Unlike menu/offers, branding is OVERWRITTEN — a
 	brand's branches are meant to look identical. Image/wallpaper URLs are reused
 	(the AI backgrounds are not regenerated). Returns True if anything changed."""
+	changed = False
+
+	# Logo lives on Restaurant (single source of truth), cloned separately.
+	src_logo = frappe.db.get_value("Restaurant", source, "logo")
+	if src_logo and frappe.db.get_value("Restaurant", target, "logo") != src_logo:
+		frappe.db.set_value("Restaurant", target, "logo", src_logo)
+		changed = True
+
 	src_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": source}, "name")
 	tgt_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": target}, "name")
 	if not src_cfg or not tgt_cfg:
-		return False
+		return changed
 	src_doc = frappe.get_doc("Restaurant Config", src_cfg)
 	tgt_doc = frappe.get_doc("Restaurant Config", tgt_cfg)
-	changed = False
 	for f in _BRANDING_FIELDS:
 		val = src_doc.get(f)
 		if val not in (None, "") and tgt_doc.get(f) != val:

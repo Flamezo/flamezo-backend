@@ -403,7 +403,6 @@ def sync_onboarding_to_outlet(name):
                 'subtitle': 'subtitle',
                 'description': 'description',
                 'default_theme': 'default_theme',
-                'logo': 'logo',
                 'menu_layout': 'menu_layout',
                 'enable_table_booking': 'enable_table_booking',
                 'enable_banquet_booking': 'enable_banquet_booking',
@@ -459,7 +458,6 @@ def sync_onboarding_to_outlet(name):
 # manual admin sync.
 _ONBOARD_RESTAURANT_DISPLAY = {'logo': 'logo', 'description': 'description'}
 _ONBOARD_CONFIG_DISPLAY = {
-    'logo': 'logo',
     'tagline': 'tagline',
     'subtitle': 'subtitle',
     'description': 'description',
@@ -470,7 +468,9 @@ def auto_sync_onboarding_display(doc, method=None):
     """doc_events on_update hook for `Restaurant Onboarding` — pushes display
     fields (logo/tagline/subtitle/description) to the linked Restaurant + its
     Restaurant Config so a Setup Wizard upload shows up immediately in the
-    Branding pool / feed / app. Only copies non-empty values; never clears."""
+    Branding pool / feed / app. Only copies non-empty values; never clears.
+    `logo` is Restaurant-only — Restaurant.logo is the single source of truth
+    (Restaurant Config.logo was removed, see backfill_restaurant_logo_from_config)."""
     try:
         restaurant = getattr(doc, 'linked_restaurant', None)
         if not restaurant or not frappe.db.exists('Restaurant', restaurant):
