@@ -224,11 +224,15 @@ doc_events = {
 		"on_update": "flamezo_backend.flamezo.api.onboarding.auto_sync_onboarding_display",
 	},
 
-	# New/reactivated outlets get their Google Places photos fetched into the
-	# Gallery Discovery Pool automatically — no manual "sync" step needed for
-	# merchants onboarding from here on.
+	# New/reactivated outlets get their Google Places photos + details
+	# (rating, review count, price level, hours, facility attributes) fetched
+	# automatically — no manual "sync" step needed for merchants onboarding
+	# from here on.
 	"Restaurant": {
-		"on_update": "flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_photos_on_activation",
+		"on_update": [
+			"flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_photos_on_activation",
+			"flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_details_on_activation",
+		],
 	},
 
 	"Table Booking": {
