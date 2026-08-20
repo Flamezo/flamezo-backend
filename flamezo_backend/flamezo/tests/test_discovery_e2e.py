@@ -377,6 +377,35 @@ class TestGetRestaurantsForMap(unittest.TestCase):
             frappe.delete_doc("Coupon", coupon, force=True, ignore_permissions=True)
             frappe.db.commit()
 
+    def test_falls_back_to_gallery_photo_when_logo_missing(self):
+        # r1 has no logo set (see _make_rest) — give it a curated gallery
+        # photo and confirm the marker uses it instead of a blank logo.
+        frappe.get_doc({
+            "doctype": "Restaurant Gallery Item",
+            "restaurant": self.r1,
+            "url": "https://cdn.flamezo.in/test-gallery-photo.jpg",
+            "media_type": "Image",
+            "is_selected": 1,
+            "sort_order": 1,
+        }).insert(ignore_permissions=True)
+        frappe.db.commit()
+        try:
+            result = flamezo_api.get_outlets_for_map(city="Surat")
+            self.assertTrue(result["success"])
+            m = next((x for x in result["data"]["markers"] if x["id"] == self.r1), None)
+            self.assertIsNotNone(m)
+            self.assertEqual(m["logo"], "https://cdn.flamezo.in/test-gallery-photo.jpg")
+        finally:
+            frappe.db.sql(f"DELETE FROM `tabRestaurant Gallery Item` WHERE restaurant='{self.r1}'")
+            frappe.db.commit()
+
+    def test_logo_empty_string_when_no_logo_and_no_gallery(self):
+        result = flamezo_api.get_outlets_for_map(city="Surat")
+        self.assertTrue(result["success"])
+        m = next((x for x in result["data"]["markers"] if x["id"] == self.r1), None)
+        self.assertIsNotNone(m)
+        self.assertEqual(m["logo"], "")
+
     def test_no_markers_outside_bounds(self):
         result = flamezo_api.get_outlets_for_map(
             sw_lat=28.50, sw_lng=77.00,

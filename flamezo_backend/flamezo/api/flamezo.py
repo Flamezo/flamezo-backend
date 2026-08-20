@@ -715,6 +715,13 @@ def get_outlets_for_map(
 		names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(names)
 
+		# Pins with no Restaurant.logo still usually have real gallery/food
+		# photos (merchant never uploaded a dedicated square logo) — batch-
+		# resolve just those so the map shows a real photo instead of a grey
+		# placeholder circle. Zero extra cost for outlets that already have a logo.
+		missing_logo_names = [r["name"] for r in rows if not r.get("logo")]
+		media_fallback = batch_resolve_outlet_media(missing_logo_names, limit_per_outlet=1) if missing_logo_names else {}
+
 		# has_offer filter (post-query — reuses the same batch offers_map, still
 		# zero N+1) — only outlets with >=1 currently-valid active coupon.
 		if cint(has_offer):
@@ -740,10 +747,16 @@ def get_outlets_for_map(
 				if r.get("limelight_end_date") and getdate(r.get("limelight_end_date")) < today_date:
 					is_featured_live = False
 
+			logo = (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or "")
+			if not logo:
+				fallback = media_fallback.get(r["name"]) or []
+				if fallback:
+					logo = fallback[0]["url"]
+
 			markers.append({
 				"id": r["name"],
 				"name": r["restaurant_name"],
-				"logo": (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or ""),
+				"logo": logo,
 				"lat": flt(r["latitude"]),
 				"lng": flt(r["longitude"]),
 				"outlet_type": r.get("outlet_type") or "dining",
