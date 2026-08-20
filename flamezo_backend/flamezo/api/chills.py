@@ -277,7 +277,8 @@ def _fetch_counts_map(items):
 # ── feed ────────────────────────────────────────────────────────────────────
 
 _CHILLS_FEED_COLUMNS = """
-    c.name, c.outlet, c.outlet_name, c.outlet_city, c.outlet_logo,
+    c.name, c.outlet, c.outlet_name, c.outlet_city,
+    (SELECT r.logo FROM `tabRestaurant` r WHERE r.name = c.outlet) AS outlet_logo,
     c.outlet_lat, c.outlet_lng, c.video_url, c.thumbnail_url,
     c.description, c.audio, c.niche_tags, c.custom_tags,
     c.location_name, c.location_lat, c.location_lng, c.location_radius,
