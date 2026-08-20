@@ -377,6 +377,27 @@ class TestGetRestaurantsForMap(unittest.TestCase):
             frappe.delete_doc("Coupon", coupon, force=True, ignore_permissions=True)
             frappe.db.commit()
 
+    def test_falls_back_to_restaurant_config_logo_when_logo_missing(self):
+        # Legacy onboarding write-path: some merchants only ever got a logo
+        # written to Restaurant Config.logo, never synced to Restaurant.logo.
+        # Map must prefer this over a generic gallery photo.
+        if not frappe.db.exists("Restaurant Config", {"restaurant": self.r1}):
+            frappe.get_doc({"doctype": "Restaurant Config", "restaurant": self.r1}).insert(ignore_permissions=True)
+        frappe.db.set_value(
+            "Restaurant Config", {"restaurant": self.r1}, "logo",
+            "https://cdn.flamezo.in/test-config-logo.jpg",
+        )
+        frappe.db.commit()
+        try:
+            result = flamezo_api.get_outlets_for_map(city="Surat")
+            self.assertTrue(result["success"])
+            m = next((x for x in result["data"]["markers"] if x["id"] == self.r1), None)
+            self.assertIsNotNone(m)
+            self.assertEqual(m["logo"], "https://cdn.flamezo.in/test-config-logo.jpg")
+        finally:
+            frappe.db.set_value("Restaurant Config", {"restaurant": self.r1}, "logo", "")
+            frappe.db.commit()
+
     def test_falls_back_to_gallery_photo_when_logo_missing(self):
         # r1 has no logo set (see _make_rest) — give it a curated gallery
         # photo and confirm the marker uses it instead of a blank logo.

@@ -715,12 +715,26 @@ def get_outlets_for_map(
 		names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(names)
 
-		# Pins with no Restaurant.logo still usually have real gallery/food
-		# photos (merchant never uploaded a dedicated square logo) — batch-
-		# resolve just those so the map shows a real photo instead of a grey
-		# placeholder circle. Zero extra cost for outlets that already have a logo.
+		# Pins with no Restaurant.logo often still have one in the legacy
+		# Restaurant Config.logo field (older onboarding write-path that never
+		# got synced back — see onboarding.py's known Restaurant/Restaurant
+		# Config logo split), or real gallery/food photos otherwise. Batch-
+		# resolve just the outlets missing a logo so the map shows a real
+		# photo instead of a grey placeholder circle. Zero extra cost for
+		# outlets that already have Restaurant.logo set.
 		missing_logo_names = [r["name"] for r in rows if not r.get("logo")]
-		media_fallback = batch_resolve_outlet_media(missing_logo_names, limit_per_outlet=1) if missing_logo_names else {}
+		config_logo_map = {}
+		if missing_logo_names:
+			config_logo_map = {
+				row.restaurant: row.logo
+				for row in frappe.get_all(
+					"Restaurant Config",
+					filters={"restaurant": ["in", missing_logo_names], "logo": ["not in", ["", None]]},
+					fields=["restaurant", "logo"],
+				)
+			}
+		still_missing = [n for n in missing_logo_names if n not in config_logo_map]
+		media_fallback = batch_resolve_outlet_media(still_missing, limit_per_outlet=1) if still_missing else {}
 
 		# has_offer filter (post-query — reuses the same batch offers_map, still
 		# zero N+1) — only outlets with >=1 currently-valid active coupon.
@@ -749,9 +763,13 @@ def get_outlets_for_map(
 
 			logo = (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or "")
 			if not logo:
-				fallback = media_fallback.get(r["name"]) or []
-				if fallback:
-					logo = fallback[0]["url"]
+				cfg_logo = config_logo_map.get(r["name"])
+				if cfg_logo:
+					logo = (site_url + cfg_logo) if cfg_logo.startswith("/") else cfg_logo
+				else:
+					fallback = media_fallback.get(r["name"]) or []
+					if fallback:
+						logo = fallback[0]["url"]
 
 			markers.append({
 				"id": r["name"],
