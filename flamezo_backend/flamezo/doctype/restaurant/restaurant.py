@@ -870,7 +870,6 @@ def create_restaurant_config(self):
 			"subtitle": "",
 			"description": self.description or "",
 			"default_theme": "light",
-			"logo": self.logo or "",
 			"hero_video": "",
 			"apple_touch_icon": "",
 			"currency": self.currency or "INR",

@@ -16,7 +16,6 @@
   "description",
   "column_break_branding",
   "default_theme",
-  "logo",
   "logo_size",
   "hero_video",
   "apple_touch_icon",
@@ -99,11 +98,6 @@
    "label": "Default Theme",
    "options": "light\ndark",
    "default": "dark"
-  },
-  {
-   "fieldname": "logo",
-   "fieldtype": "Attach Image",
-   "label": "Logo"
   },
   {
    "fieldname": "logo_size",

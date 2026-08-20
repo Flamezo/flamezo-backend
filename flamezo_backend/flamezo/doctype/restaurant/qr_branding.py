@@ -44,16 +44,8 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	background_image_url = override_background_url or ""
 
 	if config_name:
-		# Fetch the logo (brand color is the fixed Flamezo copper, set above)
-		config_values = frappe.db.get_value(
-			"Restaurant Config",
-			config_name,
-			["logo"],
-			as_dict=True,
-		) or {}
-		
 		primary_color = "#B7410E"
-		
+
 		# Attempt to get qr_background safely
 		try:
 			background_image_url = frappe.db.get_value("Restaurant Config", config_name, "qr_background")
@@ -63,12 +55,15 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 
 		if not background_image_url:
 			background_image_url = override_background_url or ""
-		
+
+	# Logo lives on Restaurant only — Restaurant.logo is the single source of
+	# truth (Restaurant Config.logo was removed).
+	if restaurant_doc.logo:
 		logo_url = get_media_asset_data(
-			"Restaurant Config",
-			config_name,
-			"restaurant_config_logo",
-			config_values.get("logo") or restaurant_doc.logo,
+			"Restaurant",
+			restaurant_doc.name,
+			"restaurant_logo",
+			restaurant_doc.logo,
 		).get("url", "")
 
 	if not logo_url and restaurant_doc.logo:

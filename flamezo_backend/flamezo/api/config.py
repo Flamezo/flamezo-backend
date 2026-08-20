@@ -72,7 +72,7 @@ def get_outlet_config(outlet_id):
 			"Restaurant Config",
 			{"restaurant": restaurant},
 			["restaurant_name", "tagline", "subtitle", "description", "default_theme",
-			 "logo", "logo_size", "hero_video", "apple_touch_icon", 
+			 "logo_size", "hero_video", "apple_touch_icon",
 			 "menu_theme_background_active", "menu_theme_background_preview", "menu_theme_background_history", 
 			 "menu_theme_wallpapers", "menu_theme_main_index",
 			 "currency", "menu_layout", "enable_table_booking", "enable_banquet_booking",
@@ -93,7 +93,6 @@ def get_outlet_config(outlet_id):
 				"subtitle": "",
 				"description": restaurant_doc.description,
 				"default_theme": "dark",
-				"logo": restaurant_doc.logo,
 				"logo_size": "Medium",
 				"hero_video": "",
 				"apple_touch_icon": "",
@@ -113,14 +112,16 @@ def get_outlet_config(outlet_id):
 		# Brand color is now fixed to the Flamezo copper — no per-restaurant colors.
 		primary_color = "#B7410E"
 		
-		# Batch fetch branding Media Assets in one go
-		media_roles = ["restaurant_config_logo", "restaurant_config_hero_video", "apple_touch_icon"]
+		# Batch fetch branding Media Assets in one go. Logo lives on Restaurant
+		# now (single source of truth), everything else stays on Restaurant Config.
+		media_roles = ["restaurant_config_hero_video", "apple_touch_icon"]
 		config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "name")
 		media_batch = get_media_assets_batch("Restaurant Config", [config_name], media_roles) if config_name else {}
-		
+		logo_media_batch = get_media_assets_batch("Restaurant", [restaurant], ["restaurant_logo"])
+
 		# Get logo with variants and blur placeholder
-		logo_data = media_batch.get((config_name, "restaurant_config_logo")) or {
-			"url": config.get("logo") or "",
+		logo_data = logo_media_batch.get((restaurant, "restaurant_logo")) or {
+			"url": restaurant_doc.logo or "",
 			"blur_placeholder": None,
 			"variants": {},
 			"srcset": None

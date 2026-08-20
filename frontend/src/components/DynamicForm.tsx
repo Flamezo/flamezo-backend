@@ -1280,7 +1280,7 @@ export default function DynamicForm({
                       }
 
                       try {
-                        const mediaRole = field.fieldname === 'logo' ? 'restaurant_config_logo' :
+                        const mediaRole = field.fieldname === 'logo' ? 'restaurant_logo' :
                           field.fieldname === 'apple_touch_icon' ? 'apple_touch_icon' :
                             `${doctype.toLowerCase().replace(' ', '_')}_${field.fieldname}`
 
@@ -1346,7 +1346,7 @@ export default function DynamicForm({
                   }
 
                   try {
-                    const mediaRole = field.fieldname === 'logo' ? 'restaurant_config_logo' :
+                    const mediaRole = field.fieldname === 'logo' ? 'restaurant_logo' :
                       field.fieldname === 'apple_touch_icon' ? 'apple_touch_icon' :
                         `${doctype.toLowerCase().replace(' ', '_')}_${field.fieldname}`
 

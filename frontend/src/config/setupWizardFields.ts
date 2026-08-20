@@ -32,6 +32,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'longitude',
       'timezone',
       'google_map_url',
+      'logo',
     ],
 
     alwaysHidden: [
@@ -101,7 +102,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'gst_number',
 
       // Branding assets (managed via Config step)
-      'logo',
       'hero_video',
       'description',
 
@@ -126,7 +126,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'subtitle',
       'description',
       'default_theme',
-      'logo',
       'logo_size',
       'hero_video',
 

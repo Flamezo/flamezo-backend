@@ -578,8 +578,8 @@ def get_referral_details(identifier):
 		# Get welcome coins from platform config (source of truth)
 		welcome_coins = get_welcome_reward_coins()
 		
-		# Get outlet config for images
-		logo = frappe.db.get_value("Restaurant Config", {"restaurant": link_info.restaurant}, "logo")
+		# Get outlet logo — Restaurant.logo is the single source of truth
+		logo = frappe.db.get_value("Restaurant", link_info.restaurant, "logo")
 		# Using logo as fallback for banner as ‘banner_image’ field doesn’t exist
 		banner = logo 
 		
