@@ -470,7 +470,7 @@ def auto_sync_onboarding_display(doc, method=None):
     Restaurant Config so a Setup Wizard upload shows up immediately in the
     Branding pool / feed / app. Only copies non-empty values; never clears.
     `logo` is Restaurant-only — Restaurant.logo is the single source of truth
-    (Restaurant Config.logo was removed, see backfill_restaurant_logo_from_config)."""
+    (Restaurant Config.logo was removed, see the consolidate_logo_to_restaurant patch)."""
     try:
         restaurant = getattr(doc, 'linked_restaurant', None)
         if not restaurant or not frappe.db.exists('Restaurant', restaurant):
@@ -522,44 +522,10 @@ def backfill_onboarding_display():
     return synced
 
 
-def backfill_restaurant_logo_from_config():
-    """One-off backfill for the OTHER half of the "Branding = 0 assets" bug:
-    `get_outlet_media_pool` (and the discovery feed) read `Restaurant.logo`,
-    but a real slice of outlets only ever had their logo written to
-    `Restaurant Config.logo` (an older, separate write path — same gap
-    `get_my_restaurants` already works around in ui.py) and it was never
-    copied across. `backfill_onboarding_display` can't fix these because
-    their `Restaurant Onboarding.logo` is ALSO empty — the logo simply never
-    passed through onboarding at all.
-
-    Only fills `Restaurant.logo` when it's currently empty and
-    `Restaurant Config.logo` has a real value — never overwrites. Run once
-    after deploy:
-
-        bench --site backend.flamezo.in execute \\
-          flamezo_backend.flamezo.api.onboarding.backfill_restaurant_logo_from_config
-
-    Not whitelisted — bench-only (privileged), so no web exposure."""
-    rows = frappe.db.sql(
-        """
-        SELECT r.name AS restaurant, c.logo AS config_logo
-        FROM `tabRestaurant` r
-        JOIN `tabRestaurant Config` c ON c.restaurant = r.name
-        WHERE (r.logo IS NULL OR r.logo = '')
-          AND c.logo IS NOT NULL AND c.logo != ''
-        """,
-        as_dict=True,
-    )
-    synced = 0
-    for row in rows:
-        try:
-            frappe.db.set_value('Restaurant', row.restaurant, 'logo', row.config_logo, update_modified=False)
-            synced += 1
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), 'onboarding.backfill_restaurant_logo_from_config')
-    frappe.db.commit()
-    print(f'backfill_restaurant_logo_from_config: synced {synced} restaurant(s)')
-    return synced
+# backfill_restaurant_logo_from_config() was removed — `Restaurant Config.logo`
+# no longer exists (dropped by the consolidate_logo_to_restaurant patch, which
+# ran this exact backfill as part of the migration). Re-adding a function that
+# queries `c.logo` here would just crash on the missing column.
 
 
 @frappe.whitelist(allow_guest=True)
