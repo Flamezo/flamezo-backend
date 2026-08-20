@@ -517,7 +517,7 @@ def get_outlet_detail(outlet_id):
 				"description", "google_map_url",
 				"is_featured", "rating", "review_count",
 				"cuisines", "price_range", "amenities_mask", "hours_json",
-				"enable_dine_in", "enable_loyalty",
+				"enable_dine_in", "enable_loyalty", "google_review_url",
 			],
 			as_dict=True,
 		)
@@ -629,7 +629,7 @@ def get_outlet_detail(outlet_id):
 			"enable_dine_in": bool(r.get("enable_dine_in", 1)),
 			"enable_loyalty": bool(r.get("enable_loyalty", 0)),
 			"enable_table_booking": bool(cfg.get("enable_table_booking", 1)),
-			"google_review_url": cfg.get("google_review_link") or "",
+			"google_review_url": r.get("google_review_url") or cfg.get("google_review_link") or "",
 		}
 
 		response = {"success": True, "data": data}
@@ -687,14 +687,10 @@ def get_outlet_media_pool(outlet_id):
 		}
 		product_label = MEDIA_LABELS.get(outlet_type, "Products & Catalogue")
 
-		# Restaurant.logo is the field this pool reads, but a real number of
-		# outlets only ever got their logo written to Restaurant Config (a
-		# separate, older write path — see get_my_restaurants' same fallback
-		# in ui.py) and never had it copied across. Fall back so those outlets
-		# don't show 0 assets despite having a real, live logo.
+		# Restaurant.logo is the single source of truth for the outlet's logo
+		# (Restaurant Config.logo was removed — see
+		# onboarding.backfill_restaurant_logo_from_config for the one-time migration).
 		branding_logo = outlet_doc.get("logo")
-		if not branding_logo:
-			branding_logo = frappe.db.get_value("Restaurant Config", {"restaurant": outlet}, "logo")
 
 		if branding_logo:
 			media_pool.append({
