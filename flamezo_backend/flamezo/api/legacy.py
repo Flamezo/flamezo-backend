@@ -27,10 +27,10 @@ def get_legacy_content(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get restaurant name
-		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name")
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "outlet_name")
 		
 		# Get or create legacy content
-		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
+		legacy_name = frappe.db.get_value("Legacy Content", {"outlet": restaurant}, "name")
 		
 		if not legacy_name:
 			# Return default structure if not exists
@@ -103,7 +103,7 @@ def get_legacy_content(outlet_id):
 		# 1. Fetch selected items from the new Restaurant Gallery Dashboard (Primary Source)
 		selected_gallery_items = frappe.get_all(
 			"Outlet Gallery Item",
-			filters={"restaurant": restaurant, "is_selected": 1},
+			filters={"outlet": restaurant, "is_selected": 1},
 			fields=["url", "title", "media_type", "sort_order"],
 			order_by="sort_order asc",
 			limit=25
@@ -198,14 +198,14 @@ def update_legacy_content(outlet_id, hero=None, content=None, testimonials=None,
 			footer = json.loads(footer) if footer else {}
 		
 		# Get or create legacy content
-		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
+		legacy_name = frappe.db.get_value("Legacy Content", {"outlet": restaurant}, "name")
 		
 		if legacy_name:
 			legacy_doc = frappe.get_doc("Legacy Content", legacy_name)
 		else:
 			legacy_doc = frappe.get_doc({
 				"doctype": "Legacy Content",
-				"restaurant": restaurant
+				"outlet": restaurant
 			})
 		
 		# Hero is no longer used
@@ -334,7 +334,7 @@ def generate_legacy_content(outlet_id):
 
 		# Fetch all active menu items
 		items = frappe.get_all("Menu Product",
-			filters={"restaurant": restaurant, "is_active": 1},
+			filters={"outlet": restaurant, "is_active": 1},
 			fields=["name as id", "product_name as item_name", "category_name as item_group", "description"],
 			limit=60
 		)
@@ -344,7 +344,7 @@ def generate_legacy_content(outlet_id):
 		cuisine_identity = infer_cuisine_identity(categories)
 
 		restaurant_info = {
-			"restaurant_name": restaurant_doc.restaurant_name,
+			"restaurant_name": restaurant_doc.outlet_name,
 			"owner_name": restaurant_doc.owner_name,
 			"city": restaurant_doc.city or "",
 			"state": restaurant_doc.state or "",
@@ -359,7 +359,7 @@ def generate_legacy_content(outlet_id):
 		ai_result = generator.generate_legacy_text(restaurant_info, items)
 		
 		# Get existing legacy content to preserve media files
-		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
+		legacy_name = frappe.db.get_value("Legacy Content", {"outlet": restaurant}, "name")
 		existing_footer_media = ""
 		
 		if legacy_name:

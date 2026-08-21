@@ -78,7 +78,7 @@ def check_boost_campaigns_health():
 	"""Daily health check — alert admin if campaigns are underperforming (9 AM)."""
 	live_campaigns = frappe.get_all("Boost Campaign",
 		filters={"status": "Live", "is_first_campaign": 0},
-		fields=["name", "campaign_name", "restaurant", "launch_date", "end_date",
+		fields=["name", "campaign_name", "outlet", "launch_date", "end_date",
 				"guaranteed_redemptions", "coupons_redeemed", "campaign_duration"]
 	)
 
@@ -98,14 +98,14 @@ def check_boost_campaigns_health():
 
 		if actual < expected_by_now * 0.5:  # Less than 50% of expected
 			message = (
-				f"Campaign {campaign.name} ({campaign.campaign_name}) for {campaign.restaurant}\n"
+				f"Campaign {campaign.name} ({campaign.campaign_name}) for {campaign.outlet}\n"
 				f"Guarantee: {campaign.guaranteed_redemptions} | Actual: {actual} | "
 				f"Expected by now: {expected_by_now}\n"
 				f"Days elapsed: {days_elapsed}/{days_total}"
 			)
 			frappe.log_error(message=message, title="Boost Campaign Guarantee At Risk")
 			_alert_ops(
-				subject=f"Boost campaign at risk: {campaign.restaurant} ({campaign.name})",
+				subject=f"Boost campaign at risk: {campaign.outlet} ({campaign.name})",
 				message=message,
 			)
 
@@ -169,7 +169,7 @@ def recover_stuck_boost_launches():
 			"payment_status": "Captured",
 			"meta_campaign_id": ["in", ["", None]],
 		},
-		fields=["name", "restaurant", "paid_at", "razorpay_payment_id", "launch_retry_count"]
+		fields=["name", "outlet", "paid_at", "razorpay_payment_id", "launch_retry_count"]
 	)
 
 	for row in stuck:
@@ -184,7 +184,7 @@ def recover_stuck_boost_launches():
 		if retry_count >= MAX_LAUNCH_RETRIES:
 			frappe.db.set_value("Boost Campaign", row.name, "status", "Failed", update_modified=False)
 			message = (
-				f"Campaign {row.name} for {row.restaurant} paid (Razorpay payment "
+				f"Campaign {row.name} for {row.outlet} paid (Razorpay payment "
 				f"{row.razorpay_payment_id}) but never launched on Meta after "
 				f"{retry_count} retries. Marked Failed — needs manual refund or relaunch."
 			)
@@ -222,7 +222,7 @@ def send_boost_booking_reminders():
 			"reminder_sent": 0,
 			"customer_phone": ["is", "set"],
 		},
-		fields=["name", "restaurant", "customer_name", "customer_phone", "date", "time_slot", "boost_campaign"]
+		fields=["name", "outlet", "customer_name", "customer_phone", "date", "time_slot", "boost_campaign"]
 	)
 
 	if not candidates:
@@ -251,7 +251,7 @@ def send_boost_booking_reminders():
 		if not (0 < minutes_until <= BOOKING_REMINDER_LEAD_MINUTES):
 			continue
 
-		restaurant_name = frappe.db.get_value("Outlet", booking.restaurant, "restaurant_name") or booking.restaurant
+		restaurant_name = frappe.db.get_value("Outlet", booking.outlet, "outlet_name") or booking.outlet
 		coupon_code = frappe.db.get_value("Boost Campaign", booking.boost_campaign, "coupon_code")
 
 		try:

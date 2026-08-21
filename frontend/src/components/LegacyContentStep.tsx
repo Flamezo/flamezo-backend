@@ -54,12 +54,12 @@ export default function LegacyContentStep({ selectedOutlet, onComplete }: Legacy
   // The API wraps response in { message: { success, data } }
   const legacyData = legacyResponse?.message?.data ?? legacyResponse?.data ?? null
 
-  // Child tables — fetch raw doc by restaurant filter to get all child rows
+  // Child tables — fetch raw doc by outlet filter to get all child rows
   const { data: legacyDocList, mutate: mutateDoc } = useFrappeGetCall(
     'frappe.client.get_list',
     selectedOutlet ? {
       doctype: 'Legacy Content',
-      filters: JSON.stringify([['restaurant', '=', selectedOutlet]]),
+      filters: JSON.stringify([['outlet', '=', selectedOutlet]]),
       fields: JSON.stringify(['name']),
       limit: 1
     } : undefined,

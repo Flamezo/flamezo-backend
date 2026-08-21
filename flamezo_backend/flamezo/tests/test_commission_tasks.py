@@ -43,7 +43,7 @@ _PREFIX = "TEST-CT"
 
 
 def _cleanup_ledgers_for(restaurant):
-    frappe.db.delete("Commission Ledger Entry", {"restaurant": restaurant})
+    frappe.db.delete("Commission Ledger Entry", {"outlet": restaurant})
     frappe.db.commit()
 
 
@@ -62,7 +62,7 @@ def _make_cash_order(restaurant, total_rupees=1000.0, status="Accepted",
         "doctype": "Order",
         "order_id": frappe.generate_hash(length=10),
         "order_number": f"CTTST-{frappe.generate_hash(length=4)}",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "status": "confirmed",  # keep hook quiet during insert
         "payment_status": "pending",
         "payment_method": payment_method,

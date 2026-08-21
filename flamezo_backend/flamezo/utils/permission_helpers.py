@@ -48,8 +48,8 @@ def get_restaurant_permission_query_conditions(user, doctype=None, **kwargs):
 			else:
 				# If doctype is not passed, we can't safely assume parent/restaurant field
 				return ""
-			if meta.has_field("restaurant"):
-				return f"`tab{doctype}`.restaurant IN ({restaurant_list})"
+			if meta.has_field("outlet"):
+				return f"`tab{doctype}`.outlet IN ({restaurant_list})"
 			
 			# Skip filtering for doctypes without restaurant field (e.g. child tables)
 			return ""
@@ -89,13 +89,13 @@ def has_restaurant_permission(doc, ptype="read", user=None, **kwargs):
 				restaurant_ids = get_user_restaurant_ids(user)
 				return doc.name in restaurant_ids
 			
-			# For other doctypes, check restaurant field
-			if not hasattr(doc, "restaurant") or not doc.restaurant:
+			# For other doctypes, check outlet field
+			if not hasattr(doc, "outlet") or not doc.outlet:
 				return False
-			
+
 			# Check user has access to this restaurant
 			restaurant_ids = get_user_restaurant_ids(user)
-			return doc.restaurant in restaurant_ids
+			return doc.outlet in restaurant_ids
 		finally:
 			if hasattr(frappe.local, guard_key):
 				delattr(frappe.local, guard_key)
@@ -155,9 +155,9 @@ def get_restaurant_user_permission_query_conditions(user, doctype="Outlet User",
 	if not restaurant_ids:
 		return "1=0"  # No access
 	
-	# Build condition - Restaurant User has a restaurant field
+	# Build condition - Restaurant User has an outlet field
 	restaurant_list = ",".join([f'"{r}"' for r in restaurant_ids])
-	return f"`tab{doctype}`.restaurant IN ({restaurant_list})"
+	return f"`tab{doctype}`.outlet IN ({restaurant_list})"
 
 
 

@@ -26,15 +26,15 @@ def get_offers(outlet_id, featured=None, category=None, active_only=True):
 		# Build filters (Frappe get_all: dict for simple eq, or list-of-lists for conditions)
 		today_date = today()
 		date_filters = []
-		if active_only and frappe.db.exists("Offer", {"restaurant": restaurant}):
-			if frappe.db.exists("Offer", {"restaurant": restaurant, "valid_from": ["is", "set"]}):
+		if active_only and frappe.db.exists("Offer", {"outlet": restaurant}):
+			if frappe.db.exists("Offer", {"outlet": restaurant, "valid_from": ["is", "set"]}):
 				date_filters.append(["valid_from", "<=", today_date])
-			if frappe.db.exists("Offer", {"restaurant": restaurant, "valid_to": ["is", "set"]}):
+			if frappe.db.exists("Offer", {"outlet": restaurant, "valid_to": ["is", "set"]}):
 				date_filters.append(["valid_to", ">=", today_date])
 
 		if date_filters:
 			# Use list-of-lists so we can add date conditions (dict has no .extend())
-			filters = [["restaurant", "=", restaurant]]
+			filters = [["outlet", "=", restaurant]]
 			if active_only:
 				filters.append(["is_active", "=", 1])
 			filters.extend(date_filters)
@@ -43,7 +43,7 @@ def get_offers(outlet_id, featured=None, category=None, active_only=True):
 			if category:
 				filters.append(["category", "=", category])
 		else:
-			filters = {"restaurant": restaurant}
+			filters = {"outlet": restaurant}
 			if active_only:
 				filters["is_active"] = 1
 			if featured is not None:
@@ -129,7 +129,7 @@ def create_offer(outlet_id, title, description=None, discount=None, valid_until=
 		# Create offer
 		offer_doc = frappe.get_doc({
 			"doctype": "Offer",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"title": title,
 			"description": description,
 			"discount": discount,

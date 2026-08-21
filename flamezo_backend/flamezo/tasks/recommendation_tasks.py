@@ -73,7 +73,7 @@ def run_weekly_recommendation_refresh():
 
     outlets = frappe.get_all(
         "Outlet",
-        fields=["name", "restaurant_id"],
+        fields=["name", "outlet_id"],
         filters={"disabled": 0},
     )
 

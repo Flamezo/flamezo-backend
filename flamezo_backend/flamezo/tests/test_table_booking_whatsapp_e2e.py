@@ -40,7 +40,7 @@ def _make_rest(suffix="01", **kwargs):
 def _make_booking(restaurant, notes=""):
     doc = frappe.get_doc({
         "doctype": "Table Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer_phone": _PHONE,
         "customer_name": "Test Guest",
         "date": add_days(today(), 2),
@@ -74,7 +74,7 @@ class TestBuildParams(unittest.TestCase):
 
     def test_params_shape(self):
         b = _make_booking(self.rest.name)
-        params = tbw.build_table_booking_params(b, self.rest.restaurant_name)
+        params = tbw.build_table_booking_params(b, self.rest.outlet_name)
         self.assertEqual(len(params), 4)
         self.assertIn("Test Guest", params[0])
         self.assertIn(_PHONE, params[0])
@@ -83,13 +83,13 @@ class TestBuildParams(unittest.TestCase):
 
     def test_notes_appended_to_time_param(self):
         b = _make_booking(self.rest.name, notes="Window seat if possible")
-        params = tbw.build_table_booking_params(b, self.rest.restaurant_name)
+        params = tbw.build_table_booking_params(b, self.rest.outlet_name)
         self.assertIn("Window seat if possible", params[3])
         self.assertIn("Tonight, around 8", params[3])
 
     def test_multiline_notes_collapsed_to_one_line(self):
         b = _make_booking(self.rest.name, notes="Line one\n\tLine two    with   spaces")
-        params = tbw.build_table_booking_params(b, self.rest.restaurant_name)
+        params = tbw.build_table_booking_params(b, self.rest.outlet_name)
         self.assertNotIn("\n", params[3])
         self.assertNotIn("\t", params[3])
         self.assertNotIn("    ", params[3])
@@ -207,23 +207,23 @@ class TestBuildCustomerParams(unittest.TestCase):
 
     def test_params_shape(self):
         b = _make_booking(self.rest.name)
-        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        params = tbw.build_customer_confirmation_params(b, self.rest.outlet_name)
         self.assertEqual(len(params), 4)
         self.assertEqual(params[0], "Test")  # first name only, from "Test Guest"
-        self.assertEqual(params[1], self.rest.restaurant_name)
+        self.assertEqual(params[1], self.rest.outlet_name)
         self.assertEqual(params[2], "a table for 3")
         self.assertIn("Tonight, around 8", params[3])
 
     def test_first_name_only(self):
         b = _make_booking(self.rest.name)
         b.customer_name = "Multi Word Full Name"
-        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        params = tbw.build_customer_confirmation_params(b, self.rest.outlet_name)
         self.assertEqual(params[0], "Multi")
 
     def test_missing_name_falls_back(self):
         b = _make_booking(self.rest.name)
         b.customer_name = ""
-        params = tbw.build_customer_confirmation_params(b, self.rest.restaurant_name)
+        params = tbw.build_customer_confirmation_params(b, self.rest.outlet_name)
         self.assertEqual(params[0], "there")
 
 

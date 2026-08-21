@@ -417,7 +417,7 @@ export default function QRCodes() {
     if (!qrCodeUrl) return
     const link = document.createElement('a')
     link.href = qrCodeUrl
-    link.download = `${restaurantDoc?.restaurant_id || 'restaurant'}_qr_codes.pdf`
+    link.download = `${restaurantDoc?.outlet_id || 'restaurant'}_qr_codes.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -1079,7 +1079,7 @@ export default function QRCodes() {
 
       {/* ── QR Code Scanner Dialog ─────────────────────────────────────────── */}
       <QRCodeScanner
-        outletId={restaurantDoc?.restaurant_id || ''}
+        outletId={restaurantDoc?.outlet_id || ''}
         open={showScanner}
         onOpenChange={setShowScanner}
         onScan={(tableNumber) => {

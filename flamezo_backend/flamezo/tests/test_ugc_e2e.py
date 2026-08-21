@@ -53,13 +53,13 @@ def _setup():
 	rows = frappe.get_all(
 		"Order",
 		filters={"payment_status": "completed", "platform_customer": ["is", "set"]},
-		fields=["name", "restaurant", "platform_customer", "total"],
+		fields=["name", "outlet", "platform_customer", "total"],
 		limit_page_length=80,
 	)
 	groups = defaultdict(list)
 	for o in rows:
 		if flt(o.total) > 0:
-			groups[(o.restaurant, o.platform_customer)].append((o.name, flt(o.total)))
+			groups[(o.outlet, o.platform_customer)].append((o.name, flt(o.total)))
 	if not groups:
 		raise Exception("No completed orders with a platform_customer to test against.")
 	(restaurant, customer), orders = max(groups.items(), key=lambda kv: len(kv[1]))
@@ -74,7 +74,7 @@ def _ensure_config(restaurant, **overrides):
 	}
 	payload.update(overrides)
 	ugc.save_ugc_config(restaurant, payload)
-	cfg = frappe.db.get_value("UGC Cashback Config", {"restaurant": restaurant}, "name")
+	cfg = frappe.db.get_value("UGC Cashback Config", {"outlet": restaurant}, "name")
 	if cfg:
 		CREATED_CONFIGS.add(cfg)
 
@@ -86,7 +86,7 @@ def _ensure_config(restaurant, **overrides):
 	)
 	if not tpl:
 		ma = frappe.get_doc({
-			"doctype": "Media Asset", "media_id": f"tpl_{cfg[:10]}", "restaurant": restaurant,
+			"doctype": "Media Asset", "media_id": f"tpl_{cfg[:10]}", "outlet": restaurant,
 			"owner_doctype": "UGC Cashback Config", "owner_name": cfg,
 			"media_role": "ugc_template_image", "media_kind": "image", "status": "uploaded",
 			"primary_url": "https://example.com/template.jpg", "raw_object_key": "test/template.jpg",
@@ -242,7 +242,7 @@ def _run():
 		asset = frappe.get_doc({
 			"doctype": "Media Asset",
 			"media_id": "test_cleanup_media",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"owner_doctype": "UGC Story Submission",
 			"owner_name": sub_id,
 			"media_role": "ugc_proof_video",
@@ -294,7 +294,7 @@ def _run():
 	# 1) Single-template enforcement: saving two assets keeps exactly one.
 	if tpl_name:
 		ma2 = frappe.get_doc({
-			"doctype": "Media Asset", "media_id": "tpl_dummy_2", "restaurant": restaurant,
+			"doctype": "Media Asset", "media_id": "tpl_dummy_2", "outlet": restaurant,
 			"owner_doctype": "UGC Cashback Config", "owner_name": cfg,
 			"media_role": "ugc_template_image", "media_kind": "image", "status": "uploaded",
 			"primary_url": "https://example.com/t2.jpg", "raw_object_key": "test/t2.jpg", "is_active": 1,
@@ -305,7 +305,7 @@ def _run():
 		_check("only one template kept (cap enforced)", len(cfg_doc.template_assets) == 1)
 
 	# 2) Coupons are the one restaurant-editable control: save + read back.
-	some_coupon = frappe.db.get_value("Coupon", {"restaurant": restaurant}, "name")
+	some_coupon = frappe.db.get_value("Coupon", {"outlet": restaurant}, "name")
 	if some_coupon:
 		ugc.save_ugc_config(restaurant, {"coupon_for_viewers": some_coupon})
 		_check("coupon saved + returned", _data(ugc.get_ugc_config(restaurant)).get("coupon_for_viewers") == some_coupon)
@@ -350,7 +350,7 @@ def _run():
 	def _make_submission(order_id, status, proof_dt_days=None):
 		_purge_order(order_id)
 		doc = frappe.get_doc({
-			"doctype": "UGC Story Submission", "restaurant": restaurant, "customer": customer,
+			"doctype": "UGC Story Submission", "outlet": restaurant, "customer": customer,
 			"order": order_id, "order_amount": 500, "status": status, "submission_date": now_datetime(),
 		})
 		if proof_dt_days is not None:
@@ -361,7 +361,7 @@ def _run():
 
 	def _make_proof_asset(owner_name, key, media_id):
 		ma = frappe.get_doc({
-			"doctype": "Media Asset", "media_id": media_id, "restaurant": restaurant,
+			"doctype": "Media Asset", "media_id": media_id, "outlet": restaurant,
 			"owner_doctype": "UGC Story Submission", "owner_name": owner_name, "media_role": "ugc_proof_video",
 			"media_kind": "video", "status": "uploaded", "primary_url": f"https://example.com/{media_id}.mp4",
 			"raw_object_key": key, "is_active": 1,

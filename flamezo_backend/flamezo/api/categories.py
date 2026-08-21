@@ -53,7 +53,7 @@ def invalidate_category_cache(doc=None, method=None, outlet_id=None):
 	import time
 	rid = outlet_id
 	if rid is None and doc is not None:
-		rid = doc.get("restaurant") or doc.get("outlet_id")
+		rid = doc.get("outlet") or doc.get("outlet_id")
 	if rid:
 		frappe.cache().set_value(f"cats_v:{rid}", str(int(time.time())), expires_in_sec=7200)
 
@@ -76,7 +76,7 @@ def get_categories(outlet_id, include_inactive=0):
 		if cached:
 			return json.loads(cached)
 
-		cat_filters = {"restaurant": restaurant}
+		cat_filters = {"outlet": restaurant}
 		if not cint(include_inactive):
 			cat_filters["is_active"] = 1
 
@@ -116,7 +116,7 @@ def get_categories(outlet_id, include_inactive=0):
 		# We need counts for every category (parent + children).
 		all_cat_names = [c["docname"] for c in all_cats]  # actual Frappe hash docnames
 
-		product_count_filters = {"restaurant": restaurant, "category": ["in", all_cat_names]}
+		product_count_filters = {"outlet": restaurant, "category": ["in", all_cat_names]}
 		if not cint(include_inactive):
 			product_count_filters["is_active"] = 1
 
@@ -190,7 +190,7 @@ def get_categories(outlet_id, include_inactive=0):
 					AND pm.parenttype = 'Menu Product'
 					AND pm.parentfield = 'product_media'
 					AND pm.media_type = 'image'
-				WHERE mp.restaurant = %s AND mp.is_active = 1 AND mp.category IN %s
+				WHERE mp.outlet = %s AND mp.is_active = 1 AND mp.category IN %s
 				ORDER BY mp.category ASC, pm.idx ASC
 				""",
 				(restaurant, tuple(all_cat_names)),
@@ -289,7 +289,7 @@ def get_categories(outlet_id, include_inactive=0):
 		# ── Virtual categories ──────────────────────────────────────────────
 		top_picks_count = frappe.db.count(
 			"Menu Product",
-			filters={"product_type": "top-picks", "is_active": 1, "restaurant": restaurant},
+			filters={"product_type": "top-picks", "is_active": 1, "outlet": restaurant},
 		)
 		if top_picks_count > 0:
 			top_picks = {
@@ -309,7 +309,7 @@ def get_categories(outlet_id, include_inactive=0):
 					"media_type": "image",
 					"parent": ["in", frappe.get_all(
 						"Menu Product",
-						filters={"product_type": "top-picks", "is_active": 1, "restaurant": restaurant},
+						filters={"product_type": "top-picks", "is_active": 1, "outlet": restaurant},
 						pluck="name",
 					)],
 				},
@@ -326,7 +326,7 @@ def get_categories(outlet_id, include_inactive=0):
 
 		chef_special_count = frappe.db.count(
 			"Menu Product",
-			filters={"product_type": "chef-special", "is_active": 1, "restaurant": restaurant},
+			filters={"product_type": "chef-special", "is_active": 1, "outlet": restaurant},
 		)
 		if chef_special_count > 0:
 			chef_special = {
@@ -395,7 +395,7 @@ def get_parent_categories(outlet_id):
 		cats = frappe.get_all(
 			"Menu Category",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"is_active": 1,
 				"parent_category": ["is", "not set"],
 			},

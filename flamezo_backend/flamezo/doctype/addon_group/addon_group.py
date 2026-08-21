@@ -20,7 +20,7 @@ class AddonGroup(Document):
         slug = re.sub(r'[^a-z0-9]+', '-', self.group_name.lower()).strip('-')
         # Ensure uniqueness within restaurant
         existing = frappe.db.count("Addon Group", {
-            "restaurant": self.restaurant,
+            "outlet": self.outlet,
             "group_id": ["like", f"{slug}%"]
         })
         if existing:

@@ -11,7 +11,7 @@ class OutletTable(Document):
 		# Ensure table_number is unique per restaurant
 		if self.is_new():
 			existing = frappe.db.exists("Outlet Table", {
-				"restaurant": self.restaurant,
+				"outlet": self.outlet,
 				"table_number": self.table_number,
 				"name": ["!=", self.name]
 			})

@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "issingle": 0,
  "field_order": [
-  "restaurant",
+  "outlet",
   "coupon",
   "coupon_code",
   "column_break_1",
@@ -22,7 +22,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

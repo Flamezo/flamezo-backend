@@ -53,17 +53,17 @@ def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None, inclu
     # menu-photo gallery rows never bury the real Google photos.
     gallery_rows = frappe.db.sql(
         f"""
-        SELECT restaurant, url, media_type as type, title, sort_order,
+        SELECT outlet, url, media_type as type, title, sort_order,
                (source != 'Google Places') as source_rank
         FROM `tabOutlet Gallery Item`
-        WHERE restaurant IN ({placeholders}) AND is_selected = 1
-        ORDER BY restaurant, source_rank ASC, sort_order ASC
+        WHERE outlet IN ({placeholders}) AND is_selected = 1
+        ORDER BY outlet, source_rank ASC, sort_order ASC
         """,
         outlet_ids,
         as_dict=True,
     )
     for row in gallery_rows:
-        bucket = result[row.restaurant]
+        bucket = result[row.outlet]
         if len(bucket) < limit_per_outlet and row.url:
             bucket.append({"url": row.url, "type": row.type or "Image", "title": row.title or ""})
 
@@ -76,18 +76,18 @@ def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None, inclu
             need_placeholders = ",".join(["%s"] * len(needing))
             food_rows = frappe.db.sql(
                 f"""
-                SELECT p.restaurant as restaurant, pm.media_url as url, pm.media_type as type,
+                SELECT p.outlet as outlet, pm.media_url as url, pm.media_type as type,
                        p.product_name as title
                 FROM `tabProduct Media` pm
                 JOIN `tabMenu Product` p ON pm.parent = p.name
-                WHERE p.restaurant IN ({need_placeholders}) AND p.is_active = 1
-                ORDER BY p.restaurant, p.display_order ASC, pm.display_order ASC
+                WHERE p.outlet IN ({need_placeholders}) AND p.is_active = 1
+                ORDER BY p.outlet, p.display_order ASC, pm.display_order ASC
                 """,
                 needing,
                 as_dict=True,
             )
             for row in food_rows:
-                bucket = result[row.restaurant]
+                bucket = result[row.outlet]
                 if len(bucket) < limit_per_outlet and row.url:
                     bucket.append({"url": row.url, "type": row.type or "Image", "title": row.title or ""})
 

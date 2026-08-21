@@ -28,7 +28,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_s
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _resolve_restaurant(outlet_id):
-	name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
+	name = frappe.db.get_value("Outlet", {"outlet_id": outlet_id}, "name")
 	return name or frappe.db.get_value("Outlet", outlet_id, "name")
 
 
@@ -47,14 +47,14 @@ def _assert_restaurant_access(restaurant_name):
 		return
 	has_access = frappe.db.exists(
 		"Outlet User",
-		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
+		{"outlet": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
 		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
 
 
 def _assert_appointment_belongs_to_restaurant(appointment_name, restaurant_name):
-	owner = frappe.db.get_value("Service Appointment", appointment_name, "restaurant")
+	owner = frappe.db.get_value("Service Appointment", appointment_name, "outlet")
 	if owner != restaurant_name:
 		frappe.throw(_("Appointment not found."), frappe.DoesNotExistError)
 
@@ -62,7 +62,7 @@ def _assert_appointment_belongs_to_restaurant(appointment_name, restaurant_name)
 def _format_appointment(appt):
 	return {
 		"id": appt.name,
-		"restaurant": appt.restaurant,
+		"restaurant": appt.outlet,
 		"outlet_type": appt.outlet_type or "",
 		"catalogue_item": appt.catalogue_item or "",
 		"catalogue_item_name": appt.catalogue_item_name or "",
@@ -126,7 +126,7 @@ def create_appointment(
 
 		doc = frappe.get_doc({
 			"doctype": "Service Appointment",
-			"restaurant": restaurant_name,
+			"outlet": restaurant_name,
 			"outlet_type": outlet_type,
 			"catalogue_item": catalogue_item_id or None,
 			"sub_item_name": sub_item_name or "",
@@ -177,7 +177,7 @@ def get_my_appointments(phone=None, page=1, limit=20):
 			"Service Appointment",
 			filters={"customer_phone": phone.strip()},
 			fields=[
-				"name", "restaurant", "outlet_type",
+				"name", "outlet", "outlet_type",
 				"catalogue_item", "catalogue_item_name",
 				"sub_item_name", "sub_item_price",
 				"customer_name", "customer_phone",
@@ -272,7 +272,7 @@ def get_appointment_requests(
 		limit = min(cint(limit) or 20, 100)
 		offset = (page - 1) * limit
 
-		filters = {"restaurant": restaurant_name}
+		filters = {"outlet": restaurant_name}
 		if status:
 			filters["status"] = status
 		if date:
@@ -282,7 +282,7 @@ def get_appointment_requests(
 			"Service Appointment",
 			filters=filters,
 			fields=[
-				"name", "restaurant", "outlet_type",
+				"name", "outlet", "outlet_type",
 				"catalogue_item", "catalogue_item_name",
 				"sub_item_name", "sub_item_price",
 				"customer_name", "customer_phone",
@@ -405,7 +405,7 @@ def get_appointment_summary(outlet_id=None, date=None):
 
 		rows = frappe.get_all(
 			"Service Appointment",
-			filters={"restaurant": restaurant_name, "appointment_date": target_date},
+			filters={"outlet": restaurant_name, "appointment_date": target_date},
 			fields=["status"],
 		)
 

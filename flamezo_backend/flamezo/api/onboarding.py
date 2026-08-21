@@ -21,16 +21,16 @@ def generate_onboarding_link(outlet_name=None, linked_restaurant=None):
 
         # If linked_restaurant is provided, get the name
         if linked_restaurant:
-            res_details = frappe.db.get_value('Outlet', linked_restaurant, ['restaurant_name', 'owner_email', 'owner_phone'], as_dict=1)
+            res_details = frappe.db.get_value('Outlet', linked_restaurant, ['outlet_name', 'owner_email', 'owner_phone'], as_dict=1)
             if res_details:
-                outlet_name = res_details.get('restaurant_name')
+                outlet_name = res_details.get('outlet_name')
 
         # Generate a secure token
         token = secrets.token_urlsafe(16)
         
         # Create the onboarding record
         doc = frappe.new_doc('Outlet Onboarding')
-        doc.restaurant_name = outlet_name
+        doc.outlet_name = outlet_name
         doc.linked_restaurant = linked_restaurant
         
         # Prefill from existing if available
@@ -78,7 +78,7 @@ def get_onboarding_details(token):
         
         # Step 1-6 (Defensive checks for fields that might not have synced to DB yet)
         data_dict = {
-            'outlet_name': doc.restaurant_name,
+            'outlet_name': doc.outlet_name,
             'owner_name': getattr(doc, 'owner_name', None),
             'owner_email': getattr(doc, 'owner_email', None),
             'owner_phone': getattr(doc, 'owner_phone', None),
@@ -207,7 +207,7 @@ def get_all_onboarding_requests():
 
         requests = frappe.get_all(
             'Outlet Onboarding',
-            fields=['name', 'restaurant_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation', 'linked_restaurant'],
+            fields=['name', 'outlet_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation', 'linked_restaurant'],
             order_by='creation desc',
             limit=0,
         )
@@ -217,7 +217,7 @@ def get_all_onboarding_requests():
         for r in requests:
             if not r.get('onboarding_link') and r.get('unique_token'):
                 r['onboarding_link'] = f"{base_url}/onboard?token={r['unique_token']}"
-            r['outlet_name'] = r.pop('restaurant_name', None)
+            r['outlet_name'] = r.pop('outlet_name', None)
 
         return {
             'success': True,
@@ -288,7 +288,7 @@ def get_onboarding_by_name(name):
 
         data = {
             'name': doc.name,
-            'outlet_name': doc.restaurant_name,
+            'outlet_name': doc.outlet_name,
             'linked_restaurant': getattr(doc, 'linked_restaurant', None),
             'status': doc.status,
             'owner_name': getattr(doc, 'owner_name', None),
@@ -394,7 +394,7 @@ def sync_onboarding_to_outlet(name):
         res_doc.save(ignore_permissions=True)
 
         # ── Sync to Restaurant Config ───────────────────────────────────────
-        config_name = frappe.db.get_value('Outlet Config', {'restaurant': restaurant}, 'name')
+        config_name = frappe.db.get_value('Outlet Config', {'outlet': restaurant}, 'name')
         if config_name:
             config_doc = frappe.get_doc('Outlet Config', config_name)
 
@@ -438,7 +438,7 @@ def sync_onboarding_to_outlet(name):
 
         return {
             'success': True,
-            'message': f'Synced to {res_doc.restaurant_name} successfully',
+            'message': f'Synced to {res_doc.outlet_name} successfully',
             'data': {'outlet_id': restaurant}
         }
     except Exception as e:
@@ -484,7 +484,7 @@ def auto_sync_onboarding_display(doc, method=None):
         if r_updates:
             frappe.db.set_value('Outlet', restaurant, r_updates)
 
-        config = frappe.db.get_value('Outlet Config', {'restaurant': restaurant}, 'name')
+        config = frappe.db.get_value('Outlet Config', {'outlet': restaurant}, 'name')
         if config:
             c_updates = {}
             for src, dest in _ONBOARD_CONFIG_DISPLAY.items():

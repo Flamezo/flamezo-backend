@@ -19,7 +19,7 @@ from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_ap
 def _get_catalogue_item(item_id, restaurant):
     """Fetch Catalogue Item doc and verify it belongs to restaurant. Raises on failure."""
     doc = frappe.get_doc("Catalogue Item", item_id)
-    if doc.restaurant != restaurant:
+    if doc.outlet != restaurant:
         frappe.throw(_("Item not found or access denied"), exc=frappe.DoesNotExistError)
     return doc
 
@@ -80,7 +80,7 @@ def link_addon_to_item(outlet_id, item_id, addon_group_id, display_order=0):
         doc = _get_catalogue_item(item_id, restaurant)
 
         # Validate addon group belongs to restaurant
-        if not frappe.db.exists("Addon Group", {"name": addon_group_id, "restaurant": restaurant}):
+        if not frappe.db.exists("Addon Group", {"name": addon_group_id, "outlet": restaurant}):
             return {"success": False, "error": {"code": "NOT_FOUND", "message": "Addon group not found"}}
 
         # Skip if already linked

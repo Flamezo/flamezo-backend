@@ -13,7 +13,7 @@ def migrate_tokenizations():
         # Find candidate orders
         # Prefer explicit tokenization marker in order_number (TOK-...). As a fallback include tiny orders with a razorpay_order_id.
         rows = frappe.db.sql("""
-            SELECT name, restaurant, total, razorpay_order_id, razorpay_payment_id
+            SELECT name, outlet, total, razorpay_order_id, razorpay_payment_id
             FROM `tabOrder`
             WHERE order_number LIKE 'TOK-%%' OR (razorpay_order_id IS NOT NULL AND total <= 1)
         """, as_dict=True)
@@ -26,7 +26,7 @@ def migrate_tokenizations():
 
                 attempt = frappe.get_doc({
                     "doctype": "Tokenization Attempt",
-                    "restaurant": r.get("restaurant"),
+                    "outlet": r.get("outlet"),
                     "order_ref": r.get("name"),
                     "amount": amount_paise if amount_paise > 0 else 100,
                     "currency": "INR",

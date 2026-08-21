@@ -274,7 +274,7 @@ export default function Coupons() {
 
   const initialFilters = useMemo(() => {
     if (!selectedOutlet) return []
-    const f: any[] = [{ fieldname: 'restaurant', operator: '=', value: selectedOutlet }]
+    const f: any[] = [{ fieldname: 'outlet', operator: '=', value: selectedOutlet }]
     if (filterType === 'active') {
       f.push({ fieldname: 'is_active', operator: '=', value: 1 })
     } else if (filterType === 'inactive') {
@@ -299,7 +299,7 @@ export default function Coupons() {
       'name', 'code', 'description', 'discount_type', 'discount_value',
       'min_order_amount', 'is_active', 'valid_from', 'valid_until',
       'max_uses', 'max_uses_per_user', 'usage_count', 'offer_type',
-      'max_discount_cap', 'priority', 'restaurant', 'valid_days_of_week',
+      'max_discount_cap', 'priority', 'outlet', 'valid_days_of_week',
       'valid_time_start', 'valid_time_end', 'can_stack', 'free_item',
       'required_items', 'combo_price', 'category', 'google_review_link', 'review_reward_type',
     ],
@@ -321,7 +321,7 @@ export default function Coupons() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateCoupon = async (formData: any) => {
-    await createCoupon({ doc: { doctype: 'Coupon', ...formData, restaurant: selectedOutlet } })
+    await createCoupon({ doc: { doctype: 'Coupon', ...formData, outlet: selectedOutlet } })
     // Await mutate so the list is refreshed before the dialog closes
     await mutate()
     setIsCreateDialogOpen(false)
@@ -417,7 +417,7 @@ export default function Coupons() {
             // Frappe Date fields reject '' — send null when the AI didn't set a date
             valid_from: form.valid_from || null,
             valid_until: form.valid_until || null,
-            restaurant: selectedOutlet,
+            outlet: selectedOutlet,
           },
         })
         saved++
@@ -982,7 +982,7 @@ function CouponDialog({ open, onClose, coupon, templateDefaults, aiDefaults, onS
 
   const { data: productsData } = useFrappeGetDocList('Menu Product', {
     fields: ['product_id', 'product_name', 'category_name', 'main_category'],
-    filters: selectedOutlet ? ({ restaurant: selectedOutlet, is_active: 1 } as any) : undefined,
+    filters: selectedOutlet ? ({ outlet: selectedOutlet, is_active: 1 } as any) : undefined,
     limit: 500,
     orderBy: { field: 'product_name', order: 'asc' } as any,
   })

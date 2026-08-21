@@ -190,7 +190,7 @@ def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
         "Outlet",
         outlet_id,
         [
-            "restaurant_name", "city", "state", "currency",
+            "outlet_name", "city", "state", "currency",
             "enable_dine_in",
             "tax_rate", "total_orders", "total_revenue",
             "ai_coupon_generations_this_month", "ai_coupon_quota_reset_month",
@@ -203,7 +203,7 @@ def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
     # Menu items — sorted by price desc to surface premium items first
     menu_items = frappe.get_all(
         "Menu Product",
-        filters={"restaurant": outlet_id, "is_active": 1},
+        filters={"outlet": outlet_id, "is_active": 1},
         fields=[
             "product_name", "price", "original_price", "food_cost",
             "category_name", "main_category", "is_vegetarian",
@@ -216,7 +216,7 @@ def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
     # Existing active coupons — pass code + description so AI avoids semantic duplicates
     existing_coupons = frappe.get_all(
         "Coupon",
-        filters={"restaurant": outlet_id, "is_active": 1},
+        filters={"outlet": outlet_id, "is_active": 1},
         fields=["code", "description", "discount_type", "discount_value"],
         limit=50,
     )
@@ -284,7 +284,7 @@ def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
             "estimated_aov": estimated_aov,
             "total_items": len(menu_items),
             "categories": categories[:12],
-            "cuisine": _infer_cuisine(restaurant.restaurant_name, categories),
+            "cuisine": _infer_cuisine(restaurant.outlet_name, categories),
             "price_tier": _get_price_tier(avg_price),
             "enable_dine_in": bool(restaurant.enable_dine_in),
             "combo_candidates": combo_candidates,
@@ -501,7 +501,7 @@ STRICT RULES:
 Your job: generate {count} highly specific, immediately actionable coupon/offer suggestions for THIS restaurant.
 {request_block}
 ## Restaurant Profile
-- Name: {restaurant.restaurant_name}
+- Name: {restaurant.outlet_name}
 - Location: {restaurant.city or "India"}{", " + restaurant.state if restaurant.state else ""}
 - Cuisine: {stats["cuisine"]}
 - Price Tier: {stats["price_tier"]}
@@ -942,18 +942,18 @@ def generate_suggestions(
     # require_food_cost=False (caller already fixed the discount amount).
     if require_food_cost:
         try:
-            total_active = frappe.db.count("Menu Product", {"restaurant": outlet_id, "is_active": 1})
+            total_active = frappe.db.count("Menu Product", {"outlet": outlet_id, "is_active": 1})
             costed = (
                 frappe.db.count(
                     "Menu Product",
-                    {"restaurant": outlet_id, "is_active": 1, "food_cost": [">", 0]},
+                    {"outlet": outlet_id, "is_active": 1, "food_cost": [">", 0]},
                 )
                 if total_active > 0
                 else 0
             )
         except Exception:
             # food_cost column not yet migrated — treat as fully uncovered
-            total_active = frappe.db.count("Menu Product", {"restaurant": outlet_id, "is_active": 1})
+            total_active = frappe.db.count("Menu Product", {"outlet": outlet_id, "is_active": 1})
             costed = 0
 
         if total_active > 0 and costed < total_active:

@@ -103,7 +103,7 @@ def _make_rest(
 def _make_coupon(restaurant_name, discount_value=20):
     doc = frappe.get_doc({
         "doctype": "Coupon",
-        "restaurant": restaurant_name,
+        "outlet": restaurant_name,
         "code": f"TEST{restaurant_name[-4:].upper()}",
         "description": "Test discount",
         "discount_type": "percent",
@@ -406,7 +406,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         # Add gallery photos
         frappe.get_doc({
             "doctype": "Outlet Gallery Item",
-            "restaurant": self.rest,
+            "outlet": self.rest,
             "media_type": "Image",
             "url": "https://cdn.flamezo.in/test/photo1.jpg",
             "is_selected": 1,
@@ -417,9 +417,9 @@ class TestGetRestaurantDetail(unittest.TestCase):
         frappe.cache().delete_value(f"flamezo:outlet_detail:{self.rest}")
 
     def tearDown(self):
-        frappe.db.sql(f"DELETE FROM `tabOutlet Gallery Item` WHERE restaurant='{self.rest}'")
-        if frappe.db.exists("Coupon", {"restaurant": self.rest}):
-            for c in frappe.get_all("Coupon", {"restaurant": self.rest}):
+        frappe.db.sql(f"DELETE FROM `tabOutlet Gallery Item` WHERE outlet='{self.rest}'")
+        if frappe.db.exists("Coupon", {"outlet": self.rest}):
+            for c in frappe.get_all("Coupon", {"outlet": self.rest}):
                 frappe.delete_doc("Coupon", c.name, force=True, ignore_permissions=True)
         _cleanup()
 

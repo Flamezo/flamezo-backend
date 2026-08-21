@@ -248,7 +248,7 @@ const Payment: React.FC = () => {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Checkout</h1>
-            <p className="text-gray-600">{restaurant.restaurant_name}</p>
+            <p className="text-gray-600">{restaurant.outlet_name}</p>
             {tableNumber && (
               <p className="text-sm text-blue-600">Table {tableNumber}</p>
             )}
@@ -335,7 +335,7 @@ const Payment: React.FC = () => {
                 <CardContent>
                   <OTPVerification
                     outletId={outletId!}
-                    outletName={restaurant.restaurant_name}
+                    outletName={restaurant.outlet_name}
                     phone={customerPhone}
                     name={customerName}
                     email={customerEmail}

@@ -17,11 +17,11 @@ class MenuCategory(Document):
 		if self.category_name:
 			self.display_name = self.category_name
 
-		if self.category_id and self.restaurant:
+		if self.category_id and self.outlet:
 			# Auto-resolve duplicates for category_id
 			original_id = self.category_id
 			counter = 1
-			while frappe.db.exists("Menu Category", {"category_id": self.category_id, "restaurant": self.restaurant, "name": ["!=", self.name]}):
+			while frappe.db.exists("Menu Category", {"category_id": self.category_id, "outlet": self.outlet, "name": ["!=", self.name]}):
 				self.category_id = f"{original_id}-{counter}"
 				counter += 1
 
@@ -36,8 +36,8 @@ class MenuCategory(Document):
 			frappe.throw(_("A category cannot be its own parent."))
 
 		# Verify the parent belongs to the same restaurant
-		parent_restaurant = frappe.db.get_value("Menu Category", self.parent_category, "restaurant")
-		if parent_restaurant != self.restaurant:
+		parent_restaurant = frappe.db.get_value("Menu Category", self.parent_category, "outlet")
+		if parent_restaurant != self.outlet:
 			frappe.throw(_("Parent category must belong to the same outlet."))
 
 		# The parent itself must NOT already have a parent (max 2 levels: parent → sub)

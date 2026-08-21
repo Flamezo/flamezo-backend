@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "boost_campaign",
-  "restaurant",
+  "outlet",
   "coupon_code",
   "column_break_1",
   "redeemed_at",
@@ -27,7 +27,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

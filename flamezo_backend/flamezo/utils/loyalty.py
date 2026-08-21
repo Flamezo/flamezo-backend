@@ -29,7 +29,7 @@ def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 		# If restaurant is provided, we can still filter if needed, 
 		# but for the universal wallet, we usually want the global sum.
 		# For now, let's keep the option but default to global if restaurant is None.
-		filters["restaurant"] = restaurant
+		filters["outlet"] = restaurant
 
 	if not include_pending:
 		filters["is_settled"] = 1
@@ -112,7 +112,7 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	entry = frappe.get_doc({
 		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"coins": int(coins),
 		"transaction_type": "Redeem",
 		"reason": reason,
@@ -185,7 +185,7 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	entry = frappe.get_doc({
 		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"coins": coins_earned,
 		"transaction_type": "Earn",
 		"reason": reason,
@@ -278,7 +278,7 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 	entry = frappe.get_doc({
 		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"coins": int(deducted),
 		"transaction_type": "Redeem",
 		"reason": reason,
@@ -311,7 +311,7 @@ def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref
 	entry = frappe.get_doc({
 		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"coins": int(coins),
 		"transaction_type": transaction_type,
 		"reason": reason,
@@ -367,7 +367,7 @@ def handle_order_cancellation(doc, method=None):
 	# Only proceed if status JUST changed to cancelled (optional but safer)
 	# For now, idempotency check on entry reasons is enough to handle repeated calls
 	
-	if not doc.platform_customer or not doc.restaurant:
+	if not doc.platform_customer or not doc.outlet:
 		return
 
 	# 1. Refund Redeemed Coins
@@ -375,7 +375,7 @@ def handle_order_cancellation(doc, method=None):
 		# Idempotency: check if refund already exists for this order
 		already_refunded = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": doc.platform_customer,
-			"restaurant": doc.restaurant,
+			"outlet": doc.outlet,
 			"reference_doctype": "Order",
 			"reference_name": doc.name,
 			"reason": "Cancellation Refund"
@@ -385,7 +385,7 @@ def handle_order_cancellation(doc, method=None):
 			entry = frappe.get_doc({
 				"doctype": "Outlet Loyalty Entry",
 				"customer": doc.platform_customer,
-				"restaurant": doc.restaurant,
+				"outlet": doc.outlet,
 				"coins": int(doc.loyalty_coins_redeemed or 0),
 				"transaction_type": "Earn",
 				"reason": "Cancellation Refund",
@@ -406,7 +406,7 @@ def handle_order_cancellation(doc, method=None):
 		earned = int(doc.coins_earned or 0)
 		reverse_earned_cashback(
 			customer=doc.platform_customer,
-			restaurant=doc.restaurant,
+			restaurant=doc.outlet,
 			coins_to_reverse=earned,
 			reason=reason,
 			description=f"Order {doc.name} {verb} — ₹{earned} cashback reversed",
@@ -429,11 +429,11 @@ def handle_loyalty_settlement(doc, method=None):
 	if doc.status not in ["confirmed", "completed", "billed"] and doc.payment_status != "completed":
 		return
 	
-	if not doc.restaurant:
+	if not doc.outlet:
 		return
 
 	# Get settlement status from config
-	config = frappe.db.get_value("Outlet Loyalty Config", {"restaurant": doc.restaurant, "is_active": 1}, "earn_on_status")
+	config = frappe.db.get_value("Outlet Loyalty Config", {"outlet": doc.outlet, "is_active": 1}, "earn_on_status")
 	settle_on = (config or "Completed").lower()
 	
 	current_status = str(doc.status).lower()
@@ -490,7 +490,7 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 		if not tokens:
 			return
 
-		restaurant_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
+		restaurant_name = frappe.db.get_value("Outlet", restaurant, "outlet_name") or restaurant
 
 		REASON_MESSAGES = {
 			"Order":            f"You earned {coins} coins on your order at {restaurant_name}!",
@@ -600,7 +600,7 @@ def process_referral_cashback_on_order(order_doc):
 
 		# Determine which restaurant to use for the loyalty entry
 		# Use the restaurant from the order so the cross-network context is accurate
-		restaurant = getattr(order_doc, "restaurant", None) or getattr(order_doc, "restaurant_id", None)
+		restaurant = getattr(order_doc, "outlet", None) or getattr(order_doc, "outlet_id", None)
 		if not restaurant:
 			return
 

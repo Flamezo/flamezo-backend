@@ -576,7 +576,7 @@ def _outlet_bookings_before(outlet: str, center_date, days: int) -> int:
 	failed order isn't real incremental business."""
 	start = center_date - timedelta(days=days)
 	return frappe.db.count("Order", {
-		"restaurant": outlet,
+		"outlet": outlet,
 		"creation": ["between", [start, center_date]],
 		"payment_status": "completed",
 	})
@@ -587,7 +587,7 @@ def _outlet_bookings_after(outlet: str, center_date, days: int) -> int:
 	`center_date`."""
 	end = center_date + timedelta(days=days)
 	return frappe.db.count("Order", {
-		"restaurant": outlet,
+		"outlet": outlet,
 		"creation": ["between", [center_date, end]],
 		"payment_status": "completed",
 	})

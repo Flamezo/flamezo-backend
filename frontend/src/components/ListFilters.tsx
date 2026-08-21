@@ -63,17 +63,17 @@ export function ListFilters({
   const [isOpen, setIsOpen] = useState(false)
   const { meta } = useDocTypeMeta(doctype)
   
-  // Get filterable fields (exclude hidden, section breaks, column breaks, and restaurant field)
+  // Get filterable fields (exclude hidden, section breaks, column breaks, and outlet field)
   const filterableFields = useMemo(() => {
     if (!meta?.fields) return []
-    return meta.fields.filter(field => 
-      !field.hidden && 
-      field.fieldtype !== 'Section Break' && 
+    return meta.fields.filter(field =>
+      !field.hidden &&
+      field.fieldtype !== 'Section Break' &&
       field.fieldtype !== 'Column Break' &&
       field.fieldtype !== 'Tab Break' &&
       field.fieldtype !== 'HTML' &&
       field.fieldtype !== 'Button' &&
-      field.fieldname !== 'restaurant' // Exclude restaurant field from filters
+      field.fieldname !== 'outlet' // Exclude outlet field from filters
     )
   }, [meta])
 

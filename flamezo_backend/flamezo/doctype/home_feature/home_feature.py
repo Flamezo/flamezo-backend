@@ -32,11 +32,11 @@ class HomeFeature(Document):
 			)
 
 		# Enforce uniqueness: only one document per restaurant + feature_id
-		if self.restaurant and self.feature_id:
+		if self.outlet and self.feature_id:
 			existing = frappe.db.exists(
 				"Home Feature",
 				{
-					"restaurant": self.restaurant,
+					"outlet": self.outlet,
 					"feature_id": self.feature_id,
 					"name": ["!=", self.name],
 				},
@@ -46,7 +46,7 @@ class HomeFeature(Document):
 					_(
 						"Home Feature {0} is already configured for outlet {1}. "
 						"Edit the existing record instead of creating a duplicate."
-					).format(self.feature_id, self.restaurant)
+					).format(self.feature_id, self.outlet)
 				)
 
 	def on_update(self):
@@ -91,7 +91,7 @@ class HomeFeature(Document):
 				# Create a new Media Asset record
 				media_asset = frappe.get_doc({
 					"doctype": "Media Asset",
-					"restaurant": self.restaurant,
+					"outlet": self.outlet,
 					"owner_doctype": "Home Feature",
 					"owner_name": self.name,
 					"media_role": "home_feature_image",

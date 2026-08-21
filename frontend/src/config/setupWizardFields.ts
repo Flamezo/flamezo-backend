@@ -19,7 +19,7 @@ interface StepFieldGate {
 export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
   restaurant: {
     shown: [
-      'restaurant_name',
+      'outlet_name',
       'owner_name',
       'owner_email',
       'owner_phone',
@@ -40,7 +40,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'tables',
 
       // System / internal IDs
-      'restaurant_id',
+      'outlet_id',
       'company',
       'subdomain',
       'slug',
@@ -141,8 +141,8 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
 
     alwaysHidden: [
       // Internal / system
-      'restaurant',
-      'restaurant_name',
+      'outlet',
+      'outlet_name',
       'currency',
       'primary_color',
       'apple_touch_icon',

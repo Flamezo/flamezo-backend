@@ -12,7 +12,7 @@ def test_deletion():
     # Create test product with nested child tables
     product = frappe.get_doc({
         "doctype": "Menu Product",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "product_name": "Test Product Nested Deletion",
         "price": 100,
         "is_vegetarian": 1,

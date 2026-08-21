@@ -144,9 +144,9 @@ def ensure_linked_account(restaurant) -> dict:
         "phone": phone_int or phone_str,
         "type": "route",
         "reference_id": res.name,
-        "legal_business_name": (res.get("legal_name") or res.restaurant_name).strip(),
+        "legal_business_name": (res.get("legal_name") or res.outlet_name).strip(),
         "business_type": business_type,
-        "contact_name": (res.get("owner_name") or res.restaurant_name).strip(),
+        "contact_name": (res.get("owner_name") or res.outlet_name).strip(),
         "profile": {
             "category": "food",
             "subcategory": "restaurant",
@@ -260,7 +260,7 @@ def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
                 f"{BASE}/v2/accounts/{account_id}/stakeholders",
                 auth=auth, timeout=TIMEOUT,
                 json={
-                    "name": (res.get("owner_name") or res.restaurant_name).strip(),
+                    "name": (res.get("owner_name") or res.outlet_name).strip(),
                     "email": res.owner_email,
                     **({"phone": {"primary": phone_int}} if phone_int else {}),
                     # A stakeholder is always an INDIVIDUAL — Razorpay wants "the
@@ -328,7 +328,7 @@ def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
                 "settlements": {
                     "account_number": (res.get("bank_account_number") or "").strip(),
                     "ifsc_code": (res.get("bank_ifsc") or "").strip().upper(),
-                    "beneficiary_name": (res.get("bank_holder_name") or res.restaurant_name).strip(),
+                    "beneficiary_name": (res.get("bank_holder_name") or res.outlet_name).strip(),
                 },
                 "tnc_accepted": True,
             },
@@ -567,7 +567,7 @@ def _stakeholder_pan(res) -> str:
 
 def _missing_kyc_fields(res) -> list:
     required = [
-        ("restaurant_name", "Restaurant Name"),
+        ("outlet_name", "Restaurant Name"),
         ("owner_email", "Owner Email"),
         ("owner_phone", "Owner Phone"),
         ("pan_number", "PAN Number"),

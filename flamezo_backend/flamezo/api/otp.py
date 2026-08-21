@@ -796,7 +796,7 @@ def _create_otp_log(outlet_id, phone, channel, verified, purpose, error_message)
 	try:
 		frappe.get_doc({
 			"doctype": "OTP Verification Log",
-			"restaurant": outlet_id,
+			"outlet": outlet_id,
 			"phone": phone,
 			"channel": channel,
 			"verified": verified,

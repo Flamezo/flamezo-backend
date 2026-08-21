@@ -54,7 +54,7 @@ def _indian_format(amount):
 
 def _resolve_restaurant_name(outlet_id):
 	"""Resolve outlet_id (external ID or internal name) to internal Frappe name."""
-	name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
+	name = frappe.db.get_value("Outlet", {"outlet_id": outlet_id}, "name")
 	if not name:
 		# Try direct name match
 		name = frappe.db.get_value("Outlet", outlet_id, "name")
@@ -67,7 +67,7 @@ def _assert_restaurant_access(restaurant_name):
 		return
 	has_access = frappe.db.exists(
 		"Outlet User",
-		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
+		{"outlet": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
 		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
@@ -126,7 +126,7 @@ def get_catalogue(outlet_id=None):
 		# Query 1: categories
 		categories = frappe.get_all(
 			"Catalogue Category",
-			filters={"restaurant": restaurant_name, "is_active": 1},
+			filters={"outlet": restaurant_name, "is_active": 1},
 			fields=["name", "category_name", "sort_order"],
 			order_by="sort_order asc, creation asc",
 		)
@@ -141,7 +141,7 @@ def get_catalogue(outlet_id=None):
 		# Query 2: all items for this restaurant
 		items = frappe.get_all(
 			"Catalogue Item",
-			filters={"restaurant": restaurant_name, "is_active": 1, "category": ["in", category_names]},
+			filters={"outlet": restaurant_name, "is_active": 1, "category": ["in", category_names]},
 			fields=[
 				"name", "item_name", "category", "price", "price_prefix",
 				"original_price", "is_popular", "badge", "description", "sort_order",
@@ -273,7 +273,7 @@ def get_catalogue_item(item_id=None, outlet_id=None):
 		# Security: confirm item belongs to the given restaurant (or resolve via item)
 		if outlet_id:
 			rest_name = _resolve_restaurant_name(outlet_id)
-			if rest_name and doc.restaurant != rest_name:
+			if rest_name and doc.outlet != rest_name:
 				return {"success": False, "error": {"code": "NOT_FOUND", "message": "Item not found"}}
 
 		if not doc.is_active:
@@ -343,7 +343,7 @@ def get_catalogue_item(item_id=None, outlet_id=None):
 
 		# Fetch outlet info for CTA
 		outlet_type, whatsapp_number, contact_phone = frappe.db.get_value(
-			"Outlet", doc.restaurant,
+			"Outlet", doc.outlet,
 			["outlet_type", "whatsapp_number", "contact_phone"]
 		) or ("dining", "", "")
 
@@ -395,7 +395,7 @@ def get_catalogue_categories(outlet_id=None):
 
 		categories = frappe.get_all(
 			"Catalogue Category",
-			filters={"restaurant": restaurant_name},
+			filters={"outlet": restaurant_name},
 			fields=["name", "category_name", "is_active", "sort_order"],
 			order_by="sort_order asc, creation asc",
 		)
@@ -418,7 +418,7 @@ def save_catalogue_category(outlet_id=None, name=None, category_name=None, sort_
 
 		if name:
 			doc = frappe.get_doc("Catalogue Category", name)
-			if doc.restaurant != restaurant_name:
+			if doc.outlet != restaurant_name:
 				frappe.throw(_("Access denied."), frappe.PermissionError)
 			doc.category_name = category_name
 			doc.sort_order = cint(sort_order)
@@ -427,7 +427,7 @@ def save_catalogue_category(outlet_id=None, name=None, category_name=None, sort_
 		else:
 			doc = frappe.get_doc({
 				"doctype": "Catalogue Category",
-				"restaurant": restaurant_name,
+				"outlet": restaurant_name,
 				"category_name": category_name,
 				"sort_order": cint(sort_order),
 				"is_active": cint(is_active),
@@ -453,7 +453,7 @@ def delete_catalogue_category(outlet_id=None, name=None):
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Catalogue Category", name)
-		if doc.restaurant != restaurant_name:
+		if doc.outlet != restaurant_name:
 			frappe.throw(_("Access denied."), frappe.PermissionError)
 
 		frappe.delete_doc("Catalogue Category", name, ignore_permissions=True)
@@ -498,7 +498,7 @@ def save_catalogue_item(outlet_id=None, name=None, item_data=None):
 			return {"success": False, "error": {"code": "MISSING_PARAM", "message": "price is required"}}
 
 		# Verify category belongs to restaurant
-		cat_restaurant = frappe.db.get_value("Catalogue Category", item_data["category"], "restaurant")
+		cat_restaurant = frappe.db.get_value("Catalogue Category", item_data["category"], "outlet")
 		if cat_restaurant != restaurant_name:
 			return {"success": False, "error": {"code": "INVALID_CATEGORY", "message": "Category does not belong to this restaurant"}}
 
@@ -529,7 +529,7 @@ def save_catalogue_item(outlet_id=None, name=None, item_data=None):
 
 		if name:
 			doc = frappe.get_doc("Catalogue Item", name)
-			if doc.restaurant != restaurant_name:
+			if doc.outlet != restaurant_name:
 				frappe.throw(_("Access denied."), frappe.PermissionError)
 
 			doc.item_name = item_data["item_name"]
@@ -550,7 +550,7 @@ def save_catalogue_item(outlet_id=None, name=None, item_data=None):
 		else:
 			doc = frappe.get_doc({
 				"doctype": "Catalogue Item",
-				"restaurant": restaurant_name,
+				"outlet": restaurant_name,
 				"item_name": item_data["item_name"],
 				"category": item_data["category"],
 				"price": flt(item_data["price"]),
@@ -585,7 +585,7 @@ def delete_catalogue_item(outlet_id=None, name=None):
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Catalogue Item", name)
-		if doc.restaurant != restaurant_name:
+		if doc.outlet != restaurant_name:
 			frappe.throw(_("Access denied."), frappe.PermissionError)
 
 		frappe.delete_doc("Catalogue Item", name, ignore_permissions=True)
@@ -620,7 +620,7 @@ def reorder_catalogue_items(outlet_id=None, item_orders=None):
 			if not item_name:
 				continue
 			# Verify ownership before writing
-			owner = frappe.db.get_value("Catalogue Item", item_name, "restaurant")
+			owner = frappe.db.get_value("Catalogue Item", item_name, "outlet")
 			if owner != restaurant_name:
 				continue
 			frappe.db.set_value("Catalogue Item", item_name, "sort_order", sort_order, update_modified=False)

@@ -37,7 +37,7 @@ def get_restaurant_from_id(restaurant_id):
 		return None
 	
 	# Try to get by restaurant_id field first
-	restaurant = frappe.db.get_value("Outlet", {"restaurant_id": restaurant_id}, "name")
+	restaurant = frappe.db.get_value("Outlet", {"outlet_id": restaurant_id}, "name")
 	
 	# If not found, try by name (for backward compatibility)
 	if not restaurant:
@@ -98,8 +98,8 @@ def get_restaurant_context(restaurant_id):
 	currency_info = get_restaurant_currency_info(restaurant)
 	
 	return {
-		"id": restaurant_doc.restaurant_id,
-		"name": restaurant_doc.restaurant_name,
+		"id": restaurant_doc.outlet_id,
+		"name": restaurant_doc.outlet_name,
 		"logo": restaurant_doc.logo,
 		"address": restaurant_doc.address,
 		"city": restaurant_doc.city,
@@ -129,7 +129,7 @@ def validate_product_belongs_to_restaurant(product_id, restaurant_id):
 	if not actual_product:
 		return False
 		
-	product_restaurant = frappe.db.get_value("Menu Product", actual_product, "restaurant")
+	product_restaurant = frappe.db.get_value("Menu Product", actual_product, "outlet")
 	
 	return product_restaurant == restaurant
 
@@ -146,7 +146,7 @@ def get_product_from_id(product_id, restaurant=None):
 	if frappe.db.exists("Menu Product", product_id):
 		# If restaurant provided, verify it belongs
 		if restaurant:
-			if frappe.db.get_value("Menu Product", product_id, "restaurant") == restaurant:
+			if frappe.db.get_value("Menu Product", product_id, "outlet") == restaurant:
 				return product_id
 			# If it's a valid hash but for wrong restaurant, continue to slug check
 		else:
@@ -155,7 +155,7 @@ def get_product_from_id(product_id, restaurant=None):
 	# 2. Try by product_id field
 	filters = {"product_id": product_id}
 	if restaurant:
-		filters["restaurant"] = restaurant
+		filters["outlet"] = restaurant
 	
 	name = frappe.db.get_value("Menu Product", filters, "name")
 	
@@ -163,7 +163,7 @@ def get_product_from_id(product_id, restaurant=None):
 	if not name:
 		filters = {"seo_slug": product_id}
 		if restaurant:
-			filters["restaurant"] = restaurant
+			filters["outlet"] = restaurant
 		name = frappe.db.get_value("Menu Product", filters, "name")
 		
 	return name
@@ -180,12 +180,12 @@ def validate_all_products_belong_to_restaurant(product_ids, restaurant_id):
 	products = frappe.get_all(
 		"Menu Product",
 		filters={"name": ["in", product_ids]},
-		fields=["name", "restaurant"]
+		fields=["name", "outlet"]
 	)
 	
 	# Check all belong to restaurant
 	for product in products:
-		if product.restaurant != restaurant:
+		if product.outlet != restaurant:
 			return False
 	
 	return True
@@ -193,13 +193,13 @@ def validate_all_products_belong_to_restaurant(product_ids, restaurant_id):
 
 def get_restaurant_from_product(product_id):
 	"""Get restaurant from product"""
-	restaurant = frappe.db.get_value("Menu Product", product_id, "restaurant")
+	restaurant = frappe.db.get_value("Menu Product", product_id, "outlet")
 	return restaurant
 
 
 def get_restaurant_from_category(category_id):
 	"""Get restaurant from category"""
-	restaurant = frappe.db.get_value("Menu Category", category_id, "restaurant")
+	restaurant = frappe.db.get_value("Menu Category", category_id, "outlet")
 	return restaurant
 
 

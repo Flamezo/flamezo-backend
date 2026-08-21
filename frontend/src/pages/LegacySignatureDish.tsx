@@ -26,7 +26,7 @@ export default function LegacySignatureDishPage() {
 
   // Get menu products for signature dishes selection
   const { data: menuProducts } = useFrappeGetDocList('Menu Product', {
-    filters: [['restaurant', '=', selectedOutlet]],
+    filters: [['outlet', '=', selectedOutlet]],
     fields: ['name', 'product_name', 'image']
   })
 

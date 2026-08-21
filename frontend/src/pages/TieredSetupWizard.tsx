@@ -255,8 +255,8 @@ export default function TieredSetupWizard() {
                   key={`wizard-form-${currentStep.id}-${selectedOutlet}`}
                   doctype={currentStep.doctype}
                   docname={(currentStep.id === 'restaurant' || currentStep.id === 'config') ? (selectedOutlet ?? undefined) : undefined}
-                  initialData={{ restaurant: selectedOutlet }}
-                  readOnlyFields={['restaurant']}
+                  initialData={{ outlet: selectedOutlet }}
+                  readOnlyFields={['outlet']}
                   mode={((currentStep.id === 'restaurant' || currentStep.id === 'config') && selectedOutlet) ? 'edit' : 'create'}
                   onChange={setFormHasChanges}
                   onSave={(data) => {

@@ -78,7 +78,7 @@ def get_menu_costing(outlet_id):
 		products = frappe.get_all(
 			"Menu Product",
 			fields=fields,
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			order_by="category_name asc, display_order asc, product_name asc",
 			limit_page_length=0,
 		)
@@ -90,7 +90,7 @@ def get_menu_costing(outlet_id):
 		categories = frappe.get_all(
 			"Menu Category",
 			fields=["name", "category_name", "display_name"],
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			order_by="display_order asc",
 			limit_page_length=0,
 		)
@@ -158,7 +158,7 @@ def bulk_set_costs(outlet_id, items):
 			if not docname:
 				continue
 			# Scope guard: only touch products that belong to this restaurant
-			owner = frappe.db.get_value("Menu Product", docname, "restaurant")
+			owner = frappe.db.get_value("Menu Product", docname, "outlet")
 			if owner != restaurant:
 				continue
 			frappe.db.set_value(
@@ -180,7 +180,7 @@ def _apply_pct(restaurant, pct, category_name=None):
 	if not _has_food_cost_col():
 		frappe.throw(_("Food cost is not enabled yet. Please run 'bench migrate' to finish setup."))
 	pct = flt(pct)
-	filters = {"restaurant": restaurant}
+	filters = {"outlet": restaurant}
 	if category_name:
 		filters["category_name"] = category_name
 	rows = frappe.get_all(
@@ -241,7 +241,7 @@ def check_food_cost_coverage(outlet_id):
 	try:
 		restaurant = _require_restaurant(outlet_id)
 
-		total = frappe.db.count("Menu Product", {"restaurant": restaurant, "is_active": 1})
+		total = frappe.db.count("Menu Product", {"outlet": restaurant, "is_active": 1})
 
 		if total == 0:
 			return {
@@ -269,7 +269,7 @@ def check_food_cost_coverage(outlet_id):
 
 		costed = frappe.db.count(
 			"Menu Product",
-			{"restaurant": restaurant, "is_active": 1, "food_cost": [">", 0]},
+			{"outlet": restaurant, "is_active": 1, "food_cost": [">", 0]},
 		)
 		without_cost = total - costed
 

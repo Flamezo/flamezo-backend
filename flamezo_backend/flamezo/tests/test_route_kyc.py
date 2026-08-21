@@ -363,7 +363,7 @@ class TestCreateTokenizationOrder(unittest.TestCase):
 
     def tearDown(self):
         # Clean up any Tokenization Attempt docs we created.
-        frappe.db.delete("Tokenization Attempt", {"restaurant": self._res})
+        frappe.db.delete("Tokenization Attempt", {"outlet": self._res})
         frappe.db.commit()
         cleanup_restaurant(self._res)
 

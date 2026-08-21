@@ -64,15 +64,15 @@ def search_branches(query=None, limit=20):
 	if q:
 		like = f"%{q}%"
 		or_filters = [
-			["restaurant_name", "like", like],
+			["outlet_name", "like", like],
 			["name", "like", like],
 			["city", "like", like],
 		]
 	rows = frappe.get_all(
 		"Outlet",
 		or_filters=or_filters,
-		fields=["name as id", "restaurant_name", "city", "outlet_type", "branch_group"],
-		order_by="restaurant_name asc",
+		fields=["name as id", "outlet_name", "city", "outlet_type", "branch_group"],
+		order_by="outlet_name asc",
 		limit=int(limit or 20),
 	)
 	return {"success": True, "branches": rows}
@@ -95,8 +95,8 @@ def list_group_branches(group_id):
 	rows = frappe.get_all(
 		"Outlet",
 		filters={"branch_group": group_id},
-		fields=["name as id", "restaurant_name", "city", "outlet_type"],
-		order_by="restaurant_name asc",
+		fields=["name as id", "outlet_name", "city", "outlet_type"],
+		order_by="outlet_name asc",
 	)
 	return {"success": True, "branches": rows}
 
@@ -149,14 +149,14 @@ def remove_from_group(outlet_id):
 
 def _clone_addon_groups(source, target):
 	mapping = {}
-	for g in frappe.get_all("Addon Group", filters={"restaurant": source}, fields=["name", "group_name"]):
-		existing = frappe.db.get_value("Addon Group", {"restaurant": target, "group_name": g.group_name}, "name")
+	for g in frappe.get_all("Addon Group", filters={"outlet": source}, fields=["name", "group_name"]):
+		existing = frappe.db.get_value("Addon Group", {"outlet": target, "group_name": g.group_name}, "name")
 		if existing:
 			mapping[g.name] = existing
 			continue
 		src = frappe.get_doc("Addon Group", g.name)
 		new = frappe.copy_doc(src)
-		new.restaurant = target
+		new.outlet = target
 		new.group_id = None  # regenerated in before_insert
 		new.insert(ignore_permissions=True)
 		mapping[g.name] = new.name
@@ -167,20 +167,20 @@ def _clone_categories(source, target):
 	mapping = {}
 	cats = frappe.get_all(
 		"Menu Category",
-		filters={"restaurant": source},
+		filters={"outlet": source},
 		fields=["name", "category_name", "parent_category"],
 	)
 	# Parents (no parent_category) first so child->parent remap resolves.
 	cats.sort(key=lambda c: 0 if not c.parent_category else 1)
 
 	for c in cats:
-		existing = frappe.db.get_value("Menu Category", {"restaurant": target, "category_name": c.category_name}, "name")
+		existing = frappe.db.get_value("Menu Category", {"outlet": target, "category_name": c.category_name}, "name")
 		if existing:
 			mapping[c.name] = existing
 			continue
 		src = frappe.get_doc("Menu Category", c.name)
 		new = frappe.copy_doc(src)
-		new.restaurant = target
+		new.outlet = target
 		new.category_id = None  # regenerated in validate
 		# Re-point parent link to the target's copy (None = becomes top-level).
 		new.parent_category = mapping.get(src.parent_category) if src.parent_category else None
@@ -192,13 +192,13 @@ def _clone_categories(source, target):
 def _clone_products(source, target, cat_map, group_map):
 	copied = 0
 	skipped = 0
-	for p in frappe.get_all("Menu Product", filters={"restaurant": source}, fields=["name", "product_name"]):
-		if frappe.db.exists("Menu Product", {"restaurant": target, "product_name": p.product_name}):
+	for p in frappe.get_all("Menu Product", filters={"outlet": source}, fields=["name", "product_name"]):
+		if frappe.db.exists("Menu Product", {"outlet": target, "product_name": p.product_name}):
 			skipped += 1
 			continue
 		src = frappe.get_doc("Menu Product", p.name)
 		new = frappe.copy_doc(src)
-		new.restaurant = target
+		new.outlet = target
 		new.product_id = None  # regenerated in validate
 		new.seo_slug = None    # regenerated in validate
 		# Re-point category link to the target's copied category.
@@ -220,13 +220,13 @@ def _clone_products(source, target, cat_map, group_map):
 def _clone_offers(source, target):
 	"""Copy display Offers. Additive: skip an offer whose title already exists."""
 	copied = skipped = 0
-	for o in frappe.get_all("Offer", filters={"restaurant": source}, fields=["name", "title"]):
-		if o.title and frappe.db.exists("Offer", {"restaurant": target, "title": o.title}):
+	for o in frappe.get_all("Offer", filters={"outlet": source}, fields=["name", "title"]):
+		if o.title and frappe.db.exists("Offer", {"outlet": target, "title": o.title}):
 			skipped += 1
 			continue
 		src = frappe.get_doc("Offer", o.name)
 		new = frappe.copy_doc(src)          # image_src (URL) reused — no cost
-		new.restaurant = target
+		new.outlet = target
 		new.insert(ignore_permissions=True)
 		copied += 1
 	return copied, skipped
@@ -237,15 +237,15 @@ def _clone_coupons(source, target):
 	System-managed coupons (UGC shadow coupons) are never copied — the target
 	branch manages its own."""
 	copied = skipped = 0
-	for c in frappe.get_all("Coupon", filters={"restaurant": source}, fields=["name", "code", "category"]):
+	for c in frappe.get_all("Coupon", filters={"outlet": source}, fields=["name", "code", "category"]):
 		if (c.category or "") == "ugc_exclusive":
 			continue  # auto-synced from the target's own UGC config
-		if c.code and frappe.db.exists("Coupon", {"restaurant": target, "code": c.code}):
+		if c.code and frappe.db.exists("Coupon", {"outlet": target, "code": c.code}):
 			skipped += 1
 			continue
 		src = frappe.get_doc("Coupon", c.name)
 		new = frappe.copy_doc(src)
-		new.restaurant = target             # autoname becomes {target}-{code}
+		new.outlet = target             # autoname becomes {target}-{code}
 		new.insert(ignore_permissions=True)
 		copied += 1
 	return copied, skipped
@@ -255,13 +255,13 @@ def _clone_gallery(source, target):
 	"""Copy gallery items. Additive: skip an item whose url already exists.
 	Media urls are reused — no re-upload."""
 	copied = skipped = 0
-	for g in frappe.get_all("Outlet Gallery Item", filters={"restaurant": source}, fields=["name", "url"]):
-		if g.url and frappe.db.exists("Outlet Gallery Item", {"restaurant": target, "url": g.url}):
+	for g in frappe.get_all("Outlet Gallery Item", filters={"outlet": source}, fields=["name", "url"]):
+		if g.url and frappe.db.exists("Outlet Gallery Item", {"outlet": target, "url": g.url}):
 			skipped += 1
 			continue
 		src = frappe.get_doc("Outlet Gallery Item", g.name)
 		new = frappe.copy_doc(src)
-		new.restaurant = target
+		new.outlet = target
 		new.insert(ignore_permissions=True)
 		copied += 1
 	return copied, skipped
@@ -291,8 +291,8 @@ def _clone_branding(source, target):
 		frappe.db.set_value("Outlet", target, "logo", src_logo)
 		changed = True
 
-	src_cfg = frappe.db.get_value("Outlet Config", {"restaurant": source}, "name")
-	tgt_cfg = frappe.db.get_value("Outlet Config", {"restaurant": target}, "name")
+	src_cfg = frappe.db.get_value("Outlet Config", {"outlet": source}, "name")
+	tgt_cfg = frappe.db.get_value("Outlet Config", {"outlet": target}, "name")
 	if not src_cfg or not tgt_cfg:
 		return changed
 	src_doc = frappe.get_doc("Outlet Config", src_cfg)

@@ -7,6 +7,7 @@ flamezo_backend.flamezo.patches.rename_restaurant_roles_to_outlet
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
+flamezo_backend.flamezo.patches.rename_restaurant_fields_to_outlet
 flamezo_backend.flamezo.patches.add_otp_and_customer_schema
 flamezo_backend.flamezo.patches.sync_mobile_no_to_phone
 flamezo_backend.flamezo.patches.add_referral_visit_unique_index

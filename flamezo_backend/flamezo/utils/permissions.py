@@ -55,14 +55,14 @@ def remove_restaurant_user_permission(user, restaurant):
 def assign_user_to_restaurant(user, restaurant, role="Outlet Staff", is_default=0):
 	"""Assign user to restaurant (creates Restaurant User + User Permission)"""
 	# Check if Restaurant User already exists
-	if frappe.db.exists("Outlet User", {"user": user, "restaurant": restaurant}):
+	if frappe.db.exists("Outlet User", {"user": user, "outlet": restaurant}):
 		frappe.throw(_("User is already assigned to this outlet"))
-	
+
 	# Create Restaurant User
 	restaurant_user = frappe.get_doc({
 		"doctype": "Outlet User",
 		"user": user,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"role": role,
 		"is_default": is_default,
 		"is_active": 1
@@ -76,7 +76,7 @@ def remove_user_from_restaurant(user, restaurant):
 	"""Remove user from restaurant"""
 	restaurant_user = frappe.db.get_value(
 		"Outlet User",
-		{"user": user, "restaurant": restaurant},
+		{"user": user, "outlet": restaurant},
 		"name"
 	)
 	
@@ -91,8 +91,8 @@ def get_user_restaurants(user):
 	restaurants = frappe.get_all(
 		"Outlet User",
 		filters={"user": user, "is_active": 1},
-		fields=["restaurant", "role", "is_default", "name"],
-		order_by="is_default desc, restaurant asc"
+		fields=["outlet", "role", "is_default", "name"],
+		order_by="is_default desc, outlet asc"
 	)
 	return restaurants
 
@@ -102,7 +102,7 @@ def get_default_restaurant(user):
 	restaurant = frappe.db.get_value(
 		"Outlet User",
 		{"user": user, "is_default": 1, "is_active": 1},
-		"restaurant"
+		"outlet"
 	)
 	return restaurant
 
@@ -136,12 +136,12 @@ def get_user_restaurant_ids(user):
 
 	# Tier 3: Database Query (Direct SQL for speed and to bypass hooks)
 	restaurant_users = frappe.db.sql("""
-		SELECT restaurant 
-		FROM `tabOutlet User` 
+		SELECT outlet
+		FROM `tabOutlet User`
 		WHERE user = %s AND is_active = 1
 	""", user, as_dict=True)
-	
-	ids = [d.restaurant for d in restaurant_users if d.restaurant]
+
+	ids = [d.outlet for d in restaurant_users if d.outlet]
 	
 	# Save to all cache tiers
 	setattr(frappe.local, cache_key, ids)

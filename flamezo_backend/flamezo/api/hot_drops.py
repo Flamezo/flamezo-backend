@@ -64,7 +64,7 @@ def _assert_outlet_access(outlet, phone=None):
     if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Outlet Admin" in roles:
         return
     rec_role = frappe.db.get_value(
-        "Outlet User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+        "Outlet User", {"user": user, "outlet": outlet, "is_active": 1}, "role"
     )
     if rec_role not in ("Outlet Admin", "Outlet Staff"):
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -138,7 +138,7 @@ def create_hot_drop(outlet_id, deal_label, starts_at, ends_at, story_image_keys=
     # backstop (same rule, checked twice by design — see hot_drop.py).
     if ends_dt > now_datetime():
         active_count = frappe.db.count(
-            "Hot Drop", {"restaurant": outlet, "is_active": 1, "ends_at": [">", now_datetime()]}
+            "Hot Drop", {"outlet": outlet, "is_active": 1, "ends_at": [">", now_datetime()]}
         )
         if active_count >= MAX_LIVE_HOT_DROPS_PER_OUTLET:
             frappe.throw(
@@ -148,7 +148,7 @@ def create_hot_drop(outlet_id, deal_label, starts_at, ends_at, story_image_keys=
             )
 
     if coupon:
-        coupon_restaurant = frappe.db.get_value("Coupon", coupon, "restaurant")
+        coupon_restaurant = frappe.db.get_value("Coupon", coupon, "outlet")
         if coupon_restaurant != outlet:
             frappe.throw(_("That coupon doesn't belong to this outlet."), frappe.PermissionError)
 
@@ -166,7 +166,7 @@ def create_hot_drop(outlet_id, deal_label, starts_at, ends_at, story_image_keys=
 
     doc = frappe.get_doc({
         "doctype": "Hot Drop",
-        "restaurant": outlet,
+        "outlet": outlet,
         "coupon": coupon or None,
         "deal_label": deal_label,
         "starts_at": starts_dt,
@@ -187,7 +187,7 @@ def end_hot_drop_now(outlet_id, hot_drop_name, phone=None):
     outlet = _resolve_outlet(outlet_id)
     _assert_outlet_access(outlet, phone=phone)
 
-    owner_restaurant = frappe.db.get_value("Hot Drop", hot_drop_name, "restaurant")
+    owner_restaurant = frappe.db.get_value("Hot Drop", hot_drop_name, "outlet")
     if owner_restaurant != outlet:
         frappe.throw(_("That Hot Drop doesn't belong to this outlet."), frappe.PermissionError)
 
@@ -207,7 +207,7 @@ def list_merchant_hot_drops(outlet_id, phone=None):
 
     rows = frappe.get_all(
         "Hot Drop",
-        filters={"restaurant": outlet},
+        filters={"outlet": outlet},
         fields=["name", "deal_label", "coupon", "starts_at", "ends_at", "is_active", "story_images"],
         order_by="starts_at desc",
         limit_page_length=20,
@@ -302,10 +302,10 @@ def get_hot_drops(city=None, outlet_type=None, latitude=None, longitude=None, li
         where_clause = " AND ".join(sql_filters)
         rows = frappe.db.sql(
             f"""
-            SELECT hd.name, hd.restaurant, hd.deal_label, hd.starts_at, hd.ends_at, hd.story_images,
-                   r.restaurant_name, r.logo, r.latitude, r.longitude
+            SELECT hd.name, hd.outlet, hd.deal_label, hd.starts_at, hd.ends_at, hd.story_images,
+                   r.outlet_name, r.logo, r.latitude, r.longitude
             FROM `tabHot Drop` hd
-            INNER JOIN `tabOutlet` r ON r.name = hd.restaurant
+            INNER JOIN `tabOutlet` r ON r.name = hd.outlet
             WHERE {where_clause}
             LIMIT 200
             """,
@@ -320,8 +320,8 @@ def get_hot_drops(city=None, outlet_type=None, latitude=None, longitude=None, li
             thumbnail = images[0] if images else (r.logo or "")
             items.append({
                 "id": r.name,
-                "outlet_id": r.restaurant,
-                "venue_name": r.restaurant_name,
+                "outlet_id": r.outlet,
+                "venue_name": r.outlet_name,
                 "deal_label": r.deal_label,
                 "thumbnail": thumbnail,
                 "stories": images,
@@ -360,13 +360,13 @@ def track_hot_drop_event(hot_drop_name, event_type):
     without a parallel counter system."""
     if event_type not in ("hotdrop_view", "hotdrop_tap"):
         return {"success": False}
-    restaurant = frappe.db.get_value("Hot Drop", hot_drop_name, "restaurant")
+    restaurant = frappe.db.get_value("Hot Drop", hot_drop_name, "outlet")
     if not restaurant:
         return {"success": False}
     try:
         frappe.get_doc({
             "doctype": "Analytics Event",
-            "restaurant": restaurant,
+            "outlet": restaurant,
             "event_type": event_type,
             "event_value": hot_drop_name,
             "session_id": "anonymous",  # session_id is reqd on this doctype — matches analytics.py's log_event default
@@ -391,7 +391,7 @@ def get_hot_drop_analytics(outlet_id, hot_drop_name=None, phone=None):
     outlet = _resolve_outlet(outlet_id)
     _assert_outlet_access(outlet, phone=phone)
 
-    filters = {"restaurant": outlet}
+    filters = {"outlet": outlet}
     if hot_drop_name:
         filters["name"] = hot_drop_name
     drops = frappe.get_all(
@@ -424,7 +424,7 @@ def get_hot_drop_analytics(outlet_id, hot_drop_name=None, phone=None):
         if d.coupon:
             claims = frappe.db.count(
                 "Offer Claim",
-                {"restaurant": outlet, "coupon": d.coupon, "claimed_at": [">=", d.starts_at]},
+                {"outlet": outlet, "coupon": d.coupon, "claimed_at": [">=", d.starts_at]},
             )
         eng = eng_map.get(d.name, {"views": 0, "taps": 0})
         views = eng["views"]

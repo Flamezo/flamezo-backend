@@ -129,7 +129,7 @@ def get_user_outlets():
 		restaurants = frappe.get_all(
 			"Outlet",
 			filters={"name": ["in", restaurant_ids]},
-			fields=["name", "restaurant_id as outlet_id", "restaurant_name as outlet_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
+			fields=["name", "outlet_id", "outlet_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
 			order_by="creation desc",
 			ignore_permissions=True
 		)
@@ -157,17 +157,17 @@ def get_outlet_setup_progress(outlet_id):
 
 		progress = {
 			'restaurant': frappe.db.exists("Outlet", outlet_id),
-			'config': frappe.db.exists("Outlet Config", {"restaurant": outlet_id}),
-			'users': frappe.db.exists("Outlet User", {"restaurant": outlet_id}),
-			'categories': frappe.db.exists("Menu Category", {"restaurant": outlet_id}),
-			'products': frappe.db.exists("Menu Product", {"restaurant": outlet_id}),
-			'offers': frappe.db.exists("Offer", {"restaurant": outlet_id}),
-			'coupons': frappe.db.exists("Coupon", {"restaurant": outlet_id}),
-			'events': frappe.db.exists("Event", {"restaurant": outlet_id}),
-			'games': frappe.db.exists("Game", {"restaurant": outlet_id}),
-			'home_features': frappe.db.exists("Home Feature", {"restaurant": outlet_id}),
-			'table_booking': frappe.db.exists("Table Booking", {"restaurant": outlet_id}),
-			'banquet_booking': frappe.db.exists("Banquet Booking", {"restaurant": outlet_id}),
+			'config': frappe.db.exists("Outlet Config", {"outlet": outlet_id}),
+			'users': frappe.db.exists("Outlet User", {"outlet": outlet_id}),
+			'categories': frappe.db.exists("Menu Category", {"outlet": outlet_id}),
+			'products': frappe.db.exists("Menu Product", {"outlet": outlet_id}),
+			'offers': frappe.db.exists("Offer", {"outlet": outlet_id}),
+			'coupons': frappe.db.exists("Coupon", {"outlet": outlet_id}),
+			'events': frappe.db.exists("Event", {"outlet": outlet_id}),
+			'games': frappe.db.exists("Game", {"outlet": outlet_id}),
+			'home_features': frappe.db.exists("Home Feature", {"outlet": outlet_id}),
+			'table_booking': frappe.db.exists("Table Booking", {"outlet": outlet_id}),
+			'banquet_booking': frappe.db.exists("Banquet Booking", {"outlet": outlet_id}),
 		}
 		
 		return progress

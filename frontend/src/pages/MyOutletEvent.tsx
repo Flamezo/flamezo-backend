@@ -38,12 +38,12 @@ function mapFormDataToBackend(formData: any) {
 
 export default function MyOutletEvent() {
   const { selectedOutlet, outlets } = useOutlet()
-  const outletName = (outlets as any[])?.find((o) => o.name === selectedOutlet)?.restaurant_name || selectedOutlet || ''
+  const outletName = (outlets as any[])?.find((o) => o.name === selectedOutlet)?.outlet_name || selectedOutlet || ''
   const [editing, setEditing] = useState<any>(null)
   const { updateDoc } = useFrappeUpdateDoc()
 
   const initialFilters = useMemo<FilterCondition[]>(
-    () => (selectedOutlet ? [{ fieldname: 'restaurant', operator: '=', value: selectedOutlet }] : []),
+    () => (selectedOutlet ? [{ fieldname: 'outlet', operator: '=', value: selectedOutlet }] : []),
     [selectedOutlet],
   )
 
@@ -51,7 +51,7 @@ export default function MyOutletEvent() {
     data: events, isLoading, mutate, page, setPage, pageSize, setPageSize, totalCount, searchQuery, setSearchQuery,
   } = useDataTable({
     doctype: 'Event',
-    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'media_gallery', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'restaurant', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'media_gallery', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'outlet', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
     initialFilters,
     searchFields: ['title', 'category', 'description', 'location'],
     // Active first; past/deactivated events shift to the bottom.
@@ -64,7 +64,7 @@ export default function MyOutletEvent() {
 
   const handleUpdate = async (name: string, formData: any) => {
     try {
-      const mapped = mapFormDataToBackend({ ...formData, restaurant: selectedOutlet })
+      const mapped = mapFormDataToBackend({ ...formData, outlet: selectedOutlet })
       await updateDoc('Event', name, mapped)
       toast.success('Event updated')
       setEditing(null)

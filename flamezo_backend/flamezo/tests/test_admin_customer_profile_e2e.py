@@ -47,7 +47,7 @@ def _make_order(restaurant, customer_id, phone, total=500.0, payment_status="com
         "doctype": "Order",
         "order_id": order_id,
         "order_number": f"FZ-{order_id[:4].upper()}",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "status": "completed",
         "payment_status": payment_status,
         "payment_method": "online",
@@ -82,7 +82,7 @@ def _make_order(restaurant, customer_id, phone, total=500.0, payment_status="com
 def _make_table_booking(restaurant, customer_id, phone, status="completed"):
     doc = frappe.get_doc({
         "doctype": "Table Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "platform_customer": customer_id,
         "customer_name": "Test Customer",
         "customer_phone": phone,
@@ -99,7 +99,7 @@ def _make_table_booking(restaurant, customer_id, phone, status="completed"):
 def _make_banquet_booking(restaurant, customer_id, phone, status="completed"):
     doc = frappe.get_doc({
         "doctype": "Banquet Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "platform_customer": customer_id,
         "customer_name": "Test Customer",
         "customer_phone": phone,
@@ -117,7 +117,7 @@ def _make_banquet_booking(restaurant, customer_id, phone, status="completed"):
 def _make_court(restaurant, suffix="1"):
     doc = frappe.get_doc({
         "doctype": "Court",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court_name": f"Court {suffix}",
         "sport_type": "Badminton",
         "slot_duration_minutes": 60,
@@ -136,7 +136,7 @@ def _make_court_booking(restaurant, phone):
     court = _make_court(restaurant, suffix=_rand(4))
     doc = frappe.get_doc({
         "doctype": "Court Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court": court,
         "court_name": "Court Test",
         "customer_name": "Test Customer",
@@ -157,7 +157,7 @@ def _make_court_booking(restaurant, phone):
 def _make_service_appointment(restaurant, phone):
     doc = frappe.get_doc({
         "doctype": "Service Appointment",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer_name": "Test Customer",
         "customer_phone": phone,
         "appointment_date": today(),
@@ -171,12 +171,12 @@ def _make_service_appointment(restaurant, phone):
 
 
 def _make_coupon(restaurant, code):
-    existing = frappe.db.get_value("Coupon", {"restaurant": restaurant, "code": code}, "name")
+    existing = frappe.db.get_value("Coupon", {"outlet": restaurant, "code": code}, "name")
     if existing:
         return existing
     doc = frappe.get_doc({
         "doctype": "Coupon",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "offer_type": "coupon",
         "code": code,
         "discount_type": "flat",
@@ -191,7 +191,7 @@ def _make_ugc_submission(restaurant, customer_id, phone, order_amount=800.0, sta
     order = _make_order(restaurant, customer_id, phone, total=order_amount)
     doc = frappe.get_doc({
         "doctype": "UGC Story Submission",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer": customer_id,
         "order": order,
         "status": status,
@@ -208,7 +208,7 @@ def _make_ugc_voucher(restaurant, customer_id, balance=200.0, status="active"):
     doc = frappe.get_doc({
         "doctype": "UGC Voucher",
         "voucher_code": _rand(8).upper(),
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer": customer_id,
         "status": status,
         "original_amount": 200.0,
@@ -222,20 +222,20 @@ def _make_ugc_voucher(restaurant, customer_id, balance=200.0, status="active"):
 
 
 def _cleanup(restaurant, customer_id=None, phone=None):
-    frappe.db.delete("Order", {"restaurant": restaurant})
-    frappe.db.delete("Table Booking", {"restaurant": restaurant})
-    frappe.db.delete("Banquet Booking", {"restaurant": restaurant})
-    frappe.db.delete("Court Booking", {"restaurant": restaurant})
-    frappe.db.delete("Court", {"restaurant": restaurant})
-    frappe.db.delete("Service Appointment", {"restaurant": restaurant})
-    frappe.db.delete("Outlet Loyalty Entry", {"restaurant": restaurant})
-    frappe.db.delete("UGC Story Submission", {"restaurant": restaurant})
-    frappe.db.delete("UGC Voucher Redemption", {"restaurant": restaurant})
-    frappe.db.delete("UGC Voucher", {"restaurant": restaurant})
-    frappe.db.delete("UGC Fraud Flag", {"restaurant": restaurant})
-    frappe.db.delete("Coupon Usage", {"restaurant": restaurant})
-    frappe.db.delete("Offer Claim", {"restaurant": restaurant})
-    frappe.db.delete("Coupon", {"restaurant": restaurant})
+    frappe.db.delete("Order", {"outlet": restaurant})
+    frappe.db.delete("Table Booking", {"outlet": restaurant})
+    frappe.db.delete("Banquet Booking", {"outlet": restaurant})
+    frappe.db.delete("Court Booking", {"outlet": restaurant})
+    frappe.db.delete("Court", {"outlet": restaurant})
+    frappe.db.delete("Service Appointment", {"outlet": restaurant})
+    frappe.db.delete("Outlet Loyalty Entry", {"outlet": restaurant})
+    frappe.db.delete("UGC Story Submission", {"outlet": restaurant})
+    frappe.db.delete("UGC Voucher Redemption", {"outlet": restaurant})
+    frappe.db.delete("UGC Voucher", {"outlet": restaurant})
+    frappe.db.delete("UGC Fraud Flag", {"outlet": restaurant})
+    frappe.db.delete("Coupon Usage", {"outlet": restaurant})
+    frappe.db.delete("Offer Claim", {"outlet": restaurant})
+    frappe.db.delete("Coupon", {"outlet": restaurant})
     if customer_id:
         frappe.db.delete("Customer Referral", {"referrer": customer_id})
         frappe.db.delete("Customer Referral", {"referee": customer_id})
@@ -303,7 +303,7 @@ class TestAdminCustomerFullProfileOrdersAndSpend(unittest.TestCase):
         self.assertEqual(float(orders[0]["total"]), 500)
         self.assertEqual(orders[0]["outlet_name"], f"Test Restaurant {self.r1}")
 
-        frappe.db.delete("Order", {"restaurant": self.r1, "platform_customer": other_customer.name})
+        frappe.db.delete("Order", {"outlet": self.r1, "platform_customer": other_customer.name})
         frappe.db.delete("Customer", other_customer.name)
         frappe.db.commit()
 
@@ -348,7 +348,7 @@ class TestAdminCustomerFullProfileOutletsVisited(unittest.TestCase):
         _make_order(self.r2, self.customer.name, self.customer.phone, total=700)
 
         result = admin_get_customer_full_profile(self.customer.name)
-        outlets = {o["restaurant"]: o for o in result["data"]["outlets_visited"]}
+        outlets = {o["outlet"]: o for o in result["data"]["outlets_visited"]}
         self.assertEqual(result["data"]["stats"]["restaurants_visited"], 2)
         self.assertEqual(len(outlets), 2)
         self.assertEqual(outlets[self.r1]["visit_count"], 1)
@@ -364,7 +364,7 @@ class TestAdminCustomerFullProfileOutletsVisited(unittest.TestCase):
         _make_service_appointment(self.r1, self.customer.phone)
 
         result = admin_get_customer_full_profile(self.customer.name)
-        outlets = {o["restaurant"]: o for o in result["data"]["outlets_visited"]}
+        outlets = {o["outlet"]: o for o in result["data"]["outlets_visited"]}
         self.assertEqual(len(outlets), 1)
         stat = outlets[self.r1]
         self.assertEqual(stat["visit_count"], 4)
@@ -386,9 +386,9 @@ class TestAdminCustomerFullProfileOutletsVisited(unittest.TestCase):
         result = admin_get_customer_full_profile(self.customer.name)
         court_bookings = result["data"]["court_bookings"]
         self.assertEqual(len(court_bookings), 1)
-        self.assertEqual(court_bookings[0]["restaurant"], self.r1)
+        self.assertEqual(court_bookings[0]["outlet"], self.r1)
 
-        frappe.db.delete("Court Booking", {"restaurant": self.r2})
+        frappe.db.delete("Court Booking", {"outlet": self.r2})
         frappe.db.delete("Customer", other.name)
         frappe.db.commit()
 
@@ -490,7 +490,7 @@ class TestAdminCustomerFullProfileUGC(unittest.TestCase):
             "doctype": "UGC Voucher Redemption",
             "voucher": voucher,
             "customer": self.customer.name,
-            "restaurant": self.r1,
+            "outlet": self.r1,
             "redeemed_at": now_datetime(),
             "bill_amount": 300,
             "amount_used": 100,
@@ -511,7 +511,7 @@ class TestAdminCustomerFullProfileUGC(unittest.TestCase):
         frappe.get_doc({
             "doctype": "UGC Fraud Flag",
             "customer": self.customer.name,
-            "restaurant": self.r1,
+            "outlet": self.r1,
             "is_active": 1,
             "reason": "Duplicate video reused across submissions",
         }).insert(ignore_permissions=True)
@@ -543,7 +543,7 @@ class TestAdminCustomerFullProfileCouponsAndOffers(unittest.TestCase):
             "order": order,
             "usage_date": now_datetime(),
             "discount_amount": 50,
-            "restaurant": self.r1,
+            "outlet": self.r1,
         }).insert(ignore_permissions=True)
         frappe.db.commit()
 
@@ -559,7 +559,7 @@ class TestAdminCustomerFullProfileCouponsAndOffers(unittest.TestCase):
         coupon = _make_coupon(self.r1, "HOTDROP1")
         frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.r1,
+            "outlet": self.r1,
             "coupon": coupon,
             "coupon_code": "HOTDROP1",
             "customer_phone": self.customer.phone,

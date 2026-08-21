@@ -25,7 +25,7 @@ export default function OutletDataList({ doctype, outletId, titleField }: Outlet
     doctype,
     {
       fields: ['name', titleField, 'creation', 'modified'],
-      filters: [['restaurant', '=', outletId]],
+      filters: [['outlet', '=', outletId]],
       orderBy: { field: 'modified', order: 'desc' },
       limit: 100
     },
@@ -132,7 +132,7 @@ export default function OutletDataList({ doctype, outletId, titleField }: Outlet
             <DynamicForm
               doctype={doctype}
               mode="create"
-              initialData={{ restaurant: outletId }}
+              initialData={{ outlet: outletId }}
               onSave={() => {
                 setShowCreateDialog(false)
                 mutate()

@@ -79,7 +79,7 @@ def _make_booking(restaurant, phone=_PHONE_A, date=None, time_slot="19:00 – 21
     date = date or add_days(today(), 2)
     doc = frappe.get_doc({
         "doctype": "Table Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer_phone": phone,
         "customer_name": f"Guest {phone[-4:]}",
         "date": date,
@@ -138,7 +138,7 @@ class TestCreateTableBooking(unittest.TestCase):
         self.assertEqual(doc.customer_phone, _PHONE_A)
         self.assertEqual(doc.number_of_diners, 4)
         self.assertEqual(doc.notes, "Window seat please")
-        self.assertEqual(doc.restaurant, self.rest.name)
+        self.assertEqual(doc.outlet, self.rest.name)
 
     def test_nonexistent_restaurant_throws(self):
         with self.assertRaises(frappe.exceptions.DoesNotExistError):

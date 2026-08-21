@@ -40,7 +40,7 @@ DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _resolve_restaurant(outlet_id):
-	name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
+	name = frappe.db.get_value("Outlet", {"outlet_id": outlet_id}, "name")
 	return name or frappe.db.get_value("Outlet", outlet_id, "name")
 
 
@@ -60,7 +60,7 @@ def _assert_restaurant_access(restaurant_name):
 		return
 	has_access = frappe.db.exists(
 		"Outlet User",
-		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
+		{"outlet": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
 		frappe.throw(_("Access denied to this outlet."), frappe.PermissionError)
@@ -128,7 +128,7 @@ def _get_booked_slots(court_name, check_date):
 def _format_booking(b):
 	return {
 		"id": b.name,
-		"restaurant": b.restaurant,
+		"outlet": b.outlet,
 		"court": b.court,
 		"court_name": b.court_name or "",
 		"sport_type": b.sport_type or "",
@@ -167,7 +167,7 @@ def get_courts(outlet_id=None):
 
 		courts = frappe.get_all(
 			"Court",
-			filters={"restaurant": restaurant_name, "is_active": 1},
+			filters={"outlet": restaurant_name, "is_active": 1},
 			fields=[
 				"name", "court_name", "sport_type",
 				"slot_duration_minutes", "price_per_slot", "consumer_fee",
@@ -228,7 +228,7 @@ def get_court_availability(outlet_id=None, court_id=None, date=None):
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
 		court = frappe.get_doc("Court", court_id)
-		if court.restaurant != restaurant_name:
+		if court.outlet != restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Court not found"}}
 		if not court.is_active:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Court is not available"}}
@@ -322,7 +322,7 @@ def create_court_booking(
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Restaurant not found"}}
 
 		court = frappe.get_doc("Court", court_id)
-		if court.restaurant != restaurant_name or not court.is_active:
+		if court.outlet != restaurant_name or not court.is_active:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Court not found"}}
 
 		check_date = getdate(booking_date)
@@ -350,7 +350,7 @@ def create_court_booking(
 		# Create Court Booking doc (Pending Payment)
 		doc = frappe.get_doc({
 			"doctype": "Court Booking",
-			"restaurant": restaurant_name,
+			"outlet": restaurant_name,
 			"court": court_id,
 			"court_name": court.court_name,
 			"sport_type": court.sport_type,
@@ -511,7 +511,7 @@ def get_my_court_bookings(phone=None, page=1, limit=20):
 			"Court Booking",
 			filters={"customer_phone": phone.strip()},
 			fields=[
-				"name", "restaurant", "court", "court_name", "sport_type",
+				"name", "outlet", "court", "court_name", "sport_type",
 				"booking_date", "start_time", "end_time",
 				"customer_name", "customer_phone", "notes",
 				"slot_price", "consumer_fee",
@@ -624,7 +624,7 @@ def get_court_bookings(
 		limit = min(cint(limit) or 20, 100)
 		offset = (page - 1) * limit
 
-		filters = {"restaurant": restaurant_name}
+		filters = {"outlet": restaurant_name}
 		if date:
 			filters["booking_date"] = date
 		if court_id:
@@ -636,7 +636,7 @@ def get_court_bookings(
 			"Court Booking",
 			filters=filters,
 			fields=[
-				"name", "restaurant", "court", "court_name", "sport_type",
+				"name", "outlet", "court", "court_name", "sport_type",
 				"booking_date", "start_time", "end_time",
 				"customer_name", "customer_phone", "notes",
 				"slot_price", "consumer_fee",
@@ -687,7 +687,7 @@ def get_court_booking_summary(outlet_id=None, date=None):
 
 		rows = frappe.get_all(
 			"Court Booking",
-			filters={"restaurant": restaurant_name, "booking_date": target_date},
+			filters={"outlet": restaurant_name, "booking_date": target_date},
 			fields=["status", "payment_status", "slot_price", "consumer_fee"],
 		)
 
@@ -730,7 +730,7 @@ def mark_court_completed(booking_id=None, outlet_id=None):
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Court Booking", booking_id)
-		if doc.restaurant != restaurant_name:
+		if doc.outlet != restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Booking not found"}}
 
 		doc.status = "Completed"
@@ -753,7 +753,7 @@ def mark_court_no_show(booking_id=None, outlet_id=None):
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Court Booking", booking_id)
-		if doc.restaurant != restaurant_name:
+		if doc.outlet != restaurant_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Booking not found"}}
 
 		doc.status = "No Show"
@@ -798,7 +798,7 @@ def save_court(outlet_id=None, court_id=None, court_data=None):
 
 		if court_id:
 			doc = frappe.get_doc("Court", court_id)
-			if doc.restaurant != restaurant_name:
+			if doc.outlet != restaurant_name:
 				frappe.throw(_("Access denied."), frappe.PermissionError)
 			doc.court_name            = court_data["court_name"]
 			doc.sport_type            = court_data["sport_type"]
@@ -815,7 +815,7 @@ def save_court(outlet_id=None, court_id=None, court_data=None):
 		else:
 			doc = frappe.get_doc({
 				"doctype": "Court",
-				"restaurant": restaurant_name,
+				"outlet": restaurant_name,
 				"court_name": court_data["court_name"],
 				"sport_type": court_data["sport_type"],
 				"slot_duration_minutes": cint(court_data["slot_duration_minutes"]),
@@ -849,7 +849,7 @@ def delete_court(outlet_id=None, court_id=None):
 		_assert_restaurant_access(restaurant_name)
 
 		doc = frappe.get_doc("Court", court_id)
-		if doc.restaurant != restaurant_name:
+		if doc.outlet != restaurant_name:
 			frappe.throw(_("Access denied."), frappe.PermissionError)
 
 		# Block deletion if active future bookings exist

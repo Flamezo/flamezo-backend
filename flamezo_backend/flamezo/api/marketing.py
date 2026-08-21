@@ -50,14 +50,14 @@ def get_marketing_overview(outlet_id):
                 COUNT(CASE WHEN channel = 'WhatsApp' THEN 1 END) as wa_count,
                 COUNT(CASE WHEN channel = 'Email' THEN 1 END) as email_count
             FROM `tabMarketing Event`
-            WHERE restaurant = %s AND sent_at >= %s AND status NOT IN ('Failed', 'OptedOut')
+            WHERE outlet = %s AND sent_at >= %s AND status NOT IN ('Failed', 'OptedOut')
         """, (restaurant, month_start), as_dict=True)[0]
 
-        active_triggers = frappe.db.count("Marketing Trigger", {"restaurant": restaurant, "is_active": 1})
+        active_triggers = frappe.db.count("Marketing Trigger", {"outlet": restaurant, "is_active": 1})
         opted_out_count = frappe.db.sql("""
             SELECT COUNT(DISTINCT c.name) FROM `tabCustomer` c
-            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
-            WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
+            WHERE o.outlet = %s AND c.opted_out_of_marketing = 1
         """, (restaurant,))[0][0] or 0
 
         conversion_rate = 0
@@ -67,7 +67,7 @@ def get_marketing_overview(outlet_id):
         daily_trend = frappe.db.sql("""
             SELECT DATE(sent_at) as date, channel, COUNT(*) as count
             FROM `tabMarketing Event`
-            WHERE restaurant = %s AND sent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            WHERE outlet = %s AND sent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
               AND status NOT IN ('Failed', 'OptedOut')
             GROUP BY DATE(sent_at), channel
             ORDER BY date ASC
@@ -75,7 +75,7 @@ def get_marketing_overview(outlet_id):
 
         recent_campaigns = frappe.get_all(
             "Marketing Campaign",
-            filters={"restaurant": restaurant},
+            filters={"outlet": restaurant},
             fields=["name", "campaign_name", "channel", "status", "total_recipients",
                     "total_sent", "total_conversions", "total_cost_coins", "sent_at", "creation"],
             order_by="creation desc",
@@ -114,7 +114,7 @@ def get_segments(outlet_id):
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
     segments = frappe.get_all(
         "Marketing Segment",
-        filters={"restaurant": restaurant},
+        filters={"outlet": restaurant},
         fields=["name", "segment_name", "description", "criteria_type",
                 "estimated_reach", "last_computed_at", "days_since_last_visit",
                 "min_visit_count", "min_total_spent"],
@@ -135,10 +135,10 @@ def save_segment(outlet_id, segment_data):
     if segment_data.get("criteria_type") == "Custom SQL":
         return {"success": False, "error": "Custom SQL segments are disabled for security. Use 'Manual' with phone numbers."}
 
-    segment_data["restaurant"] = restaurant
+    segment_data["outlet"] = restaurant
     existing = frappe.db.get_value(
         "Marketing Segment",
-        {"segment_name": segment_data.get("segment_name"), "restaurant": restaurant},
+        {"segment_name": segment_data.get("segment_name"), "outlet": restaurant},
         "name"
     )
 
@@ -163,7 +163,7 @@ def preview_segment_reach(outlet_id, criteria_type, days_since_last_visit=30,
         return {"success": False, "error": "Custom SQL is disabled."}
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
     temp_doc = frappe.new_doc("Marketing Segment")
-    temp_doc.restaurant = restaurant
+    temp_doc.outlet = restaurant
     temp_doc.criteria_type = criteria_type
     temp_doc.days_since_last_visit = cint(days_since_last_visit)
     temp_doc.min_visit_count = cint(min_visit_count)
@@ -179,7 +179,7 @@ def delete_segment(outlet_id, segment_name):
     _require_system_admin()
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
     doc_name = frappe.db.get_value(
-        "Marketing Segment", {"segment_name": segment_name, "restaurant": restaurant}, "name"
+        "Marketing Segment", {"segment_name": segment_name, "outlet": restaurant}, "name"
     )
     if doc_name:
         frappe.delete_doc("Marketing Segment", doc_name, ignore_permissions=True)
@@ -195,7 +195,7 @@ def delete_segment(outlet_id, segment_name):
 @require_plan('GOLD')
 def get_campaigns(outlet_id, status=None):
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    filters = {"restaurant": restaurant}
+    filters = {"outlet": restaurant}
     if status:
         filters["status"] = status
 
@@ -219,7 +219,7 @@ def create_campaign(outlet_id, campaign_data):
         campaign_data = json.loads(campaign_data)
 
     campaign_data["doctype"] = "Marketing Campaign"
-    campaign_data["restaurant"] = restaurant
+    campaign_data["outlet"] = restaurant
     campaign_data["status"] = "Draft"
 
     doc = frappe.get_doc(campaign_data)
@@ -233,7 +233,7 @@ def create_campaign(outlet_id, campaign_data):
 def send_campaign(campaign_id):
     """Validate balance → enqueue dispatch."""
     _require_system_admin()
-    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
+    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "outlet")
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 
     doc = frappe.get_doc("Marketing Campaign", campaign_id)
@@ -285,7 +285,7 @@ def send_campaign(campaign_id):
 @frappe.whitelist()
 @require_plan('GOLD')
 def get_campaign_analytics(campaign_id):
-    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
+    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "outlet")
     validate_restaurant_for_api(outlet_id, frappe.session.user)
 
     campaign = frappe.get_doc("Marketing Campaign", campaign_id)
@@ -329,7 +329,7 @@ def get_campaign_analytics(campaign_id):
 @require_plan('GOLD')
 def cancel_campaign(campaign_id):
     _require_system_admin()
-    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
+    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "outlet")
     validate_restaurant_for_api(outlet_id, frappe.session.user)
     doc = frappe.get_doc("Marketing Campaign", campaign_id)
     if doc.status not in ["Draft", "Scheduled"]:
@@ -343,7 +343,7 @@ def cancel_campaign(campaign_id):
 @require_plan('GOLD')
 def delete_campaign(campaign_id):
     _require_system_admin()
-    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
+    outlet_id = frappe.db.get_value("Marketing Campaign", campaign_id, "outlet")
     validate_restaurant_for_api(outlet_id, frappe.session.user)
     doc = frappe.get_doc("Marketing Campaign", campaign_id)
     # Only allow deleting Drafts. Sent/Failed campaigns should be preserved for analytics.
@@ -365,7 +365,7 @@ def get_triggers(outlet_id):
     restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
     triggers = frappe.get_all(
         "Marketing Trigger",
-        filters={"restaurant": restaurant},
+        filters={"outlet": restaurant},
         fields=["name", "trigger_name", "trigger_event", "channel", "is_active",
                 "delay_hours", "days_since_visit", "loyalty_milestone_coins",
                 "total_fired", "message_template", "email_subject", "include_coupon", "coupon_code"],
@@ -382,7 +382,7 @@ def save_trigger(outlet_id, trigger_data):
     if isinstance(trigger_data, str):
         trigger_data = json.loads(trigger_data)
 
-    trigger_data["restaurant"] = restaurant
+    trigger_data["outlet"] = restaurant
     existing_name = trigger_data.pop("name", None)
 
     if existing_name and frappe.db.exists("Marketing Trigger", existing_name):
@@ -402,7 +402,7 @@ def save_trigger(outlet_id, trigger_data):
 @require_plan('GOLD')
 def delete_trigger(trigger_name):
     _require_system_admin()
-    outlet_id = frappe.db.get_value("Marketing Trigger", trigger_name, "restaurant")
+    outlet_id = frappe.db.get_value("Marketing Trigger", trigger_name, "outlet")
     validate_restaurant_for_api(outlet_id, frappe.session.user)
     frappe.delete_doc("Marketing Trigger", trigger_name, ignore_permissions=True)
     frappe.db.commit()
@@ -437,15 +437,15 @@ def get_optout_stats(outlet_id):
     total_opted_out = frappe.db.sql("""
         SELECT COUNT(DISTINCT c.name)
         FROM `tabCustomer` c
-        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
-        WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
+        WHERE o.outlet = %s AND c.opted_out_of_marketing = 1
     """, (restaurant,))[0][0] or 0
 
     recent_optouts = frappe.db.sql("""
         SELECT c.phone, c.customer_name, c.opted_out_at, c.opted_out_keyword
         FROM `tabCustomer` c
-        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
-        WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
+        WHERE o.outlet = %s AND c.opted_out_of_marketing = 1
         ORDER BY c.opted_out_at DESC
         LIMIT 20
     """, (restaurant,), as_dict=True)

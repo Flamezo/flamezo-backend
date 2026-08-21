@@ -37,7 +37,7 @@ def _make_event(restaurant_name, is_active=1, title="Test Event Detail", feature
                 recurring=False, status="upcoming"):
     doc = frappe.get_doc({
         "doctype": "Event",
-        "restaurant": restaurant_name,
+        "outlet": restaurant_name,
         "title": title,
         "image_src": "https://r2.example.com/events/test.jpg",
         "description": "Test event description",

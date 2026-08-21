@@ -4,10 +4,10 @@
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["restaurant", "section_name", "section_kind"],
+ "field_order": ["outlet", "section_name", "section_kind"],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "options": "Outlet",
    "label": "Outlet",

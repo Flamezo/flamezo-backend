@@ -80,7 +80,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
 
     txn = frappe.get_doc({
         "doctype": "Coin Transaction",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "transaction_type": txn_type,
         "amount": -abs(amount) if is_deduction else abs(amount),
         "gst_amount": gst_amount,
@@ -266,7 +266,7 @@ def trigger_auto_recharge(restaurant):
 def _credit_autopay_coins(restaurant, recharge_amt, payment_id, threshold, gst_amount=0, total_paid=0):
     """Credit auto-recharge coins after confirmed payment. Idempotent."""
     already_credited = frappe.db.exists("Coin Transaction", {
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "payment_id": payment_id,
         "transaction_type": "Autopay Recharge"
     })
@@ -505,7 +505,7 @@ def process_referral_bonus(restaurant):
 	
 	# 2. Check if this is the FIRST non-free transaction (The current one is already recorded)
 	txn_count = frappe.db.count("Coin Transaction", {
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"transaction_type": ["in", ["Purchase", "Autopay Recharge"]]
 	})
 	
@@ -515,7 +515,7 @@ def process_referral_bonus(restaurant):
 		
 	# 3. Check if referral bonus was already granted (to prevent double-dipping)
 	bonus_exists = frappe.db.exists("Coin Transaction", {
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"transaction_type": "Free Coins",
 		"description": ["like", "%Referral Bonus%"]
 	})
@@ -532,7 +532,7 @@ def process_referral_bonus(restaurant):
 		restaurant=referrer,
 		txn_type="Free Coins",
 		amount=bonus_amt,
-		description=f"Referral Bonus: You referred {res_doc.restaurant_name}!",
+		description=f"Referral Bonus: You referred {res_doc.outlet_name}!",
 	)
 	
 	# Credit Referee (the one who just recharged)
@@ -549,7 +549,7 @@ def process_referral_bonus(restaurant):
 def get_coin_transactions(restaurant, limit=20, offset=0, from_date=None, to_date=None, type=None):
     """Fetch paginated coin transactions for a restaurant with advanced filtering."""
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
-    filters = {"restaurant": restaurant}
+    filters = {"outlet": restaurant}
     
     if from_date and to_date:
         filters["creation"] = ["between", [f"{from_date} 00:00:00", f"{to_date} 23:59:59"]]

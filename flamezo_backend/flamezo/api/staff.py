@@ -28,7 +28,7 @@ def _assert_admin(outlet_id):
 
 	role = frappe.db.get_value(
 		"Outlet User",
-		{"user": user, "restaurant": outlet_id, "is_active": 1},
+		{"user": user, "outlet": outlet_id, "is_active": 1},
 		"role"
 	)
 	if role != "Outlet Admin":
@@ -77,7 +77,7 @@ def get_staff_members(outlet_id):
 
 		members_raw = frappe.get_all(
 			"Outlet User",
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			fields=["name", "user", "role", "is_active", "is_default", "creation"],
 			order_by="creation asc"
 		)
@@ -179,14 +179,14 @@ def invite_staff_member(outlet_id, email, full_name, role="Outlet Staff"):
 				frappe.db.set_value("User", email, "full_name", full_name)
 
 		# --- Check not already added ---
-		if frappe.db.exists("Outlet User", {"user": email, "restaurant": restaurant}):
+		if frappe.db.exists("Outlet User", {"user": email, "outlet": restaurant}):
 			frappe.throw(_("{0} is already a member of this outlet.").format(email))
 
 		# --- Create Restaurant User (seat limit enforced in DocType.validate) ---
 		ru = frappe.get_doc({
 			"doctype": "Outlet User",
 			"user": email,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"role": role,
 			"is_active": 1,
 			"is_default": 0,
@@ -197,7 +197,7 @@ def invite_staff_member(outlet_id, email, full_name, role="Outlet Staff"):
 		_send_staff_invite_email(
 			email=email,
 			full_name=full_name,
-			outlet_name=frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant,
+			outlet_name=frappe.db.get_value("Outlet", restaurant, "outlet_name") or restaurant,
 			is_new_user=is_new_user,
 		)
 
@@ -234,7 +234,7 @@ def remove_staff_member(outlet_id, restaurant_user_name):
 		ru = frappe.get_doc("Outlet User", restaurant_user_name)
 
 		# Safety: ensure the record belongs to this restaurant
-		if ru.restaurant != restaurant:
+		if ru.outlet != restaurant:
 			frappe.throw(_("This staff record does not belong to this outlet."), frappe.PermissionError)
 
 		# Admins cannot remove themselves
@@ -263,7 +263,7 @@ def update_staff_member(outlet_id, restaurant_user_name, is_active=None, role=No
 		_assert_admin(restaurant)
 
 		ru = frappe.get_doc("Outlet User", restaurant_user_name)
-		if ru.restaurant != restaurant:
+		if ru.outlet != restaurant:
 			frappe.throw(_("This staff record does not belong to this outlet."), frappe.PermissionError)
 
 		# Update active status if provided

@@ -9,7 +9,7 @@
  "field_order": [
   "order_id",
   "order_number",
-  "restaurant",
+  "outlet",
   "status",
   "payment_status",
   "payment_method",
@@ -42,7 +42,7 @@
   "settlement_mode",
   "platform_fee_amount",
   "cash_netoff_applied_paise",
-  "restaurant_transfer_amount",
+  "outlet_transfer_amount",
   "section_delivery",
   "delivery_address",
   "delivery_landmark",
@@ -67,7 +67,7 @@
    "label": "Order Number"
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet",
@@ -258,7 +258,7 @@
    "default": "0"
   },
   {
-   "fieldname": "restaurant_transfer_amount",
+   "fieldname": "outlet_transfer_amount",
    "fieldtype": "Int",
    "label": "Outlet Transfer Amount (paise)",
    "default": "0"

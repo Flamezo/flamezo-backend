@@ -374,7 +374,7 @@ export default function Layout({ children }: LayoutProps) {
       const result = await createRestaurant({
         doc: {
           doctype: 'Outlet',
-          restaurant_name: newRestaurantData.restaurant_name.trim(),
+          outlet_name: newRestaurantData.restaurant_name.trim(),
           owner_email: newRestaurantData.owner_email.trim(),
           owner_phone: newRestaurantData.owner_phone.trim() || undefined,
           referred_by_restaurant_code: newRestaurantData.referral_code.trim() || undefined,
@@ -399,9 +399,9 @@ export default function Layout({ children }: LayoutProps) {
 
       if (result?.message) {
         const createdRestaurant = result.message
-        const outletName = createdRestaurant.restaurant_name || createdRestaurant.name
-        const restaurantDocName = createdRestaurant.name || createdRestaurant.restaurant_id
-        const outletId = createdRestaurant.restaurant_id || restaurantDocName
+        const outletName = createdRestaurant.outlet_name || createdRestaurant.name
+        const restaurantDocName = createdRestaurant.name || createdRestaurant.outlet_id
+        const outletId = createdRestaurant.outlet_id || restaurantDocName
 
         toast.success('Merchant created successfully!')
 
@@ -476,13 +476,13 @@ export default function Layout({ children }: LayoutProps) {
   // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
   const { data: restaurantDocList } = useFrappeGetDocList('Outlet', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
-    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name', 'is_signature'],
+    fields: ['name', 'slug', 'outlet_id', 'outlet_name', 'is_signature'],
     limit: 1,
   })
   const restaurantDoc = restaurantDocList?.[0] || null
 
   // Preview URL path: slug preferred, fallback to outlet_id for all pages
-  const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentOutlet?.outlet_id || selectedOutlet || ''
+  const previewPath = restaurantDoc?.slug || restaurantDoc?.outlet_id || currentOutlet?.outlet_id || selectedOutlet || ''
 
   const { data: dashboardSummary } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.analytics.get_dashboard_summary',
@@ -580,7 +580,7 @@ export default function Layout({ children }: LayoutProps) {
                     {/* Name + tier inline */}
                     <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
                       <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
-                        {currentOutlet?.outlet_name || restaurantDoc?.restaurant_name || outlets[0]?.outlet_name || 'Select Restaurant'}
+                        {currentOutlet?.outlet_name || restaurantDoc?.outlet_name || outlets[0]?.outlet_name || 'Select Restaurant'}
                       </span>
                       {restaurantDoc?.is_signature ? (
                         <Star className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />
@@ -1864,7 +1864,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Hard Suspension Overlay */}
       {!isActive && billingStatus === 'suspended' && (
         <SuspendedOverlay
-          outletName={currentOutlet?.outlet_name || restaurantDoc?.restaurant_name || "Your Restaurant"}
+          outletName={currentOutlet?.outlet_name || restaurantDoc?.outlet_name || "Your Restaurant"}
         />
       )}
       <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>

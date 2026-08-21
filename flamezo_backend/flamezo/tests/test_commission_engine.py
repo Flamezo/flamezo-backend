@@ -97,7 +97,7 @@ def _force_gst_18():
 def _cleanup_ledgers_for(restaurant):
     """Delete all Commission Ledger Entries (and child rows via cascade) for a
     restaurant. Safe to call repeatedly."""
-    frappe.db.delete("Commission Ledger Entry", {"restaurant": restaurant})
+    frappe.db.delete("Commission Ledger Entry", {"outlet": restaurant})
     frappe.db.commit()
 
 
@@ -124,7 +124,7 @@ def _make_cash_order(restaurant, total_rupees=1000.0, status="confirmed",
         "doctype": "Order",
         "order_id": frappe.generate_hash(length=10),
         "order_number": f"CETST-{frappe.generate_hash(length=4)}",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "status": status,
         "payment_status": payment_status,
         "payment_method": payment_method,
@@ -281,7 +281,7 @@ class TestAccrueForOrder(unittest.TestCase):
         l2 = self.accrue(order, attempt_wallet_sweep=False)
         self.assertEqual(l1.name, l2.name, "Second accrue must return the same entry")
         count = frappe.db.count("Commission Ledger Entry",
-                                {"restaurant": self._res, "order": order.name})
+                                {"outlet": self._res, "order": order.name})
         self.assertEqual(count, 1)
         # Cache must not double-increment
         self.assertEqual(_outstanding(self._res), 1770)

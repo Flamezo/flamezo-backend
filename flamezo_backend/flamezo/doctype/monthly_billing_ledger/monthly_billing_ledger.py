@@ -7,12 +7,12 @@ class MonthlyBillingLedger(Document):
     def validate(self):
         # Ensure uniqueness per restaurant + month
         existing = frappe.db.exists("Monthly Billing Ledger", {
-            "restaurant": self.restaurant,
+            "outlet": self.outlet,
             "billing_month": self.billing_month,
             "name": ("!=", self.name)
         })
         if existing:
-            frappe.throw(f"Monthly Billing Ledger already exists for outlet {self.restaurant} in {self.billing_month}")
+            frappe.throw(f"Monthly Billing Ledger already exists for outlet {self.outlet} in {self.billing_month}")
 
     def before_save(self):
         # Calculate fee and final amount if totals are present
@@ -20,8 +20,8 @@ class MonthlyBillingLedger(Document):
             total_gmv = int(self.total_gmv or 0)
             
             platform_fee_percent = 3.0
-            if self.restaurant:
-                res_fee = frappe.db.get_value("Outlet", self.restaurant, "platform_fee_percent")
+            if self.outlet:
+                res_fee = frappe.db.get_value("Outlet", self.outlet, "platform_fee_percent")
                 if res_fee is not None:
                     platform_fee_percent = float(res_fee)
 

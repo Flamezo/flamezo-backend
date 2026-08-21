@@ -32,8 +32,8 @@ export default function MenuExtraction({ outletId, onExtractionComplete, onNavig
   const { data: extractions, isLoading: isLoadingList } = useFrappeGetDocList(
     'Menu Image Extractor',
     {
-      fields: ['name', 'restaurant', 'extraction_status', 'creation', 'modified'],
-      filters: { restaurant: outletId },
+      fields: ['name', 'outlet', 'extraction_status', 'creation', 'modified'],
+      filters: { outlet: outletId },
       orderBy: { field: 'creation', order: 'desc' },
       limit: 100
     },
@@ -264,7 +264,7 @@ export default function MenuExtraction({ outletId, onExtractionComplete, onNavig
             doctype="Menu Image Extractor"
             docname={selectedDocName || undefined}
             mode={selectedDocName ? 'edit' : 'create'}
-            initialData={{ restaurant: outletId }}
+            initialData={{ outlet: outletId }}
             onSave={(data) => {
               setSelectedDocName(data.name)
               localStorage.setItem(`menu-extraction-${outletId}`, data.name)

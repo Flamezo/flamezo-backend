@@ -68,13 +68,13 @@ def dispatch_table_booking_whatsapp(booking_name, attempt=1):
             return  # already sent — idempotent
 
         booking = frappe.get_doc("Table Booking", booking_name)
-        restaurant = frappe.get_doc("Outlet", booking.restaurant)
+        restaurant = frappe.get_doc("Outlet", booking.outlet)
 
         # Recipient: explicit override → the setup-wizard WhatsApp number → owner phone.
         # Same fallback chain as order_whatsapp.py — outlets already have this configured.
         to_phone = (
             getattr(restaurant, "order_whatsapp_number", None)
-            or frappe.db.get_value("Outlet Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
+            or frappe.db.get_value("Outlet Config", {"outlet": restaurant.name}, "whatsapp_phone_number")
             or getattr(restaurant, "owner_phone", None)
         )
         if not to_phone:
@@ -89,7 +89,7 @@ def dispatch_table_booking_whatsapp(booking_name, attempt=1):
                                 "No template configured (Flamezo Settings)", update_modified=False)
             return
 
-        params = build_table_booking_params(booking, restaurant.restaurant_name)
+        params = build_table_booking_params(booking, restaurant.outlet_name)
 
         ok, info = send_whatsapp_cloud_message(
             to_phone, template, params, settings=settings,
@@ -162,7 +162,7 @@ def dispatch_table_booking_customer_confirmation(booking_name, attempt=1):
                                 "No customer phone on booking", update_modified=False)
             return
 
-        restaurant = frappe.get_doc("Outlet", booking.restaurant)
+        restaurant = frappe.get_doc("Outlet", booking.outlet)
 
         settings = frappe.get_single("Flamezo Settings")
         template = getattr(settings, "booking_customer_whatsapp_template_name", None)
@@ -171,7 +171,7 @@ def dispatch_table_booking_customer_confirmation(booking_name, attempt=1):
                                 "No template configured (Flamezo Settings)", update_modified=False)
             return
 
-        params = build_customer_confirmation_params(booking, restaurant.restaurant_name)
+        params = build_customer_confirmation_params(booking, restaurant.outlet_name)
 
         ok, info = send_whatsapp_cloud_message(
             booking.customer_phone, template, params, settings=settings,
