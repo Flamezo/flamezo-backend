@@ -147,8 +147,8 @@ def sync_media_asset_to_owner(asset):
 
 		field_mappings = {
 			"Home Feature": {"home_feature_image": "image_src"},
+			"Outlet": {"restaurant_logo": "logo"},
 			"Restaurant Config": {
-				"restaurant_config_logo": "logo",
 				"restaurant_config_hero_video": "hero_video",
 				"apple_touch_icon": "apple_touch_icon",
 			},
@@ -440,7 +440,7 @@ def get_image_variant_configs(media_role):
 	]
 	
 	# Role-specific adjustments
-	if media_role in ["restaurant_logo", "restaurant_config_logo", "apple_touch_icon"]:
+	if media_role in ["restaurant_logo", "apple_touch_icon"]:
 		return [
 			{"name": "small", "size": 128, "quality": 75, "is_primary": False},
 			{"name": "medium", "size": 256, "quality": 80, "is_primary": True},

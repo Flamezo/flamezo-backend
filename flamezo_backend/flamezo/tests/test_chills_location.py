@@ -20,7 +20,7 @@ def _fake_access(outlet, phone=None):
 
 
 def _get_outlet():
-    name = frappe.db.get_value("Restaurant", {}, "name")
+    name = frappe.db.get_value("Outlet", {}, "name")
     if not name:
         raise RuntimeError("No Restaurant doc in local DB — seed one first.")
     return name
@@ -279,7 +279,7 @@ class TestUpdateChillsLocation(unittest.TestCase):
 
     def test_D6_ownership_check(self):
         other = frappe.db.sql(
-            "SELECT name FROM `tabRestaurant` WHERE name != %s LIMIT 1",
+            "SELECT name FROM `tabOutlet` WHERE name != %s LIMIT 1",
             self.outlet_id, as_dict=True,
         )
         if not other:

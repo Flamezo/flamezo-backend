@@ -127,20 +127,13 @@ def get_user_outlets():
 
 		# Get restaurant details - using ignore_permissions for the IDs we already verified
 		restaurants = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters={"name": ["in", restaurant_ids]},
 			fields=["name", "restaurant_id as outlet_id", "restaurant_name as outlet_name", "owner_email", "is_active", "plan_type", "city", "state", "creation", "modified", "company", "logo"],
 			order_by="creation desc",
 			ignore_permissions=True
 		)
 
-		# Backfill logo from Restaurant Config if missing in Restaurant
-		for r in restaurants:
-			if not r.logo:
-				config_logo = frappe.db.get_value("Restaurant Config", {"restaurant": r.name}, "logo")
-				if config_logo:
-					r.logo = config_logo
-		
 		return {
 			'restaurants': restaurants
 		}
@@ -163,7 +156,7 @@ def get_outlet_setup_progress(outlet_id):
 			frappe.throw("You don't have permission to access this outlet")
 
 		progress = {
-			'restaurant': frappe.db.exists("Restaurant", outlet_id),
+			'restaurant': frappe.db.exists("Outlet", outlet_id),
 			'config': frappe.db.exists("Restaurant Config", {"restaurant": outlet_id}),
 			'users': frappe.db.exists("Restaurant User", {"restaurant": outlet_id}),
 			'categories': frappe.db.exists("Menu Category", {"restaurant": outlet_id}),
@@ -190,14 +183,14 @@ def get_setup_wizard_steps(restaurant=None):
 	"""Get steps for restaurant setup wizard - tier-aware filtering"""
 	plan_type = 'GOLD' # Default to GOLD to see all steps for admin/system
 	if restaurant:
-		plan_type = frappe.db.get_value('Restaurant', restaurant, 'plan_type') or 'GOLD'
+		plan_type = frappe.db.get_value('Outlet', restaurant, 'plan_type') or 'GOLD'
 
 	all_steps = [
 		{
 			'id': 'restaurant',
 			'title': 'Create Restaurant',
 			'description': 'Set up your restaurant basic information (name, address, owner details)',
-			'doctype': 'Restaurant',
+			'doctype': 'Outlet',
 			'required': True,
 			'depends_on': None,
 		},

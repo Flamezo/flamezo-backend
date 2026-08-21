@@ -311,7 +311,7 @@ def get_all_outlets(
 		fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
 		sql = f"""
 			SELECT {fields_csv}
-			FROM `tabRestaurant` r
+			FROM `tabOutlet` r
 			WHERE {where_clause}
 			ORDER BY {order_by}
 			LIMIT {fetch_limit} OFFSET {fetch_offset}
@@ -344,7 +344,7 @@ def get_all_outlets(
 			enriched = enriched[offset: offset + limit]
 		else:
 			# Count without geo (fast)
-			count_sql = f"SELECT COUNT(*) FROM `tabRestaurant` r WHERE {where_clause}"
+			count_sql = f"SELECT COUNT(*) FROM `tabOutlet` r WHERE {where_clause}"
 			total = frappe.db.sql(count_sql, params)[0][0]
 
 		response = {
@@ -481,7 +481,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		pool_limit = 300
 		sql = f"""
 			SELECT {fields_csv}
-			FROM `tabRestaurant` r
+			FROM `tabOutlet` r
 			WHERE {where_clause}
 			LIMIT {pool_limit}
 		"""
@@ -697,7 +697,7 @@ def get_outlets_for_map(
 			f"""
 			SELECT name, restaurant_name, logo, latitude, longitude,
 			       outlet_type, is_featured, limelight_start_date, limelight_end_date
-			FROM `tabRestaurant`
+			FROM `tabOutlet`
 			WHERE {where}
 			ORDER BY (is_featured = 1 AND (limelight_start_date IS NULL OR CURDATE() >= limelight_start_date) AND (limelight_end_date IS NULL OR CURDATE() <= limelight_end_date)) DESC, onboarding_date DESC
 			LIMIT 2000
@@ -801,7 +801,7 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 			restaurant_filters["city"] = ["like", f"%{city}%"]
 
 		active_restaurants = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters=restaurant_filters,
 			fields=["name", "restaurant_name", "city", "logo"],
 		)
@@ -1065,7 +1065,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 		formatted_entries = []
 		for e in entries:
-			outlet_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
+			outlet_name = frappe.db.get_value("Outlet", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
 
 			# Map type
 			if e.transaction_type == "Earn":
@@ -1209,7 +1209,7 @@ def get_outlet_summary(outlet_id):
 			"latitude", "longitude", "outlet_type", "contact_phone", "whatsapp_number", "instagram_url"]
 
 		outlet = frappe.db.get_value(
-			"Restaurant",
+			"Outlet",
 			{"restaurant_id": outlet_id},
 			_summary_fields,
 			as_dict=True,
@@ -1218,7 +1218,7 @@ def get_outlet_summary(outlet_id):
 		if not outlet:
 			# Try by name
 			outlet = frappe.db.get_value(
-				"Restaurant",
+				"Outlet",
 				{"name": outlet_id},
 				_summary_fields,
 				as_dict=True,

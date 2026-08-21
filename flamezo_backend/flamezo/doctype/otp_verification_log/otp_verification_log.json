@@ -17,7 +17,7 @@
    "fieldname": "restaurant",
    "fieldtype": "Link",
    "label": "Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "reqd": 1
   },
   {

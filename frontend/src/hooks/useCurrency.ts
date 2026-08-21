@@ -32,7 +32,7 @@ export function useCurrency() {
   })
   const configData = configList?.[0] || null
 
-  const { data: restaurantList } = useFrappeGetDocList('Restaurant', {
+  const { data: restaurantList } = useFrappeGetDocList('Outlet', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['currency'],
     limit: 1,

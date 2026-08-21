@@ -61,7 +61,7 @@ def _make_event(restaurant_name, is_active=1, title="Test Event Detail", feature
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabEvent` WHERE title LIKE 'Test Event Detail%'")
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 

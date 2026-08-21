@@ -56,7 +56,7 @@ def _settings_commission() -> float:
 
 def execute():
     silver_restaurants = frappe.get_all(
-        "Restaurant",
+        "Outlet",
         filters={"plan_type": "SILVER"},
         fields=["name", "monthly_minimum", "platform_fee_percent"],
     )
@@ -88,11 +88,11 @@ def execute():
                 updates["platform_fee_percent"] = commission
 
             # Bypass validate_plan_change() role guard.
-            frappe.db.set_value("Restaurant", res.name, updates, update_modified=True)
+            frappe.db.set_value("Outlet", res.name, updates, update_modified=True)
 
             # Append a plan_change_history JSON entry (best-effort).
             try:
-                raw_history = frappe.db.get_value("Restaurant", res.name, "plan_change_history") or "[]"
+                raw_history = frappe.db.get_value("Outlet", res.name, "plan_change_history") or "[]"
                 history = json.loads(raw_history) if isinstance(raw_history, str) else (raw_history or [])
                 if not isinstance(history, list):
                     history = []
@@ -104,7 +104,7 @@ def execute():
                     "reason": updates["plan_change_reason"],
                 })
                 frappe.db.set_value(
-                    "Restaurant",
+                    "Outlet",
                     res.name,
                     "plan_change_history",
                     json.dumps(history),

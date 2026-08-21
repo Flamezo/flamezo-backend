@@ -10,7 +10,7 @@ def generate_blog_post(outlet_id, keyword, title=None, length=1500, style="profe
     validate_restaurant_for_api(outlet_id)
     
     # Optional: Fetch outlet context to provide to AI
-    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    restaurant = frappe.get_doc("Outlet", outlet_id)
     context = f"Restaurant Name: {restaurant.restaurant_name}\n"
     if restaurant.description:
         context += f"Description: {restaurant.description}\n"
@@ -37,7 +37,7 @@ def analyze_outlet_voice(outlet_id):
     contents = []
     
     # 1. Get outlet description
-    desc = frappe.db.get_value("Restaurant", outlet_id, "description")
+    desc = frappe.db.get_value("Outlet", outlet_id, "description")
     if desc: contents.append(desc)
     
     # 2. Get any existing blog posts (assuming a DocType named 'Blog Post' exists)

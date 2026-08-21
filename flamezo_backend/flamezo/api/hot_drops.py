@@ -37,7 +37,7 @@ from flamezo_backend.flamezo.doctype.hot_drop.hot_drop import MAX_LIVE_HOT_DROPS
 #    matching this codebase's existing convention) ─────────────────────────
 
 def _resolve_outlet(outlet_id):
-    name = frappe.db.get_value("Restaurant", outlet_id, "name")
+    name = frappe.db.get_value("Outlet", outlet_id, "name")
     if not name:
         from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
         name = get_restaurant_from_id(outlet_id)
@@ -51,7 +51,7 @@ def _assert_outlet_access(outlet, phone=None):
     dashboard) OR owner phone (a future mobile merchant app)."""
     if phone:
         phone = phone.strip()
-        row = frappe.db.get_value("Restaurant", outlet, ["owner_phone", "contact_phone"], as_dict=True)
+        row = frappe.db.get_value("Outlet", outlet, ["owner_phone", "contact_phone"], as_dict=True)
         if row and phone in (row.get("owner_phone") or "", row.get("contact_phone") or ""):
             return
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -305,7 +305,7 @@ def get_hot_drops(city=None, outlet_type=None, latitude=None, longitude=None, li
             SELECT hd.name, hd.restaurant, hd.deal_label, hd.starts_at, hd.ends_at, hd.story_images,
                    r.restaurant_name, r.logo, r.latitude, r.longitude
             FROM `tabHot Drop` hd
-            INNER JOIN `tabRestaurant` r ON r.name = hd.restaurant
+            INNER JOIN `tabOutlet` r ON r.name = hd.restaurant
             WHERE {where_clause}
             LIMIT 200
             """,

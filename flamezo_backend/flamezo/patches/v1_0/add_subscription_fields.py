@@ -20,7 +20,7 @@ def execute():
 	
 	try:
 		# Get all existing restaurants
-		restaurants = frappe.get_all('Restaurant', fields=['name', 'restaurant_name'])
+		restaurants = frappe.get_all('Outlet', fields=['name', 'restaurant_name'])
 		
 		frappe.logger().info(f"Found {len(restaurants)} restaurants to migrate")
 		
@@ -42,7 +42,7 @@ def execute():
 				}])
 				
 				frappe.db.sql("""
-					UPDATE `tabRestaurant`
+					UPDATE `tabOutlet`
 					SET 
 						plan_type = 'GOLD',
 						plan_activated_on = %s,

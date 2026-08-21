@@ -16,14 +16,14 @@ def create_restaurant_user_permission(user, restaurant, is_default=0):
 		# Check if permission already exists
 		if frappe.db.exists("User Permission", {
 			"user": user,
-			"allow": "Restaurant",
+			"allow": "Outlet",
 			"for_value": restaurant
 		}):
 			return
 		
 		# Create User Permission
 		frappe.permissions.add_user_permission(
-			doctype="Restaurant",
+			doctype="Outlet",
 			name=restaurant,
 			user=user,
 			is_default=is_default,
@@ -40,7 +40,7 @@ def remove_restaurant_user_permission(user, restaurant):
 	"""Remove User Permission for restaurant"""
 	try:
 		frappe.permissions.remove_user_permission(
-			doctype="Restaurant",
+			doctype="Outlet",
 			name=restaurant,
 			user=user,
 			ignore_permissions=True
@@ -118,7 +118,7 @@ def get_user_restaurant_ids(user):
 		# Cache results in frappe.local to ensure it only runs once per request
 		if not hasattr(frappe.local, "all_restaurant_ids"):
 			# Use direct SQL to avoid any hooks when fetching the list of all restaurants
-			all_res = frappe.db.sql("SELECT name FROM `tabRestaurant` WHERE is_active = 1", as_dict=True)
+			all_res = frappe.db.sql("SELECT name FROM `tabOutlet` WHERE is_active = 1", as_dict=True)
 			frappe.local.all_restaurant_ids = [d.name for d in all_res]
 		return frappe.local.all_restaurant_ids
 	
@@ -157,7 +157,7 @@ def validate_restaurant_access(user, restaurant):
 		return True
 	
 	# Check if restaurant exists and is active
-	if not frappe.db.exists("Restaurant", {"name": restaurant, "is_active": 1}):
+	if not frappe.db.exists("Outlet", {"name": restaurant, "is_active": 1}):
 		return False
 	
 	# Check user permissions

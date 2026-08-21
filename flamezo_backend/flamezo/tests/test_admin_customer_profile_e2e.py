@@ -250,7 +250,7 @@ def _cleanup(restaurant, customer_id=None, phone=None):
         frappe.db.delete("Crowd Request Member", {"customer_phone": phone})
         frappe.db.delete("Crowd Report", {"reporter_phone": phone})
         frappe.db.delete("Crowd Report", {"reported_phone": phone})
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 

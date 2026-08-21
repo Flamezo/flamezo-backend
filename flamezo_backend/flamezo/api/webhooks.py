@@ -120,11 +120,11 @@ def handle_payment_captured(payload):
 					payload.get("payload", {}).get("token", {}).get("entity", {}).get("token")
 				)
 
-				if outlet_from_notes and frappe.db.exists("Restaurant", outlet_from_notes):
+				if outlet_from_notes and frappe.db.exists("Outlet", outlet_from_notes):
 					if customer_id:
-						frappe.db.set_value("Restaurant", outlet_from_notes, "razorpay_customer_id", customer_id)
+						frappe.db.set_value("Outlet", outlet_from_notes, "razorpay_customer_id", customer_id)
 					if token_id:
-						frappe.db.set_value("Restaurant", outlet_from_notes, {
+						frappe.db.set_value("Outlet", outlet_from_notes, {
 							"razorpay_token_id": token_id, 
 							"mandate_status": "active"
 						})
@@ -170,9 +170,9 @@ def handle_payment_captured(payload):
 		if request_type == "auto_recharge":
 			try:
 				restaurant = outlet_from_notes or notes.get("restaurant")
-				if restaurant and frappe.db.exists("Restaurant", restaurant):
+				if restaurant and frappe.db.exists("Outlet", restaurant):
 					from flamezo_backend.flamezo.api.coin_billing import _credit_autopay_coins
-					threshold = frappe.db.get_value("Restaurant", restaurant, "auto_recharge_threshold") or 300
+					threshold = frappe.db.get_value("Outlet", restaurant, "auto_recharge_threshold") or 300
 					recharge_amt = float(payment_data.get("amount") or 0) / 100.0
 					
 					# Derive base amount if GST was included
@@ -499,7 +499,7 @@ def handle_payment_link_paid(payload):
 			outlet_id = notes.get("restaurant")  # Frappe doc name
 			tier = notes.get("tier", "")
 
-			if not outlet_id or not frappe.db.exists("Restaurant", outlet_id):
+			if not outlet_id or not frappe.db.exists("Outlet", outlet_id):
 				frappe.log_error(
 					f"payment_link.paid: outlet '{outlet_id}' not found in notes for plink {payment_link_id}",
 					"razorpay.wallet_topup_plink"
@@ -591,7 +591,7 @@ def handle_payment_failed(payload):
 		ledgers = frappe.get_all("Monthly Billing Ledger", filters={"razorpay_payment_id": payment_id}, fields=["name", "restaurant"])
 		if ledgers:
 			frappe.db.set_value("Monthly Billing Ledger", ledgers[0].name, "payment_status", "failed")
-			frappe.db.set_value("Restaurant", ledgers[0].restaurant, "billing_status", "overdue")
+			frappe.db.set_value("Outlet", ledgers[0].restaurant, "billing_status", "overdue")
 			frappe.db.commit()
 		return {"success": True, "failure_recorded": True}
 	except Exception as e:
@@ -624,13 +624,13 @@ def handle_subscription_event(payload):
 		restaurant = notes.get("outlet_id")
 		request_type = notes.get("type")
 		
-		if restaurant and frappe.db.exists("Restaurant", restaurant):
+		if restaurant and frappe.db.exists("Outlet", restaurant):
 			if event in ["subscription.activated", "subscription.authenticated", "token.confirmed"]:
-				frappe.db.set_value("Restaurant", restaurant, "mandate_status", "active")
+				frappe.db.set_value("Outlet", restaurant, "mandate_status", "active")
 				if token_id:
-					frappe.db.set_value("Restaurant", restaurant, "razorpay_token_id", token_id)
+					frappe.db.set_value("Outlet", restaurant, "razorpay_token_id", token_id)
 				if customer_id:
-					frappe.db.set_value("Restaurant", restaurant, "razorpay_customer_id", customer_id)
+					frappe.db.set_value("Outlet", restaurant, "razorpay_customer_id", customer_id)
 				
 				# --- Multi-Method Logic: Cancellation & Persistence ---
 				if request_type == "tokenization":
@@ -653,9 +653,9 @@ def handle_subscription_event(payload):
 							frappe.log_error(f"Failed to cancel registration sub {sub_data.get('id')}: {str(e)}", "razorpay.sub_cancel")
 
 			elif event in ["subscription.paused", "subscription.pending"]:
-				frappe.db.set_value("Restaurant", restaurant, "mandate_status", "paused")
+				frappe.db.set_value("Outlet", restaurant, "mandate_status", "paused")
 			elif event in ["subscription.cancelled", "subscription.halted"]:
-				frappe.db.set_value("Restaurant", restaurant, "mandate_status", "inactive")
+				frappe.db.set_value("Outlet", restaurant, "mandate_status", "inactive")
 			
 			frappe.db.commit()
 			return {"success": True, "event": event, "restaurant": restaurant}

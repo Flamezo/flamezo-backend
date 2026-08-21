@@ -13,7 +13,7 @@
    "fieldname": "restaurant",
    "fieldtype": "Link",
    "label": "Outlet",
-   "options": "Restaurant"
+   "options": "Outlet"
   },
   {
    "fieldname": "owner_doctype",

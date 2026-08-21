@@ -24,12 +24,12 @@ import unittest
 
 def _make_restaurant(name: str, plan_type: str = "GOLD", **kwargs) -> str:
     """Insert a minimal test Restaurant and return its name."""
-    if frappe.db.exists("Restaurant", name):
-        frappe.db.set_value("Restaurant", name, {"plan_type": plan_type, **kwargs})
+    if frappe.db.exists("Outlet", name):
+        frappe.db.set_value("Outlet", name, {"plan_type": plan_type, **kwargs})
         return name
 
     doc = frappe.get_doc({
-        "doctype": "Restaurant",
+        "doctype": "Outlet",
         "restaurant_id": name,
         "restaurant_name": f"Test {name}",
         "plan_type": plan_type,
@@ -81,7 +81,7 @@ class TestPlanPurge(unittest.TestCase):
         from flamezo_backend.flamezo.api.config import get_outlet_config
 
         # Force DB value to something that should be ignored
-        frappe.db.set_value("Restaurant", self.res_id, "plan_type", "GOLD")
+        frappe.db.set_value("Outlet", self.res_id, "plan_type", "GOLD")
         frappe.db.commit()
 
         result = get_outlet_config(self.res_id)
@@ -213,7 +213,7 @@ class TestPlanPurge(unittest.TestCase):
         )
         # The field is not in the allowed list so the call should succeed
         # but the DB value must remain GOLD.
-        actual = frappe.db.get_value("Restaurant", self.res_id, "plan_type")
+        actual = frappe.db.get_value("Outlet", self.res_id, "plan_type")
         self.assertEqual(
             actual,
             "GOLD",
@@ -269,15 +269,15 @@ class TestPlanPurge(unittest.TestCase):
         A freshly inserted Restaurant must default to plan_type='GOLD'.
         """
         temp_id = "test-plan-default-check"
-        if not frappe.db.exists("Restaurant", temp_id):
+        if not frappe.db.exists("Outlet", temp_id):
             frappe.get_doc({
-                "doctype": "Restaurant",
+                "doctype": "Outlet",
                 "restaurant_id": temp_id,
                 "restaurant_name": "Plan Default Check",
                 "is_active": 0,
             }).insert(ignore_permissions=True)
 
-        val = frappe.db.get_value("Restaurant", temp_id, "plan_type")
+        val = frappe.db.get_value("Outlet", temp_id, "plan_type")
         self.assertEqual(val, "GOLD", "Default plan_type must be 'GOLD'")
 
     # ------------------------------------------------------------------

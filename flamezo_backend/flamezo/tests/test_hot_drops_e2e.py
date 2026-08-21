@@ -62,7 +62,7 @@ def _cleanup(restaurant):
     frappe.db.delete("Offer Claim", {"restaurant": restaurant})
     frappe.db.delete("Coupon", {"restaurant": restaurant})
     frappe.db.delete("Hot Drop", {"restaurant": restaurant})
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 

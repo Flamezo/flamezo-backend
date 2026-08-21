@@ -15,7 +15,7 @@ MAX_RECOMMENDATIONS_PER_PRODUCT = 8
 def _get_restaurant_doc(outlet_id: str):
     """Validate and load Restaurant doc."""
     outlet_name = validate_restaurant_for_api(outlet_id)
-    return frappe.get_doc("Restaurant", outlet_name)
+    return frappe.get_doc("Outlet", outlet_name)
 
 
 def _build_payload_for_restaurant(restaurant_doc) -> tuple:
@@ -355,7 +355,7 @@ def _get_ctr_stats_bulk(outlet_name: str) -> Dict[str, Dict]:
 def _process_interaction(outlet_id: str, source_product_id: str, recommended_product_id: str, action: str, session_id: str = ""):
     try:
         outlet_name = frappe.db.get_value(
-            "Restaurant",
+            "Outlet",
             {"restaurant_id": outlet_id},
             "name",
         )

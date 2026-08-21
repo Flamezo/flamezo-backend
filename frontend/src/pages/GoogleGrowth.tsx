@@ -17,7 +17,7 @@ export default function GoogleGrowth() {
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<any>(null)
 
-  const { data: restaurant, isLoading: loadingDoc } = useFrappeGetDoc('Restaurant', selectedOutlet || '', {
+  const { data: restaurant, isLoading: loadingDoc } = useFrappeGetDoc('Outlet', selectedOutlet || '', {
     enabled: !!selectedOutlet
   })
 

@@ -43,7 +43,7 @@ def get_outlet_id(outlet_name):
 
 		# Try to find outlet by outlet_name (exact match first)
 		outlet = frappe.db.get_value(
-			"Restaurant",
+			"Outlet",
 			{"restaurant_name": outlet_name},
 			["name", "restaurant_id", "restaurant_name", "is_active"],
 			as_dict=True
@@ -52,7 +52,7 @@ def get_outlet_id(outlet_name):
 		# If not found, try case-insensitive search
 		if not outlet:
 			outlets = frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"restaurant_name": ["like", f"%{outlet_name}%"]},
 				fields=["name", "restaurant_id", "restaurant_name", "is_active"],
 				limit=1
@@ -170,7 +170,7 @@ def get_outlet_tables(outlet_id):
 		outlet = validate_restaurant_for_api(outlet_id)
 
 		# Get number of tables from outlet
-		tables_count = frappe.db.get_value("Restaurant", outlet, "tables")
+		tables_count = frappe.db.get_value("Outlet", outlet, "tables")
 
 		if not tables_count or tables_count <= 0:
 			return {
@@ -235,7 +235,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 			filters["city"] = ["like", f"%{city}%"]
 
 		outlets = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters=filters,
 			fields=[
 				"name", "restaurant_id", "restaurant_name", "is_active",
@@ -295,7 +295,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 
 			primary_color = "#B7410E"
 			tagline = cfg.get("tagline") or cfg.get("subtitle") or cfg.get("description") or ""
-			cuisine_type = cfg.get("subtitle") or cfg.get("description") or "Restaurant"
+			cuisine_type = cfg.get("subtitle") or cfg.get("description") or "Outlet"
 
 			onboarding_date = r.get("onboarding_date")
 			is_new = False
@@ -499,15 +499,15 @@ def get_outlet_detail(outlet_id):
 			return json.loads(cached)
 
 		# Resolve internal name from restaurant_id field OR direct name
-		rest_name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
+		rest_name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
 		if not rest_name:
-			rest_name = frappe.db.get_value("Restaurant", outlet_id, "name")
+			rest_name = frappe.db.get_value("Outlet", outlet_id, "name")
 		if not rest_name:
 			return {"success": False, "error": {"code": "NOT_FOUND", "message": "Outlet not found"}}
 
 		# Single row fetch — all discovery fields + ops fields
 		r = frappe.db.get_value(
-			"Restaurant",
+			"Outlet",
 			rest_name,
 			[
 				"name", "restaurant_name", "logo", "outlet_type",
@@ -671,7 +671,7 @@ def get_outlet_media_pool(outlet_id):
 		seen_urls = set()
 
 		# 0. Restaurant Branding
-		outlet_doc = frappe.get_doc("Restaurant", outlet)
+		outlet_doc = frappe.get_doc("Outlet", outlet)
 
 		# Industry-aware label for the "products" media folder — food outlets see
 		# "Food Images", fashion sees "Products & Catalogue", etc.

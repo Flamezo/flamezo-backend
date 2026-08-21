@@ -114,7 +114,7 @@ def create_table_booking(phone, outlet_id, date, time_slot, number_of_diners,
 
     # Validate outlet exists and accepts bookings
     outlet = frappe.db.get_value(
-        "Restaurant",
+        "Outlet",
         outlet_id,
         ["name", "restaurant_name", "city", "is_active"],
         as_dict=True,
@@ -207,7 +207,7 @@ def get_my_table_bookings(phone, page=1, limit=20, status=None):
                tb.confirmed_at, tb.rejected_at, tb.rejection_reason, tb.cancelled_at, tb.creation,
                r.restaurant_id, r.restaurant_name, r.city
         FROM `tabTable Booking` tb
-        LEFT JOIN `tabRestaurant` r ON r.name = tb.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = tb.restaurant
         WHERE {where}
         ORDER BY tb.creation DESC
         LIMIT %s OFFSET %s
@@ -249,7 +249,7 @@ def get_table_booking_detail(booking_id, phone):
                tb.confirmed_at, tb.rejected_at, tb.rejection_reason, tb.cancelled_at, tb.creation,
                r.restaurant_id, r.restaurant_name, r.city
         FROM `tabTable Booking` tb
-        LEFT JOIN `tabRestaurant` r ON r.name = tb.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = tb.restaurant
         WHERE tb.name = %s
         """,
         booking_id,

@@ -1531,7 +1531,7 @@ class TestSendOfferClaimNotification(unittest.TestCase):
         with patch(_WA_PATH, return_value=(True, "wamid-005")) as mock_wa:
             self._call(claim.name)
         body_params = mock_wa.call_args[1]["body_params"]
-        restaurant_name = frappe.db.get_value("Restaurant", self.restaurant, "restaurant_name")
+        restaurant_name = frappe.db.get_value("Outlet", self.restaurant, "restaurant_name")
         self.assertEqual(body_params[1], restaurant_name)
 
     def test_body_params_third_element_is_coupon_code(self):
@@ -1568,7 +1568,7 @@ class TestSendOfferClaimNotification(unittest.TestCase):
         with patch(_WA_PATH, return_value=(True, "wamid-009")) as mock_wa:
             self._call(claim.name)
         button_param = mock_wa.call_args[1]["button_url_param"]
-        restaurant_slug = frappe.db.get_value("Restaurant", self.restaurant, "restaurant_id")
+        restaurant_slug = frappe.db.get_value("Outlet", self.restaurant, "restaurant_id")
         self.assertTrue(
             button_param.startswith(restaurant_slug),
             f"Expected button_url_param to start with '{restaurant_slug}', got: '{button_param}'",

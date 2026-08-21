@@ -70,10 +70,10 @@ def _make_rest(
     lng=72.8311,
 ):
     name = f"{_PREFIX}-{suffix}"
-    if frappe.db.exists("Restaurant", name):
-        frappe.delete_doc("Restaurant", name, force=True, ignore_permissions=True)
+    if frappe.db.exists("Outlet", name):
+        frappe.delete_doc("Outlet", name, force=True, ignore_permissions=True)
     r = make_restaurant(name, outlet_type=outlet_type)
-    frappe.db.set_value("Restaurant", name, {
+    frappe.db.set_value("Outlet", name, {
         "is_active": is_active,
         "is_featured": is_featured,
         "rating": rating,
@@ -121,7 +121,7 @@ def _make_coupon(restaurant_name, discount_value=20):
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabCoupon` WHERE code LIKE 'TEST%' AND description='Test discount'")
-    frappe.db.sql(f"DELETE FROM `tabRestaurant` WHERE name LIKE '{_PREFIX}%'")
+    frappe.db.sql(f"DELETE FROM `tabOutlet` WHERE name LIKE '{_PREFIX}%'")
     # Clear discovery caches
     for key in frappe.cache().get_keys("flamezo:disco:*") or []:
         frappe.cache().delete_value(key)
@@ -182,7 +182,7 @@ class TestGetAllRestaurants(unittest.TestCase):
         self.assertIn(self.dining, names)
 
     def test_search_by_cuisines(self):
-        frappe.db.set_value("Restaurant", self.dining, "cuisines", "Gujarati, Jain")
+        frappe.db.set_value("Outlet", self.dining, "cuisines", "Gujarati, Jain")
         frappe.db.commit()
         result = flamezo_api.get_all_outlets(search="Gujarati")
         self.assertTrue(result["success"])

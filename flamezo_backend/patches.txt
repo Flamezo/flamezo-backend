@@ -1,6 +1,7 @@
 [pre_model_sync]
 # Patches added in this section will be executed before doctypes are migrated
 # Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
+flamezo_backend.flamezo.patches.rename_restaurant_doctype_to_outlet
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
@@ -17,5 +18,6 @@ flamezo_backend.flamezo.patches.backfill_google_review_coupons
 flamezo_backend.flamezo.patches.reconnect_orphaned_route_accounts
 flamezo_backend.flamezo.patches.add_crowd_club_membership_unique_indexes
 flamezo_backend.flamezo.patches.set_google_review_min_order_350
+flamezo_backend.flamezo.patches.consolidate_logo_to_restaurant
 
 

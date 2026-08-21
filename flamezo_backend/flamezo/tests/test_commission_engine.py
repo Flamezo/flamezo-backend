@@ -113,7 +113,7 @@ def _make_cash_order(restaurant, total_rupees=1000.0, status="confirmed",
          front so the post-save `total` exactly matches `total_rupees`,
          keeping commission math deterministic.
     """
-    frappe.db.set_value("Restaurant", restaurant, "tax_rate", 0.0)
+    frappe.db.set_value("Outlet", restaurant, "tax_rate", 0.0)
     frappe.db.commit()
     product = make_menu_product(
         restaurant,
@@ -150,7 +150,7 @@ def _make_cash_order(restaurant, total_rupees=1000.0, status="confirmed",
 
 def _outstanding(restaurant):
     """Read the denormalised outstanding cache from the Restaurant."""
-    return int(frappe.db.get_value("Restaurant", restaurant, "outstanding_commission_paise") or 0)
+    return int(frappe.db.get_value("Outlet", restaurant, "outstanding_commission_paise") or 0)
 
 
 # ─── 1. should_accrue_for_order() — pure predicate ───────────────────────────
@@ -304,7 +304,7 @@ class TestAccrueForOrder(unittest.TestCase):
 
     def test_uses_restaurant_specific_fee_percent(self):
         """Custom 3% restaurant: ₹1000 → ₹30 base + ₹5.40 GST = ₹35.40 total."""
-        frappe.db.set_value("Restaurant", self._res, "platform_fee_percent", 3.0)
+        frappe.db.set_value("Outlet", self._res, "platform_fee_percent", 3.0)
         frappe.db.commit()
         order = _make_cash_order(self._res, total_rupees=1000.0, status="Accepted")
         ledger = self.accrue(order, attempt_wallet_sweep=False)
@@ -377,7 +377,7 @@ class TestWalletSettlement(unittest.TestCase):
         self.assertEqual(ledger.outstanding_paise, 1270)
         self.assertEqual(ledger.status, "partial")
         self.assertEqual(_outstanding(self._res), 1270)
-        bal = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal = frappe.db.get_value("Outlet", self._res, "coins_balance")
         self.assertAlmostEqual(float(bal), 0.0, places=2)
 
     def test_full_sweep_when_wallet_covers_outstanding(self):
@@ -389,7 +389,7 @@ class TestWalletSettlement(unittest.TestCase):
         self.assertEqual(ledger.outstanding_paise, 0)
         self.assertEqual(ledger.status, "settled")
         self.assertEqual(_outstanding(self._res), 0)
-        bal = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal = frappe.db.get_value("Outlet", self._res, "coins_balance")
         # 100 - 17.70 = 82.30
         self.assertAlmostEqual(float(bal), 82.30, places=2)
 
@@ -418,7 +418,7 @@ class TestWalletSettlement(unittest.TestCase):
         reset_restaurant_balance(self._res, 3.0)
         applied = self.try_wallet(ledger)
         self.assertEqual(applied, 300)
-        bal = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal = frappe.db.get_value("Outlet", self._res, "coins_balance")
         self.assertAlmostEqual(float(bal), 0.0, places=2)
 
 
@@ -448,7 +448,7 @@ class TestComputeNetoff(unittest.TestCase):
         cleanup_restaurant(self._res)
 
     def _set_outstanding(self, paise):
-        frappe.db.set_value("Restaurant", self._res, "outstanding_commission_paise", paise)
+        frappe.db.set_value("Outlet", self._res, "outstanding_commission_paise", paise)
         frappe.db.commit()
 
     def test_zero_outstanding_returns_zero(self):
@@ -637,7 +637,7 @@ class TestAutopaySweepCapture(unittest.TestCase):
         self._create_outstanding_ledger(1000.0)
         self.apply_sweep(self._res, 1770, "pay_sweep_2")
         res = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["cash_sweep_failure_count", "cash_payments_disabled_until"],
             as_dict=True,
         )
@@ -683,7 +683,7 @@ class TestSweepFailureThrottle(unittest.TestCase):
 
     def test_first_failure_increments_counter_only(self):
         self.record_fail(self._res, "no_mandate")
-        v = frappe.db.get_value("Restaurant", self._res,
+        v = frappe.db.get_value("Outlet", self._res,
                                 ["cash_sweep_failure_count", "cash_payments_disabled_until"],
                                 as_dict=True)
         self.assertEqual(int(v["cash_sweep_failure_count"]), 1)
@@ -694,7 +694,7 @@ class TestSweepFailureThrottle(unittest.TestCase):
     def test_threshold_failures_trigger_throttle(self):
         for i in range(self.THRESHOLD):
             self.record_fail(self._res, f"fail_{i}")
-        v = frappe.db.get_value("Restaurant", self._res,
+        v = frappe.db.get_value("Outlet", self._res,
                                 ["cash_sweep_failure_count", "cash_payments_disabled_until"],
                                 as_dict=True)
         self.assertEqual(int(v["cash_sweep_failure_count"]), self.THRESHOLD)
@@ -705,13 +705,13 @@ class TestSweepFailureThrottle(unittest.TestCase):
         self.assertFalse(self.is_disabled(self._res))
 
     def test_is_disabled_returns_false_when_window_expired(self):
-        frappe.db.set_value("Restaurant", self._res,
+        frappe.db.set_value("Outlet", self._res,
                             "cash_payments_disabled_until", add_days(today(), -1))
         frappe.db.commit()
         self.assertFalse(self.is_disabled(self._res))
 
     def test_is_disabled_returns_true_when_window_active(self):
-        frappe.db.set_value("Restaurant", self._res,
+        frappe.db.set_value("Outlet", self._res,
                             "cash_payments_disabled_until", add_days(today(), 3))
         frappe.db.commit()
         self.assertTrue(self.is_disabled(self._res))
@@ -765,13 +765,13 @@ class TestVoidForOrder(unittest.TestCase):
         self.accrue(order, attempt_wallet_sweep=True)
         # Wallet balance is now 100 - 17.70 = 82.30
         self.assertAlmostEqual(
-            float(frappe.db.get_value("Restaurant", self._res, "coins_balance")),
+            float(frappe.db.get_value("Outlet", self._res, "coins_balance")),
             82.30, places=2)
 
         self.void(order, reason="Cancelled")
         # ₹17.70 refunded → wallet back to 100.00
         self.assertAlmostEqual(
-            float(frappe.db.get_value("Restaurant", self._res, "coins_balance")),
+            float(frappe.db.get_value("Outlet", self._res, "coins_balance")),
             100.00, places=2)
 
     def test_void_is_idempotent(self):
@@ -780,9 +780,9 @@ class TestVoidForOrder(unittest.TestCase):
         self.accrue(order, attempt_wallet_sweep=True)
 
         self.void(order, reason="first")
-        bal_after_first = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal_after_first = frappe.db.get_value("Outlet", self._res, "coins_balance")
         self.void(order, reason="second")
-        bal_after_second = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal_after_second = frappe.db.get_value("Outlet", self._res, "coins_balance")
         self.assertAlmostEqual(float(bal_after_first), float(bal_after_second), places=2,
                                msg="Second void must not refund again")
 

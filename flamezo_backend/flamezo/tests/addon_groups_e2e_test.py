@@ -99,7 +99,7 @@ def setup_test_data():
 
     # Restaurant
     rest = frappe.get_doc({
-        "doctype": "Restaurant",
+        "doctype": "Outlet",
         "restaurant_id": rest_id,
         "restaurant_name": f"Test Addon Restaurant {ts}",
         "plan_type": "GOLD",
@@ -170,13 +170,13 @@ def cleanup_test_data():
         frappe.delete_doc("Menu Product", p.name, ignore_permissions=True, force=True)
 
     # Delete restaurants
-    rests = frappe.get_all("Restaurant", filters={"restaurant_id": ["like", f"{TEST_PREFIX}%"]})
+    rests = frappe.get_all("Outlet", filters={"restaurant_id": ["like", f"{TEST_PREFIX}%"]})
     for r in rests:
         # Delete categories first
         cats = frappe.get_all("Menu Category", filters={"restaurant": r.name})
         for c in cats:
             frappe.delete_doc("Menu Category", c.name, ignore_permissions=True, force=True)
-        frappe.delete_doc("Restaurant", r.name, ignore_permissions=True, force=True)
+        frappe.delete_doc("Outlet", r.name, ignore_permissions=True, force=True)
 
     frappe.db.commit()
     print(f"  Cleanup complete.")

@@ -60,7 +60,7 @@ def _cleanup(restaurant):
     frappe.db.delete("Restaurant Gallery Item", {"restaurant": restaurant})
     for p in frappe.get_all("Menu Product", {"restaurant": restaurant}, pluck="name"):
         frappe.delete_doc("Menu Product", p, force=True, ignore_permissions=True)
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 
@@ -223,7 +223,7 @@ class TestDiscoveryFeedCoverImage(unittest.TestCase):
         from flamezo_backend.flamezo.api.flamezo import get_all_outlets
         rest = _make_rest("FEED02")
         try:
-            frappe.db.set_value("Restaurant", rest, "logo", "https://cdn.example.com/feed-logo.jpg")
+            frappe.db.set_value("Outlet", rest, "logo", "https://cdn.example.com/feed-logo.jpg")
             frappe.db.commit()
             result = get_all_outlets(search=f"{_PREFIX}-FEED02")
             card = next(o for o in result["data"]["outlets"] if o["id"] == rest)
@@ -271,7 +271,7 @@ class TestOutletDetailPhotosFallback(unittest.TestCase):
         from flamezo_backend.flamezo.api.outlet import get_outlet_detail
         rest = _make_rest("DET03")
         try:
-            frappe.db.set_value("Restaurant", rest, "logo", "https://cdn.example.com/det-logo.jpg")
+            frappe.db.set_value("Outlet", rest, "logo", "https://cdn.example.com/det-logo.jpg")
             frappe.db.commit()
             result = get_outlet_detail(rest)
             self.assertTrue(result["success"])

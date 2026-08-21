@@ -75,7 +75,7 @@ class TestEvent(unittest.TestCase):
 		try:
 			# This should NOT throw ValidationError anymore
 			result = request_upload_session(
-				owner_doctype="Restaurant",
+				owner_doctype="Outlet",
 				owner_name=self.restaurant,
 				media_role="event_image",
 				filename="test.jpg",

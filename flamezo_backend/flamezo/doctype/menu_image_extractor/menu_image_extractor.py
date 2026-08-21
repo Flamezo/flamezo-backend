@@ -22,7 +22,7 @@ class MenuImageExtractor(Document):
 		"""Auto-fill restaurant_name from restaurant field if not provided"""
 		if self.restaurant and not self.restaurant_name:
 			# Get restaurant name from the selected restaurant
-			restaurant_name = frappe.db.get_value("Restaurant", self.restaurant, "restaurant_name")
+			restaurant_name = frappe.db.get_value("Outlet", self.restaurant, "restaurant_name")
 			if restaurant_name:
 				self.restaurant_name = restaurant_name
 
@@ -320,7 +320,7 @@ def _extract_batch_internal(docname, batch_images, batch_number, total_batches):
 
 		restaurant_name_for_api = doc.restaurant_name
 		if not restaurant_name_for_api and doc.restaurant:
-			restaurant_name_for_api = frappe.db.get_value("Restaurant", doc.restaurant, "restaurant_name")
+			restaurant_name_for_api = frappe.db.get_value("Outlet", doc.restaurant, "restaurant_name")
 
 		_set_progress(docname, _("Batch {0}/{1}: extracting menu data ({2} images)...").format(
 			batch_number, total_batches, len(image_paths)
@@ -1134,7 +1134,7 @@ def process_extracted_data(data, extractor_doc):
 	if extractor_doc.restaurant:
 		restaurant = extractor_doc.restaurant
 		# Validate restaurant exists
-		if not frappe.db.exists("Restaurant", restaurant):
+		if not frappe.db.exists("Outlet", restaurant):
 			frappe.throw(
 				_("Selected outlet '{0}' does not exist. Please select a valid outlet.").format(restaurant),
 				title=_("Invalid Outlet")
@@ -1143,11 +1143,11 @@ def process_extracted_data(data, extractor_doc):
 	# Fallback: Try to find restaurant by restaurant_name (for backward compatibility)
 	if not restaurant and extractor_doc.restaurant_name:
 		# Try to find restaurant by restaurant_name or restaurant_id
-		restaurant = frappe.db.get_value("Restaurant", {"restaurant_name": extractor_doc.restaurant_name}, "name")
+		restaurant = frappe.db.get_value("Outlet", {"restaurant_name": extractor_doc.restaurant_name}, "name")
 		if not restaurant:
 			# Try by restaurant_id (slug format)
 			restaurant_id = extractor_doc.restaurant_name.lower().strip().replace(" ", "-")
-			restaurant = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+			restaurant = frappe.db.get_value("Outlet", {"restaurant_id": restaurant_id}, "name")
 	
 	if not restaurant:
 		frappe.throw(
@@ -1774,7 +1774,7 @@ def generate_recommendations(docname):
 		# Get restaurant name for API
 		restaurant_name = doc.restaurant_name
 		if not restaurant_name:
-			restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name")
+			restaurant_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name")
 		
 		# Get all active products for this restaurant
 		products = frappe.get_all(

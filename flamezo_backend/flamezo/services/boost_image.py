@@ -965,7 +965,7 @@ def process_boost_creative(campaign_name, source_image_url):
     try:
         set_creative_status(campaign_name, "Processing")
         campaign = frappe.get_doc("Boost Campaign", campaign_name)
-        restaurant = frappe.get_doc("Restaurant", campaign.restaurant)
+        restaurant = frappe.get_doc("Outlet", campaign.restaurant)
 
         # Keep the on-image locality short (city, or the cleanest address part).
         area = restaurant.city or _short_location(restaurant.address)
@@ -989,7 +989,7 @@ def process_boost_creative(campaign_name, source_image_url):
         uid = frappe.generate_hash(length=8)
         object_key = generate_object_key(
             outlet_id=campaign.restaurant,
-            owner_doctype="Restaurant",
+            owner_doctype="Outlet",
             owner_name=campaign.restaurant,
             media_role="boost_ad_creative",
             media_id=uid,

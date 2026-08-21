@@ -36,19 +36,19 @@ def make_restaurant(name, plan="GOLD", balance=5000.0, **kwargs):
     }
     defaults.update(kwargs)
 
-    if frappe.db.exists("Restaurant", name):
-        frappe.db.set_value("Restaurant", name, defaults)
+    if frappe.db.exists("Outlet", name):
+        frappe.db.set_value("Outlet", name, defaults)
         frappe.db.commit()
     else:
         frappe.get_doc({
-            "doctype": "Restaurant",
+            "doctype": "Outlet",
             "restaurant_id": name,
             "restaurant_name": f"Test Restaurant {name}",
             **defaults,
         }).insert(ignore_permissions=True)
         frappe.db.commit()
 
-    return frappe.get_doc("Restaurant", name)
+    return frappe.get_doc("Outlet", name)
 
 
 def make_restaurant_config(restaurant, **kwargs):
@@ -101,7 +101,7 @@ def make_loyalty_config(restaurant, **kwargs):
     defaults.update(kwargs)
 
     # Enable loyalty on the restaurant itself (required for is_loyalty_enabled() check)
-    frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", 1)
+    frappe.db.set_value("Outlet", restaurant, "enable_loyalty", 1)
 
     # Remove any stale config
     frappe.db.delete("Restaurant Loyalty Config", {"restaurant": restaurant})
@@ -172,7 +172,7 @@ def make_coin_transaction(restaurant, txn_type, amount, description="Test txn"):
     Directly insert a Coin Transaction and update restaurant balance.
     Use this to set up preconditions without going through record_transaction().
     """
-    current = frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0.0
+    current = frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0.0
     is_deduction = txn_type in [
         "AI Deduction", "Commission Deduction",
         "Daily GOLD Floor", "Monthly GOLD Floor",
@@ -185,7 +185,7 @@ def make_coin_transaction(restaurant, txn_type, amount, description="Test txn"):
         new_balance = float(current) + abs(float(amount))
         signed_amount = abs(float(amount))
 
-    frappe.db.set_value("Restaurant", restaurant, "coins_balance", new_balance)
+    frappe.db.set_value("Outlet", restaurant, "coins_balance", new_balance)
 
     doc = frappe.get_doc({
         "doctype": "Coin Transaction",
@@ -243,14 +243,14 @@ def cleanup_restaurant(name):
     for lc in loyalty_configs:
         frappe.db.delete("Restaurant Loyalty Config", {"name": lc})
 
-    frappe.db.delete("Restaurant", {"name": name})
+    frappe.db.delete("Outlet", {"name": name})
     frappe.db.commit()
 
 
 def cleanup_restaurants_by_prefix(prefix):
     """Bulk-delete all test restaurants (and their child records) matching a prefix."""
     names = frappe.db.sql(
-        "SELECT name FROM `tabRestaurant` WHERE name LIKE %s",
+        "SELECT name FROM `tabOutlet` WHERE name LIKE %s",
         (f"{prefix}%",),
         as_list=True,
     )
@@ -260,7 +260,7 @@ def cleanup_restaurants_by_prefix(prefix):
 
 def reset_restaurant_balance(restaurant, balance):
     """Helper: atomically reset a restaurant's coin balance."""
-    frappe.db.set_value("Restaurant", restaurant, "coins_balance", balance)
+    frappe.db.set_value("Outlet", restaurant, "coins_balance", balance)
     frappe.db.commit()
 
 

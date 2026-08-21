@@ -42,7 +42,7 @@ def _eligible_outlets():
 	rows = frappe.db.sql(
 		"""
 		SELECT r.name, r.restaurant_name, rc.merchant_push_tokens
-		FROM `tabRestaurant` r
+		FROM `tabOutlet` r
 		INNER JOIN `tabRestaurant Config` rc ON rc.restaurant = r.name
 		WHERE r.is_active = 1
 		  AND r.outlet_type IN %(types)s

@@ -122,7 +122,7 @@ def submit_route_kyc(outlet_id, legal_name=None, business_type=None,
         update["bank_holder_name"] = bank_holder_name
 
     if update:
-        frappe.db.set_value("Restaurant", name, update)
+        frappe.db.set_value("Outlet", name, update)
         frappe.db.commit()
 
     return route_adapter.ensure_linked_account(name)
@@ -142,7 +142,7 @@ def sync_route_kyc_status(outlet_id):
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 
     name = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    res = frappe.get_doc("Restaurant", name)
+    res = frappe.get_doc("Outlet", name)
     current = (res.get("razorpay_kyc_status") or "").lower()
 
     # ── Pass 1: orphan reconnect (no account_id saved) ────────────────────────
@@ -160,7 +160,7 @@ def sync_route_kyc_status(outlet_id):
             if items:
                 account_id = items[0].get("id")
                 if account_id:
-                    frappe.db.set_value("Restaurant", name, "razorpay_account_id", account_id)
+                    frappe.db.set_value("Outlet", name, "razorpay_account_id", account_id)
                     frappe.db.commit()
                     res.reload()
             else:
@@ -215,7 +215,7 @@ def reconcile_all_pending_kyc():
 
     # ── Pass 1: KYC status sync ───────────────────────────────────────────────
     pending = frappe.get_all(
-        "Restaurant",
+        "Outlet",
         filters={
             "razorpay_account_id": ["is", "set"],
             "razorpay_kyc_status": ["in", ["under_review", "needs_clarification", ""]],
@@ -230,7 +230,7 @@ def reconcile_all_pending_kyc():
 
     # ── Pass 2: Orphan reconnect ──────────────────────────────────────────────
     orphans = frappe.get_all(
-        "Restaurant",
+        "Outlet",
         filters={"razorpay_account_id": ["in", ["", None]]},
         fields=["name"],
         pluck="name",
@@ -261,7 +261,7 @@ def reconcile_all_pending_kyc():
                 continue
 
             # Link the account and sync status in one shot.
-            frappe.db.set_value("Restaurant", rname, "razorpay_account_id", account_id)
+            frappe.db.set_value("Outlet", rname, "razorpay_account_id", account_id)
             frappe.db.commit()
             route_adapter.reconcile_kyc_status(rname)
             frappe.log_error(
@@ -303,7 +303,7 @@ def debug_bank_attach(outlet_id):
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 
     name = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    res = frappe.get_doc("Restaurant", name)
+    res = frappe.get_doc("Outlet", name)
     account_id = res.get("razorpay_account_id")
     if not account_id:
         return {"success": False, "error": "no_linked_account"}

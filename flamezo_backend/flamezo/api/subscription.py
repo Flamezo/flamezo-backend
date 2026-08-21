@@ -31,7 +31,7 @@ def get_outlet_plan(outlet_id):
     if not outlet_id:
         frappe.throw(_('Outlet ID is required'))
 
-    restaurant = frappe.get_doc('Restaurant', outlet_id)
+    restaurant = frappe.get_doc('Outlet', outlet_id)
     plan_type = restaurant.plan_type or 'GOLD'
 
     return {
@@ -82,7 +82,7 @@ def get_plan_comparison(outlet_id=None):
     commission_rate = f"{float(default_rate)}%"
     if outlet_id:
         try:
-            rate = frappe.db.get_value("Restaurant", outlet_id, "platform_fee_percent")
+            rate = frappe.db.get_value("Outlet", outlet_id, "platform_fee_percent")
             if rate is not None:
                 commission_rate = f"{float(rate)}%"
         except Exception:
@@ -135,7 +135,7 @@ def get_upgrade_benefits(outlet_id):
     so this always reports `already_gold: True`. The benefits payload is left in
     place so the existing UI continues to render without breaking.
     """
-    restaurant = frappe.get_doc('Restaurant', outlet_id)
+    restaurant = frappe.get_doc('Outlet', outlet_id)
 
     return {
         'already_gold': True,

@@ -76,7 +76,7 @@ def get_restaurant_currency_info(restaurant_id):
 		else:
 			# Fallback to Restaurant doctype
 			restaurant_currency = frappe.db.get_value(
-				"Restaurant",
+				"Outlet",
 				restaurant_id,
 				"currency"
 			)

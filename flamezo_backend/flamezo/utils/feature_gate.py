@@ -93,7 +93,7 @@ def check_image_upload_limit(restaurant_id):
     """
     Check if restaurant has reached image upload limit (always True/unlimited).
     """
-    restaurant = frappe.get_doc('Restaurant', restaurant_id)
+    restaurant = frappe.get_doc('Outlet', restaurant_id)
     return {
         'can_upload': True,
         'current_count': restaurant.current_image_count or 0,
@@ -107,10 +107,10 @@ def increment_image_count(restaurant_id):
     Increment image count for restaurant (used after successful upload)
     """
     frappe.db.set_value(
-        'Restaurant',
+        'Outlet',
         restaurant_id,
         'current_image_count',
-        frappe.db.get_value('Restaurant', restaurant_id, 'current_image_count') + 1
+        frappe.db.get_value('Outlet', restaurant_id, 'current_image_count') + 1
     )
     frappe.db.commit()
 
@@ -119,10 +119,10 @@ def decrement_image_count(restaurant_id):
     """
     Decrement image count for restaurant (used after image deletion)
     """
-    current = frappe.db.get_value('Restaurant', restaurant_id, 'current_image_count') or 0
+    current = frappe.db.get_value('Outlet', restaurant_id, 'current_image_count') or 0
     if current > 0:
         frappe.db.set_value(
-            'Restaurant',
+            'Outlet',
             restaurant_id,
             'current_image_count',
             current - 1

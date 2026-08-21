@@ -69,7 +69,7 @@ def search_branches(query=None, limit=20):
 			["city", "like", like],
 		]
 	rows = frappe.get_all(
-		"Restaurant",
+		"Outlet",
 		or_filters=or_filters,
 		fields=["name as id", "restaurant_name", "city", "outlet_type", "branch_group"],
 		order_by="restaurant_name asc",
@@ -84,7 +84,7 @@ def list_groups():
 	_assert_admin()
 	groups = frappe.get_all("Merchant Group", fields=["name as id", "group_name"], order_by="group_name asc")
 	for g in groups:
-		g["branch_count"] = frappe.db.count("Restaurant", {"branch_group": g["id"]})
+		g["branch_count"] = frappe.db.count("Outlet", {"branch_group": g["id"]})
 	return {"success": True, "groups": groups}
 
 
@@ -93,7 +93,7 @@ def list_group_branches(group_id):
 	"""Branches that belong to a Merchant Group."""
 	_assert_admin()
 	rows = frappe.get_all(
-		"Restaurant",
+		"Outlet",
 		filters={"branch_group": group_id},
 		fields=["name as id", "restaurant_name", "city", "outlet_type"],
 		order_by="restaurant_name asc",
@@ -114,9 +114,9 @@ def create_group(group_name, outlet_ids=None):
 	group = frappe.get_doc({"doctype": "Merchant Group", "group_name": name})
 	group.insert(ignore_permissions=True)
 
-	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Restaurant", r)]
+	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Outlet", r)]
 	for r in ids:
-		frappe.db.set_value("Restaurant", r, "branch_group", group.name)
+		frappe.db.set_value("Outlet", r, "branch_group", group.name)
 	return {"success": True, "group": group.name, "group_name": name, "assigned": len(ids)}
 
 
@@ -126,9 +126,9 @@ def add_to_group(group_id, outlet_ids):
 	_assert_admin()
 	if not frappe.db.exists("Merchant Group", group_id):
 		return {"success": False, "error": "Group not found"}
-	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Restaurant", r)]
+	ids = [r for r in _parse_ids(outlet_ids) if frappe.db.exists("Outlet", r)]
 	for r in ids:
-		frappe.db.set_value("Restaurant", r, "branch_group", group_id)
+		frappe.db.set_value("Outlet", r, "branch_group", group_id)
 	return {"success": True, "group": group_id, "assigned": len(ids)}
 
 
@@ -136,9 +136,9 @@ def add_to_group(group_id, outlet_ids):
 def remove_from_group(outlet_id):
 	"""Detach a branch from its group (make it standalone)."""
 	_assert_admin()
-	if not frappe.db.exists("Restaurant", outlet_id):
+	if not frappe.db.exists("Outlet", outlet_id):
 		return {"success": False, "error": "Outlet not found"}
-	frappe.db.set_value("Restaurant", outlet_id, "branch_group", None)
+	frappe.db.set_value("Outlet", outlet_id, "branch_group", None)
 	return {"success": True}
 
 
@@ -270,7 +270,7 @@ def _clone_gallery(source, target):
 # Presentation-only fields. Identity / social / security / per-branch state are
 # deliberately excluded (restaurant_name, *_link, whatsapp, pins, tokens, paid/status/history).
 _BRANDING_FIELDS = [
-	"tagline", "subtitle", "description", "default_theme", "logo", "logo_size",
+	"tagline", "subtitle", "description", "default_theme", "logo_size",
 	"hero_video", "apple_touch_icon", "menu_layout", "qr_background",
 	"menu_theme_background_enabled", "menu_theme_background_active",
 	"menu_theme_wallpapers", "menu_theme_main_index", "menu_theme_selected_items",
@@ -283,13 +283,20 @@ def _clone_branding(source, target):
 	branches of a brand match. Unlike menu/offers, branding is OVERWRITTEN — a
 	brand's branches are meant to look identical. Image/wallpaper URLs are reused
 	(the AI backgrounds are not regenerated). Returns True if anything changed."""
+	changed = False
+
+	# Logo lives on Restaurant (single source of truth), cloned separately.
+	src_logo = frappe.db.get_value("Outlet", source, "logo")
+	if src_logo and frappe.db.get_value("Outlet", target, "logo") != src_logo:
+		frappe.db.set_value("Outlet", target, "logo", src_logo)
+		changed = True
+
 	src_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": source}, "name")
 	tgt_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": target}, "name")
 	if not src_cfg or not tgt_cfg:
-		return False
+		return changed
 	src_doc = frappe.get_doc("Restaurant Config", src_cfg)
 	tgt_doc = frappe.get_doc("Restaurant Config", tgt_cfg)
-	changed = False
 	for f in _BRANDING_FIELDS:
 		val = src_doc.get(f)
 		if val not in (None, "") and tgt_doc.get(f) != val:
@@ -308,7 +315,7 @@ def clone_content_to_branches(source_outlet_id, target_outlet_ids):
 	"""
 	_assert_admin()
 
-	if not frappe.db.exists("Restaurant", source_outlet_id):
+	if not frappe.db.exists("Outlet", source_outlet_id):
 		return {"success": False, "error": "Source branch not found"}
 
 	targets = _parse_ids(target_outlet_ids)
@@ -316,16 +323,16 @@ def clone_content_to_branches(source_outlet_id, target_outlet_ids):
 		return {"success": False, "error": "Select at least one target branch"}
 
 	# Copy only within the source's Merchant Group — never leak a menu across merchants.
-	src_group = frappe.db.get_value("Restaurant", source_outlet_id, "branch_group")
+	src_group = frappe.db.get_value("Outlet", source_outlet_id, "branch_group")
 	results = []
 
 	for t in targets:
 		if t == source_outlet_id:
 			continue
-		if not frappe.db.exists("Restaurant", t):
+		if not frappe.db.exists("Outlet", t):
 			results.append({"branch": t, "status": "not_found"})
 			continue
-		t_group = frappe.db.get_value("Restaurant", t, "branch_group")
+		t_group = frappe.db.get_value("Outlet", t, "branch_group")
 		if not src_group or t_group != src_group:
 			results.append({"branch": t, "status": "skipped_different_group"})
 			continue

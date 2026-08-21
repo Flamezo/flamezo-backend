@@ -39,7 +39,7 @@ def _resolve_restaurant(outlet_id):
 	"""Normalise outlet_id → docname (handles both outlet_id slug and name)."""
 	from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
 	# validate_restaurant_access expects the docname
-	doc_name = frappe.db.get_value("Restaurant", outlet_id, "name")
+	doc_name = frappe.db.get_value("Outlet", outlet_id, "name")
 	if not doc_name:
 		doc_name = get_restaurant_from_id(outlet_id)
 	if not doc_name:
@@ -197,7 +197,7 @@ def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
 		_send_staff_invite_email(
 			email=email,
 			full_name=full_name,
-			outlet_name=frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant,
+			outlet_name=frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant,
 			is_new_user=is_new_user,
 		)
 

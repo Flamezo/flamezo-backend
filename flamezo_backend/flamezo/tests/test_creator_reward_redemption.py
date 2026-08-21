@@ -115,9 +115,9 @@ class TestRedemptionE2E(unittest.TestCase):
 	def setUpClass(cls):
 		cls.outlet_a = f"{_PREFIX}-OUTLET-A"
 		cls.outlet_b = f"{_PREFIX}-OUTLET-B"
-		if not frappe.db.exists("Restaurant", cls.outlet_a):
+		if not frappe.db.exists("Outlet", cls.outlet_a):
 			make_restaurant(cls.outlet_a, outlet_type="dining")
-		if not frappe.db.exists("Restaurant", cls.outlet_b):
+		if not frappe.db.exists("Outlet", cls.outlet_b):
 			make_restaurant(cls.outlet_b, outlet_type="dining")
 
 	def setUp(self):

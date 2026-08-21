@@ -76,7 +76,7 @@ const Payment: React.FC = () => {
   const verifyMyUser = outletConfig?.settings?.verifyMyUser === true;
 
   // API calls
-  const { data: restaurant } = useFrappeGetDoc('Restaurant', outletId);
+  const { data: restaurant } = useFrappeGetDoc('Outlet', outletId);
   
   const { call: getCartItems } = useFrappePostCall<PricingResult>(
     'flamezo_backend.flamezo.api.cart.get_cart'

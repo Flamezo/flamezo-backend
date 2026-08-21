@@ -1,7 +1,7 @@
 // Copyright (c) 2025, Flamezo and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('Restaurant', {
+frappe.ui.form.on('Outlet', {
 	refresh: function(frm) {
 		// Listen for realtime background generation events
 		if (!frm.custom_qr_listener_added) {

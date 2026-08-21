@@ -366,7 +366,7 @@ def _generate_config_preview(config_name):
 		) else "image"
 
 		coupon = _inline_coupon_brief(config)
-		outlet_name = frappe.db.get_value("Restaurant", config.restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Outlet", config.restaurant, "restaurant_name") or ""
 
 		from flamezo_backend.flamezo.api.story_generator import _run_job, _get_cache
 		import uuid
@@ -997,7 +997,7 @@ def get_claimable_orders(outlet_id, phone):
 
 		# Real outlet name for the claim page (the WhatsApp deep link can't
 		# resolve the brand config, so the page must get the name from the API).
-		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or ""
 
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
@@ -1096,7 +1096,7 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 			return _ok({"byOutlet": {}})
 
 		outlet_names = {
-			doc_id: (frappe.db.get_value("Restaurant", doc_id, "restaurant_name") or "")
+			doc_id: (frappe.db.get_value("Outlet", doc_id, "restaurant_name") or "")
 			for doc_id in set(resolved.values())
 		}
 
@@ -1188,7 +1188,7 @@ def _proof_window_open(submission):
 # ══════════════════════════════════════════════════════════════════════════════
 def _resolve_restaurant(outlet_id):
 	from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
-	doc_name = frappe.db.get_value("Restaurant", outlet_id, "name") or get_restaurant_from_id(outlet_id)
+	doc_name = frappe.db.get_value("Outlet", outlet_id, "name") or get_restaurant_from_id(outlet_id)
 	if not doc_name:
 		frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
 	return doc_name
@@ -1792,7 +1792,7 @@ def get_my_ugc_vouchers(outlet_id=None):
 		meta = {}
 		if restaurant_names:
 			for m in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", restaurant_names]},
 				fields=["name", "restaurant_id", "restaurant_name", "city", "logo"],
 			):
@@ -1866,8 +1866,8 @@ def get_my_ugc_submissions(outlet_id=None, page=1, page_size=10):
 
 		items = []
 		for r in rows:
-			outlet_name = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_name") or r.restaurant
-			outlet_slug = frappe.db.get_value("Restaurant", r.restaurant, "restaurant_id") or r.restaurant
+			outlet_name = frappe.db.get_value("Outlet", r.restaurant, "restaurant_name") or r.restaurant
+			outlet_slug = frappe.db.get_value("Outlet", r.restaurant, "restaurant_id") or r.restaurant
 			items.append({
 				"submission_id": r.name,
 				"outlet_id": outlet_slug,

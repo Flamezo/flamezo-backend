@@ -5,10 +5,10 @@ def run_test():
     try:
         frappe.set_user("Administrator")
 
-        res = frappe.get_all("Restaurant", filters={"restaurant_name": ["like", "%unvind%"]}, fields=["name", "restaurant_name"])
+        res = frappe.get_all("Outlet", filters={"restaurant_name": ["like", "%unvind%"]}, fields=["name", "restaurant_name"])
         if not res:
             print("Restaurant 'unvind' not found.")
-            all_res = frappe.get_all("Restaurant", fields=["name", "restaurant_name"], limit=10)
+            all_res = frappe.get_all("Outlet", fields=["name", "restaurant_name"], limit=10)
             print("Available restaurants:")
             for r in all_res:
                 print(f"  - {r.restaurant_name} ({r.name})")

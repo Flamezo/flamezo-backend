@@ -17,7 +17,7 @@ from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 
 
 def _restaurant_name(restaurant):
-	return frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or "the restaurant"
+	return frappe.db.get_value("Outlet", restaurant, "restaurant_name") or "the restaurant"
 
 
 def _customer_phone(customer):
@@ -99,8 +99,8 @@ def send_ugc_cashback_nudge(order_name):
 			full_name = order.customer_name or ""
 		first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
 
-		restaurant_name = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_name") or "the restaurant"
-		restaurant_slug = frappe.db.get_value("Restaurant", order.restaurant, "restaurant_id") or order.restaurant
+		restaurant_name = frappe.db.get_value("Outlet", order.restaurant, "restaurant_name") or "the restaurant"
+		restaurant_slug = frappe.db.get_value("Outlet", order.restaurant, "restaurant_id") or order.restaurant
 		amount = int(order.total or 0)
 
 		from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
@@ -217,7 +217,7 @@ def send_ugc_whatsapp(submission_name, kind):
 	# suffix unconditionally.)
 	# For customer-facing links a WhatsApp auth token is appended below so the
 	# customer lands directly on the page without an OTP prompt.
-	slug = frappe.db.get_value("Restaurant", sub.restaurant, "restaurant_id") or sub.restaurant
+	slug = frappe.db.get_value("Outlet", sub.restaurant, "restaurant_id") or sub.restaurant
 	order = getattr(sub, "order", "") or ""
 	customer = getattr(sub, "customer", "")
 

@@ -43,7 +43,7 @@ export default function LoyaltySettings() {
   const [enableLoyalty, setEnableLoyalty] = useState(false)
 
   const { data: restaurantDoc, isLoading, mutate: mutateRestaurant } = useFrappeGetDoc(
-    'Restaurant', selectedOutlet || '',
+    'Outlet', selectedOutlet || '',
     selectedOutlet ? `Restaurant-${selectedOutlet}` : null
   )
 

@@ -33,7 +33,7 @@ class TestCreatorCollabs(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		cls.outlet = f"{_PREFIX}-OUTLET"
-		if not frappe.db.exists("Restaurant", cls.outlet):
+		if not frappe.db.exists("Outlet", cls.outlet):
 			make_restaurant(cls.outlet, outlet_type="dining")
 
 	def setUp(self):
@@ -118,7 +118,7 @@ class TestCreatorCollabs(unittest.TestCase):
 		outlets = []
 		for i in range(collabs.WEEKLY_ACCEPT_CAP + 1):
 			name = f"{_PREFIX}-OUTLET-W{i}"
-			if not frappe.db.exists("Restaurant", name):
+			if not frappe.db.exists("Outlet", name):
 				make_restaurant(name, outlet_type="dining")
 			outlets.append(name)
 
@@ -181,7 +181,7 @@ class TestCreatorCollabs(unittest.TestCase):
 
 	def test_cooldown_is_per_outlet_not_global(self):
 		other_outlet = f"{_PREFIX}-OUTLET-OTHER"
-		if not frappe.db.exists("Restaurant", other_outlet):
+		if not frappe.db.exists("Outlet", other_outlet):
 			make_restaurant(other_outlet, outlet_type="dining")
 
 		result = collabs.send_collab_invite(self.outlet, self.creator.name, "offer")
