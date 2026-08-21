@@ -28,6 +28,6 @@ def execute():
 		frappe.logger().info("[rename_restaurant_doctype_to_outlet] Outlet doctype already exists — skipping")
 		return
 
-	frappe.rename_doc("DocType", "Restaurant", "Outlet", force=True, ignore_permissions=True)
+	frappe.rename_doc("DocType", "Restaurant", "Outlet", force=True)
 	frappe.db.commit()
 	frappe.logger().info("[rename_restaurant_doctype_to_outlet] Restaurant -> Outlet renamed (table + meta + dependent Link fields)")
