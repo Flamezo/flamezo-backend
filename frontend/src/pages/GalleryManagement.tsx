@@ -253,7 +253,7 @@ export default function GalleryManagement() {
         const activeRole = uploadCategory === 'Events' ? 'event_image' : 'restaurant_gallery_image'
 
         const uploadResult = await uploadToR2({
-          ownerDoctype: 'Restaurant',
+          ownerDoctype: 'Outlet',
           ownerName: selectedOutlet,
           mediaRole: activeRole,
           file,

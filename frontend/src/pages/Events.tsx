@@ -523,7 +523,7 @@ export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMer
       }
       try {
         const result = await uploadToR2({
-          ownerDoctype: 'Restaurant',
+          ownerDoctype: 'Outlet',
           ownerName: merchant?.id || selectedOutlet || 'Restaurant',
           mediaRole: 'event_image',
           file,
@@ -611,7 +611,7 @@ export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMer
     setIsUploading(true)
     try {
       const result = await uploadToR2({
-        ownerDoctype: 'Restaurant',
+        ownerDoctype: 'Outlet',
         ownerName: selectedOutlet,
         mediaRole: 'event_image',
         file,

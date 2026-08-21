@@ -49,7 +49,7 @@ export default function Breadcrumb() {
       'customers': 'Customers',
       'products': 'Products',
       'categories': 'Categories',
-      'Restaurant': 'Restaurants',
+      'Outlet': 'Restaurants',
       'qr-codes': 'QR Codes',
     }
 
