@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-21 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "snapshot_date",
+  "column_break_1",
+  "in_app_followers",
+  "ig_followers"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "snapshot_date",
+   "fieldtype": "Date",
+   "label": "Snapshot Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "in_app_followers",
+   "fieldtype": "Int",
+   "label": "In-App Followers",
+   "in_list_view": 1,
+   "description": "COUNT(*) of Creator Follow rows for this creator at snapshot time — real-time, no external dependency."
+  },
+  {
+   "default": "0",
+   "fieldname": "ig_followers",
+   "fieldtype": "Int",
+   "label": "Instagram Followers",
+   "in_list_view": 1,
+   "description": "Copied from Flamezo Creator.meta_followers at snapshot time — that value itself only refreshes monthly (creator_onboarding.monthly_follower_refresh), so this column moves in a staircase, not daily."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-08-21 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Follower Snapshot",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "track_changes": 0
+}
