@@ -173,16 +173,18 @@ def _get_offers_count_map(outlet_ids):
 
 
 def _get_outlet_ratings_map(outlet_ids):
-    """Returns {outlet_id: rating} for a list of outlets."""
+    """Returns {outlet_id: {"rating": float, "review_count": int}} for a list
+    of outlets — review_count travels alongside rating so the client can tell
+    a real (Google-synced) rating apart from stale/unsynced 0 data."""
     if not outlet_ids:
         return {}
     placeholders = ",".join(["%s"] * len(outlet_ids))
     rows = frappe.db.sql(
-        f"SELECT name, rating FROM `tabOutlet` WHERE name IN ({placeholders})",
+        f"SELECT name, rating, review_count FROM `tabOutlet` WHERE name IN ({placeholders})",
         list(outlet_ids),
         as_dict=True,
     )
-    return {r.name: float(r.rating) for r in rows if r.rating}
+    return {r.name: {"rating": float(r.rating), "review_count": cint(r.review_count)} for r in rows if r.rating}
 
 
 def _get_outlet_followers_map(outlet_ids):
@@ -219,7 +221,8 @@ def _format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map=N
             "isFollowing": c.outlet in follow_set if c.outlet else False,
             "lat": c.outlet_lat or 0,
             "lng": c.outlet_lng or 0,
-            "rating": rating_map.get(c.outlet),
+            "rating": (rating_map.get(c.outlet) or {}).get("rating"),
+            "review_count": (rating_map.get(c.outlet) or {}).get("review_count", 0),
             "followersCount": followers_map.get(c.outlet, 0),
         },
         "description": c.description or "",

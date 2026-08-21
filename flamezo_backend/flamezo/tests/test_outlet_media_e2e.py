@@ -219,7 +219,10 @@ class TestDiscoveryFeedCoverImage(unittest.TestCase):
         finally:
             _cleanup(rest)
 
-    def test_cover_image_falls_back_to_food_then_logo(self):
+    def test_cover_image_falls_back_to_logo_never_food(self):
+        """Cards deliberately skip the food-photo fallback (include_food_fallback=False)
+        — a product/dish photo should never stand in for the outlet itself on a
+        Discover card, unlike the outlet detail Photos tab which does allow it."""
         from flamezo_backend.flamezo.api.flamezo import get_all_outlets
         rest = _make_rest("FEED02")
         try:
@@ -229,10 +232,12 @@ class TestDiscoveryFeedCoverImage(unittest.TestCase):
             card = next(o for o in result["data"]["outlets"] if o["id"] == rest)
             self.assertEqual(card["cover_image"], "https://cdn.example.com/feed-logo.jpg")
 
+            # Even with food photos now available, the card should still show
+            # the logo, not the food photo — no food fallback on cards.
             _make_product_with_media(rest, "prod-feed02", ["https://cdn.example.com/feed-food.jpg"])
             result2 = get_all_outlets(search=f"{_PREFIX}-FEED02")
             card2 = next(o for o in result2["data"]["outlets"] if o["id"] == rest)
-            self.assertEqual(card2["cover_image"], "https://cdn.example.com/feed-food.jpg")
+            self.assertEqual(card2["cover_image"], "https://cdn.example.com/feed-logo.jpg")
         finally:
             _cleanup(rest)
 
