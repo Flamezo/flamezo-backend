@@ -95,7 +95,7 @@ export default function RouteKycPage() {
   // Hydrate the form with whatever's already on the Restaurant doc so owners
   // can come back to edit / resubmit if Razorpay asks for clarification.
   const { data: restaurantDoc, mutate: reloadDoc, isLoading: docLoading } =
-    useFrappeGetDoc<RestaurantDoc>('Restaurant', selectedOutlet || '')
+    useFrappeGetDoc<RestaurantDoc>('Outlet', selectedOutlet || '')
 
   const [form, setForm] = useState<FormFields>({
     legal_name: '',

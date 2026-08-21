@@ -130,7 +130,7 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
                cr.interests, cr.status, cr.expires_at,
                r.restaurant_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
-        LEFT JOIN `tabRestaurant` r ON r.name = cr.outlet
+        LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE {where}
         ORDER BY
           CASE WHEN cr.expires_at IS NOT NULL AND TIMESTAMPDIFF(MINUTE, NOW(), cr.expires_at) <= 120
@@ -172,7 +172,7 @@ def get_crowd_request_detail(request_id, phone=None):
                cr.interests, cr.status, cr.expires_at,
                r.restaurant_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
-        LEFT JOIN `tabRestaurant` r ON r.name = cr.outlet
+        LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE cr.name=%s
         LIMIT 1
         """,
@@ -227,7 +227,7 @@ def create_crowd_request(phone, title, date, category=None, description=None,
     if not date:
         frappe.throw(_("date is required"))
 
-    if outlet_id and not frappe.db.exists("Restaurant", outlet_id):
+    if outlet_id and not frappe.db.exists("Outlet", outlet_id):
         frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
 
     # Use caller-supplied expires_at (spontaneous Team Up) or default to 48h after event date
@@ -417,7 +417,7 @@ def get_my_crowd_requests(phone, page=1, limit=20):
                cr.interests, cr.status, cr.expires_at,
                r.restaurant_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
-        LEFT JOIN `tabRestaurant` r ON r.name = cr.outlet
+        LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE cr.creator_phone=%s
         ORDER BY cr.creation DESC
         LIMIT %s OFFSET %s
@@ -489,7 +489,7 @@ def get_my_crowd_joins(phone, page=1, limit=20):
                r.restaurant_name AS outlet_restaurant_name
         FROM `tabCrowd Request Member` crm
         JOIN `tabCrowd Request` cr ON cr.name = crm.request
-        LEFT JOIN `tabRestaurant` r ON r.name = cr.outlet
+        LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE crm.customer_phone=%s
         ORDER BY crm.creation DESC
         LIMIT %s OFFSET %s

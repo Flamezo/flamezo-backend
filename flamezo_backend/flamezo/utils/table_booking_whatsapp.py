@@ -68,13 +68,13 @@ def dispatch_table_booking_whatsapp(booking_name, attempt=1):
             return  # already sent — idempotent
 
         booking = frappe.get_doc("Table Booking", booking_name)
-        restaurant = frappe.get_doc("Restaurant", booking.restaurant)
+        restaurant = frappe.get_doc("Outlet", booking.restaurant)
 
         # Recipient: explicit override → the setup-wizard WhatsApp number → owner phone.
         # Same fallback chain as order_whatsapp.py — outlets already have this configured.
         to_phone = (
             getattr(restaurant, "order_whatsapp_number", None)
-            or frappe.db.get_value("Restaurant Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
+            or frappe.db.get_value("Outlet Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
             or getattr(restaurant, "owner_phone", None)
         )
         if not to_phone:
@@ -162,7 +162,7 @@ def dispatch_table_booking_customer_confirmation(booking_name, attempt=1):
                                 "No customer phone on booking", update_modified=False)
             return
 
-        restaurant = frappe.get_doc("Restaurant", booking.restaurant)
+        restaurant = frappe.get_doc("Outlet", booking.restaurant)
 
         settings = frappe.get_single("Flamezo Settings")
         template = getattr(settings, "booking_customer_whatsapp_template_name", None)

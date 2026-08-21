@@ -100,7 +100,7 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 		if consumer_mode:
 			# Fetch all active outlets once for name/city lookup
 			active_outlets = frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"is_active": 1},
 				fields=["name", "restaurant_id", "restaurant_name", "city"],
 			)
@@ -261,7 +261,7 @@ def get_event_detail(event_id):
 		outlet_meta = {}
 		if event.get("restaurant"):
 			r = frappe.db.get_value(
-				"Restaurant",
+				"Outlet",
 				event["restaurant"],
 				["restaurant_id", "restaurant_name", "city"],
 				as_dict=True,
@@ -464,7 +464,7 @@ def generate_event_suggestions(outlet_id, user_prompt=None, poster_base64=None):
 
 		quota_status = _check_quota_status(restaurant)
 		if not quota_status["free_remaining"]:
-			balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+			balance = flt(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 			if balance < COINS_PER_AI_EVENT:
 				return {
 					"success": False,

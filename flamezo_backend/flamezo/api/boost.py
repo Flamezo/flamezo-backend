@@ -20,7 +20,7 @@ def check_prerequisites(outlet_id):
 	Returns score (0-100), individual check results, and location grade.
 	"""
 	outlet_id = validate_restaurant_for_api(outlet_id)
-	restaurant = frappe.get_doc("Restaurant", outlet_id)
+	restaurant = frappe.get_doc("Outlet", outlet_id)
 
 	checks = []
 
@@ -100,7 +100,7 @@ def check_prerequisites(outlet_id):
 
 	# 9. Owner WhatsApp verified
 	# Check if any Restaurant User has a verified phone
-	has_owner = frappe.db.count("Restaurant User", filters={"restaurant": outlet_id}) > 0
+	has_owner = frappe.db.count("Outlet User", filters={"restaurant": outlet_id}) > 0
 	checks.append({
 		"check": "owner_verified",
 		"label": "Outlet owner verified",
@@ -247,7 +247,7 @@ def create_boost_campaign(outlet_id, template_id, package_tier,
 	Create a draft Boost Campaign. Generates AI ad copy and linked coupon.
 	"""
 	outlet_id = validate_restaurant_for_api(outlet_id)
-	restaurant = frappe.get_doc("Restaurant", outlet_id)
+	restaurant = frappe.get_doc("Outlet", outlet_id)
 	offer_amount = flt(offer_amount)
 
 	if offer_amount <= 0:
@@ -800,7 +800,7 @@ def claim_boost_coupon(outlet_id, coupon_code):
 		return {"success": False, "error": {"code": "INVALID_CODE", "message": "This offer is no longer available"}}
 
 	# Get outlet info
-	restaurant = frappe.db.get_value("Restaurant", outlet_id,
+	restaurant = frappe.db.get_value("Outlet", outlet_id,
 		fieldname=["restaurant_name", "address", "city", "latitude", "longitude"],
 		as_dict=True
 	)

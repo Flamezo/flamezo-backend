@@ -59,8 +59,8 @@ def generate_object_key(outlet_id, owner_doctype, owner_name, media_role, media_
 	# Map doctypes to folder names
 	doctype_map = {
 		'Menu Product': 'menu_product',
-		'Restaurant': 'restaurant',
-		'Restaurant Config': 'restaurant_config'
+		'Outlet': 'restaurant',
+		'Outlet Config': 'restaurant_config'
 	}
 
 	doctype_folder = doctype_map.get(owner_doctype, 'other')

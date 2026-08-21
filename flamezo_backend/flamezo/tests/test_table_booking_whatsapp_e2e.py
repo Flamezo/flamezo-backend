@@ -32,7 +32,7 @@ _PHONE = "9600000010"
 def _make_rest(suffix="01", **kwargs):
     name = f"{_PREFIX}-R{suffix}"
     r = make_restaurant(name, outlet_type="dining", **kwargs)
-    frappe.db.set_value("Restaurant", r.name, "is_active", 1)
+    frappe.db.set_value("Outlet", r.name, "is_active", 1)
     frappe.db.commit()
     return r
 
@@ -56,7 +56,7 @@ def _make_booking(restaurant, notes=""):
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabTable Booking` WHERE customer_phone=%s", _PHONE)
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 

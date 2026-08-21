@@ -230,7 +230,7 @@ export default function QRCodes() {
   const [activeTab, setActiveTab] = useState('overview')
 
   // Fetch restaurant document
-  const { data: restaurantDoc, mutate: refreshRestaurant } = useFrappeGetDoc('Restaurant', selectedOutlet || '', {
+  const { data: restaurantDoc, mutate: refreshRestaurant } = useFrappeGetDoc('Outlet', selectedOutlet || '', {
     enabled: !!selectedOutlet,
   })
 
@@ -335,7 +335,7 @@ export default function QRCodes() {
         const formData = new FormData()
         formData.append('file', bgFile)
         formData.append('filename', bgFile.name)
-        formData.append('doctype', 'Restaurant')
+        formData.append('doctype', 'Outlet')
         formData.append('docname', selectedOutlet)
         formData.append('is_private', '0')
 
@@ -395,7 +395,7 @@ export default function QRCodes() {
     if (!tables || tables <= 0) return toast.error('Number of tables must be > 0')
     setIsUpdating(true)
     try {
-      await updateRestaurant('Restaurant', selectedOutlet, { tables })
+      await updateRestaurant('Outlet', selectedOutlet, { tables })
       toast.success('Tables count updated')
       await refreshRestaurant()
       setQrCodeUrl(null)

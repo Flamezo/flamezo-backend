@@ -13,24 +13,24 @@ def execute():
 	it and additionally drops the field. Only fills Restaurant.logo when it's
 	currently empty; never overwrites. Safe to re-run.
 	"""
-	if not frappe.db.table_exists("Restaurant Config") or not frappe.db.has_column("Restaurant Config", "logo"):
+	if not frappe.db.table_exists("Outlet Config") or not frappe.db.has_column("Outlet Config", "logo"):
 		return
 
 	rows = frappe.db.sql(
 		"""
 		SELECT r.name AS restaurant, c.logo AS config_logo
-		FROM `tabRestaurant` r
-		JOIN `tabRestaurant Config` c ON c.restaurant = r.name
+		FROM `tabOutlet` r
+		JOIN `tabOutlet Config` c ON c.restaurant = r.name
 		WHERE (r.logo IS NULL OR r.logo = '')
 		  AND c.logo IS NOT NULL AND c.logo != ''
 		""",
 		as_dict=True,
 	)
 	for row in rows:
-		frappe.db.set_value("Restaurant", row.restaurant, "logo", row.config_logo, update_modified=False)
+		frappe.db.set_value("Outlet", row.restaurant, "logo", row.config_logo, update_modified=False)
 	frappe.db.commit()
 	frappe.logger().info(f"[consolidate_logo_to_restaurant] backfilled {len(rows)} outlet(s)")
 
-	frappe.db.sql_ddl("ALTER TABLE `tabRestaurant Config` DROP COLUMN `logo`")
+	frappe.db.sql_ddl("ALTER TABLE `tabOutlet Config` DROP COLUMN `logo`")
 	frappe.db.commit()
 	frappe.logger().info("[consolidate_logo_to_restaurant] dropped Restaurant Config.logo column")

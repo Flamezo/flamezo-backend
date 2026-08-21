@@ -311,7 +311,7 @@ def get_all_outlets(
 		fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
 		sql = f"""
 			SELECT {fields_csv}
-			FROM `tabRestaurant` r
+			FROM `tabOutlet` r
 			WHERE {where_clause}
 			ORDER BY {order_by}
 			LIMIT {fetch_limit} OFFSET {fetch_offset}
@@ -344,7 +344,7 @@ def get_all_outlets(
 			enriched = enriched[offset: offset + limit]
 		else:
 			# Count without geo (fast)
-			count_sql = f"SELECT COUNT(*) FROM `tabRestaurant` r WHERE {where_clause}"
+			count_sql = f"SELECT COUNT(*) FROM `tabOutlet` r WHERE {where_clause}"
 			total = frappe.db.sql(count_sql, params)[0][0]
 
 		response = {
@@ -481,7 +481,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		pool_limit = 300
 		sql = f"""
 			SELECT {fields_csv}
-			FROM `tabRestaurant` r
+			FROM `tabOutlet` r
 			WHERE {where_clause}
 			LIMIT {pool_limit}
 		"""
@@ -697,7 +697,7 @@ def get_outlets_for_map(
 			f"""
 			SELECT name, restaurant_name, logo, latitude, longitude,
 			       outlet_type, is_featured, limelight_start_date, limelight_end_date
-			FROM `tabRestaurant`
+			FROM `tabOutlet`
 			WHERE {where}
 			ORDER BY (is_featured = 1 AND (limelight_start_date IS NULL OR CURDATE() >= limelight_start_date) AND (limelight_end_date IS NULL OR CURDATE() <= limelight_end_date)) DESC, onboarding_date DESC
 			LIMIT 2000
@@ -801,7 +801,7 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 			restaurant_filters["city"] = ["like", f"%{city}%"]
 
 		active_restaurants = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters=restaurant_filters,
 			fields=["name", "restaurant_name", "city", "logo"],
 		)
@@ -929,26 +929,26 @@ def get_flamezo_member(phone=None):
 		# Lifetime stats
 		lifetime_earned = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS total
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Earn' AND is_settled = 1
 		""", (customer.name,), as_dict=True)[0].total or 0
 
 		lifetime_redeemed = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS total
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Redeem' AND is_settled = 1
 		""", (customer.name,), as_dict=True)[0].total or 0
 
 		# Restaurants visited (distinct)
 		visited_restaurants = frappe.db.sql("""
 			SELECT COUNT(DISTINCT restaurant) AS count
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Earn'
 		""", (customer.name,), as_dict=True)[0].count or 0
 
 		# Expiring soon (within 30 days)
 		expiring_rows = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={
 				"customer": customer.name,
 				"is_settled": 1,
@@ -1047,7 +1047,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 		# Fetch ledger entries across all restaurants
 		entries = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={"customer": customer.name},
 			fields=[
 				"transaction_type", "coins", "reason", "restaurant",
@@ -1060,12 +1060,12 @@ def get_points_ledger(phone=None, page=1, limit=20):
 		)
 
 		# Enrich with restaurant names and compute running balance info
-		total_entries = frappe.db.count("Restaurant Loyalty Entry", {"customer": customer.name})
+		total_entries = frappe.db.count("Outlet Loyalty Entry", {"customer": customer.name})
 		current_balance = flt(get_loyalty_balance(customer.name))
 
 		formatted_entries = []
 		for e in entries:
-			outlet_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
+			outlet_name = frappe.db.get_value("Outlet", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
 
 			# Map type
 			if e.transaction_type == "Earn":
@@ -1209,7 +1209,7 @@ def get_outlet_summary(outlet_id):
 			"latitude", "longitude", "outlet_type", "contact_phone", "whatsapp_number", "instagram_url"]
 
 		outlet = frappe.db.get_value(
-			"Restaurant",
+			"Outlet",
 			{"restaurant_id": outlet_id},
 			_summary_fields,
 			as_dict=True,
@@ -1218,7 +1218,7 @@ def get_outlet_summary(outlet_id):
 		if not outlet:
 			# Try by name
 			outlet = frappe.db.get_value(
-				"Restaurant",
+				"Outlet",
 				{"name": outlet_id},
 				_summary_fields,
 				as_dict=True,
@@ -1231,7 +1231,7 @@ def get_outlet_summary(outlet_id):
 			return {"success": False, "error": {"code": "OUTLET_INACTIVE", "message": "Outlet is currently inactive"}}
 
 		config = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": outlet.name},
 			["restaurant_name", "tagline", "default_theme"],
 			as_dict=True,

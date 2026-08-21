@@ -54,7 +54,7 @@ def get_razorpay_client(restaurant_id=None):
 def get_or_create_razorpay_customer(restaurant_id):
 	"""Get or create a Razorpay Customer ID for a restaurant to enable recurring mandates."""
 	try:
-		rest = frappe.get_doc("Restaurant", restaurant_id)
+		rest = frappe.get_doc("Outlet", restaurant_id)
 		client = get_razorpay_client()
 		
 		# If we already have an ID, verify it exists in the current Razorpay account
@@ -78,7 +78,7 @@ def get_or_create_razorpay_customer(restaurant_id):
 		customer = client.customer.create(data=customer_data)
 		customer_id = customer.get("id")
 		
-		frappe.db.set_value("Restaurant", restaurant_id, "razorpay_customer_id", customer_id)
+		frappe.db.set_value("Outlet", restaurant_id, "razorpay_customer_id", customer_id)
 		frappe.db.commit()
 		
 		return customer_id

@@ -75,13 +75,13 @@ def _outlet_context(outlet_id: str) -> dict[str, Any]:
     columns must never break event generation."""
     try:
         return frappe.db.get_value(
-            "Restaurant",
+            "Outlet",
             outlet_id,
             ["restaurant_name", "city", "state", "address"],
             as_dict=True,
         ) or {}
     except Exception:
-        return {"restaurant_name": frappe.db.get_value("Restaurant", outlet_id, "restaurant_name") or ""}
+        return {"restaurant_name": frappe.db.get_value("Outlet", outlet_id, "restaurant_name") or ""}
 
 
 def _build_prompt(ctx: dict, user_prompt: str | None, from_poster: bool) -> str:
@@ -262,8 +262,8 @@ def generate_events(
         raw_text = response.text.strip()
     except Exception as ex:
         # Roll back the quota increment since generation failed.
-        used = int(frappe.db.get_value("Restaurant", outlet_id, "ai_coupon_generations_this_month") or 1)
-        frappe.db.set_value("Restaurant", outlet_id,
+        used = int(frappe.db.get_value("Outlet", outlet_id, "ai_coupon_generations_this_month") or 1)
+        frappe.db.set_value("Outlet", outlet_id,
             {"ai_coupon_generations_this_month": max(used - 1, 0)}, update_modified=False)
         frappe.db.commit()
         return handle_ai_error(ex)

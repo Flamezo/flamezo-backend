@@ -29,7 +29,7 @@ def handle_product_update(doc, method=None):
             doc.db_set("seo_slug", doc.seo_slug, update_modified=False)
 
         # Use get_doc (not cached) to ensure fresh data with all fields
-        restaurant = frappe.get_doc("Restaurant", doc.restaurant)
+        restaurant = frappe.get_doc("Outlet", doc.restaurant)
         if getattr(restaurant, "enable_google_sync", False):
             # Enqueue sync to avoid slowing down save
             frappe.enqueue(
@@ -45,7 +45,7 @@ def fetch_all_outlet_insights():
     """
     Fetch insights for all restaurants that have Google Sync enabled.
     """
-    restaurants = frappe.get_all("Restaurant", filters={"enable_google_sync": 1}, fields=["name"])
+    restaurants = frappe.get_all("Outlet", filters={"enable_google_sync": 1}, fields=["name"])
     for r in restaurants:
         frappe.enqueue(
             "flamezo_backend.flamezo.api.google_business.fetch_google_insights",
@@ -123,7 +123,7 @@ def google_callback(code, state):
     
     if refresh_token:
         # Save refresh token to Restaurant
-        frappe.db.set_value("Restaurant", state, "google_refresh_token", refresh_token)
+        frappe.db.set_value("Outlet", state, "google_refresh_token", refresh_token)
         
     if access_token:
         # Attempt to auto-discover Account and Location IDs
@@ -135,7 +135,7 @@ def google_callback(code, state):
                 accounts = acc_res.json().get("accounts", [])
                 if accounts:
                     account_id = accounts[0].get("name") # Use the first account found
-                    frappe.db.set_value("Restaurant", state, "google_business_account_id", account_id)
+                    frappe.db.set_value("Outlet", state, "google_business_account_id", account_id)
                     
                     # 2. Fetch Locations for this Account
                     loc_res = requests.get(f"https://mybusinessbusinessinformation.googleapis.com/v1/{account_id}/locations?readMask=name,title", 
@@ -144,9 +144,9 @@ def google_callback(code, state):
                         locations = loc_res.json().get("locations", [])
                         if locations:
                             # Try to match by name or just take the first one
-                            outlet_name = frappe.db.get_value("Restaurant", state, "restaurant_name")
+                            outlet_name = frappe.db.get_value("Outlet", state, "restaurant_name")
                             match = next((l for l in locations if l.get("title") == outlet_name), locations[0])
-                            frappe.db.set_value("Restaurant", state, "google_business_location_id", match.get("name"))
+                            frappe.db.set_value("Outlet", state, "google_business_location_id", match.get("name"))
         except Exception as e:
             frappe.log_error("Google Auto-Discovery Failed", str(e))
 
@@ -162,7 +162,7 @@ def get_google_access_token(outlet_id):
     """
     Refreshes and returns a valid Google access token for the restaurant.
     """
-    refresh_token = frappe.db.get_value("Restaurant", outlet_id, "google_refresh_token")
+    refresh_token = frappe.db.get_value("Outlet", outlet_id, "google_refresh_token")
     if not refresh_token:
         return None
         
@@ -189,7 +189,7 @@ def sync_menu_to_google(outlet_id):
     """
     Syncs the Flamezo menu to Google Business Profile.
     """
-    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    restaurant = frappe.get_doc("Outlet", outlet_id)
     if not restaurant.enable_google_sync:
         return {"success": False, "message": "Google Sync is disabled for this outlet."}
     
@@ -243,7 +243,7 @@ def fetch_google_insights(outlet_id):
     """
     Fetches performance data from Google Business Profile API.
     """
-    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    restaurant = frappe.get_doc("Outlet", outlet_id)
     access_token = get_google_access_token(outlet_id)
     
     if not access_token or not restaurant.google_business_location_id:
@@ -270,7 +270,7 @@ def get_google_reviews(outlet_id):
     """
     Fetches Google Reviews for the dashboard.
     """
-    restaurant = frappe.get_doc("Restaurant", outlet_id)
+    restaurant = frappe.get_doc("Outlet", outlet_id)
     access_token = get_google_access_token(outlet_id)
     
     if not access_token or not restaurant.google_business_location_id:
@@ -301,7 +301,7 @@ def generate_review_reply(review_text, rating, outlet_id=None):
         
         res_context = ""
         if outlet_id:
-            res = frappe.get_doc("Restaurant", outlet_id)
+            res = frappe.get_doc("Outlet", outlet_id)
             city = res.city or ""
             res_name = res.restaurant_name or res.name
             contact_info = f"Phone: {res.owner_phone}" if res.owner_phone else ""

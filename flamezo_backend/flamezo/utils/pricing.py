@@ -23,7 +23,7 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	loyalty_unlocked = savings_unlocked and (str(payment_method or "").strip().lower() == "pay_online")
 
 	# 0. Global Context
-	restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+	restaurant_doc = frappe.get_doc("Outlet", restaurant)
 	max_dist = flt(restaurant_doc.max_delivery_distance or 10.0)
 	serviceable = True
 	road_distance = 0
@@ -142,13 +142,13 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 		balance = get_loyalty_balance(customer)  # global balance — universal wallet
 		actual_coins = min(cint(loyalty_coins), balance)
 		# Max redemption percentage based on loyalty configuration.
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
+		plan = frappe.db.get_value("Outlet", restaurant, "plan_type") or "GOLD"
 		max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 		remaining = subtotal - total_item_discount
 		loyalty_discount = min(flt(actual_coins), max(0, remaining), subtotal * max_redeem_pct)
 	
 	# 5. Calculate Tax
-	tax_rate_val = frappe.db.get_value("Restaurant", restaurant, "tax_rate")
+	tax_rate_val = frappe.db.get_value("Outlet", restaurant, "tax_rate")
 	tax_rate = flt(tax_rate_val if tax_rate_val is not None else 5.0)
 	taxable_amount = max(0, subtotal - total_item_discount)
 	tax_amount = round(taxable_amount * (tax_rate / 100.0), 2)

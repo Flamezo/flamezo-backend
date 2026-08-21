@@ -13,7 +13,7 @@ def is_loyalty_enabled(restaurant):
 	"""Check if loyalty is enabled for a restaurant."""
 	if not restaurant:
 		return False
-	return frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
+	return frappe.db.get_value("Outlet", restaurant, "enable_loyalty")
 
 def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	"""
@@ -35,7 +35,7 @@ def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 		filters["is_settled"] = 1
 
 	entries = frappe.get_all(
-		"Restaurant Loyalty Entry",
+		"Outlet Loyalty Entry",
 		filters=filters,
 		fields=["transaction_type", "coins", "expiry_date"]
 	)
@@ -86,7 +86,7 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 		max_daily_cap = int(PLATFORM_LOYALTY.get("max_daily_redemption_inr", 500))
 
 		today_redemptions = frappe.db.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={
 				"customer": customer,
 				"transaction_type": "Redeem",
@@ -110,7 +110,7 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 		return 0
 
 	entry = frappe.get_doc({
-		"doctype": "Restaurant Loyalty Entry",
+		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
 		"restaurant": restaurant,
 		"coins": int(coins),
@@ -183,7 +183,7 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	expiry_date = add_days(today(), expiry_days)
 
 	entry = frappe.get_doc({
-		"doctype": "Restaurant Loyalty Entry",
+		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
 		"restaurant": restaurant,
 		"coins": coins_earned,
@@ -245,7 +245,7 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 	already_intended = 0
 	if ref_name:
 		existing = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={
 				"customer": customer,
 				"reference_doctype": ref_doctype,
@@ -276,7 +276,7 @@ def reverse_earned_cashback(customer, restaurant, coins_to_reverse, reason="Refu
 		stored_desc = f"{stored_desc} {marker}".strip()
 
 	entry = frappe.get_doc({
-		"doctype": "Restaurant Loyalty Entry",
+		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
 		"restaurant": restaurant,
 		"coins": int(deducted),
@@ -309,7 +309,7 @@ def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref
 	expiry_date = add_days(today(), expiry_days) if transaction_type == "Earn" else None
 
 	entry = frappe.get_doc({
-		"doctype": "Restaurant Loyalty Entry",
+		"doctype": "Outlet Loyalty Entry",
 		"customer": customer,
 		"restaurant": restaurant,
 		"coins": int(coins),
@@ -344,7 +344,7 @@ def settle_loyalty_points(order_name):
 	"""
 	try:
 		frappe.db.sql("""
-			UPDATE `tabRestaurant Loyalty Entry`
+			UPDATE `tabOutlet Loyalty Entry`
 			SET is_settled = 1
 			WHERE reference_doctype = 'Order' AND reference_name = %s
 		""", (order_name,))
@@ -373,7 +373,7 @@ def handle_order_cancellation(doc, method=None):
 	# 1. Refund Redeemed Coins
 	if doc.loyalty_coins_redeemed > 0:
 		# Idempotency: check if refund already exists for this order
-		already_refunded = frappe.db.exists("Restaurant Loyalty Entry", {
+		already_refunded = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": doc.platform_customer,
 			"restaurant": doc.restaurant,
 			"reference_doctype": "Order",
@@ -383,7 +383,7 @@ def handle_order_cancellation(doc, method=None):
 		if not already_refunded:
 			# Create the entry manually to be 100% safe (avoiding add_loyalty_coins side effects on current doc)
 			entry = frappe.get_doc({
-				"doctype": "Restaurant Loyalty Entry",
+				"doctype": "Outlet Loyalty Entry",
 				"customer": doc.platform_customer,
 				"restaurant": doc.restaurant,
 				"coins": int(doc.loyalty_coins_redeemed or 0),
@@ -433,7 +433,7 @@ def handle_loyalty_settlement(doc, method=None):
 		return
 
 	# Get settlement status from config
-	config = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": doc.restaurant, "is_active": 1}, "earn_on_status")
+	config = frappe.db.get_value("Outlet Loyalty Config", {"restaurant": doc.restaurant, "is_active": 1}, "earn_on_status")
 	settle_on = (config or "Completed").lower()
 	
 	current_status = str(doc.status).lower()
@@ -456,7 +456,7 @@ def get_loyalty_tier(customer, restaurant=None):
 	# Calculate lifetime coins across ALL restaurants for the centralized wallet vision
 	result = frappe.db.sql("""
 		SELECT COALESCE(SUM(coins), 0) AS lifetime_coins
-		FROM `tabRestaurant Loyalty Entry`
+		FROM `tabOutlet Loyalty Entry`
 		WHERE customer = %s AND transaction_type = 'Earn' AND is_settled = 1
 	""", (customer,), as_dict=True)
 
@@ -490,7 +490,7 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 		if not tokens:
 			return
 
-		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant
+		restaurant_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
 
 		REASON_MESSAGES = {
 			"Order":            f"You earned {coins} coins on your order at {restaurant_name}!",

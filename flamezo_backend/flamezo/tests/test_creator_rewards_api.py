@@ -40,7 +40,7 @@ class TestCreatorRewardsApi(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		cls.outlet = "TEST-REWARDS-API-OUTLET"
-		if not frappe.db.exists("Restaurant", cls.outlet):
+		if not frappe.db.exists("Outlet", cls.outlet):
 			make_restaurant(cls.outlet, outlet_type="dining")
 
 	def setUp(self):

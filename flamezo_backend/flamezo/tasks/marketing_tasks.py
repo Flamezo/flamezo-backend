@@ -152,7 +152,7 @@ def dispatch_campaign_task(campaign_id):
         customers = [c for c in customers if c.get("phone") not in opted_out]
 
         outlet_name = (
-            frappe.db.get_value("Restaurant", campaign.restaurant, "restaurant_name")
+            frappe.db.get_value("Outlet", campaign.restaurant, "restaurant_name")
             or campaign.restaurant
         )
 
@@ -166,7 +166,7 @@ def dispatch_campaign_task(campaign_id):
             chunk = customers[chunk_start: chunk_start + BATCH_SIZE]
 
             # ✅ FIX: Check balance BEFORE each batch
-            balance = float(frappe.db.get_value("Restaurant", campaign.restaurant, "coins_balance") or 0)
+            balance = float(frappe.db.get_value("Outlet", campaign.restaurant, "coins_balance") or 0)
             batch_cost = len(chunk) * coins_per_msg
             if balance < batch_cost:
                 paused_reason = f"Paused: Insufficient Wallet Balance ({balance:.1f} available, need {batch_cost:.1f})"
@@ -393,7 +393,7 @@ def _get_trigger_customers(trigger):
         return frappe.db.sql("""
             SELECT DISTINCT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s
               AND c.date_of_birth IS NOT NULL
               AND MONTH(c.date_of_birth) = MONTH(CURDATE())
@@ -407,7 +407,7 @@ def _get_trigger_customers(trigger):
         return frappe.db.sql("""
             SELECT c.name as customer, c.phone, c.customer_name
             FROM `tabCustomer` c
-            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -422,7 +422,7 @@ def _get_trigger_customers(trigger):
             SELECT c.name as customer, c.phone, c.customer_name,
                    SUM(CASE WHEN le.transaction_type = 'Earn' THEN le.coins ELSE -le.coins END) as balance
             FROM `tabCustomer` c
-            JOIN `tabRestaurant Loyalty Entry` le ON le.customer = c.name
+            JOIN `tabOutlet Loyalty Entry` le ON le.customer = c.name
             WHERE le.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name
@@ -450,7 +450,7 @@ def _fire_single_trigger(trigger, customer, settings, outlet_name_cache):
 
     # Coin balance check
     settings_coins = _get_coins_per_msg(settings, trigger.channel)
-    balance = float(frappe.db.get_value("Restaurant", trigger.restaurant, "coins_balance") or 0)
+    balance = float(frappe.db.get_value("Outlet", trigger.restaurant, "coins_balance") or 0)
     if balance < settings_coins:
         frappe.log_error(
             f"Trigger {trigger.name}: Insufficient coins for {customer.get('phone')} (balance={balance:.1f})",
@@ -461,7 +461,7 @@ def _fire_single_trigger(trigger, customer, settings, outlet_name_cache):
     # Resolve outlet name
     if trigger.restaurant not in outlet_name_cache:
         outlet_name_cache[trigger.restaurant] = (
-            frappe.db.get_value("Restaurant", trigger.restaurant, "restaurant_name") or trigger.restaurant
+            frappe.db.get_value("Outlet", trigger.restaurant, "restaurant_name") or trigger.restaurant
         )
 
     message = _resolve_template(
@@ -529,7 +529,7 @@ def _get_opted_out_phones(restaurant):
     rows = frappe.db.sql("""
         SELECT DISTINCT c.phone
         FROM `tabCustomer` c
-        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1 AND c.phone IS NOT NULL
     """, (restaurant,))
     return {r[0] for r in rows}
@@ -803,14 +803,14 @@ def generate_daily_seo_blog():
 
     try:
         # 1. Target Selection: Filter for Gold restaurants
-        restaurants = frappe.get_all("Restaurant",
+        restaurants = frappe.get_all("Outlet",
             filters={"plan_type": "GOLD", "is_active": 1},
             fields=["name", "restaurant_name", "description", "city", "subdomain"]
         )
         
         if not restaurants:
             # Fallback to any active restaurant if no premium ones exist
-            restaurants = frappe.get_all("Restaurant", filters={"is_active": 1}, 
+            restaurants = frappe.get_all("Outlet", filters={"is_active": 1}, 
                                        fields=["name", "restaurant_name", "description", "city", "subdomain"])
             
         if not restaurants:
@@ -878,7 +878,7 @@ def generate_daily_seo_blog():
         # ✅ DYNAMIC KEYWORD GENERATION (High-End SEO Strategy)
         # Fetch cuisine type from Restaurant if available (field may not exist on all installations)
         try:
-            cuisine = frappe.db.get_value("Restaurant", res_id, "cuisine") or "Multi-cuisine"
+            cuisine = frappe.db.get_value("Outlet", res_id, "cuisine") or "Multi-cuisine"
         except Exception:
             cuisine = "Multi-cuisine"
         location_slug = res_city

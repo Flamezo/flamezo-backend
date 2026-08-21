@@ -96,10 +96,10 @@ def send_offer_claim_notification(claim_id):
         return
 
     restaurant_name = (
-        frappe.db.get_value("Restaurant", claim.restaurant, "restaurant_name") or "the restaurant"
+        frappe.db.get_value("Outlet", claim.restaurant, "restaurant_name") or "the restaurant"
     )
     restaurant_slug = (
-        frappe.db.get_value("Restaurant", claim.restaurant, "restaurant_id") or claim.restaurant
+        frappe.db.get_value("Outlet", claim.restaurant, "restaurant_id") or claim.restaurant
     )
 
     coupon_row = frappe.db.get_value(

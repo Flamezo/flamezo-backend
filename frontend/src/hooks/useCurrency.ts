@@ -25,14 +25,14 @@ export function useCurrency() {
   const pricing = outletConfig?.pricing
 
   // Fallback: fetch only the currency field when pricing not from context (avoids fetching huge docs)
-  const { data: configList } = useFrappeGetDocList('Restaurant Config', {
+  const { data: configList } = useFrappeGetDocList('Outlet Config', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['currency'],
     limit: 1,
   })
   const configData = configList?.[0] || null
 
-  const { data: restaurantList } = useFrappeGetDocList('Restaurant', {
+  const { data: restaurantList } = useFrappeGetDocList('Outlet', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['currency'],
     limit: 1,

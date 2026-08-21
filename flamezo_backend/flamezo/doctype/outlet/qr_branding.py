@@ -38,7 +38,7 @@ def safe_restaurant_path(value):
 def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	from flamezo_backend.flamezo.media.utils import get_media_asset_data
 
-	config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_doc.name}, "name")
+	config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant_doc.name}, "name")
 	primary_color = "#B7410E"
 	logo_url = ""
 	background_image_url = override_background_url or ""
@@ -48,7 +48,7 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 
 		# Attempt to get qr_background safely
 		try:
-			background_image_url = frappe.db.get_value("Restaurant Config", config_name, "qr_background")
+			background_image_url = frappe.db.get_value("Outlet Config", config_name, "qr_background")
 		except Exception:
 			# Field doesn't exist yet, fallback to override or empty
 			pass
@@ -60,7 +60,7 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	# truth (Restaurant Config.logo was removed).
 	if restaurant_doc.logo:
 		logo_url = get_media_asset_data(
-			"Restaurant",
+			"Outlet",
 			restaurant_doc.name,
 			"restaurant_logo",
 			restaurant_doc.logo,

@@ -30,7 +30,7 @@ def generate_ad_copy(outlet_id, template_id, hero_dish_name=None, offer_amount=0
 		}
 	"""
 	# Fetch outlet data
-	restaurant = frappe.get_doc("Restaurant", outlet_id)
+	restaurant = frappe.get_doc("Outlet", outlet_id)
 	outlet_name = restaurant.restaurant_name or outlet_id
 	area = restaurant.city or "your area"
 	cuisine = _get_cuisine(outlet_id)

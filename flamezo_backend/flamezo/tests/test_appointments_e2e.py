@@ -55,7 +55,7 @@ def _make_appointment(restaurant, phone=_PHONE, date=None, status="Pending",
     doc = frappe.get_doc({
         "doctype": "Service Appointment",
         "restaurant": restaurant,
-        "outlet_type": frappe.db.get_value("Restaurant", restaurant, "outlet_type") or "wellness",
+        "outlet_type": frappe.db.get_value("Outlet", restaurant, "outlet_type") or "wellness",
         "catalogue_item_name": catalogue_item_name,
         "sub_item_name": sub_item_name,
         "sub_item_price": sub_item_price,
@@ -74,7 +74,7 @@ def _make_appointment(restaurant, phone=_PHONE, date=None, status="Pending",
 
 def _cleanup(restaurant):
     frappe.db.delete("Service Appointment", {"restaurant": restaurant})
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 

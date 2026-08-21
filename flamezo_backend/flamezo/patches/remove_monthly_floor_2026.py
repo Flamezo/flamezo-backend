@@ -33,7 +33,7 @@ def execute():
     #         Raw SQL keeps this fast and avoids Restaurant.validate hooks.
     frappe.db.sql(
         """
-        UPDATE `tabRestaurant`
+        UPDATE `tabOutlet`
         SET monthly_minimum = 0,
             enable_floor_recovery = 0
         WHERE COALESCE(monthly_minimum, 0) != 0

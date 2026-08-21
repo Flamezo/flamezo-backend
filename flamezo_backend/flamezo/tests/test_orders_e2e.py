@@ -107,7 +107,7 @@ def _cleanup(restaurant):
     order_names = frappe.get_all("Order", {"restaurant": restaurant}, ["name"])
     for o in order_names:
         frappe.delete_doc("Order", o.name, ignore_permissions=True)
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 
@@ -410,7 +410,7 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         frappe.db.delete("Court Booking", {"restaurant": self.r_court})
         frappe.db.delete("Court", {"restaurant": self.r_court})
         for r in [self.r_dining, self.r_wellness, self.r_court]:
-            frappe.db.delete("Restaurant", r)
+            frappe.db.delete("Outlet", r)
         frappe.db.commit()
 
     def test_all_four_types_returned(self):

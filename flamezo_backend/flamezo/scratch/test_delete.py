@@ -2,7 +2,7 @@ import frappe
 
 def test_deletion():
     # Find a test restaurant
-    restaurant = frappe.db.get_value("Restaurant", {}, "name")
+    restaurant = frappe.db.get_value("Outlet", {}, "name")
     if not restaurant:
         print("No restaurant found to test with.")
         return

@@ -27,7 +27,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "reqd": 1
   },
   {

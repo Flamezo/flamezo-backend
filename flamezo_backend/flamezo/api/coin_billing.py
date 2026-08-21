@@ -51,7 +51,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
     """Atomically update restaurant balance and create a transaction log."""
     # Re-read balance with row lock
     balance_info = frappe.db.sql(
-        "SELECT coins_balance FROM `tabRestaurant` WHERE name = %s FOR UPDATE",
+        "SELECT coins_balance FROM `tabOutlet` WHERE name = %s FOR UPDATE",
         (restaurant,)
     )
     current_balance = (balance_info[0][0] if balance_info and balance_info[0][0] is not None else 0.0)
@@ -76,7 +76,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
             frappe.ValidationError
         )
 
-    frappe.db.set_value("Restaurant", restaurant, "coins_balance", new_balance)
+    frappe.db.set_value("Outlet", restaurant, "coins_balance", new_balance)
 
     txn = frappe.get_doc({
         "doctype": "Coin Transaction",
@@ -99,7 +99,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
 
         # Check for system suspension (-100 grace limit)
         if new_balance < -100:
-             res_doc = frappe.get_doc("Restaurant", restaurant)
+             res_doc = frappe.get_doc("Outlet", restaurant)
              res_doc.suspend_restaurant_billing(reason="Exceeded -₹100 Grace Period")
 
     frappe.db.commit()
@@ -108,7 +108,7 @@ def record_transaction(restaurant, txn_type, amount, description="", payment_id=
 
 def check_and_trigger_auto_recharge(restaurant, current_balance):
     """Check if balance is below threshold and trigger background recharge."""
-    res_doc = frappe.get_doc("Restaurant", restaurant)
+    res_doc = frappe.get_doc("Outlet", restaurant)
     
     if not res_doc.auto_recharge_enabled:
         return
@@ -121,7 +121,7 @@ def check_and_trigger_auto_recharge(restaurant, current_balance):
     today = datetime.now().date()
     if res_doc.last_auto_recharge_date != today:
         # Reset counter for a new day
-        frappe.db.set_value("Restaurant", restaurant, {
+        frappe.db.set_value("Outlet", restaurant, {
             "daily_auto_recharge_count": 0,
             "last_auto_recharge_date": today
         })
@@ -144,7 +144,7 @@ def check_and_trigger_auto_recharge(restaurant, current_balance):
 def trigger_auto_recharge(restaurant):
     """Charge the restaurant for coins using their saved mandate."""
     try:
-        res_doc = frappe.get_doc("Restaurant", restaurant)
+        res_doc = frappe.get_doc("Outlet", restaurant)
         # DYNAMIC RECHARGE LOGIC (Grace + configured min, at least 300)
         current_bal = float(res_doc.coins_balance or 0)
         debt_to_clear = abs(min(0, current_bal))
@@ -284,7 +284,7 @@ def _credit_autopay_coins(restaurant, recharge_amt, payment_id, threshold, gst_a
     )
 
     frappe.db.sql("""
-        UPDATE `tabRestaurant`
+        UPDATE `tabOutlet`
         SET daily_auto_recharge_count = daily_auto_recharge_count + %s,
             last_auto_recharge_date = %s
         WHERE name = %s
@@ -303,7 +303,7 @@ def deduct_coins(restaurant, amount, type, description="", ref_doctype=None, ref
     Throws ValidationError if balance is insufficient.
     """
     # Trigger auto-recharge check early so it can process in background
-    balance = frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0.0
+    balance = frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0.0
     check_and_trigger_auto_recharge(restaurant, balance)
 
     # For automated or platform deductions, we allow going down to the grace limit (-100)
@@ -339,7 +339,7 @@ def refund_coins(restaurant, amount, description="", ref_doctype=None, ref_name=
 def get_coin_billing_info(restaurant):
     """Returns the restaurant's coin balance and billing settings."""
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
-    res = frappe.get_doc("Restaurant", restaurant)
+    res = frappe.get_doc("Outlet", restaurant)
     settings = frappe.get_single("Flamezo Settings")
     
     return {
@@ -378,7 +378,7 @@ def update_subscription_plan(restaurant, plan_type):
 def update_autopay_settings(restaurant, enabled, threshold, amount):
     """Update autopay configuration."""
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
-    frappe.db.set_value("Restaurant", restaurant, {
+    frappe.db.set_value("Outlet", restaurant, {
         "auto_recharge_enabled": 1 if enabled else 0,
         "auto_recharge_threshold": float(threshold),
         "auto_recharge_amount": float(amount)
@@ -497,7 +497,7 @@ def process_referral_bonus(restaurant):
 	Check and grant referral bonuses to both parties.
 	Triggered on the referee's first recharge of Rs. 1000+.
 	"""
-	res_doc = frappe.get_doc("Restaurant", restaurant)
+	res_doc = frappe.get_doc("Outlet", restaurant)
 	
 	# 1. Must have been referred by someone
 	if not res_doc.referred_by_restaurant:

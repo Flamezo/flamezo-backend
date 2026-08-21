@@ -106,7 +106,7 @@ def _make_court_booking(restaurant, court, phone=_PHONE, date=None,
 def _cleanup(restaurant):
     frappe.db.delete("Court Booking", {"restaurant": restaurant})
     frappe.db.delete("Court", {"restaurant": restaurant})
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 

@@ -56,7 +56,7 @@ def get_marketing_overview(outlet_id):
         active_triggers = frappe.db.count("Marketing Trigger", {"restaurant": restaurant, "is_active": 1})
         opted_out_count = frappe.db.sql("""
             SELECT COUNT(DISTINCT c.name) FROM `tabCustomer` c
-            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+            JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
             WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
         """, (restaurant,))[0][0] or 0
 
@@ -246,7 +246,7 @@ def send_campaign(campaign_id):
     seg_doc = frappe.get_doc("Marketing Segment", doc.target_segment)
     estimated_reach = seg_doc.compute_reach()
     estimated_cost = estimated_reach * coins_per_msg
-    balance = float(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+    balance = float(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 
     if balance < estimated_cost * 0.5:  # Require at least 50% coverage upfront
         return {
@@ -437,14 +437,14 @@ def get_optout_stats(outlet_id):
     total_opted_out = frappe.db.sql("""
         SELECT COUNT(DISTINCT c.name)
         FROM `tabCustomer` c
-        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
     """, (restaurant,))[0][0] or 0
 
     recent_optouts = frappe.db.sql("""
         SELECT c.phone, c.customer_name, c.opted_out_at, c.opted_out_keyword
         FROM `tabCustomer` c
-        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) o ON o.platform_customer = c.name
+        JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.platform_customer = c.name
         WHERE o.restaurant = %s AND c.opted_out_of_marketing = 1
         ORDER BY c.opted_out_at DESC
         LIMIT 20

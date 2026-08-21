@@ -55,7 +55,7 @@ class TestCreatorProgramFullLifecycle(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		cls.outlet = f"{_PREFIX}-OUTLET"
-		if not frappe.db.exists("Restaurant", cls.outlet):
+		if not frappe.db.exists("Outlet", cls.outlet):
 			make_restaurant(cls.outlet, outlet_type="dining")
 
 	def setUp(self):

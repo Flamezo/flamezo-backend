@@ -120,12 +120,12 @@ app_license = "mit"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"Restaurant": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant User": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_user_permission_query_conditions",
-	"Restaurant Table": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Loyalty Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Restaurant Loyalty Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Outlet": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Outlet Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Outlet User": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_user_permission_query_conditions",
+	"Outlet Table": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Outlet Loyalty Config": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
+	"Outlet Loyalty Entry": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 
@@ -179,10 +179,10 @@ permission_query_conditions = {
 }
 
 has_permission = {
-	"Restaurant": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant Config": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant User": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
-	"Restaurant Table": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Outlet": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Outlet Config": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Outlet User": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
+	"Outlet Table": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Menu Product": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 	"Menu Category": "flamezo_backend.flamezo.utils.permission_helpers.has_restaurant_permission",
 
@@ -221,7 +221,7 @@ doc_events = {
 	# Setup Wizard writes logo/tagline/etc. to the Restaurant Onboarding record;
 	# push those display fields to the live Restaurant (+ Config) on every save so
 	# the logo shows up in the Branding pool / feed / app without a manual sync.
-	"Restaurant Onboarding": {
+	"Outlet Onboarding": {
 		"on_update": "flamezo_backend.flamezo.api.onboarding.auto_sync_onboarding_display",
 	},
 
@@ -229,7 +229,7 @@ doc_events = {
 	# (rating, review count, price level, hours, facility attributes) fetched
 	# automatically — no manual "sync" step needed for merchants onboarding
 	# from here on.
-	"Restaurant": {
+	"Outlet": {
 		"on_update": [
 			"flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_photos_on_activation",
 			"flamezo_backend.flamezo.api.google_places_photos.auto_sync_google_details_on_activation",
@@ -263,7 +263,7 @@ doc_events = {
 	#  already handle their own media in dedicated controllers.)
 	"Offer": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
 	"Event": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
-	"Restaurant Config": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
+	"Outlet Config": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
 	"Home Feature": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
 	"AI Image Generation": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},
 	"Legacy Content": {"on_trash": "flamezo_backend.flamezo.media.cleanup.cleanup_media_for_owner"},

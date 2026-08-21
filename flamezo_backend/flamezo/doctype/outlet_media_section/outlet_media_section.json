@@ -9,7 +9,7 @@
   {
    "fieldname": "restaurant",
    "fieldtype": "Link",
-   "options": "Restaurant",
+   "options": "Outlet",
    "label": "Outlet",
    "reqd": 1,
    "in_list_view": 1

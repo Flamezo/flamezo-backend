@@ -90,7 +90,7 @@ def get_coupons(outlet_id, active_only=True):
 		# Restaurant-level Google review link (from setup / Restaurant Config) — used
 		# for every google_review offer so merchants don't set it per offer.
 		restaurant_review_link = frappe.db.get_value(
-			"Restaurant Config", {"restaurant": restaurant}, "google_review_link"
+			"Outlet Config", {"restaurant": restaurant}, "google_review_link"
 		) or ""
 		
 		# Get coupons — always fetch active ones; day/time-gated are returned with
@@ -624,7 +624,7 @@ def generate_coupon_suggestions(outlet_id, tone="attractive", offer_type_filter=
 
 		if not quota_status["free_remaining"]:
 			# Quota exhausted — deduct 2 coins per generation
-			balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+			balance = flt(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 			if balance < COINS_PER_AI_COUPON:
 				return {
 					"success": False,
@@ -697,7 +697,7 @@ def get_ai_coupon_quota(outlet_id):
 			_check_quota_status, FREE_MONTHLY_QUOTA,
 		)
 		status = _check_quota_status(restaurant)
-		balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+		balance = flt(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 		return {
 			"success": True,
 			"data": {
@@ -760,7 +760,7 @@ def get_applicable_offers(outlet_id, cart_items, cart_total, customer_id=None, o
 		
 		# Fetch restaurant-level Google review link once (from Restaurant Config)
 		restaurant_review_link = frappe.db.get_value(
-			"Restaurant Config", {"restaurant": restaurant}, "google_review_link"
+			"Outlet Config", {"restaurant": restaurant}, "google_review_link"
 		) or ""
 
 		eligible_offers = []
@@ -1164,7 +1164,7 @@ def set_offer_pin(outlet_id, pin):
 		if not pin.isdigit() or len(pin) != 4:
 			return {"success": False, "error": {"code": "INVALID_PIN", "message": "PIN must be exactly 4 digits"}}
 
-		frappe.db.set_value("Restaurant Config", restaurant, "offer_verification_pin", pin)
+		frappe.db.set_value("Outlet Config", restaurant, "offer_verification_pin", pin)
 		frappe.db.commit()
 
 		return {"success": True, "data": {"message": "PIN updated successfully"}}
@@ -1181,7 +1181,7 @@ def get_offer_pin_status(outlet_id):
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(outlet_id)
-		stored = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		return {"success": True, "data": {"is_set": bool(stored)}}
 	except Exception as e:
 		return {"success": False, "error": {"code": "PIN_STATUS_ERROR", "message": str(e)}}
@@ -1216,7 +1216,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 		customer_phone = frappe.db.get_value("Customer", customer_id, "phone") or ""
 
 		# Validate PIN
-		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored_pin = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
 			return {"success": False, "error": {"code": "PIN_NOT_SET", "message": "This outlet has not set up offer verification"}}
 
@@ -1294,7 +1294,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 
 		# Build the pay-bill deep link so the frontend can surface it immediately too
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {
@@ -1398,7 +1398,7 @@ def claim_offer(outlet_id, coupon_id):
 		)
 
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {

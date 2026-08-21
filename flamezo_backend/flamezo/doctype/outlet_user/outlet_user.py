@@ -14,13 +14,13 @@ def get_staff_seat_limit(restaurant):
 	return STAFF_SEAT_LIMIT
 
 
-class RestaurantUser(Document):
+class OutletUser(Document):
 	def validate(self):
 		"""Validate Restaurant User"""
 		# Ensure only one default restaurant per user
 		if self.is_default:
 			existing_default = frappe.db.get_value(
-				"Restaurant User",
+				"Outlet User",
 				{"user": self.user, "is_default": 1, "name": ["!=", self.name]},
 				"name"
 			)
@@ -37,7 +37,7 @@ class RestaurantUser(Document):
 
 		# Count existing active non-admin staff
 		current_count = frappe.db.count(
-			"Restaurant User",
+			"Outlet User",
 			{
 				"restaurant": self.restaurant,
 				"role": "Restaurant Staff",
@@ -83,11 +83,11 @@ class RestaurantUser(Document):
 			if create:
 				if not frappe.db.exists("User Permission", {
 					"user": self.user,
-					"allow": "Restaurant",
+					"allow": "Outlet",
 					"for_value": self.restaurant
 				}):
 					frappe.permissions.add_user_permission(
-						doctype="Restaurant",
+						doctype="Outlet",
 						name=self.restaurant,
 						user=self.user,
 						is_default=self.is_default,
@@ -96,7 +96,7 @@ class RestaurantUser(Document):
 			else:
 				try:
 					frappe.permissions.remove_user_permission(
-						doctype="Restaurant",
+						doctype="Outlet",
 						name=self.restaurant,
 						user=self.user,
 						ignore_permissions=True

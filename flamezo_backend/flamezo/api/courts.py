@@ -40,8 +40,8 @@ DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _resolve_restaurant(outlet_id):
-	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
-	return name or frappe.db.get_value("Restaurant", outlet_id, "name")
+	name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
+	return name or frappe.db.get_value("Outlet", outlet_id, "name")
 
 
 def _require_session(phone):
@@ -59,7 +59,7 @@ def _assert_restaurant_access(restaurant_name):
 	if frappe.session.user in ("Administrator",):
 		return
 	has_access = frappe.db.exists(
-		"Restaurant User",
+		"Outlet User",
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:

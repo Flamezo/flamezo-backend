@@ -73,7 +73,7 @@ class TestDecideRouteMode(unittest.TestCase):
         cleanup_restaurant(self._res)
 
     def _patch_restaurant(self, **fields):
-        frappe.db.set_value("Restaurant", self._res, fields)
+        frappe.db.set_value("Outlet", self._res, fields)
         frappe.db.commit()
 
     def test_explicit_disabled(self):
@@ -216,7 +216,7 @@ class TestEnsureLinkedAccount(unittest.TestCase):
         cleanup_restaurant(self._res)
 
     def test_returns_existing_when_account_already_present(self):
-        frappe.db.set_value("Restaurant", self._res, {
+        frappe.db.set_value("Outlet", self._res, {
             "razorpay_account_id": "acc_existing",
             "razorpay_kyc_status": "activated",
         })
@@ -239,7 +239,7 @@ class TestEnsureLinkedAccount(unittest.TestCase):
 
     def test_creates_account_when_kyc_complete(self):
         """Stub the Razorpay client; verify the adapter persists the new id."""
-        frappe.db.set_value("Restaurant", self._res, {
+        frappe.db.set_value("Outlet", self._res, {
             "owner_email": "owner@test.com",
             "owner_phone": "+919876543210",
             "owner_name": "Test Owner",
@@ -270,7 +270,7 @@ class TestEnsureLinkedAccount(unittest.TestCase):
         self.assertEqual(res["linked_account_id"], "acc_NEW123")
         self.assertTrue(res["created"])
         # Persisted to the restaurant
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      ["razorpay_account_id", "razorpay_kyc_status", "route_mode"],
                                      as_dict=True)
         self.assertEqual(stored["razorpay_account_id"], "acc_NEW123")
@@ -304,24 +304,24 @@ class TestUpdateKycStatus(unittest.TestCase):
 
     def test_activated_flips_route_mode_to_direct_split(self):
         self.update("acc_TEST_KYC", "activated")
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      ["razorpay_kyc_status", "route_mode"], as_dict=True)
         self.assertEqual(stored["razorpay_kyc_status"], "activated")
         self.assertEqual(stored["route_mode"], "direct_split")
 
     def test_rejected_forces_flamezo_hold(self):
         # Even if route_mode was direct_split, rejection brings it back.
-        frappe.db.set_value("Restaurant", self._res, "route_mode", "direct_split")
+        frappe.db.set_value("Outlet", self._res, "route_mode", "direct_split")
         frappe.db.commit()
         self.update("acc_TEST_KYC", "rejected")
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      ["razorpay_kyc_status", "route_mode"], as_dict=True)
         self.assertEqual(stored["razorpay_kyc_status"], "rejected")
         self.assertEqual(stored["route_mode"], "flamezo_hold")
 
     def test_unknown_status_defaults_to_under_review(self):
         self.update("acc_TEST_KYC", "some_new_razorpay_status")
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      "razorpay_kyc_status")
         self.assertEqual(stored, "under_review")
 
@@ -333,7 +333,7 @@ class TestUpdateKycStatus(unittest.TestCase):
         """`account.instantly_activated` is Razorpay's fast-path for simple
         business types — same effect as a manual `activated`."""
         self.update("acc_TEST_KYC", "instantly_activated")
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      ["razorpay_kyc_status", "route_mode"], as_dict=True)
         self.assertEqual(stored["razorpay_kyc_status"], "activated")
         self.assertEqual(stored["route_mode"], "direct_split")
@@ -343,7 +343,7 @@ class TestUpdateKycStatus(unittest.TestCase):
         paperwork but full transfer activation is still pending ops review
         — restaurant must NOT be flipped to direct_split yet."""
         self.update("acc_TEST_KYC", "activated_kyc_pending")
-        stored = frappe.db.get_value("Restaurant", self._res,
+        stored = frappe.db.get_value("Outlet", self._res,
                                      ["razorpay_kyc_status", "route_mode"], as_dict=True)
         self.assertEqual(stored["razorpay_kyc_status"], "under_review")
         # Don't promote to direct_split — Razorpay isn't ready to transfer.

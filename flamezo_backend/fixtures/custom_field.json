@@ -209,7 +209,7 @@
   "name": "Customer-first_verified_at_restaurant",
   "no_copy": 0,
   "non_negative": 0,
-  "options": "Restaurant",
+  "options": "Outlet",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",

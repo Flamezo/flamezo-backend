@@ -57,7 +57,7 @@ def get_loyalty_summary(outlet_id, phone):
 		
 		# Get all point entries (Global History)
 		entries = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={"customer": customer.name},
 			fields=["transaction_type", "coins", "reason", "description", "posting_date", "reference_doctype", "reference_name", "creation", "is_settled", "restaurant"],
 			order_by="creation desc"
@@ -84,14 +84,14 @@ def get_loyalty_summary(outlet_id, phone):
 			"transaction_type": "Earn",
 			"expiry_date": ["between", [today(), add_days(today(), 30)]]
 		}
-		expiring_soon_entries = frappe.get_all("Restaurant Loyalty Entry", filters=expiring_soon_filters, fields=["coins"])
+		expiring_soon_entries = frappe.get_all("Outlet Loyalty Entry", filters=expiring_soon_filters, fields=["coins"])
 		gross_expiring = sum(e.coins for e in expiring_soon_entries)
 		expiring_soon_balance = min(gross_expiring, balance)
 		
 		lifetime_coins = sum(e.coins for e in entries if e.transaction_type == 'Earn' and e.is_settled == 1)
 		
 		cross_redemption = is_cross_restaurant_redemption_enabled()
-		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or outlet_id
 
 		return {
 			"success": True,
@@ -122,13 +122,13 @@ def get_loyalty_config(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Check if loyalty is enabled for this outlet
-		is_enabled = frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
+		is_enabled = frappe.db.get_value("Outlet", restaurant, "enable_loyalty")
 		if not is_enabled:
 			return {"success": True, "data": None}
 
 		# Try to fetch non-rate fields from the outlet doc if it exists
 		outlet_doc_config = frappe.db.get_value(
-			"Restaurant Loyalty Config",
+			"Outlet Loyalty Config",
 			{"restaurant": restaurant},
 			["program_name", "earn_on_status"],
 			as_dict=True
@@ -171,12 +171,12 @@ def get_loyalty_config(outlet_id):
 		}
 
 		# Add current outlet's city
-		outlet_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
+		outlet_info = frappe.db.get_value("Outlet", restaurant, ["city", "address", "company"], as_dict=True)
 		config["city"] = outlet_info.city or "Surat"
 		cross_redemption = is_cross_restaurant_redemption_enabled()
 		config["cross_outlet_redemption_enabled"] = cross_redemption
 		config["earning_outlet_name"] = None if cross_redemption else (
-			frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
+			frappe.db.get_value("Outlet", restaurant, "restaurant_name") or outlet_id
 		)
 
 		# Fetch other outlets (Real + Mock)
@@ -187,7 +187,7 @@ def get_loyalty_config(outlet_id):
 			filters["city"] = outlet_info.city
 
 		other_outlets = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters=filters,
 			fields=["restaurant_id as id", "restaurant_name as name", "logo as imageSrc", "address", "city"],
 			limit=5
@@ -475,7 +475,7 @@ def claim_referral_reward(outlet_id, referral_id, phone):
 				return {"success": False, "error": {"code": "ACCOUNT_TOO_NEW", "message": "Please try again in a moment"}}
 
 		# 4. Global idempotency: one Welcome Bonus per phone ever, across all outlets
-		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
+		already_rewarded = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": referee.name,
 			"reason": "Welcome Bonus"
 		})
@@ -573,13 +573,13 @@ def get_referral_details(identifier):
 		referrer_full_name = frappe.db.get_value("Customer", link_info.referrer, "customer_name") or link_info.referrer
 		# Swiggy/Zomato style: Show first name only for privacy
 		referrer_name = referrer_full_name.split(' ')[0] if referrer_full_name else link_info.referrer
-		outlet_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
+		outlet_name = frappe.db.get_value("Outlet", link_info.restaurant, "name")
 		
 		# Get welcome coins from platform config (source of truth)
 		welcome_coins = get_welcome_reward_coins()
 		
 		# Get outlet logo — Restaurant.logo is the single source of truth
-		logo = frappe.db.get_value("Restaurant", link_info.restaurant, "logo")
+		logo = frappe.db.get_value("Outlet", link_info.restaurant, "logo")
 		# Using logo as fallback for banner as ‘banner_image’ field doesn’t exist
 		banner = logo 
 		
@@ -613,7 +613,7 @@ def process_referral_welcome_bonus(customer, restaurant, referral_id):
 			return False
 			
 		# 2. Global idempotency: one Welcome Bonus per phone number ever, across all outlets
-		already_rewarded = frappe.db.exists("Restaurant Loyalty Entry", {
+		already_rewarded = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": customer,
 			"reason": "Welcome Bonus"
 			# No "restaurant" filter — global check prevents multi-outlet bonus farming
@@ -623,7 +623,7 @@ def process_referral_welcome_bonus(customer, restaurant, referral_id):
 			return False
 			
 		# 3. Ensure an active loyalty config exists for this outlet
-		if not frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name"):
+		if not frappe.db.get_value("Outlet Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "name"):
 			return False
 
 		# 4. Award the Welcome Bonus (always platform value — not per-outlet config)
@@ -690,13 +690,13 @@ def update_loyalty_config(outlet_id, config, enable_loyalty=None):
 		config["coin_value_in_inr"] = PLATFORM_LOYALTY["coin_value_in_inr"]
 
 		# ── Save the config document ─────────────────────────────────────────────
-		if frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
-			prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
-			prog_doc = frappe.get_doc("Restaurant Loyalty Config", prog_name)
+		if frappe.db.exists("Outlet Loyalty Config", {"restaurant": restaurant}):
+			prog_name = frappe.db.get_value("Outlet Loyalty Config", {"restaurant": restaurant}, "name")
+			prog_doc = frappe.get_doc("Outlet Loyalty Config", prog_name)
 			prog_doc.update(config)
 			prog_doc.save(ignore_permissions=True)
 		else:
-			config["doctype"]   = "Restaurant Loyalty Config"
+			config["doctype"]   = "Outlet Loyalty Config"
 			config["restaurant"]= restaurant
 			if not config.get("program_name"):
 				config["program_name"] = "Flamezo Rewards"
@@ -707,8 +707,8 @@ def update_loyalty_config(outlet_id, config, enable_loyalty=None):
 		if enable_loyalty is not None:
 			enabled = 1 if enable_loyalty else 0
 
-			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", enabled)
-			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
+			frappe.db.set_value("Outlet", restaurant, "enable_loyalty", enabled)
+			frappe.db.set_value("Outlet Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
 
 			# Under the single-tier model loyalty and ordering are independent —
 			# toggling loyalty no longer flips the ordering switch on/off.
@@ -733,7 +733,7 @@ def get_customer_insights(outlet_id, search_query=None):
 		
 		# Find customers via Restaurant Loyalty Entry
 		customer_names = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={"restaurant": restaurant},
 			pluck="customer",
 			distinct=True
@@ -789,7 +789,7 @@ def get_customer_insights(outlet_id, search_query=None):
 						ELSE 0
 					END
 				)) AS net_balance
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s AND customer IN ({placeholders})
 			GROUP BY customer
 		""", tuple([restaurant] + all_customer_ids), as_dict=True)
@@ -798,7 +798,7 @@ def get_customer_insights(outlet_id, search_query=None):
 		# ── Single SQL: lifetime Earn coins per customer (for tier) ───────────────
 		lifetime_rows = frappe.db.sql(f"""
 			SELECT customer, COALESCE(SUM(coins), 0) AS lifetime_coins
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s AND customer IN ({placeholders}) AND transaction_type = 'Earn'
 			GROUP BY customer
 		""", tuple([restaurant] + all_customer_ids), as_dict=True)
@@ -810,7 +810,7 @@ def get_customer_insights(outlet_id, search_query=None):
 				customer,
 				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   AND is_settled = 1 THEN coins ELSE 0 END), 0) AS earned_here,
 				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END), 0) AS redeemed_here
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s AND customer IN ({placeholders})
 			GROUP BY customer
 		""", tuple([restaurant] + all_customer_ids), as_dict=True)
@@ -826,7 +826,7 @@ def get_customer_insights(outlet_id, search_query=None):
 		# ── Tier thresholds (single config fetch) ─────────────────────────────────
 		from flamezo_backend.flamezo.utils.loyalty import get_loyalty_tier
 		tier_config = frappe.db.get_value(
-			"Restaurant Loyalty Config",
+			"Outlet Loyalty Config",
 			{"restaurant": restaurant, "is_active": 1},
 			["tier_silver_threshold", "tier_gold_threshold", "tier_platinum_threshold"],
 			as_dict=True
@@ -886,7 +886,7 @@ def get_customer_transactions(outlet_id, customer_id):
 
 		# Get all loyalty entries for this customer at this outlet
 		transactions = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={"customer": customer_id, "restaurant": restaurant},
 			fields=["transaction_type", "coins", "reason", "posting_date", "creation", "reference_doctype", "reference_name"],
 			order_by="creation desc"
@@ -910,7 +910,7 @@ def get_loyalty_customers(restaurant, page=1, page_size=20, search=None):
 		if search:
 			filters["customer"] = ["like", f"%{search}%"]
 		entries = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters=filters,
 			fields=["customer", "coins", "transaction_type", "reason", "creation"],
 			order_by="creation desc",
@@ -952,7 +952,7 @@ def get_loyalty_analytics(outlet_id):
 				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   AND is_settled = 1 THEN coins ELSE 0 END), 0) AS total_issued,
 				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END), 0) AS total_redeemed,
 				COUNT(DISTINCT CASE WHEN transaction_type = 'Earn' AND is_settled = 1 THEN customer END)          AS active_customers
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s
 		""", (restaurant,), as_dict=True)[0]
 
@@ -974,10 +974,10 @@ def get_loyalty_analytics(outlet_id):
 						ELSE 0
 					END
 				)) AS net_balance
-			FROM `tabRestaurant Loyalty Entry` e
+			FROM `tabOutlet Loyalty Entry` e
 			WHERE e.restaurant = %s
 			  AND EXISTS (
-				SELECT 1 FROM `tabRestaurant Loyalty Entry` x
+				SELECT 1 FROM `tabOutlet Loyalty Entry` x
 				WHERE x.restaurant = e.restaurant
 				  AND x.customer  = e.customer
 				  AND x.transaction_type = 'Earn'
@@ -1006,7 +1006,7 @@ def get_loyalty_analytics(outlet_id):
 							ELSE 0
 						END
 					)) AS net_bal
-				FROM `tabRestaurant Loyalty Entry`
+				FROM `tabOutlet Loyalty Entry`
 				WHERE restaurant = %s
 				GROUP BY customer
 				HAVING net_bal > 0
@@ -1017,7 +1017,7 @@ def get_loyalty_analytics(outlet_id):
 		# Today's total redemptions across the whole outlet (all customers)
 		today_redeem_row = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS today_redeemed
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s
 			  AND transaction_type = 'Redeem'
 			  AND reason = 'Redemption'
@@ -1028,7 +1028,7 @@ def get_loyalty_analytics(outlet_id):
 		# ── 2. Earn breakdown by reason ────────────────────────────────────────────
 		reason_rows = frappe.db.sql("""
 			SELECT reason, COALESCE(SUM(coins), 0) AS total_coins, COUNT(*) AS count
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s AND transaction_type = 'Earn' AND is_settled = 1
 			GROUP BY reason
 			ORDER BY total_coins DESC
@@ -1041,7 +1041,7 @@ def get_loyalty_analytics(outlet_id):
 		# ── 3. Top 5 earners (lifetime coins) ─────────────────────────────────────
 		top_rows = frappe.db.sql("""
 			SELECT customer, SUM(coins) AS lifetime_coins
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s AND transaction_type = 'Earn' AND is_settled = 1
 			GROUP BY customer
 			ORDER BY lifetime_coins DESC
@@ -1077,7 +1077,7 @@ def get_loyalty_analytics(outlet_id):
 				posting_date,
 				COALESCE(SUM(CASE WHEN transaction_type = 'Earn'   THEN coins ELSE 0 END), 0) AS earned,
 				COALESCE(SUM(CASE WHEN transaction_type = 'Redeem' THEN coins ELSE 0 END), 0) AS redeemed
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s
 			  AND is_settled = 1
 			  AND posting_date >= %s

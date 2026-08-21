@@ -55,10 +55,10 @@ def _make_coupon(restaurant, is_active=1):
 
 def _cleanup(res_names):
     for name in res_names:
-        frappe.db.delete("Restaurant Gallery Item", {"restaurant": name})
+        frappe.db.delete("Outlet Gallery Item", {"restaurant": name})
         frappe.db.delete("Coupon", {"restaurant": name})
-        frappe.db.delete("Restaurant Config", {"restaurant": name})
-        frappe.db.delete("Restaurant", name)
+        frappe.db.delete("Outlet Config", {"restaurant": name})
+        frappe.db.delete("Outlet", name)
     frappe.db.commit()
 
 
@@ -150,12 +150,12 @@ class TestListRestaurants(unittest.TestCase):
         # Restaurant C — inactive
         cls.res_c = f"{_PREFIX}-LR-INACTIVE"
         make_restaurant(cls.res_c, city="Surat")
-        frappe.db.set_value("Restaurant", cls.res_c, "is_active", 0)
+        frappe.db.set_value("Outlet", cls.res_c, "is_active", 0)
         frappe.db.commit()
 
         # Add one gallery photo to A
         frappe.get_doc({
-            "doctype": "Restaurant Gallery Item",
+            "doctype": "Outlet Gallery Item",
             "restaurant": cls.res_a,
             "url": "https://example.com/photo1.jpg",
             "media_type": "Image",

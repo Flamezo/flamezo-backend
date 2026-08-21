@@ -373,7 +373,7 @@ export default function Layout({ children }: LayoutProps) {
       // Create restaurant document (no tables field)
       const result = await createRestaurant({
         doc: {
-          doctype: 'Restaurant',
+          doctype: 'Outlet',
           restaurant_name: newRestaurantData.restaurant_name.trim(),
           owner_email: newRestaurantData.owner_email.trim(),
           owner_phone: newRestaurantData.owner_phone.trim() || undefined,
@@ -474,7 +474,7 @@ export default function Layout({ children }: LayoutProps) {
   const currentOutlet = outlets.find(r => r.name === selectedOutlet || r.outlet_id === selectedOutlet)
 
   // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
-  const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
+  const { data: restaurantDocList } = useFrappeGetDocList('Outlet', {
     filters: selectedOutlet ? [['name', '=', selectedOutlet]] : [],
     fields: ['name', 'slug', 'restaurant_id', 'restaurant_name', 'is_signature'],
     limit: 1,

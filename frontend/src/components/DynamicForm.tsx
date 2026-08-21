@@ -61,7 +61,7 @@ interface DynamicFormProps {
 // Character limits for specific doctype fields to ensure UI consistency in ono-menu.
 // Values are derived from actual UI constraints (line-clamp, container width, font size).
 const CHARACTER_LIMITS: Record<string, Record<string, number>> = {
-  'Restaurant Config': {
+  'Outlet Config': {
     'tagline': 70,
     'subtitle': 100,
     'description': 200, // legacy page hard-truncates at 200 chars
@@ -610,7 +610,7 @@ export default function DynamicForm({
     const fieldLabel = field.label.toLowerCase()
 
     // Restaurant doctype specific examples
-    if (doctype === 'Restaurant') {
+    if (doctype === 'Outlet') {
       const examples: Record<string, string> = {
         'restaurant_name': ' (e.g., Urban Bites, Glow Studio, FitZone)',
         'subdomain': ' (e.g., urban-bites-surat)',
@@ -631,7 +631,7 @@ export default function DynamicForm({
     }
 
     // Restaurant Config doctype specific examples
-    if (doctype === 'Restaurant Config') {
+    if (doctype === 'Outlet Config') {
       const examples: Record<string, string> = {
         'restaurant_name': ' (e.g., Pizza Palace)',
         'tagline': ' (e.g., Authentic Italian Cuisine)',
@@ -699,7 +699,7 @@ export default function DynamicForm({
     }
 
     // For Restaurant doctype, make IDs and base_url read-only after creation
-    if (doctype === 'Restaurant' && mode === 'edit' && docname) {
+    if (doctype === 'Outlet' && mode === 'edit' && docname) {
       const lockedFields = ['restaurant_id', 'slug', 'subdomain', 'base_url']
       if (lockedFields.includes(field.fieldname)) {
         isReadOnly = true
@@ -712,7 +712,7 @@ export default function DynamicForm({
     }
 
     // Always make the Restaurant Link field read-only in forms (we manage restaurant change via the header dropdown only)
-    if (field.fieldtype === 'Link' && field.options === 'Restaurant') {
+    if (field.fieldtype === 'Link' && field.options === 'Outlet') {
       isReadOnly = true
     }
 
@@ -765,7 +765,7 @@ export default function DynamicForm({
         }
 
         // Special handling for Address field in Restaurant doctype - Google Places Autocomplete
-        if (doctype === 'Restaurant' && field.fieldname === 'address') {
+        if (doctype === 'Outlet' && field.fieldname === 'address') {
           return (
             <AddressAutocomplete
               key={field.fieldname}
@@ -812,7 +812,7 @@ export default function DynamicForm({
         }
 
         // Special handling for City & State in Restaurant doctype
-        if (doctype === 'Restaurant' && field.fieldname === 'city') {
+        if (doctype === 'Outlet' && field.fieldname === 'city') {
           return (
             <div key={field.fieldname} className="space-y-2">
               <Label htmlFor={field.fieldname} className="flex items-center gap-1.5">
@@ -848,7 +848,7 @@ export default function DynamicForm({
           )
         }
 
-        if (doctype === 'Restaurant' && field.fieldname === 'state') {
+        if (doctype === 'Outlet' && field.fieldname === 'state') {
           // State is handled by the City selector
           return null
         }
@@ -1015,7 +1015,7 @@ export default function DynamicForm({
       case 'Text':
       case 'Long Text': {
         const textLimit = (doctype && CHARACTER_LIMITS[doctype]) ? CHARACTER_LIMITS[doctype][field.fieldname] : undefined
-        const isAutoFilledField = doctype === 'Restaurant' && field.fieldname === 'google_map_url'
+        const isAutoFilledField = doctype === 'Outlet' && field.fieldname === 'google_map_url'
         const isEffectivelyReadOnly = isReadOnly || (isAutoFilledField && addressComponentsLocked)
         return (
           <div key={field.fieldname} className="space-y-2">
@@ -1130,7 +1130,7 @@ export default function DynamicForm({
       case 'Float':
       case 'Int': {
         // Make latitude/longitude/zip read-only when auto-filled from Google Places
-        const isAutoFilledField = doctype === 'Restaurant' && (field.fieldname === 'latitude' || field.fieldname === 'longitude' || field.fieldname === 'zip_code')
+        const isAutoFilledField = doctype === 'Outlet' && (field.fieldname === 'latitude' || field.fieldname === 'longitude' || field.fieldname === 'zip_code')
         const isEffectivelyReadOnly = isReadOnly || (isAutoFilledField && addressComponentsLocked)
         return (
           <div key={field.fieldname} className="space-y-2">
@@ -1824,14 +1824,14 @@ function LinkFieldReadOnly({
   const displayValue = (function () {
     // Priority 1: Use full linked record if available
     if (linkedRecord) {
-      if (linkedDoctype === 'Restaurant' && linkedRecord.restaurant_name) {
+      if (linkedDoctype === 'Outlet' && linkedRecord.restaurant_name) {
         return linkedRecord.restaurant_name
       }
       return linkedRecord.name || String(value)
     }
 
     // Priority 2: If it's a Restaurant link, try to find it in the global context list
-    if (linkedDoctype === 'Restaurant') {
+    if (linkedDoctype === 'Outlet') {
       const isCurrency = typeof value === 'string' && /^[A-Z]{3}$/.test(value)
 
       // If the value is a currency code (leak), or if it matches a known outlet
@@ -1892,7 +1892,7 @@ function LinkField({
   // Determine which fields to fetch based on common doctype patterns
   const getFieldsForDoctype = (doctype: string) => {
     switch (doctype) {
-      case 'Restaurant':
+      case 'Outlet':
         return ['name', 'restaurant_name']
       case 'Menu Category':
         return ['name', 'display_name', 'category_name', 'parent_category', 'display_order']
@@ -1964,7 +1964,7 @@ function LinkField({
   const getDisplayValue = (record: any) => {
     if (!record) return ''
     // For Restaurant, use restaurant_name
-    if (linkedDoctype === 'Restaurant' && record.restaurant_name) {
+    if (linkedDoctype === 'Outlet' && record.restaurant_name) {
       return record.restaurant_name
     }
     // For Menu Category, prefer display_name then category_name

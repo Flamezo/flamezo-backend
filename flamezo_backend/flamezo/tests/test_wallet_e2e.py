@@ -79,7 +79,7 @@ def _redeem(customer_name, restaurant, coins, reason="Redemption"):
 def _cleanup(phone=_PHONE):
     cust = frappe.db.get_value("Customer", {"phone": phone}, "name")
     if cust:
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cust})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cust})
         frappe.db.delete("Customer", {"name": cust})
     frappe.db.commit()
 
@@ -87,7 +87,7 @@ def _cleanup(phone=_PHONE):
 def _cleanup_all():
     for ph in [_PHONE, _PHONE_B]:
         _cleanup(ph)
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 

@@ -54,10 +54,10 @@ def _indian_format(amount):
 
 def _resolve_restaurant_name(outlet_id):
 	"""Resolve outlet_id (external ID or internal name) to internal Frappe name."""
-	name = frappe.db.get_value("Restaurant", {"restaurant_id": outlet_id}, "name")
+	name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
 	if not name:
 		# Try direct name match
-		name = frappe.db.get_value("Restaurant", outlet_id, "name")
+		name = frappe.db.get_value("Outlet", outlet_id, "name")
 	return name
 
 
@@ -66,7 +66,7 @@ def _assert_restaurant_access(restaurant_name):
 	if frappe.session.user in ("Administrator", "Guest"):
 		return
 	has_access = frappe.db.exists(
-		"Restaurant User",
+		"Outlet User",
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:
@@ -119,7 +119,7 @@ def get_catalogue(outlet_id=None):
 			return json.loads(cached)
 
 		# Fetch outlet_type
-		outlet_type = frappe.db.get_value("Restaurant", restaurant_name, "outlet_type") or "dining"
+		outlet_type = frappe.db.get_value("Outlet", restaurant_name, "outlet_type") or "dining"
 
 		# ── 4-query batch fetch (no N+1) ─────────────────────────────────────
 
@@ -343,7 +343,7 @@ def get_catalogue_item(item_id=None, outlet_id=None):
 
 		# Fetch outlet info for CTA
 		outlet_type, whatsapp_number, contact_phone = frappe.db.get_value(
-			"Restaurant", doc.restaurant,
+			"Outlet", doc.restaurant,
 			["outlet_type", "whatsapp_number", "contact_phone"]
 		) or ("dining", "", "")
 

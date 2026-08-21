@@ -33,7 +33,7 @@ def execute():
     rows = frappe.db.sql(
         """
         SELECT name, platform_fee_percent
-        FROM `tabRestaurant`
+        FROM `tabOutlet`
         WHERE platform_fee_percent IS NULL
            OR ABS(platform_fee_percent - 1.5) < 0.001
         """,
@@ -47,7 +47,7 @@ def execute():
         # already-1.5 restaurants.
         if r["platform_fee_percent"] is None:
             frappe.db.set_value(
-                "Restaurant",
+                "Outlet",
                 r["name"],
                 "platform_fee_percent",
                 1.5,

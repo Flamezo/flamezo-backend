@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from flamezo_backend.flamezo.utils.permissions import validate_restaurant_access
 from flamezo_backend.flamezo.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES
-from flamezo_backend.flamezo.doctype.restaurant_user.restaurant_user import get_staff_seat_limit
+from flamezo_backend.flamezo.doctype.outlet_user.outlet_user import get_staff_seat_limit
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ def _assert_admin(outlet_id):
 		return
 
 	role = frappe.db.get_value(
-		"Restaurant User",
+		"Outlet User",
 		{"user": user, "restaurant": outlet_id, "is_active": 1},
 		"role"
 	)
@@ -39,7 +39,7 @@ def _resolve_restaurant(outlet_id):
 	"""Normalise outlet_id → docname (handles both outlet_id slug and name)."""
 	from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
 	# validate_restaurant_access expects the docname
-	doc_name = frappe.db.get_value("Restaurant", outlet_id, "name")
+	doc_name = frappe.db.get_value("Outlet", outlet_id, "name")
 	if not doc_name:
 		doc_name = get_restaurant_from_id(outlet_id)
 	if not doc_name:
@@ -76,7 +76,7 @@ def get_staff_members(outlet_id):
 			frappe.throw(_("Access denied"), frappe.PermissionError)
 
 		members_raw = frappe.get_all(
-			"Restaurant User",
+			"Outlet User",
 			filters={"restaurant": restaurant},
 			fields=["name", "user", "role", "is_active", "is_default", "creation"],
 			order_by="creation asc"
@@ -95,7 +95,7 @@ def get_staff_members(outlet_id):
 				actual_role = "Restaurant Admin"
 				# Auto-sync to database if there's a mismatch (perfect fix)
 				if m.role != "Restaurant Admin":
-					frappe.db.set_value("Restaurant User", m.name, "role", "Restaurant Admin")
+					frappe.db.set_value("Outlet User", m.name, "role", "Restaurant Admin")
 			
 			members.append({
 				"name": m.name,
@@ -179,12 +179,12 @@ def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
 				frappe.db.set_value("User", email, "full_name", full_name)
 
 		# --- Check not already added ---
-		if frappe.db.exists("Restaurant User", {"user": email, "restaurant": restaurant}):
+		if frappe.db.exists("Outlet User", {"user": email, "restaurant": restaurant}):
 			frappe.throw(_("{0} is already a member of this outlet.").format(email))
 
 		# --- Create Restaurant User (seat limit enforced in DocType.validate) ---
 		ru = frappe.get_doc({
-			"doctype": "Restaurant User",
+			"doctype": "Outlet User",
 			"user": email,
 			"restaurant": restaurant,
 			"role": role,
@@ -197,7 +197,7 @@ def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
 		_send_staff_invite_email(
 			email=email,
 			full_name=full_name,
-			outlet_name=frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant,
+			outlet_name=frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant,
 			is_new_user=is_new_user,
 		)
 
@@ -231,7 +231,7 @@ def remove_staff_member(outlet_id, restaurant_user_name):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_admin(restaurant)
 
-		ru = frappe.get_doc("Restaurant User", restaurant_user_name)
+		ru = frappe.get_doc("Outlet User", restaurant_user_name)
 
 		# Safety: ensure the record belongs to this restaurant
 		if ru.restaurant != restaurant:
@@ -241,7 +241,7 @@ def remove_staff_member(outlet_id, restaurant_user_name):
 		if ru.user == frappe.session.user:
 			frappe.throw(_("You cannot remove yourself from the outlet."))
 
-		frappe.delete_doc("Restaurant User", restaurant_user_name, ignore_permissions=True)
+		frappe.delete_doc("Outlet User", restaurant_user_name, ignore_permissions=True)
 
 		return {"success": True, "message": _("Staff member removed successfully.")}
 	except frappe.ValidationError as e:
@@ -262,7 +262,7 @@ def update_staff_member(outlet_id, restaurant_user_name, is_active=None, role=No
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_admin(restaurant)
 
-		ru = frappe.get_doc("Restaurant User", restaurant_user_name)
+		ru = frappe.get_doc("Outlet User", restaurant_user_name)
 		if ru.restaurant != restaurant:
 			frappe.throw(_("This staff record does not belong to this outlet."), frappe.PermissionError)
 

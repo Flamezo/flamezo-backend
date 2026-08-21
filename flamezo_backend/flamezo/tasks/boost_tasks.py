@@ -251,7 +251,7 @@ def send_boost_booking_reminders():
 		if not (0 < minutes_until <= BOOKING_REMINDER_LEAD_MINUTES):
 			continue
 
-		restaurant_name = frappe.db.get_value("Restaurant", booking.restaurant, "restaurant_name") or booking.restaurant
+		restaurant_name = frappe.db.get_value("Outlet", booking.restaurant, "restaurant_name") or booking.restaurant
 		coupon_code = frappe.db.get_value("Boost Campaign", booking.boost_campaign, "coupon_code")
 
 		try:

@@ -696,7 +696,7 @@ def reassign_table(booking_id, outlet_id, new_table_id):
 			}
 		
 		# Verify new table belongs to outlet
-		table = frappe.get_doc("Restaurant Table", new_table_id)
+		table = frappe.get_doc("Outlet Table", new_table_id)
 		if table.restaurant != restaurant:
 			return {
 				"success": False,
@@ -902,7 +902,7 @@ def get_admin_bookings(outlet_id, date_from=None, date_to=None, status=None, pag
 			# Add table info if assigned
 			if booking.get("assigned_table"):
 				try:
-					table = frappe.get_doc("Restaurant Table", booking["assigned_table"])
+					table = frappe.get_doc("Outlet Table", booking["assigned_table"])
 					booking_data["assignedTable"] = {
 						"id": table.name,
 						"tableNumber": table.table_number,
@@ -952,7 +952,7 @@ def get_outlet_tables(outlet_id):
 		
 		# Get all tables
 		tables = frappe.get_all(
-			"Restaurant Table",
+			"Outlet Table",
 			filters={"restaurant": restaurant},
 			fields=[
 				"name as id",
@@ -1074,7 +1074,7 @@ def get_all_customer_bookings(phone, limit=50):
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", outlet_ids]},
 				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
 			):
@@ -1241,7 +1241,7 @@ def get_customer_booking_history(phone, limit=50):
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", outlet_ids]},
 				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
 			):

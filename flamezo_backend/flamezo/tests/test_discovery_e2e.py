@@ -70,10 +70,10 @@ def _make_rest(
     lng=72.8311,
 ):
     name = f"{_PREFIX}-{suffix}"
-    if frappe.db.exists("Restaurant", name):
-        frappe.delete_doc("Restaurant", name, force=True, ignore_permissions=True)
+    if frappe.db.exists("Outlet", name):
+        frappe.delete_doc("Outlet", name, force=True, ignore_permissions=True)
     r = make_restaurant(name, outlet_type=outlet_type)
-    frappe.db.set_value("Restaurant", name, {
+    frappe.db.set_value("Outlet", name, {
         "is_active": is_active,
         "is_featured": is_featured,
         "rating": rating,
@@ -121,7 +121,7 @@ def _make_coupon(restaurant_name, discount_value=20):
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabCoupon` WHERE code LIKE 'TEST%' AND description='Test discount'")
-    frappe.db.sql(f"DELETE FROM `tabRestaurant` WHERE name LIKE '{_PREFIX}%'")
+    frappe.db.sql(f"DELETE FROM `tabOutlet` WHERE name LIKE '{_PREFIX}%'")
     # Clear discovery caches
     for key in frappe.cache().get_keys("flamezo:disco:*") or []:
         frappe.cache().delete_value(key)
@@ -182,7 +182,7 @@ class TestGetAllRestaurants(unittest.TestCase):
         self.assertIn(self.dining, names)
 
     def test_search_by_cuisines(self):
-        frappe.db.set_value("Restaurant", self.dining, "cuisines", "Gujarati, Jain")
+        frappe.db.set_value("Outlet", self.dining, "cuisines", "Gujarati, Jain")
         frappe.db.commit()
         result = flamezo_api.get_all_outlets(search="Gujarati")
         self.assertTrue(result["success"])
@@ -405,7 +405,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         )
         # Add gallery photos
         frappe.get_doc({
-            "doctype": "Restaurant Gallery Item",
+            "doctype": "Outlet Gallery Item",
             "restaurant": self.rest,
             "media_type": "Image",
             "url": "https://cdn.flamezo.in/test/photo1.jpg",
@@ -417,7 +417,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         frappe.cache().delete_value(f"flamezo:outlet_detail:{self.rest}")
 
     def tearDown(self):
-        frappe.db.sql(f"DELETE FROM `tabRestaurant Gallery Item` WHERE restaurant='{self.rest}'")
+        frappe.db.sql(f"DELETE FROM `tabOutlet Gallery Item` WHERE restaurant='{self.rest}'")
         if frappe.db.exists("Coupon", {"restaurant": self.rest}):
             for c in frappe.get_all("Coupon", {"restaurant": self.rest}):
                 frappe.delete_doc("Coupon", c.name, force=True, ignore_permissions=True)

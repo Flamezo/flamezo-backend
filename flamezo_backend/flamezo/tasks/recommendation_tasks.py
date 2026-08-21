@@ -72,7 +72,7 @@ def run_weekly_recommendation_refresh():
         logger.warning(f"Failed to purge stale co-order events: {e}")
 
     outlets = frappe.get_all(
-        "Restaurant",
+        "Outlet",
         fields=["name", "restaurant_id"],
         filters={"disabled": 0},
     )
@@ -95,7 +95,7 @@ def _refresh_outlet_recommendations(outlet_name: str):
         _store_recommendations,
     )
 
-    restaurant_doc = frappe.get_doc("Restaurant", outlet_name)
+    restaurant_doc = frappe.get_doc("Outlet", outlet_name)
 
     payload, products = _build_payload_for_restaurant(restaurant_doc)
     if not products:

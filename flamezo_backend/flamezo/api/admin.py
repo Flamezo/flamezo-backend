@@ -188,22 +188,22 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
         if config_table_exists:
             query = f"""
                 SELECT {_select_cols}
-                FROM `tabRestaurant` r
+                FROM `tabOutlet` r
                 LEFT JOIN `tabRestaurantConfig` rc ON r.name = rc.parent
                 {where_clause}
                 ORDER BY r.creation DESC
                 LIMIT {limit_start}, {page_size}
             """
-            count_query = f"SELECT COUNT(*) FROM `tabRestaurant` r {where_clause}"
+            count_query = f"SELECT COUNT(*) FROM `tabOutlet` r {where_clause}"
         else:
             query = f"""
                 SELECT {_select_cols}
-                FROM `tabRestaurant` r
+                FROM `tabOutlet` r
                 {where_clause}
                 ORDER BY r.creation DESC
                 LIMIT {limit_start}, {page_size}
             """
-            count_query = f"SELECT COUNT(*) FROM `tabRestaurant` r {where_clause}"
+            count_query = f"SELECT COUNT(*) FROM `tabOutlet` r {where_clause}"
 
         restaurants = frappe.db.sql(query, tuple(params), as_dict=True)
         total_count = frappe.db.sql(count_query, tuple(params))[0][0]
@@ -237,7 +237,7 @@ def get_admin_outlets_stats():
 
     Returns counts + sums across every outlet so the admin can see
     fleet-wide health at a glance without paginating. Cheap query (one
-    aggregate scan of `tabRestaurant`).
+    aggregate scan of `tabOutlet`).
     """
     try:
         access_check = check_admin_access()
@@ -259,7 +259,7 @@ def get_admin_outlets_stats():
               SUM(CASE WHEN COALESCE(outstanding_commission_paise, 0) > 0 THEN 1 ELSE 0 END) AS owing,
               COALESCE(SUM(COALESCE(outstanding_commission_paise, 0)), 0) AS total_outstanding_paise,
               COALESCE(SUM(COALESCE(coins_balance, 0)), 0) AS total_coins
-            FROM `tabRestaurant`
+            FROM `tabOutlet`
             """,
             as_dict=True,
         )[0]
@@ -289,7 +289,7 @@ def get_outlet_details(outlet_id):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -347,7 +347,7 @@ def toggle_outlet_status(outlet_id, is_active):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -400,7 +400,7 @@ def delete_outlet(outlet_id):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -412,9 +412,9 @@ def delete_outlet(outlet_id):
 
         # 1. Clear User Permissions (Crucial for Frappe integrity)
         try:
-            # User Permissions link via 'allow'="Restaurant" and 'for_value'="[doc_name]"
+            # User Permissions link via 'allow'="Outlet" and 'for_value'="[doc_name]"
             user_perms = frappe.get_all("User Permission",
-                filters={"allow": "Restaurant", "for_value": restaurant_name},
+                filters={"allow": "Outlet", "for_value": restaurant_name},
                 pluck="name")
 
             for perm in user_perms:
@@ -440,7 +440,7 @@ def delete_outlet(outlet_id):
         for cdt, fields in core_dt_map.items():
             try:
                 dt_field, name_field = fields
-                records = frappe.get_all(cdt, filters={dt_field: "Restaurant", name_field: restaurant_name}, pluck="name")
+                records = frappe.get_all(cdt, filters={dt_field: "Outlet", name_field: restaurant_name}, pluck="name")
                 for r in records:
                     frappe.delete_doc(cdt, r, ignore_permissions=True, delete_permanently=True)
                 if records:
@@ -476,32 +476,32 @@ def delete_outlet(outlet_id):
             "Media Asset", "Media Upload Session",
             "Menu Category",
             # Level 3: remaining restaurant-linked docs
-            "Restaurant Config", "Restaurant Media", "Restaurant Social Link",
-            "Restaurant Table", "Table Booking", "Banquet Booking",
+            "Outlet Config", "Restaurant Media", "Restaurant Social Link",
+            "Outlet Table", "Table Booking", "Banquet Booking",
             "Order",
-            "Restaurant User",
+            "Outlet User",
             "Coupon", "Offer", "Auto Offer", "Combo Offer", "Promo",
             "Game", "Event", "Home Feature",
             "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger",
             "Razorpay Webhook Log", "Plan Change Log",
             "Referral Link", "OTP Verification Log", "Tokenization Attempt",
-            "Restaurant Loyalty Config", "Restaurant Loyalty Entry",
+            "Outlet Loyalty Config", "Outlet Loyalty Entry",
             "Legacy Content",
         ]
 
         # 4. Append any newly-added doctypes discovered dynamically (placed after known deps).
         try:
-            dynamic_links = frappe.get_all("DocField", filters={"fieldtype": "Link", "options": "Restaurant"}, pluck="parent")
-            custom_links = frappe.get_all("Custom Field", filters={"fieldtype": "Link", "options": "Restaurant"}, pluck="dt")
+            dynamic_links = frappe.get_all("DocField", filters={"fieldtype": "Link", "options": "Outlet"}, pluck="parent")
+            custom_links = frappe.get_all("Custom Field", filters={"fieldtype": "Link", "options": "Outlet"}, pluck="dt")
             known = set(DELETION_ORDER)
-            extra = [dt for dt in (dynamic_links + custom_links) if dt not in known and dt != "Restaurant"]
+            extra = [dt for dt in (dynamic_links + custom_links) if dt not in known and dt != "Outlet"]
             all_linked_dts = DELETION_ORDER + extra
         except Exception:
             all_linked_dts = DELETION_ORDER
 
         # 5. Delete in dependency order
         for dt in all_linked_dts:
-            if dt == "Restaurant":
+            if dt == "Outlet":
                 continue
             try:
                 # Check if the doctype exists in this installation
@@ -517,7 +517,7 @@ def delete_outlet(outlet_id):
                 else:
                     # Find any field that is a Link to Restaurant
                     for df in meta.fields:
-                        if df.fieldtype == "Link" and df.options == "Restaurant":
+                        if df.fieldtype == "Link" and df.options == "Outlet":
                             link_field = df.fieldname
                             break
 
@@ -562,7 +562,7 @@ def delete_outlet(outlet_id):
                 frappe.log_error("Restaurant Delete Error", f"Error deleting RestaurantConfig: {e!s}")
 
         # 6. Finally, delete the Restaurant record itself
-        frappe.delete_doc('Restaurant', restaurant_name, ignore_permissions=True, delete_permanently=True, force=1)
+        frappe.delete_doc('Outlet', restaurant_name, ignore_permissions=True, delete_permanently=True, force=1)
         cleanup_report.append(f"Deleted Restaurant record: {outlet_id}")
 
         # Commit all changes to database
@@ -602,7 +602,7 @@ def admin_give_coins(outlet_id, amount, reason="Admin Grant"):
             return {'success': False, 'error': 'Invalid amount'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -640,7 +640,7 @@ def admin_update_outlet_settings(outlet_id, updates):
             return {'success': False, 'error': 'Admin access required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -668,7 +668,7 @@ def admin_update_outlet_settings(outlet_id, updates):
             valid_types = {'dining', 'cafe', 'wellness', 'fitness', 'sports_court', 'sports_venue', 'fashion'}
             new_type = updates.pop('outlet_type')
             if new_type in valid_types:
-                frappe.db.set_value('Restaurant', restaurant.name, 'outlet_type', new_type)
+                frappe.db.set_value('Outlet', restaurant.name, 'outlet_type', new_type)
 
         # If nothing else to update, just commit and return — avoids a
         # redundant restaurant.save() that races with the set_value above.
@@ -728,7 +728,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
             return {'success': False, 'error': 'Owner email is required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -810,14 +810,14 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
             user_doc.save(ignore_permissions=True)
 
         # 4. Link user to the restaurant
-        has_existing_default = frappe.db.exists("Restaurant User", {"user": user_id, "is_default": 1})
+        has_existing_default = frappe.db.exists("Outlet User", {"user": user_id, "is_default": 1})
         is_default_flag = 0 if has_existing_default else 1
 
         # create_restaurant_user_permission maps Frappe User Permissions
         create_restaurant_user_permission(user_id, restaurant.name, is_default=is_default_flag)
 
-        # Check if already in 'Restaurant User' doctype
-        if not frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": restaurant.name}):
+        # Check if already in 'Outlet User' doctype
+        if not frappe.db.exists("Outlet User", {"user": user_id, "restaurant": restaurant.name}):
             assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Admin", is_default=is_default_flag)
 
         frappe.db.commit()
@@ -927,7 +927,7 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
             if not bid:
                 continue
 
-            branch = frappe.db.get_value("Restaurant", bid, "name")
+            branch = frappe.db.get_value("Outlet", bid, "name")
             if not branch:
                 try:
                     from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
@@ -938,12 +938,12 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
                 results.append({'branch': bid, 'status': 'not_found'})
                 continue
 
-            if frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": branch}):
+            if frappe.db.exists("Outlet User", {"user": user_id, "restaurant": branch}):
                 results.append({'branch': branch, 'status': 'skipped'})
                 continue
 
             # First branch this user is given becomes the default (if none yet).
-            has_default = frappe.db.exists("Restaurant User", {"user": user_id, "is_default": 1})
+            has_default = frappe.db.exists("Outlet User", {"user": user_id, "is_default": 1})
             is_default_flag = 0 if has_default else 1
             try:
                 assign_user_to_restaurant(user_id, branch, role=role, is_default=is_default_flag)
@@ -1000,8 +1000,8 @@ def admin_list_branch_access(multi_only=0):
             """
             SELECT ru.user, ru.restaurant, ru.role,
                    COALESCE(r.restaurant_name, ru.restaurant) AS outlet_name
-            FROM `tabRestaurant User` ru
-            LEFT JOIN `tabRestaurant` r ON r.name = ru.restaurant
+            FROM `tabOutlet User` ru
+            LEFT JOIN `tabOutlet` r ON r.name = ru.restaurant
             WHERE ru.is_active = 1
             ORDER BY ru.user
             """,
@@ -1205,7 +1205,7 @@ def admin_create_manual_recharge_link(outlet_id, amount):
 
         # Get restaurant record
         try:
-            restaurant = frappe.get_doc('Restaurant', {'restaurant_id': outlet_id})
+            restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
         except Exception:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -1310,7 +1310,7 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
                     ELSE 0 END)) AS balance,
                 SUM(CASE WHEN transaction_type = 'Earn' AND is_settled = 1 THEN coins ELSE 0 END) AS lifetime_earned,
                 SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END) AS total_redeemed
-            FROM `tabRestaurant Loyalty Entry`
+            FROM `tabOutlet Loyalty Entry`
             GROUP BY customer
         ) loyalty_stats ON loyalty_stats.customer = c.name
         WHERE 1=1 {search_sql}
@@ -1386,7 +1386,7 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
             e.date, e.time, e.end_time, e.location, e.image_src,
             e.restaurant, COALESCE(r.restaurant_name, e.restaurant) AS outlet_name
         FROM `tabEvent` e
-        LEFT JOIN `tabRestaurant` r ON r.name = e.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = e.restaurant
         WHERE {where}
         ORDER BY {sort_col} {order_dir}
         LIMIT %s OFFSET %s
@@ -1395,7 +1395,7 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
     total = frappe.db.sql(f"""
         SELECT COUNT(*) AS cnt
         FROM `tabEvent` e
-        LEFT JOIN `tabRestaurant` r ON r.name = e.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = e.restaurant
         WHERE {where}
     """, params, as_dict=True)[0].cnt
 
@@ -1438,7 +1438,7 @@ def admin_create_event(title, restaurant=None, description=None, category=None, 
     if not (title or "").strip():
         frappe.throw("Event title is required")
     # Merchant is optional; validate only when one was actually provided.
-    if restaurant and not frappe.db.exists("Restaurant", restaurant):
+    if restaurant and not frappe.db.exists("Outlet", restaurant):
         frappe.throw("The selected merchant does not exist")
 
     doc = frappe.get_doc({
@@ -1476,7 +1476,7 @@ def admin_get_event_detail(event_id):
     e = frappe.get_doc("Event", event_id)
     outlet_name = ""
     if e.restaurant:
-        outlet_name = frappe.db.get_value("Restaurant", e.restaurant, "restaurant_name") or ""
+        outlet_name = frappe.db.get_value("Outlet", e.restaurant, "restaurant_name") or ""
 
     days = [d for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") if e.get(d)]
 
@@ -1606,7 +1606,7 @@ def admin_get_customer_full_profile(customer_id):
 
     # ── Loyalty Ledger (full, all restaurants) ────────────────────────────────
     loyalty_entries = frappe.get_all(
-        "Restaurant Loyalty Entry",
+        "Outlet Loyalty Entry",
         filters={"customer": customer_id},
         fields=["name", "restaurant", "transaction_type", "coins", "reason",
                 "posting_date", "expiry_date", "is_settled", "reference_doctype", "reference_name"],
@@ -1775,7 +1775,7 @@ def admin_get_customer_full_profile(customer_id):
     rest_name_map = {}
     if all_rest_ids:
         rest_rows = frappe.get_all(
-            "Restaurant", filters={"name": ["in", list(all_rest_ids)]},
+            "Outlet", filters={"name": ["in", list(all_rest_ids)]},
             fields=["name", "restaurant_name as outlet_name"]
         )
         rest_name_map = {r.name: r.outlet_name for r in rest_rows}
@@ -1959,7 +1959,7 @@ def admin_delete_customer(customer_id):
     _customer_linked_doctypes = [
         # (doctype, filter_field)
         ("Customer Session",          "customer"),
-        ("Restaurant Loyalty Entry",  "customer"),
+        ("Outlet Loyalty Entry",  "customer"),
         ("Order",                     "customer"),
         ("Table Booking",             "customer"),
         ("Banquet Booking",           "customer"),

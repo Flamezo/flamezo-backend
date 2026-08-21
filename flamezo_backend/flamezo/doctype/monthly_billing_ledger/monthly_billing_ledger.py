@@ -21,7 +21,7 @@ class MonthlyBillingLedger(Document):
             
             platform_fee_percent = 3.0
             if self.restaurant:
-                res_fee = frappe.db.get_value("Restaurant", self.restaurant, "platform_fee_percent")
+                res_fee = frappe.db.get_value("Outlet", self.restaurant, "platform_fee_percent")
                 if res_fee is not None:
                     platform_fee_percent = float(res_fee)
 

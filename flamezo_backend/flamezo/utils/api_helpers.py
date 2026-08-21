@@ -37,11 +37,11 @@ def get_restaurant_from_id(restaurant_id):
 		return None
 	
 	# Try to get by restaurant_id field first
-	restaurant = frappe.db.get_value("Restaurant", {"restaurant_id": restaurant_id}, "name")
+	restaurant = frappe.db.get_value("Outlet", {"restaurant_id": restaurant_id}, "name")
 	
 	# If not found, try by name (for backward compatibility)
 	if not restaurant:
-		restaurant = frappe.db.get_value("Restaurant", {"name": restaurant_id}, "name")
+		restaurant = frappe.db.get_value("Outlet", {"name": restaurant_id}, "name")
 	
 	return restaurant
 
@@ -68,7 +68,7 @@ def validate_restaurant_for_api(restaurant_id, user=None, allow_inactive=False):
 		frappe.throw(_("Outlet not found"), exc=frappe.DoesNotExistError)
 	
 	# Check if restaurant is active
-	if not allow_inactive and not frappe.db.get_value("Restaurant", restaurant, "is_active"):
+	if not allow_inactive and not frappe.db.get_value("Outlet", restaurant, "is_active"):
 		frappe.throw(
 			_("Outlet {0} is not active").format(restaurant_id),
 			exc=frappe.ValidationError
@@ -92,7 +92,7 @@ def get_restaurant_context(restaurant_id):
 	if not restaurant:
 		return None
 	
-	restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+	restaurant_doc = frappe.get_doc("Outlet", restaurant)
 	
 	# Get currency info with symbol
 	currency_info = get_restaurant_currency_info(restaurant)

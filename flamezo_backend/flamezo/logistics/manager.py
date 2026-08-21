@@ -3,7 +3,7 @@ from frappe.utils import flt, cint
 
 class LogisticsManager:
     def __init__(self, outlet_name):
-        self.restaurant = frappe.get_doc("Restaurant", outlet_name)
+        self.restaurant = frappe.get_doc("Outlet", outlet_name)
         self.settings = frappe.get_single("Flamezo Settings")
         self.provider = None
 

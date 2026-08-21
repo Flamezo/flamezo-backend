@@ -39,10 +39,10 @@ from frappe.utils import today, flt, now_datetime
 def _make_restaurant(suffix="aicg"):
     """Create a minimal test restaurant and return its name."""
     name = f"TEST-AICG-{suffix}"
-    if frappe.db.exists("Restaurant", name):
-        frappe.delete_doc("Restaurant", name, force=True)
+    if frappe.db.exists("Outlet", name):
+        frappe.delete_doc("Outlet", name, force=True)
     doc = frappe.get_doc({
-        "doctype": "Restaurant",
+        "doctype": "Outlet",
         "restaurant_id": name,
         "restaurant_name": f"Test Restaurant {suffix}",
         "city": "Mumbai",
@@ -81,8 +81,8 @@ def _cleanup(restaurant):
                 frappe.delete_doc(doctype, r.name, force=True)
             except Exception:
                 pass
-    if frappe.db.exists("Restaurant", restaurant):
-        frappe.delete_doc("Restaurant", restaurant, force=True)
+    if frappe.db.exists("Outlet", restaurant):
+        frappe.delete_doc("Outlet", restaurant, force=True)
     frappe.db.commit()
 
 
@@ -116,7 +116,7 @@ class TestQuotaTracking(unittest.TestCase):
         from flamezo_backend.flamezo.services.ai.coupon_generator import _check_and_increment_quota, FREE_MONTHLY_QUOTA
         current_month = now_datetime().strftime("%Y-%m")
         # Simulate 9 uses
-        frappe.db.set_value("Restaurant", self.restaurant, {
+        frappe.db.set_value("Outlet", self.restaurant, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA - 1,
             "ai_coupon_quota_reset_month": current_month,
         })
@@ -127,7 +127,7 @@ class TestQuotaTracking(unittest.TestCase):
     def test_increment_over_limit_is_not_allowed(self):
         from flamezo_backend.flamezo.services.ai.coupon_generator import _check_and_increment_quota, FREE_MONTHLY_QUOTA
         current_month = now_datetime().strftime("%Y-%m")
-        frappe.db.set_value("Restaurant", self.restaurant, {
+        frappe.db.set_value("Outlet", self.restaurant, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA,
             "ai_coupon_quota_reset_month": current_month,
         })
@@ -138,7 +138,7 @@ class TestQuotaTracking(unittest.TestCase):
     def test_quota_resets_on_new_month(self):
         from flamezo_backend.flamezo.services.ai.coupon_generator import _check_and_increment_quota, FREE_MONTHLY_QUOTA
         # Simulate old month with full usage
-        frappe.db.set_value("Restaurant", self.restaurant, {
+        frappe.db.set_value("Outlet", self.restaurant, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA,
             "ai_coupon_quota_reset_month": "2024-01",  # old month
         })
@@ -151,7 +151,7 @@ class TestQuotaTracking(unittest.TestCase):
         from flamezo_backend.flamezo.services.ai.coupon_generator import _check_quota_status
         _check_quota_status(self.restaurant)
         _check_quota_status(self.restaurant)
-        used = frappe.db.get_value("Restaurant", self.restaurant, "ai_coupon_generations_this_month")
+        used = frappe.db.get_value("Outlet", self.restaurant, "ai_coupon_generations_this_month")
         self.assertEqual(int(used or 0), 0)
 
 
@@ -391,7 +391,7 @@ class TestGenerateSuggestionsWithMock(unittest.TestCase):
 
     def test_quota_is_incremented(self):
         self._run()
-        used = int(frappe.db.get_value("Restaurant", self.restaurant_id, "ai_coupon_generations_this_month") or 0)
+        used = int(frappe.db.get_value("Outlet", self.restaurant_id, "ai_coupon_generations_this_month") or 0)
         self.assertEqual(used, 1)
 
     def test_quota_info_returned(self):
@@ -419,7 +419,7 @@ class TestGenerateSuggestionsWithMock(unittest.TestCase):
     def test_quota_exceeded_returns_error(self):
         from flamezo_backend.flamezo.services.ai.coupon_generator import FREE_MONTHLY_QUOTA
         current_month = now_datetime().strftime("%Y-%m")
-        frappe.db.set_value("Restaurant", self.restaurant_id, {
+        frappe.db.set_value("Outlet", self.restaurant_id, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA,
             "ai_coupon_quota_reset_month": current_month,
         })
@@ -514,7 +514,7 @@ class TestGenerateCouponSuggestionsAPI(unittest.TestCase):
         from flamezo_backend.flamezo.services.ai.coupon_generator import FREE_MONTHLY_QUOTA
         current_month = now_datetime().strftime("%Y-%m")
         # Set quota to exhausted
-        frappe.db.set_value("Restaurant", self.restaurant_id, {
+        frappe.db.set_value("Outlet", self.restaurant_id, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA,
             "ai_coupon_quota_reset_month": current_month,
             "coins_balance": 50.0,
@@ -523,7 +523,7 @@ class TestGenerateCouponSuggestionsAPI(unittest.TestCase):
         result = self._call()
         if result["success"]:
             # Coins should have been deducted
-            new_balance = flt(frappe.db.get_value("Restaurant", self.restaurant_id, "coins_balance"))
+            new_balance = flt(frappe.db.get_value("Outlet", self.restaurant_id, "coins_balance"))
             self.assertLess(new_balance, 50.0)
         else:
             # If balance was insufficient, should get INSUFFICIENT_BALANCE error
@@ -532,7 +532,7 @@ class TestGenerateCouponSuggestionsAPI(unittest.TestCase):
     def test_api_insufficient_balance_after_quota_returns_error(self):
         from flamezo_backend.flamezo.services.ai.coupon_generator import FREE_MONTHLY_QUOTA
         current_month = now_datetime().strftime("%Y-%m")
-        frappe.db.set_value("Restaurant", self.restaurant_id, {
+        frappe.db.set_value("Outlet", self.restaurant_id, {
             "ai_coupon_generations_this_month": FREE_MONTHLY_QUOTA,
             "ai_coupon_quota_reset_month": current_month,
             "coins_balance": 0.0,  # zero balance
@@ -717,10 +717,10 @@ class TestLiveGeneration(unittest.TestCase):
             self.assertEqual(s["code"], s["code"].upper(), f"Code not uppercase: {s['code']}")
 
     def test_live_quota_incremented_after_generation(self):
-        used_before = int(frappe.db.get_value("Restaurant", self.restaurant_id,
+        used_before = int(frappe.db.get_value("Outlet", self.restaurant_id,
             "ai_coupon_generations_this_month") or 0)
         self._generate()
-        used_after = int(frappe.db.get_value("Restaurant", self.restaurant_id,
+        used_after = int(frappe.db.get_value("Outlet", self.restaurant_id,
             "ai_coupon_generations_this_month") or 0)
         self.assertGreater(used_after, used_before)
 

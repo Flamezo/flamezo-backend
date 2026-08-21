@@ -24,8 +24,8 @@ def get_allowed_roles():
 		"Menu Product": ["product_image", "product_video", "product_video_poster"],
 		"Menu Category": ["category_image"],
 		"Home Feature": ["home_feature_image"],
-		"Restaurant": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
-		"Restaurant Config": ["restaurant_config_hero_video", "apple_touch_icon"],
+		"Outlet": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
+		"Outlet Config": ["restaurant_config_hero_video", "apple_touch_icon"],
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],
 		"Offer": ["offer_image"],
@@ -428,10 +428,10 @@ def get_restaurant_from_owner(owner_doctype, owner_name):
 		return frappe.db.get_value("Menu Category", owner_name, "restaurant")
 	elif owner_doctype == "Home Feature":
 		return frappe.db.get_value("Home Feature", owner_name, "restaurant")
-	elif owner_doctype == "Restaurant":
+	elif owner_doctype == "Outlet":
 		return owner_name
-	elif owner_doctype == "Restaurant Config":
-		return frappe.db.get_value("Restaurant Config", owner_name, "restaurant")
+	elif owner_doctype == "Outlet Config":
+		return frappe.db.get_value("Outlet Config", owner_name, "restaurant")
 	elif owner_doctype == "Menu Image Extractor":
 		return frappe.db.get_value("Menu Image Extractor", owner_name, "restaurant")
 	elif owner_doctype == "Event":

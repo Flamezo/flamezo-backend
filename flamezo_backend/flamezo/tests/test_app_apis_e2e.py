@@ -1566,7 +1566,7 @@ class TestSeedDataSanity(unittest.TestCase):
         from flamezo_backend.flamezo.tests.seed_sample_data import OUTLETS_BY_TYPE
         total = sum(len(v) for v in OUTLETS_BY_TYPE.values())
         seeded_ids = [r for outlets in OUTLETS_BY_TYPE.values() for r, *_ in outlets]
-        found = frappe.db.count("Restaurant", {"name": ["in", seeded_ids]})
+        found = frappe.db.count("Outlet", {"name": ["in", seeded_ids]})
         self.assertEqual(found, total, f"Expected {total} seeded outlets in DB, found {found}")
 
     def test_6_test_customers_exist(self):
@@ -1595,7 +1595,7 @@ class TestSeedDataSanity(unittest.TestCase):
 
     def test_primary_user_has_loyalty_entries(self):
         cust = frappe.db.get_value("Customer", {"phone": PRIMARY_PHONE}, "name")
-        count = frappe.db.count("Restaurant Loyalty Entry", {"customer": cust})
+        count = frappe.db.count("Outlet Loyalty Entry", {"customer": cust})
         self.assertGreater(count, 0)
 
     def test_primary_user_has_notifications(self):
@@ -1607,7 +1607,7 @@ class TestSeedDataSanity(unittest.TestCase):
                           "sports_court", "sports_venue"}
         found = set(
             r[0] for r in frappe.db.sql(
-                "SELECT DISTINCT outlet_type FROM `tabRestaurant` "
+                "SELECT DISTINCT outlet_type FROM `tabOutlet` "
                 "WHERE outlet_type IN %s AND is_active=1",
                 [list(expected_types)], as_list=True
             )
@@ -2380,7 +2380,7 @@ class TestPricingCompliance(unittest.TestCase):
         """Drive create_payment_order up to fee calculation, capture result."""
         import math
         import frappe as _frappe
-        outlet_type = _frappe.db.get_value("Restaurant", outlet_id, "outlet_type") or "dining"
+        outlet_type = _frappe.db.get_value("Outlet", outlet_id, "outlet_type") or "dining"
         if payment_source == "app":
             pct = 8.0 if outlet_type == "sports_venue" else 7.0
         else:
@@ -2416,16 +2416,16 @@ class TestPricingCompliance(unittest.TestCase):
         self.assertEqual(pct, 7.0)
 
     def test_sports_venue_outlet_type_is_correct(self):
-        otype = frappe.db.get_value("Restaurant", VENUE_ID, "outlet_type")
+        otype = frappe.db.get_value("Outlet", VENUE_ID, "outlet_type")
         self.assertEqual(otype, "sports_venue")
 
     def test_sports_court_outlet_type_is_correct(self):
-        otype = frappe.db.get_value("Restaurant", COURT_ID, "outlet_type")
+        otype = frappe.db.get_value("Outlet", COURT_ID, "outlet_type")
         self.assertEqual(otype, "sports_court")
 
     def test_all_seeded_sports_venues_are_8_percent(self):
         venues = frappe.db.sql(
-            "SELECT name FROM `tabRestaurant` WHERE outlet_type='sports_venue' AND is_active=1",
+            "SELECT name FROM `tabOutlet` WHERE outlet_type='sports_venue' AND is_active=1",
             as_dict=True,
         )
         self.assertGreaterEqual(len(venues), 1, "No sports_venue outlets seeded")
@@ -2437,7 +2437,7 @@ class TestPricingCompliance(unittest.TestCase):
         # Merchant-facing label must be "Success Share", never "commission".
         # Confirmed via API fee logic: all sports_venue outlets resolve to 8%.
         rows = frappe.db.sql(
-            "SELECT name FROM `tabRestaurant` "
+            "SELECT name FROM `tabOutlet` "
             "WHERE outlet_type='sports_venue' AND is_active=1 LIMIT 5",
             as_dict=True,
         )

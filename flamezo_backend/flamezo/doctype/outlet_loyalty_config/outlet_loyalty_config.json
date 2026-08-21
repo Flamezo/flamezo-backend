@@ -32,7 +32,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "reqd": 1,
    "unique": 1
   },
@@ -106,7 +106,7 @@
  "modified": "2026-05-07 07:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
- "name": "Restaurant Loyalty Config",
+ "name": "Outlet Loyalty Config",
  "naming_rule": "By field",
  "owner": "Administrator",
  "permissions": [

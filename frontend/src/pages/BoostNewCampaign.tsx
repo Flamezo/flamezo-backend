@@ -164,7 +164,7 @@ export default function BoostNewCampaign() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Get restaurant name
-  const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', selectedOutlet || '', selectedOutlet ? undefined : null)
+  const { data: restaurantDoc } = useFrappeGetDoc('Outlet', selectedOutlet || '', selectedOutlet ? undefined : null)
   const outletName = (restaurantDoc as any)?.restaurant_name || selectedOutlet || '{outletName}'
 
   // Read initial state from URL params (persists across refreshes)

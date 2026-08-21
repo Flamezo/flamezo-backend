@@ -545,11 +545,11 @@ def _upsert_restaurant(rest_id, restaurant_name, outlet_type="dining",
         "address": address,
         "enable_loyalty": 1,
     }
-    if frappe.db.exists("Restaurant", rest_id):
-        frappe.db.set_value("Restaurant", rest_id, defaults)
+    if frappe.db.exists("Outlet", rest_id):
+        frappe.db.set_value("Outlet", rest_id, defaults)
     else:
         frappe.get_doc({
-            "doctype": "Restaurant",
+            "doctype": "Outlet",
             "restaurant_id": rest_id,
             **defaults,
         }).insert(ignore_permissions=True)
@@ -557,10 +557,10 @@ def _upsert_restaurant(rest_id, restaurant_name, outlet_type="dining",
 
 
 def _ensure_loyalty_config(restaurant):
-    if frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name"):
+    if frappe.db.get_value("Outlet Loyalty Config", {"restaurant": restaurant}, "name"):
         return
     frappe.get_doc({
-        "doctype": "Restaurant Loyalty Config",
+        "doctype": "Outlet Loyalty Config",
         "restaurant": restaurant,
         "program_name": "Flamezo Rewards",
         "is_active": 1,
@@ -582,10 +582,10 @@ def _ensure_loyalty_config(restaurant):
 
 
 def _ensure_restaurant_config(restaurant):
-    if frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "name"):
+    if frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name"):
         return
     frappe.get_doc({
-        "doctype": "Restaurant Config",
+        "doctype": "Outlet Config",
         "restaurant": restaurant,
         "menu_theme_background_enabled": 0,
         "verify_my_user": 0,
@@ -670,7 +670,7 @@ def _loyalty_entry(customer_name, restaurant, coins, txn_type="Earn",
     posting = add_days(TODAY, -days_ago)
     expiry = add_days(TODAY, days_until_expiry) if txn_type == "Earn" else None
     frappe.get_doc({
-        "doctype": "Restaurant Loyalty Entry",
+        "doctype": "Outlet Loyalty Entry",
         "customer": customer_name,
         "restaurant": restaurant,
         "coins": coins,
@@ -798,7 +798,7 @@ def _user_name(phone):
 
 def _generate_loyalty(cust_name, phone, target_coins, outlet_ids):
     """Seed loyalty history targeting approximately target_coins settled lifetime."""
-    frappe.db.delete("Restaurant Loyalty Entry", {"customer": cust_name})
+    frappe.db.delete("Outlet Loyalty Entry", {"customer": cust_name})
     num = max(10, min(25, target_coins // 400))
     per_entry = max(50, target_coins // num)
     phone_var = sum(int(d) for d in phone if d.isdigit())
@@ -835,14 +835,14 @@ def run():
 
     # Clean up old partial-run artefacts
     for old_id in ["smashzone-ahmedabad"]:
-        if frappe.db.exists("Restaurant", old_id):
+        if frappe.db.exists("Outlet", old_id):
             frappe.db.sql("UPDATE `tabCourt` SET restaurant=%s WHERE restaurant=%s",
                           ["smashzone-surat", old_id])
             frappe.db.sql("UPDATE `tabCourt Booking` SET restaurant=%s WHERE restaurant=%s",
                           ["smashzone-surat", old_id])
-            frappe.db.delete("Restaurant Loyalty Config", {"restaurant": old_id})
-            frappe.db.delete("Restaurant Config", {"restaurant": old_id})
-            frappe.db.delete("Restaurant", old_id)
+            frappe.db.delete("Outlet Loyalty Config", {"restaurant": old_id})
+            frappe.db.delete("Outlet Config", {"restaurant": old_id})
+            frappe.db.delete("Outlet", old_id)
     frappe.db.commit()
 
     for outlet_type, outlets in OUTLETS_BY_TYPE.items():
@@ -1135,7 +1135,7 @@ def run():
         for i, (rest_id, rest_name, lat, lon, _addr) in enumerate(outlets):
             logo = logos[i % len(logos)]
             hero = CDN_VIDEOS[i % len(CDN_VIDEOS)]
-            frappe.db.set_value("Restaurant", rest_id, {"logo": logo, "hero_video": hero})
+            frappe.db.set_value("Outlet", rest_id, {"logo": logo, "hero_video": hero})
             for j in range(5):
                 idx = (i * 5 + j) % 15
                 likes, saves, views = pool["metrics"][idx]
@@ -1169,14 +1169,14 @@ def run():
     # ── 10. Summary ────────────────────────────────────────────────────────────
     print("10/10 Summary:")
     for table, label in [
-        ("Restaurant",               "Restaurants / Outlets"),
+        ("Outlet",               "Restaurants / Outlets"),
         ("Court",                    "Courts"),
         ("Chills",                   "Chills (media)"),
         ("Table Booking",            "Table Bookings (total)"),
         ("Banquet Booking",          "Banquet Bookings"),
         ("Service Appointment",      "Service Appointments"),
         ("Court Booking",            "Court Bookings"),
-        ("Restaurant Loyalty Entry", "Loyalty Entries (all users)"),
+        ("Outlet Loyalty Entry", "Loyalty Entries (all users)"),
         ("Flamezo Notification",     "Notifications (all users)"),
         ("Menu Product",             "Menu Products"),
         ("Catalogue Item",           "Catalogue Items"),

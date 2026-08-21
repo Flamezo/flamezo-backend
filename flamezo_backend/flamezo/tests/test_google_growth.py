@@ -6,7 +6,7 @@ from flamezo_backend.flamezo.api.google_business import generate_seo_slug, get_g
 class TestGoogleGrowth(unittest.TestCase):
     def setUp(self):
         self.restaurant = frappe.get_doc({
-            "doctype": "Restaurant",
+            "doctype": "Outlet",
             "restaurant_name": "Test Google Restaurant",
             "owner_email": "test@google.com",
             "is_active": 1
@@ -20,7 +20,7 @@ class TestGoogleGrowth(unittest.TestCase):
             for p in products:
                 frappe.delete_doc("Menu Product", p.name, force=True)
             
-            frappe.delete_doc("Restaurant", self.restaurant.name, force=True)
+            frappe.delete_doc("Outlet", self.restaurant.name, force=True)
             frappe.db.commit()
         except:
             frappe.db.rollback()
@@ -58,8 +58,8 @@ class TestGoogleGrowth(unittest.TestCase):
         self.assertFalse(res["success"])
         
         # Enable sync
-        frappe.db.set_value("Restaurant", self.restaurant.name, "enable_google_sync", 1)
-        frappe.db.set_value("Restaurant", self.restaurant.name, "google_business_location_id", "test_loc")
+        frappe.db.set_value("Outlet", self.restaurant.name, "enable_google_sync", 1)
+        frappe.db.set_value("Outlet", self.restaurant.name, "google_business_location_id", "test_loc")
         
         # Should still fail because no refresh token
         res = sync_menu_to_google(self.restaurant.name)

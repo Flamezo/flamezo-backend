@@ -247,7 +247,7 @@ def save_merchant_subscription(outlet_id, fcm_token):
         outlet_id = outlet_id.lower() if outlet_id else outlet_id
 
         config = frappe.db.get_value(
-            "Restaurant Config",
+            "Outlet Config",
             {"restaurant": outlet_id},
             ["name", "merchant_push_tokens"],
             as_dict=True
@@ -266,7 +266,7 @@ def save_merchant_subscription(outlet_id, fcm_token):
             tokens.append(fcm_token)
             tokens = tokens[-10:]  # Max 10 devices per outlet
             frappe.db.set_value(
-                "Restaurant Config",
+                "Outlet Config",
                 config.name,
                 "merchant_push_tokens",
                 json.dumps(tokens)
@@ -495,7 +495,7 @@ def send_new_order_push_to_merchant(order_name: str):
 
         # Fetch merchant tokens from Restaurant Config
         config = frappe.db.get_value(
-            "Restaurant Config",
+            "Outlet Config",
             {"restaurant": outlet_id},
             "merchant_push_tokens"
         )
@@ -549,14 +549,14 @@ def send_new_order_push_to_merchant(order_name: str):
         # Clean up stale tokens from config
         if stale_tokens:
             config_name = frappe.db.get_value(
-                "Restaurant Config",
+                "Outlet Config",
                 {"restaurant": outlet_id},
                 "name"
             )
             if config_name:
                 clean_tokens = [t for t in tokens if t not in stale_tokens]
                 frappe.db.set_value(
-                    "Restaurant Config",
+                    "Outlet Config",
                     config_name,
                     "merchant_push_tokens",
                     json.dumps(clean_tokens)

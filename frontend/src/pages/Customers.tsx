@@ -99,7 +99,7 @@ export default function Customers() {
     setIsUpdatingVerify(true)
     try {
       await setValue({
-        doctype: 'Restaurant Config',
+        doctype: 'Outlet Config',
         name: selectedOutlet,
         fieldname: 'verify_my_user',
         value: checked ? 1 : 0

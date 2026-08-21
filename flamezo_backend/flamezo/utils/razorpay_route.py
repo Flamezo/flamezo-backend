@@ -61,7 +61,7 @@ def decide_route_mode(restaurant) -> RouteDecision:
       • anything else → flamezo_hold  (Flamezo collects, settles to restaurant
                                        offline / weekly NEFT)
     """
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
     explicit = (res.get("route_mode") or "").strip()
 
     if explicit == "disabled":
@@ -93,7 +93,7 @@ def ensure_linked_account(restaurant) -> dict:
     under_review` back to the Restaurant. KYC outcome arrives later via the
     `account.*` webhook events (see `webhooks.handle_account_status`).
     """
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
 
     if res.get("razorpay_account_id"):
         result = {
@@ -191,7 +191,7 @@ def ensure_linked_account(restaurant) -> dict:
             raise Exception(f"Account creation failed: {account!r}")
 
         # Persist the account id IMMEDIATELY before any later step can fail.
-        frappe.db.set_value("Restaurant", res.name, {
+        frappe.db.set_value("Outlet", res.name, {
             "razorpay_account_id": account_id,
             "razorpay_kyc_status": "under_review",
             "route_mode": "flamezo_hold",
@@ -353,7 +353,7 @@ def reattach_bank_details(restaurant) -> dict:
     created but whose bank details were never attached. Safe to call multiple
     times — fully idempotent (GET-before-POST on both stakeholder and product).
     """
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
     account_id = res.get("razorpay_account_id")
     if not account_id:
         return {"success": False, "error": "no_linked_account"}
@@ -374,7 +374,7 @@ def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Option
     Razorpay statuses encountered: `created`, `activated`, `under_review`,
     `needs_clarification`, `rejected`, `suspended`.
     """
-    res_name = frappe.db.get_value("Restaurant", {"razorpay_account_id": linked_account_id})
+    res_name = frappe.db.get_value("Outlet", {"razorpay_account_id": linked_account_id})
     if not res_name:
         return
 
@@ -401,7 +401,7 @@ def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Option
     elif internal in ("rejected", "suspended"):
         update["route_mode"] = "flamezo_hold"
 
-    frappe.db.set_value("Restaurant", res_name, update)
+    frappe.db.set_value("Outlet", res_name, update)
     frappe.db.commit()
 
 
@@ -418,7 +418,7 @@ def reconcile_kyc_status(restaurant) -> dict:
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
 
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
     account_id = res.get("razorpay_account_id")
     if not account_id:
         return {"success": False, "error": "no_linked_account"}
@@ -435,7 +435,7 @@ def reconcile_kyc_status(restaurant) -> dict:
         before = (res.get("razorpay_kyc_status") or "").lower()
         if live_status:
             update_kyc_status(account_id, live_status)  # maps + writes + commits
-        after = (frappe.db.get_value("Restaurant", res.name, "razorpay_kyc_status") or "").lower()
+        after = (frappe.db.get_value("Outlet", res.name, "razorpay_kyc_status") or "").lower()
         return {"success": True, "kyc_status": after, "changed": before != after}
     except Exception as e:
         frappe.log_error(f"reconcile_kyc_status failed for {account_id}: {e}", "razorpay_route.reconcile")
@@ -470,7 +470,7 @@ def suspend_linked_account(restaurant) -> dict:
     can be routed to it. Sets route_mode to flamezo_hold on the restaurant doc."""
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
     account_id = res.get("razorpay_account_id")
     if not account_id:
         return {"success": False, "error": "no_linked_account"}
@@ -482,7 +482,7 @@ def suspend_linked_account(restaurant) -> dict:
             auth=auth,
         )
         r.raise_for_status()
-        frappe.db.set_value("Restaurant", res.name, {
+        frappe.db.set_value("Outlet", res.name, {
             "route_mode": "flamezo_hold",
             "razorpay_kyc_status": "suspended",
         })
@@ -498,7 +498,7 @@ def reactivate_linked_account(restaurant) -> dict:
     flamezo_hold (KYC must be re-verified before direct_split is re-enabled)."""
     import requests as _requests
     from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config
-    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Restaurant", restaurant)
+    res = restaurant if hasattr(restaurant, "name") else frappe.get_doc("Outlet", restaurant)
     account_id = res.get("razorpay_account_id")
     if not account_id:
         return {"success": False, "error": "no_linked_account"}
@@ -513,7 +513,7 @@ def reactivate_linked_account(restaurant) -> dict:
         r.raise_for_status()
         resp = r.json()
         new_status = resp.get("status", "")
-        frappe.db.set_value("Restaurant", res.name, {
+        frappe.db.set_value("Outlet", res.name, {
             "route_mode": "flamezo_hold",
             "razorpay_kyc_status": new_status or "under_review",
         })

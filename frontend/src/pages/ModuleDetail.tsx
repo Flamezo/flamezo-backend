@@ -24,7 +24,7 @@ export default function ModuleDetail() {
 
   // Load QR code URL for Restaurant doctype
   useEffect(() => {
-    if (doctype === 'Restaurant' && docname && doc?.tables && doc.tables > 0) {
+    if (doctype === 'Outlet' && docname && doc?.tables && doc.tables > 0) {
       getQrCodeUrl({ restaurant: docname })
         .then((response: any) => {
           if (response?.message) {
@@ -147,7 +147,7 @@ export default function ModuleDetail() {
         </div>
         <div className="flex flex-wrap gap-2">
           {/* QR Code buttons for Restaurant */}
-          {doctype === 'Restaurant' && doc?.tables && doc.tables > 0 && mode === 'view' && (
+          {doctype === 'Outlet' && doc?.tables && doc.tables > 0 && mode === 'view' && (
             <>
               {qrCodeUrl ? (
                 <>

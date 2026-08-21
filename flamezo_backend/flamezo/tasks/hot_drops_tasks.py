@@ -42,8 +42,8 @@ def _eligible_outlets():
 	rows = frappe.db.sql(
 		"""
 		SELECT r.name, r.restaurant_name, rc.merchant_push_tokens
-		FROM `tabRestaurant` r
-		INNER JOIN `tabRestaurant Config` rc ON rc.restaurant = r.name
+		FROM `tabOutlet` r
+		INNER JOIN `tabOutlet Config` rc ON rc.restaurant = r.name
 		WHERE r.is_active = 1
 		  AND r.outlet_type IN %(types)s
 		  AND rc.merchant_push_tokens IS NOT NULL
@@ -87,7 +87,7 @@ def _send_nudge(window_key, title, body):
 
 		if stale_tokens:
 			clean = [t for t in tokens if t not in stale_tokens]
-			frappe.db.set_value("Restaurant Config", {"restaurant": r.name}, "merchant_push_tokens", json.dumps(clean))
+			frappe.db.set_value("Outlet Config", {"restaurant": r.name}, "merchant_push_tokens", json.dumps(clean))
 			frappe.db.commit()
 
 		frappe.cache().set_value(outlet_dedup, "1", expires_in_sec=6 * 3600)

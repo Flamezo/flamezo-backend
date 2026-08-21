@@ -106,7 +106,7 @@ def _verified_session():
 # ── fixtures ─────────────────────────────────────────────────────────────────
 
 def _ensure_outlet():
-    if not frappe.db.exists("Restaurant", _CLUB_OUTLET):
+    if not frappe.db.exists("Outlet", _CLUB_OUTLET):
         make_restaurant(_CLUB_OUTLET, outlet_type="dining")
     return _CLUB_OUTLET
 
@@ -208,7 +208,7 @@ def _cleanup_clubs():
     frappe.db.sql("DELETE FROM `tabCreator Club Member` WHERE customer_phone IN (%s, %s)", [_PHONE_A, _PHONE_B])
     frappe.db.sql("DELETE FROM `tabCreator Club` WHERE description='Test club description'")
     frappe.db.sql("DELETE FROM `tabChills` WHERE description='test club chills'")
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name=%s", _CLUB_OUTLET)
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name=%s", _CLUB_OUTLET)
     for phone in [_PHONE_A, _PHONE_B]:
         existing = frappe.db.get_value("Flamezo Creator", {"customer_phone": phone}, "name")
         if existing:
@@ -751,7 +751,7 @@ class TestCreateClubPost(unittest.TestCase):
         finally:
             for o in others:
                 frappe.db.sql("DELETE FROM `tabCreator Club Post Tag` WHERE outlet=%s", o)
-                frappe.delete_doc("Restaurant", o, ignore_permissions=True, force=True)
+                frappe.delete_doc("Outlet", o, ignore_permissions=True, force=True)
 
     def test_no_tags_by_default(self):
         with _verified_session():

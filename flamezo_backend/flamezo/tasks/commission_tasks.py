@@ -35,7 +35,7 @@ def retry_wallet_settlements():
         """
         SELECT cle.name AS ledger_name
         FROM `tabCommission Ledger Entry` cle
-        JOIN `tabRestaurant` r ON r.name = cle.restaurant
+        JOIN `tabOutlet` r ON r.name = cle.restaurant
         WHERE cle.status IN ('outstanding', 'partial')
           AND cle.outstanding_paise > 0
           AND r.coins_balance > 0
@@ -69,7 +69,7 @@ def weekly_autopay_sweep():
     online-only mode to drain the balance via Tier 1 net-off)."""
     restaurants = frappe.db.sql(
         """
-        SELECT name FROM `tabRestaurant`
+        SELECT name FROM `tabOutlet`
         WHERE COALESCE(outstanding_commission_paise, 0) >= %s
           AND is_active = 1
         """,
@@ -108,7 +108,7 @@ def clear_expired_throttles():
     today = getdate()
     frappe.db.sql(
         """
-        UPDATE `tabRestaurant`
+        UPDATE `tabOutlet`
         SET cash_payments_disabled_until = NULL
         WHERE cash_payments_disabled_until IS NOT NULL
           AND cash_payments_disabled_until < %s

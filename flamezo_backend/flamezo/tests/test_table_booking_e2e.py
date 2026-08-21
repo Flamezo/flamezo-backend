@@ -69,7 +69,7 @@ def _verified_session():
 def _make_rest(suffix="01", is_active=1):
     name = f"{_PREFIX}-R{suffix}"
     r = make_restaurant(name, outlet_type="dining")
-    frappe.db.set_value("Restaurant", r.name, "is_active", is_active)
+    frappe.db.set_value("Outlet", r.name, "is_active", is_active)
     frappe.db.commit()
     return r
 
@@ -94,7 +94,7 @@ def _make_booking(restaurant, phone=_PHONE_A, date=None, time_slot="19:00 – 21
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabTable Booking` WHERE customer_phone IN (%s, %s)", [_PHONE_A, _PHONE_B])
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 

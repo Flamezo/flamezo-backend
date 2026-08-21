@@ -191,7 +191,7 @@ export default function GalleryManagement() {
     searchQuery,
     setSearchQuery
   } = useDataTable({
-    doctype: 'Restaurant Gallery Item',
+    doctype: 'Outlet Gallery Item',
     fields: ['name', 'restaurant', 'media_type', 'url', 'title', 'sort_order', 'is_selected'],
     initialFilters,
     searchFields: ['title'],
@@ -253,7 +253,7 @@ export default function GalleryManagement() {
         const activeRole = uploadCategory === 'Events' ? 'event_image' : 'restaurant_gallery_image'
 
         const uploadResult = await uploadToR2({
-          ownerDoctype: 'Restaurant',
+          ownerDoctype: 'Outlet',
           ownerName: selectedOutlet,
           mediaRole: activeRole,
           file,
@@ -261,7 +261,7 @@ export default function GalleryManagement() {
 
         await createGalleryItem({
           doc: {
-            doctype: 'Restaurant Gallery Item',
+            doctype: 'Outlet Gallery Item',
             restaurant: selectedOutlet,
             media_type: mediaType === 'video' ? 'Video' : 'Image',
             url: uploadResult.primary_url,
@@ -294,7 +294,7 @@ export default function GalleryManagement() {
                 return
             }
 
-            await updateGalleryItem('Restaurant Gallery Item', media.gallery_item_name, {
+            await updateGalleryItem('Outlet Gallery Item', media.gallery_item_name, {
                 is_selected: newStatus
             })
             toast.success(newStatus ? 'Added to gallery' : 'Removed from gallery')
@@ -307,7 +307,7 @@ export default function GalleryManagement() {
             // Create new record from pool
             await createGalleryItem({
                 doc: {
-                    doctype: 'Restaurant Gallery Item',
+                    doctype: 'Outlet Gallery Item',
                     restaurant: selectedOutlet,
                     media_type: media.type === 'video' ? 'Video' : 'Image',
                     url: media.url,
@@ -334,7 +334,7 @@ export default function GalleryManagement() {
       const itemName = editingItem.name || editingItem.gallery_item_name;
       
       if (itemName) {
-        await updateGalleryItem('Restaurant Gallery Item', itemName, {
+        await updateGalleryItem('Outlet Gallery Item', itemName, {
           title: editingItem.title,
           sort_order: parseInt(editingItem.sort_order) || 0,
           media_type: editingItem.media_type
@@ -343,7 +343,7 @@ export default function GalleryManagement() {
         // Create new from Discovery Pool
         await createGalleryItem({
             doc: {
-                doctype: 'Restaurant Gallery Item',
+                doctype: 'Outlet Gallery Item',
                 restaurant: selectedOutlet,
                 media_type: editingItem.media_type,
                 url: editingItem.url,
@@ -367,7 +367,7 @@ export default function GalleryManagement() {
   const handleDeleteItem = async () => {
     if (!itemToDelete) return
     try {
-      await deleteGalleryItem('Restaurant Gallery Item', itemToDelete.name)
+      await deleteGalleryItem('Outlet Gallery Item', itemToDelete.name)
       toast.success('Permanently removed')
       mutateSelected()
       mutatePool()

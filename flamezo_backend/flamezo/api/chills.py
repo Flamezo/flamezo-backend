@@ -178,7 +178,7 @@ def _get_outlet_ratings_map(outlet_ids):
         return {}
     placeholders = ",".join(["%s"] * len(outlet_ids))
     rows = frappe.db.sql(
-        f"SELECT name, rating FROM `tabRestaurant` WHERE name IN ({placeholders})",
+        f"SELECT name, rating FROM `tabOutlet` WHERE name IN ({placeholders})",
         list(outlet_ids),
         as_dict=True,
     )
@@ -278,7 +278,7 @@ def _fetch_counts_map(items):
 
 _CHILLS_FEED_COLUMNS = """
     c.name, c.outlet, c.outlet_name, c.outlet_city,
-    (SELECT r.logo FROM `tabRestaurant` r WHERE r.name = c.outlet) AS outlet_logo,
+    (SELECT r.logo FROM `tabOutlet` r WHERE r.name = c.outlet) AS outlet_logo,
     c.outlet_lat, c.outlet_lng, c.video_url, c.thumbnail_url,
     c.description, c.audio, c.niche_tags, c.custom_tags,
     c.location_name, c.location_lat, c.location_lng, c.location_radius,
@@ -799,7 +799,7 @@ def increment_shares(chills_id, phone=None):
 
 def _resolve_outlet(outlet_id):
     from flamezo_backend.flamezo.utils.api_helpers import get_restaurant_from_id
-    name = frappe.db.get_value("Restaurant", outlet_id, "name") or get_restaurant_from_id(outlet_id)
+    name = frappe.db.get_value("Outlet", outlet_id, "name") or get_restaurant_from_id(outlet_id)
     if not name:
         frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
     return name
@@ -810,7 +810,7 @@ def _assert_outlet_access(outlet, phone=None):
     # Phone-based auth path (app merchants, frappe.session.user = Guest)
     if phone:
         phone = phone.strip()
-        row = frappe.db.get_value("Restaurant", outlet, ["owner_phone", "contact_phone"], as_dict=True)
+        row = frappe.db.get_value("Outlet", outlet, ["owner_phone", "contact_phone"], as_dict=True)
         if row and phone in (row.get("owner_phone") or "", row.get("contact_phone") or ""):
             return
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -824,7 +824,7 @@ def _assert_outlet_access(outlet, phone=None):
     if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Restaurant Admin" in roles:
         return
     rec_role = frappe.db.get_value(
-        "Restaurant User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+        "Outlet User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
     )
     if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -1004,7 +1004,7 @@ def suggest_chills_tags(outlet_id, caption, phone=None):
         frappe.throw(_("caption is required"))
 
     outlet_row = frappe.db.get_value(
-        "Restaurant", outlet, ["restaurant_name", "outlet_type"], as_dict=True
+        "Outlet", outlet, ["restaurant_name", "outlet_type"], as_dict=True
     )
     outlet_name = (outlet_row.get("restaurant_name") or outlet) if outlet_row else outlet
     outlet_type = (outlet_row.get("outlet_type") or "Business") if outlet_row else "Business"
@@ -1399,7 +1399,7 @@ def get_merchant_outlet_location(phone):
     row = frappe.db.sql(
         """
         SELECT name, restaurant_name, latitude, longitude
-        FROM `tabRestaurant`
+        FROM `tabOutlet`
         WHERE (owner_phone = %s OR contact_phone = %s)
           AND is_active = 1
         LIMIT 1
