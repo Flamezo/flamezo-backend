@@ -45,7 +45,7 @@ _PREFIX = "TEST-LOY"
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
 def _clear_loyalty_entries(customer, restaurant):
-    frappe.db.delete("Restaurant Loyalty Entry", {
+    frappe.db.delete("Outlet Loyalty Entry", {
         "customer": customer,
         "restaurant": restaurant,
     })
@@ -72,7 +72,7 @@ class TestGetLoyaltyBalance(unittest.TestCase):
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
         # Customer doc is shared; we only delete the loyalty entries
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -107,7 +107,7 @@ class TestGetLoyaltyBalance(unittest.TestCase):
         """Entries with expiry_date in the past must not count."""
         # Settled earn entry that has already expired
         doc = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 200,
@@ -168,7 +168,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -197,7 +197,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
             payment_method="pay_online"
         )
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "reason": "Order"},
             ["is_settled"],
             as_dict=True
@@ -214,7 +214,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
             payment_method="pay_online", settle_immediately=True
         )
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "reference_name": "TEST-ORDER-INSTANT"},
             ["is_settled"], as_dict=True
         )
@@ -233,10 +233,10 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
             payment_method="pay_online", settle_immediately=True
         )
         self.assertEqual(earned, 0)
-        self.assertFalse(frappe.db.exists("Restaurant Loyalty Entry", {
+        self.assertFalse(frappe.db.exists("Outlet Loyalty Entry", {
             "customer": unverified.name, "reference_name": "TEST-ORDER-UNVERIFIED"
         }))
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": unverified.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": unverified.name})
         frappe.db.commit()
 
     def test_settled_for_non_order_reference(self):
@@ -246,7 +246,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
             reason="Referral Order", ref_doctype="Customer"
         )
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "reason": "Referral Order"},
             ["is_settled"],
             as_dict=True
@@ -258,7 +258,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         """expiry_date must be exactly get_expiry_days() from today (platform = 45 days)."""
         self.earn(self._customer.name, self._res, 1000.0, reason="Order")
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res},
             ["expiry_date"],
             as_dict=True
@@ -302,7 +302,7 @@ class TestRedeemLoyaltyCoins(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -319,7 +319,7 @@ class TestRedeemLoyaltyCoins(unittest.TestCase):
         make_loyalty_entry(self._customer.name, self._res, coins=200, is_settled=1)
         self.redeem(self._customer.name, self._res, 50)
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "transaction_type": "Redeem"},
             ["transaction_type", "coins"], as_dict=True
         )
@@ -334,7 +334,7 @@ class TestRedeemLoyaltyCoins(unittest.TestCase):
         self.assertEqual(result, 100, "Returned value must be the clipped actual redeemed amount")
         # DB entry should also be for 100, not 500
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "transaction_type": "Redeem"},
             "coins"
         )
@@ -382,7 +382,7 @@ class TestSettleLoyaltyPoints(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -390,7 +390,7 @@ class TestSettleLoyaltyPoints(unittest.TestCase):
 
     def _make_unsettled_order_entry(self, order_name):
         return frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 50,
@@ -412,7 +412,7 @@ class TestSettleLoyaltyPoints(unittest.TestCase):
         self.assertTrue(result)
 
         is_settled = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_name, "reference_doctype": "Order"},
             "is_settled"
         )
@@ -438,7 +438,7 @@ class TestSettleLoyaltyPoints(unittest.TestCase):
         self.settle(order_a)
 
         settled_b = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_b, "reference_doctype": "Order"},
             "is_settled"
         )
@@ -471,7 +471,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -491,7 +491,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
     def test_non_cancelled_status_is_noop(self):
         doc = self._make_mock_order(status="confirmed", coins_redeemed=50, coins_earned=100)
         self.cancel_hook(doc)
-        count = frappe.db.count("Restaurant Loyalty Entry", {
+        count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
         })
@@ -509,7 +509,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
         self.cancel_hook(doc)
 
         refund_entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {
                 "customer": self._customer.name,
                 "restaurant": self._res,
@@ -537,7 +537,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
         self.cancel_hook(doc)
 
         revert_entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {
                 "customer": self._customer.name,
                 "restaurant": self._res,
@@ -563,13 +563,13 @@ class TestHandleOrderCancellation(unittest.TestCase):
         self.cancel_hook(doc)
         self.cancel_hook(doc)  # second call
 
-        refund_count = frappe.db.count("Restaurant Loyalty Entry", {
+        refund_count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
             "reference_name": order_name,
             "reason": "Cancellation Refund",
         })
-        revert_count = frappe.db.count("Restaurant Loyalty Entry", {
+        revert_count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
             "reference_name": order_name,
@@ -603,7 +603,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -619,7 +619,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
 
     def _make_unsettled_entry_for_order(self, order_name):
         return frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 100,
@@ -641,7 +641,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         self.settle_hook(doc)
 
         settled = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_name},
             "is_settled"
         )
@@ -656,7 +656,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         self.settle_hook(doc)
 
         settled = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_name},
             "is_settled"
         )
@@ -671,7 +671,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         self.settle_hook(doc)
 
         settled = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_name},
             "is_settled"
         )
@@ -686,7 +686,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         self.settle_hook(doc)
 
         settled = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"reference_name": order_name},
             "is_settled"
         )
@@ -723,11 +723,11 @@ class TestExpiringSoonBalance(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {
+        frappe.db.delete("Outlet Loyalty Entry", {
             "customer": self._customer.name, "restaurant": self._res
         })
         frappe.db.commit()
@@ -736,7 +736,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         """Create a settled Earn entry expiring within 30 days."""
         from frappe.utils import add_days
         doc = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": coins,
@@ -758,7 +758,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         # Simulate what the API does
         balance = get_loyalty_balance(self._customer.name, self._res)
         expiring_entries = _frappe.get_all(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             filters={
                 "customer": self._customer.name,
                 "restaurant": self._res,
@@ -777,7 +777,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         self._make_expiring_soon_entry(100)
         # Redeem 80 coins
         redeem_entry = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 80,
@@ -794,7 +794,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         import frappe as _frappe
         balance = get_loyalty_balance(self._customer.name, self._res)  # should be 20
         expiring_entries = _frappe.get_all(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             filters={
                 "customer": self._customer.name,
                 "restaurant": self._res,
@@ -833,7 +833,7 @@ class TestCancellationZerosRedeemed(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def test_cancellation_zeroes_both_coin_fields(self):
@@ -874,7 +874,7 @@ class TestCancellationZerosRedeemed(unittest.TestCase):
             self.assertEqual(result.loyalty_coins_redeemed, 0, "loyalty_coins_redeemed must be zeroed after cancellation")
         finally:
             frappe.db.sql("DELETE FROM `tabOrder` WHERE name = %s", order_name)
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._customer.name})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
             frappe.db.commit()
 
 
@@ -970,11 +970,11 @@ class TestGetLoyaltyTier(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {
+        frappe.db.delete("Outlet Loyalty Entry", {
             "customer": self._customer.name, "restaurant": self._res
         })
         frappe.db.commit()
@@ -1009,7 +1009,7 @@ class TestGetLoyaltyTier(unittest.TestCase):
     def test_tier_uses_all_earn_entries_regardless_of_expiry(self):
         """Tier is based on LIFETIME coins — even expired entries count."""
         doc = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 600,
@@ -1058,11 +1058,11 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {
+        frappe.db.delete("Outlet Loyalty Entry", {
             "customer": self._customer.name, "restaurant": self._res
         })
         frappe.db.commit()
@@ -1071,7 +1071,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
         """Customer must have prior loyalty history to receive birthday bonus."""
         from flamezo_backend.flamezo.tasks.loyalty_tasks import grant_birthday_bonuses
         grant_birthday_bonuses()
-        count = frappe.db.count("Restaurant Loyalty Entry", {
+        count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
             "reason": "Birthday Bonus"
@@ -1086,7 +1086,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
         from flamezo_backend.flamezo.tasks.loyalty_tasks import grant_birthday_bonuses
         grant_birthday_bonuses()
 
-        count = frappe.db.count("Restaurant Loyalty Entry", {
+        count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
             "reason": "Birthday Bonus"
@@ -1101,7 +1101,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
         grant_birthday_bonuses()
         grant_birthday_bonuses()  # second run
 
-        count = frappe.db.count("Restaurant Loyalty Entry", {
+        count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
             "restaurant": self._res,
             "reason": "Birthday Bonus"
@@ -1230,7 +1230,7 @@ class TestTrackReferralVisitNoReward(unittest.TestCase):
         cleanup_restaurant(cls._res)
         frappe.db.delete("Referral Link", {"identifier": cls._identifier})
         frappe.db.delete("Referral Visit", {"ip_address": "10.0.0.99"})
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._referrer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._referrer.name})
         frappe.db.commit()
 
     def test_visit_recorded_but_no_coins_awarded(self):
@@ -1239,7 +1239,7 @@ class TestTrackReferralVisitNoReward(unittest.TestCase):
         ip = "10.0.0.99"
 
         # Clear any prior entries
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._referrer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._referrer.name})
         frappe.db.delete("Referral Visit", {"ip_address": ip})
         frappe.db.commit()
 
@@ -1251,7 +1251,7 @@ class TestTrackReferralVisitNoReward(unittest.TestCase):
         self.assertTrue(visit_exists, "Referral visit must be recorded")
 
         # NO loyalty entry must be created for the referrer
-        entry_count = frappe.db.count("Restaurant Loyalty Entry", {"customer": self._referrer.name})
+        entry_count = frappe.db.count("Outlet Loyalty Entry", {"customer": self._referrer.name})
         self.assertEqual(entry_count, 0, "No coins must be awarded at visit time — only on claim")
 
     def test_response_includes_referral_id(self):
@@ -1305,14 +1305,14 @@ class TestClaimReferralReward(unittest.TestCase):
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
         frappe.db.delete("Referral Link", {"identifier": cls._identifier})
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._referrer.name})
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._referee.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._referrer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._referee.name})
         frappe.db.commit()
 
     def setUp(self):
         # Clean entries before each test
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._referrer.name})
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._referee.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._referrer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._referee.name})
         frappe.db.set_value("Referral Link", {"identifier": self._identifier}, "rewarded_opens_in_cycle", 0)
         frappe.db.commit()
 
@@ -1331,7 +1331,7 @@ class TestClaimReferralReward(unittest.TestCase):
         self.assertTrue(result.get("success"), f"Claim failed: {result}")
 
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._referee.name, "restaurant": self._res, "reason": "Welcome Bonus"},
             ["coins", "transaction_type"], as_dict=True
         )
@@ -1344,7 +1344,7 @@ class TestClaimReferralReward(unittest.TestCase):
         result = self._call_claim()
         self.assertTrue(result.get("success"))
         entry = frappe.db.get_value(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._referrer.name, "restaurant": self._res, "reason": "Referral Share"},
             ["coins", "transaction_type"], as_dict=True
         )
@@ -1376,7 +1376,7 @@ class TestClaimReferralReward(unittest.TestCase):
         self.assertTrue(result.get("success"))
         self.assertEqual(result.get("data", {}).get("referrer_coins"), 0, "Referrer must not earn beyond cycle limit")
         # Referee still gets welcome bonus
-        coins = frappe.db.get_value("Restaurant Loyalty Entry",
+        coins = frappe.db.get_value("Outlet Loyalty Entry",
             {"customer": self._referee.name, "restaurant": self._res, "reason": "Welcome Bonus"}, "coins")
         self.assertEqual(coins, 150)
 
@@ -1434,7 +1434,7 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def _make_res(self, suffix, plan="GOLD"):
@@ -1443,7 +1443,7 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
         return name
 
     def _clear(self, res):
-        frappe.db.delete("Restaurant Loyalty Entry", {
+        frappe.db.delete("Outlet Loyalty Entry", {
             "customer": self._customer.name, "restaurant": res
         })
         frappe.db.commit()
@@ -1637,7 +1637,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         saved = frappe.db.get_value(
-            "Restaurant Loyalty Config", {"restaurant": self._res}, "earn_percentage"
+            "Outlet Loyalty Config", {"restaurant": self._res}, "earn_percentage"
         )
         self.assertEqual(
             float(saved), get_earn_percentage(),
@@ -1654,7 +1654,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         saved = frappe.db.get_value(
-            "Restaurant Loyalty Config", {"restaurant": self._res}, "coin_value_in_inr"
+            "Outlet Loyalty Config", {"restaurant": self._res}, "coin_value_in_inr"
         )
         self.assertEqual(float(saved), 1.0, "coin_value_in_inr must always be 1 in DB")
 
@@ -1670,7 +1670,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         self.assertTrue(result.get("success"))
         # DB value should remain platform constant (set by update_loyalty_config)
         saved = frappe.db.get_value(
-            "Restaurant Loyalty Config", {"restaurant": self._res}, "max_coins_per_order"
+            "Outlet Loyalty Config", {"restaurant": self._res}, "max_coins_per_order"
         )
         # Note: max_coins_per_order is stripped but not re-written by update_loyalty_config
         # (only earn_type, earn_percentage, points_per_inr, coin_value_in_inr are written back)
@@ -1706,7 +1706,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             enable_loyalty=True
         )
         saved = frappe.db.get_value(
-            "Restaurant Loyalty Config", {"restaurant": self._res}, "earn_type"
+            "Outlet Loyalty Config", {"restaurant": self._res}, "earn_type"
         )
         self.assertEqual(saved, "Percentage of Bill",
             "earn_type must always be Percentage of Bill (platform-enforced)")
@@ -1794,7 +1794,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             self.assertEqual(earned, 90, "9% of ₹1000 must yield 90 coins")
         finally:
             cleanup_restaurant(res)
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer.name})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": customer.name})
             frappe.db.commit()
 
     def test_earn_cap_900(self):
@@ -1809,7 +1809,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             self.assertEqual(earned, 900, "Earn must be capped at 900 coins (9% of ₹10,000)")
         finally:
             cleanup_restaurant(res)
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer.name})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": customer.name})
             frappe.db.commit()
 
     def test_earn_zero_below_min_order_100(self):
@@ -1824,7 +1824,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             self.assertEqual(earned, 0, "Order below ₹100 minimum must earn 0 coins")
         finally:
             cleanup_restaurant(res)
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer.name})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": customer.name})
             frappe.db.commit()
 
 
@@ -1867,11 +1867,11 @@ class TestDailyRedemptionCap(unittest.TestCase):
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
         cleanup_restaurant(cls._res2)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
         frappe.db.commit()
 
     def _fund(self, coins, restaurant=None):
@@ -1963,11 +1963,11 @@ class TestGlobalWelcomeBonusDeduplication(unittest.TestCase):
         for identifier in [cls._id_a, cls._id_b]:
             frappe.db.delete("Referral Link", {"identifier": identifier})
         for customer in [cls._referrer_a.name, cls._referrer_b.name, cls._referee.name]:
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": customer})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": customer})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._referee.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._referee.name})
         for identifier in [self._id_a, self._id_b]:
             frappe.db.set_value("Referral Link", {"identifier": identifier}, "rewarded_opens_in_cycle", 0)
         frappe.db.commit()
@@ -1993,11 +1993,11 @@ class TestGlobalWelcomeBonusDeduplication(unittest.TestCase):
     def test_only_one_welcome_bonus_entry_in_db(self):
         """Regardless of how many restaurants are tried, only one Welcome Bonus entry exists."""
         print(f"DEBUG REF: name={self._referee.name}, phone={getattr(self._referee, 'phone', None)}, mobile={getattr(self._referee, 'mobile_no', None)}")
-        existing_entries = frappe.db.get_all("Restaurant Loyalty Entry", filters={"reason": "Welcome Bonus"}, fields=["customer", "restaurant", "coins"])
+        existing_entries = frappe.db.get_all("Outlet Loyalty Entry", filters={"reason": "Welcome Bonus"}, fields=["customer", "restaurant", "coins"])
         print(f"DEBUG ENTRIES BEFORE CLAIM: {existing_entries}")
         r1 = self._claim(self._res_a, self._id_a)
         r2 = self._claim(self._res_b, self._id_b)  # will fail, but must not create a second entry
-        count = frappe.db.count("Restaurant Loyalty Entry", {
+        count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._referee.name,
             "reason": "Welcome Bonus"
         })
@@ -2094,7 +2094,7 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
         # Create an unsettled order entry
         order_name = f"TEST-MRC-{frappe.generate_hash(length=8)}"
         frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._referrer.name,
             "restaurant": self._res,
             "coins": 10,
@@ -2126,7 +2126,7 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
         self.assertEqual(count, 5, "Order completion must no longer reset the referral cycle")
 
         # Cleanup
-        frappe.db.delete("Restaurant Loyalty Entry", {
+        frappe.db.delete("Outlet Loyalty Entry", {
             "customer": self._referrer.name, "reference_name": order_name
         })
         frappe.db.commit()
@@ -2151,11 +2151,11 @@ class TestManualAdjustmentCap(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
         frappe.db.commit()
 
     def test_adjustment_within_cap_succeeds(self):
@@ -2207,11 +2207,11 @@ class TestPricingUsesGlobalBalance(unittest.TestCase):
     def tearDownClass(cls):
         for res in [cls._res_earn, cls._res_spend]:
             cleanup_restaurant(res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
         frappe.db.commit()
 
     def test_coins_earned_at_restaurant_a_visible_in_cart_at_restaurant_b(self):
@@ -2300,11 +2300,11 @@ class TestCoinExpiryNotifications(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": self._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
         # Clear any cache key from previous test runs
         from frappe.utils import today
         cache_key = f"dm_expiry_nudge:{self._customer.name}:{today()}"
@@ -2316,7 +2316,7 @@ class TestCoinExpiryNotifications(unittest.TestCase):
         from frappe.utils import today, add_days
         exp_date = add_days(today(), days_from_now)
         doc = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": coins,
@@ -2342,7 +2342,7 @@ class TestCoinExpiryNotifications(unittest.TestCase):
         # Add an expiring earn entry, then add a redeem that zeroes it out
         self._add_expiring_entry(100, 3)
         doc = frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
             "restaurant": self._res,
             "coins": 100,
@@ -2433,7 +2433,7 @@ class TestLoyaltyAnalytics(unittest.TestCase):
         # c2: 100 coins earned (Welcome Bonus), expiring in 3 days
         exp_soon = add_days(today(), 3)
         frappe.get_doc({
-            "doctype": "Restaurant Loyalty Entry",
+            "doctype": "Outlet Loyalty Entry",
             "customer": cls._c2.name,
             "restaurant": cls._res,
             "coins": 100,
@@ -2450,7 +2450,7 @@ class TestLoyaltyAnalytics(unittest.TestCase):
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
         for c in [cls._c1.name, cls._c2.name]:
-            frappe.db.delete("Restaurant Loyalty Entry", {"customer": c})
+            frappe.db.delete("Outlet Loyalty Entry", {"customer": c})
         frappe.db.commit()
 
     def _call(self):
@@ -2556,7 +2556,7 @@ class TestReverseEarnedCashback(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -2594,7 +2594,7 @@ class TestReverseEarnedCashback(unittest.TestCase):
         self.assertEqual(res["deducted"], 30)
         self.assertEqual(res["owed"], 40)
         self.assertEqual(get_loyalty_balance(self._customer.name), 0)   # never negative
-        owed = frappe.db.get_value("Restaurant Loyalty Entry",
+        owed = frappe.db.get_value("Outlet Loyalty Entry",
                                    {"customer": self._customer.name, "reference_name": "ORD-OWED"},
                                    "owed_coins")
         self.assertEqual(owed, 40)

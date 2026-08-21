@@ -100,7 +100,7 @@ def check_prerequisites(outlet_id):
 
 	# 9. Owner WhatsApp verified
 	# Check if any Restaurant User has a verified phone
-	has_owner = frappe.db.count("Restaurant User", filters={"restaurant": outlet_id}) > 0
+	has_owner = frappe.db.count("Outlet User", filters={"restaurant": outlet_id}) > 0
 	checks.append({
 		"check": "owner_verified",
 		"label": "Outlet owner verified",

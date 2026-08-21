@@ -405,7 +405,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         )
         # Add gallery photos
         frappe.get_doc({
-            "doctype": "Restaurant Gallery Item",
+            "doctype": "Outlet Gallery Item",
             "restaurant": self.rest,
             "media_type": "Image",
             "url": "https://cdn.flamezo.in/test/photo1.jpg",
@@ -417,7 +417,7 @@ class TestGetRestaurantDetail(unittest.TestCase):
         frappe.cache().delete_value(f"flamezo:outlet_detail:{self.rest}")
 
     def tearDown(self):
-        frappe.db.sql(f"DELETE FROM `tabRestaurant Gallery Item` WHERE restaurant='{self.rest}'")
+        frappe.db.sql(f"DELETE FROM `tabOutlet Gallery Item` WHERE restaurant='{self.rest}'")
         if frappe.db.exists("Coupon", {"restaurant": self.rest}):
             for c in frappe.get_all("Coupon", {"restaurant": self.rest}):
                 frappe.delete_doc("Coupon", c.name, force=True, ignore_permissions=True)

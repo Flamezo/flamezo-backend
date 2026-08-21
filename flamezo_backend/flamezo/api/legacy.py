@@ -102,7 +102,7 @@ def get_legacy_content(outlet_id):
 
 		# 1. Fetch selected items from the new Restaurant Gallery Dashboard (Primary Source)
 		selected_gallery_items = frappe.get_all(
-			"Restaurant Gallery Item",
+			"Outlet Gallery Item",
 			filters={"restaurant": restaurant, "is_selected": 1},
 			fields=["url", "title", "media_type", "sort_order"],
 			order_by="sort_order asc",

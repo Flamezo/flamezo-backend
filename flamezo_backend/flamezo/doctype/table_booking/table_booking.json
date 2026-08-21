@@ -120,7 +120,7 @@
    "fieldname": "assigned_table",
    "fieldtype": "Link",
    "label": "Assigned Table",
-   "options": "Restaurant Table",
+   "options": "Outlet Table",
    "description": "Table assigned to this booking"
   },
   {

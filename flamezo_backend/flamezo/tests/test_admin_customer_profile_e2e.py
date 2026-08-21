@@ -228,7 +228,7 @@ def _cleanup(restaurant, customer_id=None, phone=None):
     frappe.db.delete("Court Booking", {"restaurant": restaurant})
     frappe.db.delete("Court", {"restaurant": restaurant})
     frappe.db.delete("Service Appointment", {"restaurant": restaurant})
-    frappe.db.delete("Restaurant Loyalty Entry", {"restaurant": restaurant})
+    frappe.db.delete("Outlet Loyalty Entry", {"restaurant": restaurant})
     frappe.db.delete("UGC Story Submission", {"restaurant": restaurant})
     frappe.db.delete("UGC Voucher Redemption", {"restaurant": restaurant})
     frappe.db.delete("UGC Voucher", {"restaurant": restaurant})

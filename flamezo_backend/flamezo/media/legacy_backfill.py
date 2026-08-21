@@ -98,7 +98,7 @@ def _gallery_batch(after_name, limit, restaurant=None):
 	return frappe.db.sql(
 		f"""
 		select name, restaurant, url
-		from `tabRestaurant Gallery Item`
+		from `tabOutlet Gallery Item`
 		where {" and ".join(conditions)}
 		order by name
 		limit %s
@@ -238,7 +238,7 @@ def run(dry_run=True, restaurant=None, batch_size=BATCH_SIZE, max_rows=None):
 						 "old_size": old_size, "new_size": new_size}
 					)
 				if not dry_run:
-					frappe.db.set_value("Restaurant Gallery Item", row.name, "url", new_url)
+					frappe.db.set_value("Outlet Gallery Item", row.name, "url", new_url)
 			if not dry_run:
 				frappe.db.commit()
 			if len(rows) < batch_size:

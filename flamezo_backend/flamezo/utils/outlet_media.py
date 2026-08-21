@@ -45,7 +45,7 @@ def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None):
         f"""
         SELECT restaurant, url, media_type as type, title, sort_order,
                (source != 'Google Places') as source_rank
-        FROM `tabRestaurant Gallery Item`
+        FROM `tabOutlet Gallery Item`
         WHERE restaurant IN ({placeholders}) AND is_selected = 1
         ORDER BY restaurant, source_rank ASC, sort_order ASC
         """,

@@ -29,7 +29,7 @@ def _make_rest(suffix, **kwargs):
 
 def _make_gallery_item(restaurant, url, sort_order=0, is_selected=1, source=None):
     doc = frappe.get_doc({
-        "doctype": "Restaurant Gallery Item",
+        "doctype": "Outlet Gallery Item",
         "restaurant": restaurant,
         "media_type": "Image",
         "url": url,
@@ -57,7 +57,7 @@ def _make_product_with_media(restaurant, product_id, media_urls, display_order=0
 
 
 def _cleanup(restaurant):
-    frappe.db.delete("Restaurant Gallery Item", {"restaurant": restaurant})
+    frappe.db.delete("Outlet Gallery Item", {"restaurant": restaurant})
     for p in frappe.get_all("Menu Product", {"restaurant": restaurant}, pluck="name"):
         frappe.delete_doc("Menu Product", p, force=True, ignore_permissions=True)
     frappe.db.delete("Outlet", restaurant)

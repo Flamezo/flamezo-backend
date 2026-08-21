@@ -21,14 +21,14 @@ class Outlet(Document):
 			frappe.delete_doc("User Permission", p.name, ignore_permissions=True)
 
 		# 2. Cleanup Restaurant Users
-		res_users = frappe.get_all("Restaurant User", filters={"restaurant": self.name})
+		res_users = frappe.get_all("Outlet User", filters={"restaurant": self.name})
 		for ru in res_users:
-			frappe.delete_doc("Restaurant User", ru.name, ignore_permissions=True)
+			frappe.delete_doc("Outlet User", ru.name, ignore_permissions=True)
 
 		# 3. Cleanup Restaurant Config
-		res_config = frappe.db.get_value("Restaurant Config", {"restaurant": self.name}, "name")
+		res_config = frappe.db.get_value("Outlet Config", {"restaurant": self.name}, "name")
 		if res_config:
-			frappe.delete_doc("Restaurant Config", res_config, ignore_permissions=True)
+			frappe.delete_doc("Outlet Config", res_config, ignore_permissions=True)
 
 		# 4. Cleanup Home Features
 		home_feats = frappe.get_all("Home Feature", filters={"restaurant": self.name})
@@ -246,7 +246,7 @@ class Outlet(Document):
 					return  # Error already logged and messaged
 			
 			# Check if Restaurant User already exists
-			if frappe.db.exists("Restaurant User", {"user": user, "restaurant": self.name}):
+			if frappe.db.exists("Outlet User", {"user": user, "restaurant": self.name}):
 				frappe.msgprint(f"Owner {self.owner_email} is already assigned to this outlet")
 				return
 			
@@ -857,13 +857,13 @@ def create_restaurant_config(self):
 	"""Create Restaurant Config record for new restaurant"""
 	try:
 		# Check if Restaurant Config already exists
-		existing_config = frappe.db.exists("Restaurant Config", {"restaurant": self.name})
+		existing_config = frappe.db.exists("Outlet Config", {"restaurant": self.name})
 		if existing_config:
 			return
 		
 		# Create Restaurant Config with default values
 		config_doc = frappe.get_doc({
-			"doctype": "Restaurant Config",
+			"doctype": "Outlet Config",
 			"restaurant": self.name,
 			"restaurant_name": self.restaurant_name,
 			"tagline": "",

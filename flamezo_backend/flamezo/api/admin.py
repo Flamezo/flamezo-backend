@@ -476,16 +476,16 @@ def delete_outlet(outlet_id):
             "Media Asset", "Media Upload Session",
             "Menu Category",
             # Level 3: remaining restaurant-linked docs
-            "Restaurant Config", "Restaurant Media", "Restaurant Social Link",
-            "Restaurant Table", "Table Booking", "Banquet Booking",
+            "Outlet Config", "Restaurant Media", "Restaurant Social Link",
+            "Outlet Table", "Table Booking", "Banquet Booking",
             "Order",
-            "Restaurant User",
+            "Outlet User",
             "Coupon", "Offer", "Auto Offer", "Combo Offer", "Promo",
             "Game", "Event", "Home Feature",
             "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger",
             "Razorpay Webhook Log", "Plan Change Log",
             "Referral Link", "OTP Verification Log", "Tokenization Attempt",
-            "Restaurant Loyalty Config", "Restaurant Loyalty Entry",
+            "Outlet Loyalty Config", "Outlet Loyalty Entry",
             "Legacy Content",
         ]
 
@@ -810,14 +810,14 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
             user_doc.save(ignore_permissions=True)
 
         # 4. Link user to the restaurant
-        has_existing_default = frappe.db.exists("Restaurant User", {"user": user_id, "is_default": 1})
+        has_existing_default = frappe.db.exists("Outlet User", {"user": user_id, "is_default": 1})
         is_default_flag = 0 if has_existing_default else 1
 
         # create_restaurant_user_permission maps Frappe User Permissions
         create_restaurant_user_permission(user_id, restaurant.name, is_default=is_default_flag)
 
-        # Check if already in 'Restaurant User' doctype
-        if not frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": restaurant.name}):
+        # Check if already in 'Outlet User' doctype
+        if not frappe.db.exists("Outlet User", {"user": user_id, "restaurant": restaurant.name}):
             assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Admin", is_default=is_default_flag)
 
         frappe.db.commit()
@@ -938,12 +938,12 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
                 results.append({'branch': bid, 'status': 'not_found'})
                 continue
 
-            if frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": branch}):
+            if frappe.db.exists("Outlet User", {"user": user_id, "restaurant": branch}):
                 results.append({'branch': branch, 'status': 'skipped'})
                 continue
 
             # First branch this user is given becomes the default (if none yet).
-            has_default = frappe.db.exists("Restaurant User", {"user": user_id, "is_default": 1})
+            has_default = frappe.db.exists("Outlet User", {"user": user_id, "is_default": 1})
             is_default_flag = 0 if has_default else 1
             try:
                 assign_user_to_restaurant(user_id, branch, role=role, is_default=is_default_flag)
@@ -1000,7 +1000,7 @@ def admin_list_branch_access(multi_only=0):
             """
             SELECT ru.user, ru.restaurant, ru.role,
                    COALESCE(r.restaurant_name, ru.restaurant) AS outlet_name
-            FROM `tabRestaurant User` ru
+            FROM `tabOutlet User` ru
             LEFT JOIN `tabOutlet` r ON r.name = ru.restaurant
             WHERE ru.is_active = 1
             ORDER BY ru.user
@@ -1310,7 +1310,7 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
                     ELSE 0 END)) AS balance,
                 SUM(CASE WHEN transaction_type = 'Earn' AND is_settled = 1 THEN coins ELSE 0 END) AS lifetime_earned,
                 SUM(CASE WHEN transaction_type = 'Redeem' AND is_settled = 1 THEN coins ELSE 0 END) AS total_redeemed
-            FROM `tabRestaurant Loyalty Entry`
+            FROM `tabOutlet Loyalty Entry`
             GROUP BY customer
         ) loyalty_stats ON loyalty_stats.customer = c.name
         WHERE 1=1 {search_sql}
@@ -1606,7 +1606,7 @@ def admin_get_customer_full_profile(customer_id):
 
     # ── Loyalty Ledger (full, all restaurants) ────────────────────────────────
     loyalty_entries = frappe.get_all(
-        "Restaurant Loyalty Entry",
+        "Outlet Loyalty Entry",
         filters={"customer": customer_id},
         fields=["name", "restaurant", "transaction_type", "coins", "reason",
                 "posting_date", "expiry_date", "is_settled", "reference_doctype", "reference_name"],
@@ -1959,7 +1959,7 @@ def admin_delete_customer(customer_id):
     _customer_linked_doctypes = [
         # (doctype, filter_field)
         ("Customer Session",          "customer"),
-        ("Restaurant Loyalty Entry",  "customer"),
+        ("Outlet Loyalty Entry",  "customer"),
         ("Order",                     "customer"),
         ("Table Booking",             "customer"),
         ("Banquet Booking",           "customer"),

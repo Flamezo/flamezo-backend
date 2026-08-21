@@ -55,12 +55,12 @@ def remove_restaurant_user_permission(user, restaurant):
 def assign_user_to_restaurant(user, restaurant, role="Restaurant Staff", is_default=0):
 	"""Assign user to restaurant (creates Restaurant User + User Permission)"""
 	# Check if Restaurant User already exists
-	if frappe.db.exists("Restaurant User", {"user": user, "restaurant": restaurant}):
+	if frappe.db.exists("Outlet User", {"user": user, "restaurant": restaurant}):
 		frappe.throw(_("User is already assigned to this outlet"))
 	
 	# Create Restaurant User
 	restaurant_user = frappe.get_doc({
-		"doctype": "Restaurant User",
+		"doctype": "Outlet User",
 		"user": user,
 		"restaurant": restaurant,
 		"role": role,
@@ -75,13 +75,13 @@ def assign_user_to_restaurant(user, restaurant, role="Restaurant Staff", is_defa
 def remove_user_from_restaurant(user, restaurant):
 	"""Remove user from restaurant"""
 	restaurant_user = frappe.db.get_value(
-		"Restaurant User",
+		"Outlet User",
 		{"user": user, "restaurant": restaurant},
 		"name"
 	)
 	
 	if restaurant_user:
-		frappe.delete_doc("Restaurant User", restaurant_user, ignore_permissions=True)
+		frappe.delete_doc("Outlet User", restaurant_user, ignore_permissions=True)
 		return True
 	return False
 
@@ -89,7 +89,7 @@ def remove_user_from_restaurant(user, restaurant):
 def get_user_restaurants(user):
 	"""Get all restaurants assigned to user"""
 	restaurants = frappe.get_all(
-		"Restaurant User",
+		"Outlet User",
 		filters={"user": user, "is_active": 1},
 		fields=["restaurant", "role", "is_default", "name"],
 		order_by="is_default desc, restaurant asc"
@@ -100,7 +100,7 @@ def get_user_restaurants(user):
 def get_default_restaurant(user):
 	"""Get user's default restaurant"""
 	restaurant = frappe.db.get_value(
-		"Restaurant User",
+		"Outlet User",
 		{"user": user, "is_default": 1, "is_active": 1},
 		"restaurant"
 	)
@@ -137,7 +137,7 @@ def get_user_restaurant_ids(user):
 	# Tier 3: Database Query (Direct SQL for speed and to bypass hooks)
 	restaurant_users = frappe.db.sql("""
 		SELECT restaurant 
-		FROM `tabRestaurant User` 
+		FROM `tabOutlet User` 
 		WHERE user = %s AND is_active = 1
 	""", user, as_dict=True)
 	

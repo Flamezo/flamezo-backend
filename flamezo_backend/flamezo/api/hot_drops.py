@@ -64,7 +64,7 @@ def _assert_outlet_access(outlet, phone=None):
     if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Restaurant Admin" in roles:
         return
     rec_role = frappe.db.get_value(
-        "Restaurant User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+        "Outlet User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
     )
     if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
