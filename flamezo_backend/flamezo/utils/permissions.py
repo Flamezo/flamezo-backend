@@ -52,7 +52,7 @@ def remove_restaurant_user_permission(user, restaurant):
 		)
 
 
-def assign_user_to_restaurant(user, restaurant, role="Restaurant Staff", is_default=0):
+def assign_user_to_restaurant(user, restaurant, role="Outlet Staff", is_default=0):
 	"""Assign user to restaurant (creates Restaurant User + User Permission)"""
 	# Check if Restaurant User already exists
 	if frappe.db.exists("Outlet User", {"user": user, "restaurant": restaurant}):

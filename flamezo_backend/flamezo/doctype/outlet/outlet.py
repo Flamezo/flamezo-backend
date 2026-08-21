@@ -256,7 +256,7 @@ class Outlet(Document):
 			restaurant_user = assign_user_to_restaurant(
 				user=user,
 				restaurant=self.name,
-				role="Restaurant Admin",
+				role="Outlet Admin",
 				is_default=1
 			)
 			

@@ -30,13 +30,13 @@ def get_currency_info(currency_code):
 
 
 def _get_user_role_for_restaurant(user, restaurant):
-	"""Return 'Restaurant Admin' or 'Restaurant Staff' for the current user, or None for guests."""
+	"""Return 'Outlet Admin' or 'Outlet Staff' for the current user, or None for guests."""
 	if not user or user == "Guest":
 		return None
 	
 	# Global Admins & Supervisors
-	if user == "Administrator" or is_supervisor(user) or "Restaurant Admin" in frappe.get_roles(user):
-		return "Restaurant Admin"
+	if user == "Administrator" or is_supervisor(user) or "Outlet Admin" in frappe.get_roles(user):
+		return "Outlet Admin"
 		
 	# Check specific restaurant role
 	role = frappe.db.get_value(
@@ -44,7 +44,7 @@ def _get_user_role_for_restaurant(user, restaurant):
 		{"user": user, "restaurant": restaurant, "is_active": 1},
 		"role"
 	)
-	return role or "Restaurant Staff"
+	return role or "Outlet Staff"
 
 
 @frappe.whitelist(allow_guest=True)

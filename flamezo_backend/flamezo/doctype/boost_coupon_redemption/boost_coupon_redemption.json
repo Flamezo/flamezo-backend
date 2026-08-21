@@ -100,13 +100,13 @@
   {
    "create": 1,
    "read": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "write": 1
   },
   {
    "create": 1,
    "read": 1,
-   "role": "Restaurant Staff"
+   "role": "Outlet Staff"
   }
  ],
  "sort_field": "creation",
