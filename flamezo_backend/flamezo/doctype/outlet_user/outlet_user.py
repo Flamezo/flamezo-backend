@@ -28,7 +28,7 @@ class OutletUser(Document):
 				frappe.throw("User can have only one default outlet")
 
 		# --- Seat Limit Enforcement (only for new Staff records) ---
-		if self.is_new() and self.role == "Restaurant Staff":
+		if self.is_new() and self.role == "Outlet Staff":
 			self._enforce_seat_limit()
 
 	def _enforce_seat_limit(self):
@@ -40,7 +40,7 @@ class OutletUser(Document):
 			"Outlet User",
 			{
 				"restaurant": self.restaurant,
-				"role": "Restaurant Staff",
+				"role": "Outlet Staff",
 				"is_active": 1,
 			}
 		)
@@ -68,7 +68,7 @@ class OutletUser(Document):
 		"""Add Frappe role to user if not already present"""
 		try:
 			user_doc = frappe.get_doc("User", self.user)
-			role = self.role or "Restaurant Staff"
+			role = self.role or "Outlet Staff"
 
 			existing_roles = [r.role for r in user_doc.roles]
 			if role not in existing_roles:

@@ -99,7 +99,7 @@
       "share": 1
     },
     {
-      "role": "Restaurant Admin",
+      "role": "Outlet Admin",
       "create": 0,
       "read": 1,
       "write": 0

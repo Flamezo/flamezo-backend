@@ -1201,13 +1201,13 @@ def _assert_staff_or_admin(restaurant):
 	if (
 		user == "Administrator"
 		or any(r in GLOBAL_ADMIN_ROLES or r in SUPERVISOR_ROLES for r in roles)
-		or "Restaurant Admin" in roles
+		or "Outlet Admin" in roles
 	):
 		return
 	rec_role = frappe.db.get_value(
 		"Outlet User", {"user": user, "restaurant": restaurant, "is_active": 1}, "role"
 	)
-	if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
+	if rec_role not in ("Outlet Admin", "Outlet Staff"):
 		frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
 
 

@@ -22,7 +22,7 @@ def _assert_admin(outlet_id):
 	if (
 		user == "Administrator" or
 		any(role in GLOBAL_ADMIN_ROLES or role in SUPERVISOR_ROLES for role in user_roles) or
-		"Restaurant Admin" in user_roles
+		"Outlet Admin" in user_roles
 	):
 		return
 
@@ -31,8 +31,8 @@ def _assert_admin(outlet_id):
 		{"user": user, "restaurant": outlet_id, "is_active": 1},
 		"role"
 	)
-	if role != "Restaurant Admin":
-		frappe.throw(_("Only a Restaurant Admin can perform this action."), frappe.PermissionError)
+	if role != "Outlet Admin":
+		frappe.throw(_("Only an Outlet Admin can perform this action."), frappe.PermissionError)
 
 
 def _resolve_restaurant(outlet_id):
@@ -91,11 +91,11 @@ def get_staff_members(outlet_id):
 			
 			# Role priority: if they have Restaurant Admin or System Manager role in Frappe, they are an Admin
 			actual_role = m.role
-			if "Restaurant Admin" in frappe.get_roles(m.user) or "System Manager" in frappe.get_roles(m.user):
-				actual_role = "Restaurant Admin"
+			if "Outlet Admin" in frappe.get_roles(m.user) or "System Manager" in frappe.get_roles(m.user):
+				actual_role = "Outlet Admin"
 				# Auto-sync to database if there's a mismatch (perfect fix)
-				if m.role != "Restaurant Admin":
-					frappe.db.set_value("Outlet User", m.name, "role", "Restaurant Admin")
+				if m.role != "Outlet Admin":
+					frappe.db.set_value("Outlet User", m.name, "role", "Outlet Admin")
 			
 			members.append({
 				"name": m.name,
@@ -112,7 +112,7 @@ def get_staff_members(outlet_id):
 		limit = get_staff_seat_limit(restaurant)
 		plan_type = "GOLD"
 		# Count only active non-admin staff toward the quota
-		seats_used = sum(1 for m in members if m["role"] == "Restaurant Staff" and m["is_active"])
+		seats_used = sum(1 for m in members if m["role"] == "Outlet Staff" and m["is_active"])
 		seats_remaining = max(0, limit - seats_used)
 
 		return {
@@ -132,7 +132,7 @@ def get_staff_members(outlet_id):
 
 
 @frappe.whitelist()
-def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
+def invite_staff_member(outlet_id, email, full_name, role="Outlet Staff"):
 	"""
 	POST – invite a staff member by email.
 
@@ -151,7 +151,7 @@ def invite_staff_member(outlet_id, email, full_name, role="Restaurant Staff"):
 
 		email = (email or "").strip().lower()
 		full_name = (full_name or "").strip()
-		role = role if role in ("Restaurant Admin", "Restaurant Staff") else "Restaurant Staff"
+		role = role if role in ("Outlet Admin", "Outlet Staff") else "Outlet Staff"
 
 		if not email:
 			frappe.throw(_("Email is required"))
@@ -275,7 +275,7 @@ def update_staff_member(outlet_id, restaurant_user_name, is_active=None, role=No
 
 		# Update role if provided
 		if role:
-			if role not in ("Restaurant Admin", "Restaurant Staff"):
+			if role not in ("Outlet Admin", "Outlet Staff"):
 				frappe.throw(_("Invalid role: {0}").format(role))
 			ru.role = role
 

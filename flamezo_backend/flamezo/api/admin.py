@@ -797,7 +797,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
         # 3. Add necessary roles
         # The restaurant OWNER must be a Restaurant Admin (not Staff) so they can
         # manage their own branch team. Merchant-level only — never a global role.
-        roles_to_add = ["System User", "Restaurant Admin"]
+        roles_to_add = ["System User", "Outlet Admin"]
 
         has_changes = False
         for role in roles_to_add:
@@ -818,7 +818,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
 
         # Check if already in 'Outlet User' doctype
         if not frappe.db.exists("Outlet User", {"user": user_id, "restaurant": restaurant.name}):
-            assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Admin", is_default=is_default_flag)
+            assign_user_to_restaurant(user_id, restaurant.name, role="Outlet Admin", is_default=is_default_flag)
 
         frappe.db.commit()
 
@@ -845,7 +845,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
 
 
 @frappe.whitelist()
-def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None, role="Restaurant Admin"):
+def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None, role="Outlet Admin"):
     """Platform-admin action: assign ONE user (typically a multi-branch owner) to
     several restaurant branches in a single call.
 
@@ -862,7 +862,7 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
         owner_email : login email — the SAME email is used across all branches.
         owner_name  : display name (only used when creating a new user).
         branch_ids  : list of Restaurant docnames/ids (JSON string or list accepted).
-        role        : "Restaurant Admin" (default) or "Restaurant Staff".
+        role        : "Outlet Admin" (default) or "Outlet Staff".
 
     Returns per-branch results so the UI can show assigned / skipped / not_found.
     """
@@ -877,8 +877,8 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
 
         # Guardrail: merchant-level roles only. A global role would leak access to
         # every restaurant — exactly what we must never give a merchant.
-        if role not in ("Restaurant Admin", "Restaurant Staff"):
-            role = "Restaurant Admin"
+        if role not in ("Outlet Admin", "Outlet Staff"):
+            role = "Outlet Admin"
 
         # branch_ids may arrive as a JSON string (HTTP) or comma list.
         if isinstance(branch_ids, str):

@@ -340,12 +340,12 @@
   {
    "create": 1,
    "read": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "write": 1
   },
   {
    "read": 1,
-   "role": "Restaurant Staff"
+   "role": "Outlet Staff"
   },
   {
    "read": 1,

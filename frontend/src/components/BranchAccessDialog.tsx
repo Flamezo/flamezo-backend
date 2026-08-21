@@ -170,7 +170,7 @@ export function BranchAccessDialog({ open, onOpenChange, onAssigned }: BranchAcc
         owner_email: ownerEmail.trim().toLowerCase(),
         owner_name: ownerName.trim(),
         branch_ids: JSON.stringify(Array.from(selected)),
-        role: 'Restaurant Staff',
+        role: 'Outlet Staff',
       })
       const data = res?.message ?? res
       if (data?.success) {

@@ -13,14 +13,14 @@ GLOBAL_ADMIN_ROLES = ["Administrator", "System Manager"]
 SUPERVISOR_ROLES = ["Flamezo Supervisor"]
 
 # Merchant-level roles (assigned via Restaurant User)
-MERCHANT_ADMIN_ROLES = ["Restaurant Admin"]
-MERCHANT_STAFF_ROLES = ["Restaurant Staff"]
+MERCHANT_ADMIN_ROLES = ["Outlet Admin"]
+MERCHANT_STAFF_ROLES = ["Outlet Staff"]
 
 # Roles that are explicitly locked out of the Frappe Desk (/app)
 # Note: Flamezo Supervisor is NOT here, allowing them Desk access for advanced support.
 DESK_RESTRICTED_ROLES = [
-    "Restaurant Admin", 
-    "Restaurant Staff"
+    "Outlet Admin", 
+    "Outlet Staff"
 ]
 
 
