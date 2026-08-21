@@ -7,15 +7,16 @@ formatter (flamezo.py) and outlet detail (outlet.py) so a feed of N outlets
 costs a fixed 2 SQL queries total, never N+1 per-card round trips.
 
 Priority per outlet, first non-empty wins:
-  1. Curated Gallery — Restaurant Gallery Item, is_selected=1. Within this
+  1. Curated Gallery — Outlet Gallery Item, is_selected=1. Within this
      tier, Google Places photos rank first (real, recognisable shots of the
      actual place — the strongest signal we have), then everything else by
      sort_order. This is what a merchant explicitly picked to show off via
      Gallery Management's Active Showcase, plus anything synced from Google.
   2. Food/product photos — Product Media on the outlet's active Menu
-     Products, display_order asc. "The food images we use right now" —
-     kept as the fallback exactly as before, just resolved in the same
-     batched pass instead of a separate code path.
+     Products, display_order asc. Only used when include_food_fallback=True
+     (see param docstring below) — the Discover card carousel deliberately
+     opts OUT of this tier so cards only ever show real gallery/Google
+     photos of the place itself, never a dish photo standing in for it.
   3. Outlet logo — passed in by the caller (already fetched as part of
      the outlet's own row query, so no extra query needed here).
 """
@@ -23,12 +24,21 @@ Priority per outlet, first non-empty wins:
 import frappe
 
 
-def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None):
+def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None, include_food_fallback=True):
     """
     Returns {outlet_id: [{"url", "type", "title"}, ...]}, each list capped at
     limit_per_outlet, ordered by the priority above. Outlets with nothing at
     all (no gallery, no food photos, no logo) map to an empty list — callers
     decide their own final fallback (e.g. a placeholder asset).
+
+    include_food_fallback: when False, tier 2 (food/product photos) is
+    skipped entirely — an outlet with no curated gallery falls straight from
+    tier 1 to the logo. Used by the Discover card carousel (flamezo.py),
+    which should only ever rotate through real gallery/Google photos of the
+    outlet, not menu dish photos standing in for it. The outlet detail
+    page's own Photos tab (outlet.py) keeps the default True — food photos
+    are a reasonable fallback there, it's a dedicated photo browser, not a
+    card thumbnail.
     """
     if not outlet_ids:
         return {}
@@ -58,26 +68,28 @@ def batch_resolve_outlet_media(outlet_ids, limit_per_outlet=4, logos=None):
             bucket.append({"url": row.url, "type": row.type or "Image", "title": row.title or ""})
 
     # 2. Food/product photos — only queried for outlets still short of the cap,
-    # so a fully-curated feed pays zero extra cost for this join.
-    needing = [oid for oid in outlet_ids if len(result[oid]) < limit_per_outlet]
-    if needing:
-        need_placeholders = ",".join(["%s"] * len(needing))
-        food_rows = frappe.db.sql(
-            f"""
-            SELECT p.restaurant as restaurant, pm.media_url as url, pm.media_type as type,
-                   p.product_name as title
-            FROM `tabProduct Media` pm
-            JOIN `tabMenu Product` p ON pm.parent = p.name
-            WHERE p.restaurant IN ({need_placeholders}) AND p.is_active = 1
-            ORDER BY p.restaurant, p.display_order ASC, pm.display_order ASC
-            """,
-            needing,
-            as_dict=True,
-        )
-        for row in food_rows:
-            bucket = result[row.restaurant]
-            if len(bucket) < limit_per_outlet and row.url:
-                bucket.append({"url": row.url, "type": row.type or "Image", "title": row.title or ""})
+    # so a fully-curated feed pays zero extra cost for this join. Skipped
+    # entirely when include_food_fallback=False.
+    if include_food_fallback:
+        needing = [oid for oid in outlet_ids if len(result[oid]) < limit_per_outlet]
+        if needing:
+            need_placeholders = ",".join(["%s"] * len(needing))
+            food_rows = frappe.db.sql(
+                f"""
+                SELECT p.restaurant as restaurant, pm.media_url as url, pm.media_type as type,
+                       p.product_name as title
+                FROM `tabProduct Media` pm
+                JOIN `tabMenu Product` p ON pm.parent = p.name
+                WHERE p.restaurant IN ({need_placeholders}) AND p.is_active = 1
+                ORDER BY p.restaurant, p.display_order ASC, pm.display_order ASC
+                """,
+                needing,
+                as_dict=True,
+            )
+            for row in food_rows:
+                bucket = result[row.restaurant]
+                if len(bucket) < limit_per_outlet and row.url:
+                    bucket.append({"url": row.url, "type": row.type or "Image", "title": row.title or ""})
 
     # 3. Logo — final fallback, no query (caller already has it).
     for oid in outlet_ids:

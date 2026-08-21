@@ -168,8 +168,9 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 		"id": r["name"],
 		"outlet_name": r["restaurant_name"],
 		"logo": r.get("logo") or "",
-		# Batch-resolved (see batch_resolve_outlet_media): curated Gallery photo
-		# first, food/product photo fallback, then logo — no per-card round trip.
+		# Batch-resolved (see batch_resolve_outlet_media, include_food_fallback=False
+		# here): curated Gallery photo (Google Places ranked first) then logo —
+		# no food/product photo fallback on cards, no per-card round trip.
 		"cover_image": cover_images[0] if cover_images else (r.get("logo") or ""),
 		# Up to a few images per card so the app can auto-rotate the visible
 		# card's photo instead of showing just one static shot.
@@ -322,7 +323,7 @@ def get_all_outlets(
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
-		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 
 		# ── has_offer filter (post-query, uses the same offers_map) ──────────────
 		if cint(has_offer):
@@ -490,7 +491,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
-		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
