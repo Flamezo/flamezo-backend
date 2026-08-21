@@ -84,7 +84,7 @@ def _get_commission_percent(restaurant) -> float:
     """Resolve the platform fee percent for a restaurant, falling back to the
     global GOLD default. Kept as a single helper so all accrual + split math
     agrees on the same number."""
-    rate = frappe.db.get_value("Restaurant", restaurant, "platform_fee_percent")
+    rate = frappe.db.get_value("Outlet", restaurant, "platform_fee_percent")
     if rate is None:
         rate = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0
     return float(rate)
@@ -114,7 +114,7 @@ def _bump_restaurant_outstanding(restaurant: str, delta_paise: int):
         return
     frappe.db.sql(
         """
-        UPDATE `tabRestaurant`
+        UPDATE `tabOutlet`
         SET outstanding_commission_paise = GREATEST(
             0,
             COALESCE(outstanding_commission_paise, 0) + %s
@@ -315,7 +315,7 @@ def try_wallet_settlement(ledger) -> int:
         return 0
 
     # Read wallet balance in paise
-    balance_rupees = frappe.db.get_value("Restaurant", ledger.restaurant, "coins_balance") or 0
+    balance_rupees = frappe.db.get_value("Outlet", ledger.restaurant, "coins_balance") or 0
     balance_paise = int(round(float(balance_rupees) * 100))
     if balance_paise <= 0:
         return 0
@@ -349,7 +349,7 @@ def try_wallet_settlement(ledger) -> int:
         ledger.name,
         method="wallet",
         amount_paise=take_paise,
-        ref_doctype="Restaurant",
+        ref_doctype="Outlet",
         ref_name=ledger.restaurant,
         note=f"Wallet balance was ₹{balance_rupees:.2f}",
     )
@@ -366,7 +366,7 @@ def compute_netoff_for_online_order(restaurant: str, online_order_total_paise: i
     Caps at `ONLINE_NETOFF_CAP_BPS` of the online order so the restaurant
     isn't left with zero settlement on a big online ticket.
     """
-    outstanding = int(frappe.db.get_value("Restaurant", restaurant, "outstanding_commission_paise") or 0)
+    outstanding = int(frappe.db.get_value("Outlet", restaurant, "outstanding_commission_paise") or 0)
     if outstanding <= 0:
         return 0
     cap = int(math.floor(online_order_total_paise * ONLINE_NETOFF_CAP_BPS / 10000))
@@ -437,11 +437,11 @@ def sweep_via_autopay(restaurant: str) -> dict:
     learns about success via the standard payment.captured webhook (which
     sees `notes.type == "cash_sweep"` and re-enters this engine to settle).
     """
-    outstanding = int(frappe.db.get_value("Restaurant", restaurant, "outstanding_commission_paise") or 0)
+    outstanding = int(frappe.db.get_value("Outlet", restaurant, "outstanding_commission_paise") or 0)
     if outstanding < MIN_AUTOPAY_SWEEP_PAISE:
         return {"success": True, "skipped": "below_min", "outstanding": outstanding}
 
-    res = frappe.get_doc("Restaurant", restaurant)
+    res = frappe.get_doc("Outlet", restaurant)
     if res.mandate_status != "active" or not res.razorpay_token_id or not res.razorpay_customer_id:
         _record_sweep_failure(restaurant, "no_active_mandate")
         return {"success": False, "error": "no_active_mandate"}
@@ -537,7 +537,7 @@ def apply_autopay_sweep_capture(restaurant: str, amount_paise: int, razorpay_pay
         applied += slice_paise
 
     # Successful sweep clears the failure counter / throttle
-    frappe.db.set_value("Restaurant", restaurant, {
+    frappe.db.set_value("Outlet", restaurant, {
         "cash_sweep_failure_count": 0,
         "cash_payments_disabled_until": None,
     })
@@ -550,14 +550,14 @@ def apply_autopay_sweep_capture(restaurant: str, amount_paise: int, razorpay_pay
 def _record_sweep_failure(restaurant: str, reason: str):
     """Increment the failure counter on the Restaurant; activate Tier 3
     throttle if we hit the threshold."""
-    count = (frappe.db.get_value("Restaurant", restaurant, "cash_sweep_failure_count") or 0) + 1
+    count = (frappe.db.get_value("Outlet", restaurant, "cash_sweep_failure_count") or 0) + 1
     payload = {"cash_sweep_failure_count": count, "last_cash_sweep_error": reason[:140]}
     if count >= SWEEP_FAILURE_THRESHOLD:
         # Disable cash for 7 days, forcing online-only mode so Tier 1 drains
         # the outstanding balance.
         from frappe.utils import add_days
         payload["cash_payments_disabled_until"] = add_days(getdate(), 7)
-    frappe.db.set_value("Restaurant", restaurant, payload)
+    frappe.db.set_value("Outlet", restaurant, payload)
     frappe.db.commit()
 
 
@@ -565,7 +565,7 @@ def is_cash_payment_disabled(restaurant: str) -> bool:
     """Hook for the customer-facing payment-method picker: when True, the
     UI should hide the 'pay at counter' option until the restaurant catches
     up via online net-off."""
-    until = frappe.db.get_value("Restaurant", restaurant, "cash_payments_disabled_until")
+    until = frappe.db.get_value("Outlet", restaurant, "cash_payments_disabled_until")
     if not until:
         return False
     until_date = getdate(until)
@@ -581,7 +581,7 @@ def get_outstanding_summary(restaurant: str) -> dict:
     """Compact summary of a restaurant's commission state — for the merchant
     dashboard widget. Built off the Restaurant cache + a single aggregate
     query for richness."""
-    res = frappe.db.get_value("Restaurant",
+    res = frappe.db.get_value("Outlet",
         restaurant,
         ["outstanding_commission_paise", "cash_sweep_failure_count",
          "cash_payments_disabled_until", "coins_balance"],

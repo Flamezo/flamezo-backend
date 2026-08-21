@@ -87,7 +87,7 @@ def _cleanup(phone=_PHONE):
 def _cleanup_all():
     for ph in [_PHONE, _PHONE_B]:
         _cleanup(ph)
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 

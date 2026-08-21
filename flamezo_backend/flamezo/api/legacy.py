@@ -27,7 +27,7 @@ def get_legacy_content(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Get restaurant name
-		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name")
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name")
 		
 		# Get or create legacy content
 		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
@@ -330,7 +330,7 @@ def generate_legacy_content(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Fetch restaurant info
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 
 		# Fetch all active menu items
 		items = frappe.get_all("Menu Product",

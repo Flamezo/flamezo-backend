@@ -96,7 +96,7 @@
    "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
-   "options": "Restaurant"
+   "options": "Outlet"
   },
   {
    "fieldname": "venue_name",

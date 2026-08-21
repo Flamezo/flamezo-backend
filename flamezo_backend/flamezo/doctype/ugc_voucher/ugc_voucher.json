@@ -50,7 +50,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "reqd": 1,
    "search_index": 1
   },
@@ -125,7 +125,7 @@
    "fieldname": "pin_activated_restaurant",
    "fieldtype": "Link",
    "label": "PIN Activated At Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "read_only": 1
   }
  ],

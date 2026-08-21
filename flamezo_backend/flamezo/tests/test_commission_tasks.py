@@ -51,7 +51,7 @@ def _make_cash_order(restaurant, total_rupees=1000.0, status="Accepted",
                      payment_method="pay_at_counter"):
     # Force tax_rate=0 so post-save Order.total exactly matches total_rupees
     # (the pricing engine in Order.before_save would otherwise add tax).
-    frappe.db.set_value("Restaurant", restaurant, "tax_rate", 0.0)
+    frappe.db.set_value("Outlet", restaurant, "tax_rate", 0.0)
     frappe.db.commit()
     product = make_menu_product(
         restaurant,
@@ -153,7 +153,7 @@ class TestRetryWalletSettlements(unittest.TestCase):
         result = self.task()
         self.assertEqual(result["ledgers_swept"], 0)
         # Wallet untouched
-        bal = frappe.db.get_value("Restaurant", self._res, "coins_balance")
+        bal = frappe.db.get_value("Outlet", self._res, "coins_balance")
         self.assertAlmostEqual(float(bal), 100.0, places=2)
 
 
@@ -247,7 +247,7 @@ class TestClearExpiredThrottles(unittest.TestCase):
                         cash_payments_disabled_until=add_days(today(), -2),
                         outstanding_commission_paise=0)
         self.task()
-        until = frappe.db.get_value("Restaurant", name, "cash_payments_disabled_until")
+        until = frappe.db.get_value("Outlet", name, "cash_payments_disabled_until")
         self.assertIsNone(until, "Expired throttle with zero debt must be cleared")
 
     def test_keeps_throttle_when_still_in_arrears(self):
@@ -256,7 +256,7 @@ class TestClearExpiredThrottles(unittest.TestCase):
                         cash_payments_disabled_until=add_days(today(), -2),
                         outstanding_commission_paise=5_000)
         self.task()
-        until = frappe.db.get_value("Restaurant", name, "cash_payments_disabled_until")
+        until = frappe.db.get_value("Outlet", name, "cash_payments_disabled_until")
         self.assertIsNotNone(until,
                              "Throttle must persist while outstanding > 0 "
                              "to force online-only mode")
@@ -269,7 +269,7 @@ class TestClearExpiredThrottles(unittest.TestCase):
                         cash_payments_disabled_until=future,
                         outstanding_commission_paise=0)
         self.task()
-        until = frappe.db.get_value("Restaurant", name, "cash_payments_disabled_until")
+        until = frappe.db.get_value("Outlet", name, "cash_payments_disabled_until")
         self.assertIsNotNone(until)
 
 

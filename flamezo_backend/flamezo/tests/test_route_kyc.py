@@ -69,7 +69,7 @@ def _pre_populate_kyc(restaurant_name, **overrides):
                      "zip_code": "395003", "owner_email": "owner@test.local",
                      "owner_phone": "9876543210"})
     defaults.update(overrides)
-    frappe.db.set_value("Restaurant", restaurant_name, defaults)
+    frappe.db.set_value("Outlet", restaurant_name, defaults)
     frappe.db.commit()
 
 
@@ -117,7 +117,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
 
         self.assertTrue(res.get("success"), msg=f"submit failed: {res!r}")
         row = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["legal_name", "business_type", "pan_number",
              "bank_account_number", "bank_ifsc", "bank_holder_name"],
             as_dict=True,
@@ -139,7 +139,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
             kwargs = _full_kyc_kwargs()
             kwargs["pan_number"] = "  abcde1234f  "
             self.submit(self._res, **kwargs)
-        stored = frappe.db.get_value("Restaurant", self._res, "pan_number")
+        stored = frappe.db.get_value("Outlet", self._res, "pan_number")
         self.assertEqual(stored, "ABCDE1234F")
 
     def test_ifsc_is_uppercased_and_trimmed(self):
@@ -152,7 +152,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
             kwargs = _full_kyc_kwargs()
             kwargs["bank_ifsc"] = " hdfc0001234 "
             self.submit(self._res, **kwargs)
-        stored = frappe.db.get_value("Restaurant", self._res, "bank_ifsc")
+        stored = frappe.db.get_value("Outlet", self._res, "bank_ifsc")
         self.assertEqual(stored, "HDFC0001234")
 
     def test_first_submission_sets_under_review_and_flamezo_hold(self):
@@ -169,7 +169,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
         self.assertTrue(res.get("success"))
         self.assertTrue(res.get("created"), "First submission should set created=True")
         stored = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["razorpay_account_id", "razorpay_kyc_status", "route_mode"],
             as_dict=True,
         )
@@ -183,7 +183,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
         """Once a Razorpay Linked Account is on file, re-submitting must
         return the existing id and NOT hit `client.account.create` again."""
         # Pre-stage an already-linked account.
-        frappe.db.set_value("Restaurant", self._res, {
+        frappe.db.set_value("Outlet", self._res, {
             "razorpay_account_id": "acc_ALREADY_THERE",
             "razorpay_kyc_status": "under_review",
         })
@@ -212,7 +212,7 @@ class TestSubmitRouteKycApi(unittest.TestCase):
         self.submit(self._res, bank_holder_name="New Holder")
 
         row = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["pan_number", "bank_holder_name"],
             as_dict=True,
         )
@@ -281,7 +281,7 @@ class TestHandleAccountStatusWebhook(unittest.TestCase):
         self.assertTrue(res.get("success"))
         self.assertEqual(res.get("status"), "activated")
         stored = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["razorpay_kyc_status", "route_mode"], as_dict=True,
         )
         self.assertEqual(stored["razorpay_kyc_status"], "activated")
@@ -299,7 +299,7 @@ class TestHandleAccountStatusWebhook(unittest.TestCase):
         res = self.handle(payload)
         self.assertTrue(res.get("success"))
         stored = frappe.db.get_value(
-            "Restaurant", self._res,
+            "Outlet", self._res,
             ["razorpay_kyc_status", "route_mode"], as_dict=True,
         )
         self.assertEqual(stored["razorpay_kyc_status"], "suspended")
@@ -328,7 +328,7 @@ class TestHandleAccountStatusWebhook(unittest.TestCase):
         self.handle(payload)
         # Our restaurant should still be under_review (untouched).
         stored = frappe.db.get_value(
-            "Restaurant", self._res, "razorpay_kyc_status",
+            "Outlet", self._res, "razorpay_kyc_status",
         )
         self.assertEqual(stored, "under_review")
 

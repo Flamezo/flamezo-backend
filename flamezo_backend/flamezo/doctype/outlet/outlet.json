@@ -788,7 +788,7 @@
    "fieldname": "referred_by_restaurant",
    "fieldtype": "Link",
    "label": "Referred By",
-   "options": "Restaurant",
+   "options": "Outlet",
    "description": "The restaurant that referred this one"
   },
   {
@@ -964,7 +964,7 @@
  "modified": "2025-01-15 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
- "name": "Restaurant",
+ "name": "Outlet",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [

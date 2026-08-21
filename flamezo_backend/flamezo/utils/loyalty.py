@@ -13,7 +13,7 @@ def is_loyalty_enabled(restaurant):
 	"""Check if loyalty is enabled for a restaurant."""
 	if not restaurant:
 		return False
-	return frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
+	return frappe.db.get_value("Outlet", restaurant, "enable_loyalty")
 
 def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	"""
@@ -490,7 +490,7 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 		if not tokens:
 			return
 
-		restaurant_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant
+		restaurant_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
 
 		REASON_MESSAGES = {
 			"Order":            f"You earned {coins} coins on your order at {restaurant_name}!",

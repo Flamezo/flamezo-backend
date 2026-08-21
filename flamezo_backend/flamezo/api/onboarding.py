@@ -21,7 +21,7 @@ def generate_onboarding_link(outlet_name=None, linked_restaurant=None):
 
         # If linked_restaurant is provided, get the name
         if linked_restaurant:
-            res_details = frappe.db.get_value('Restaurant', linked_restaurant, ['restaurant_name', 'owner_email', 'owner_phone'], as_dict=1)
+            res_details = frappe.db.get_value('Outlet', linked_restaurant, ['restaurant_name', 'owner_email', 'owner_phone'], as_dict=1)
             if res_details:
                 outlet_name = res_details.get('restaurant_name')
 
@@ -361,7 +361,7 @@ def sync_onboarding_to_outlet(name):
         restaurant = doc.linked_restaurant
 
         # ── Sync to Restaurant ──────────────────────────────────────────────
-        res_doc = frappe.get_doc('Restaurant', restaurant)
+        res_doc = frappe.get_doc('Outlet', restaurant)
 
         outlet_field_map = {
             'owner_name': 'owner_name',
@@ -473,7 +473,7 @@ def auto_sync_onboarding_display(doc, method=None):
     (Restaurant Config.logo was removed, see the consolidate_logo_to_restaurant patch)."""
     try:
         restaurant = getattr(doc, 'linked_restaurant', None)
-        if not restaurant or not frappe.db.exists('Restaurant', restaurant):
+        if not restaurant or not frappe.db.exists('Outlet', restaurant):
             return
 
         r_updates = {}
@@ -482,7 +482,7 @@ def auto_sync_onboarding_display(doc, method=None):
             if value not in (None, ''):
                 r_updates[dest] = value
         if r_updates:
-            frappe.db.set_value('Restaurant', restaurant, r_updates)
+            frappe.db.set_value('Outlet', restaurant, r_updates)
 
         config = frappe.db.get_value('Restaurant Config', {'restaurant': restaurant}, 'name')
         if config:

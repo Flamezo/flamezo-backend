@@ -83,7 +83,7 @@ def get_outlet_config(outlet_id):
 		
 		# Get restaurant document for plan_type
 		# pyrefly: ignore [bad-argument-type]
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		
 		# If config doesn't exist, get from Restaurant doctype
 		if not config:
@@ -117,7 +117,7 @@ def get_outlet_config(outlet_id):
 		media_roles = ["restaurant_config_hero_video", "apple_touch_icon"]
 		config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "name")
 		media_batch = get_media_assets_batch("Restaurant Config", [config_name], media_roles) if config_name else {}
-		logo_media_batch = get_media_assets_batch("Restaurant", [restaurant], ["restaurant_logo"])
+		logo_media_batch = get_media_assets_batch("Outlet", [restaurant], ["restaurant_logo"])
 
 		# Get logo with variants and blur placeholder
 		logo_data = logo_media_batch.get((restaurant, "restaurant_logo")) or {
@@ -866,7 +866,7 @@ def update_order_settings(outlet_id, settings):
 		
 		# Get restaurant document
 		# pyrefly: ignore [bad-argument-type]
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		
 		# Update fields
 		updated_fields = []

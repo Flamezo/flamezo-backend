@@ -545,11 +545,11 @@ def _upsert_restaurant(rest_id, restaurant_name, outlet_type="dining",
         "address": address,
         "enable_loyalty": 1,
     }
-    if frappe.db.exists("Restaurant", rest_id):
-        frappe.db.set_value("Restaurant", rest_id, defaults)
+    if frappe.db.exists("Outlet", rest_id):
+        frappe.db.set_value("Outlet", rest_id, defaults)
     else:
         frappe.get_doc({
-            "doctype": "Restaurant",
+            "doctype": "Outlet",
             "restaurant_id": rest_id,
             **defaults,
         }).insert(ignore_permissions=True)
@@ -835,14 +835,14 @@ def run():
 
     # Clean up old partial-run artefacts
     for old_id in ["smashzone-ahmedabad"]:
-        if frappe.db.exists("Restaurant", old_id):
+        if frappe.db.exists("Outlet", old_id):
             frappe.db.sql("UPDATE `tabCourt` SET restaurant=%s WHERE restaurant=%s",
                           ["smashzone-surat", old_id])
             frappe.db.sql("UPDATE `tabCourt Booking` SET restaurant=%s WHERE restaurant=%s",
                           ["smashzone-surat", old_id])
             frappe.db.delete("Restaurant Loyalty Config", {"restaurant": old_id})
             frappe.db.delete("Restaurant Config", {"restaurant": old_id})
-            frappe.db.delete("Restaurant", old_id)
+            frappe.db.delete("Outlet", old_id)
     frappe.db.commit()
 
     for outlet_type, outlets in OUTLETS_BY_TYPE.items():
@@ -1135,7 +1135,7 @@ def run():
         for i, (rest_id, rest_name, lat, lon, _addr) in enumerate(outlets):
             logo = logos[i % len(logos)]
             hero = CDN_VIDEOS[i % len(CDN_VIDEOS)]
-            frappe.db.set_value("Restaurant", rest_id, {"logo": logo, "hero_video": hero})
+            frappe.db.set_value("Outlet", rest_id, {"logo": logo, "hero_video": hero})
             for j in range(5):
                 idx = (i * 5 + j) % 15
                 likes, saves, views = pool["metrics"][idx]
@@ -1169,7 +1169,7 @@ def run():
     # ── 10. Summary ────────────────────────────────────────────────────────────
     print("10/10 Summary:")
     for table, label in [
-        ("Restaurant",               "Restaurants / Outlets"),
+        ("Outlet",               "Restaurants / Outlets"),
         ("Court",                    "Courts"),
         ("Chills",                   "Chills (media)"),
         ("Table Booking",            "Table Bookings (total)"),

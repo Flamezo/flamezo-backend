@@ -1074,7 +1074,7 @@ def get_all_customer_bookings(phone, limit=50):
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", outlet_ids]},
 				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
 			):
@@ -1241,7 +1241,7 @@ def get_customer_booking_history(phone, limit=50):
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", outlet_ids]},
 				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
 			):

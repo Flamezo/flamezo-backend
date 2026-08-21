@@ -34,7 +34,7 @@
    "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
-   "options": "Restaurant",
+   "options": "Outlet",
    "reqd": 1,
    "in_list_view": 1,
    "search_index": 1

@@ -232,7 +232,7 @@ def get_customer_profile(customer_id, outlet_id=None):
 
 		all_rests = set(order_by_rest.keys()) | set(tb_by_rest.keys()) | set(bb_by_rest.keys())
 		for rest_id in all_rests:
-			rest_name = frappe.db.get_value("Restaurant", rest_id, "restaurant_name") or rest_id
+			rest_name = frappe.db.get_value("Outlet", rest_id, "restaurant_name") or rest_id
 			restaurants.append({
 				"outlet_id": rest_id,
 				"outlet_name": rest_name,

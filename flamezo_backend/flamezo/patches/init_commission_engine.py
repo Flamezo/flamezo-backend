@@ -21,7 +21,7 @@ def execute():
     # Restaurants
     frappe.db.sql(
         """
-        UPDATE `tabRestaurant`
+        UPDATE `tabOutlet`
         SET outstanding_commission_paise = COALESCE(outstanding_commission_paise, 0),
             cash_sweep_failure_count    = COALESCE(cash_sweep_failure_count, 0),
             route_mode                  = COALESCE(NULLIF(route_mode, ''), 'flamezo_hold')

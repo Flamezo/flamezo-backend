@@ -6,15 +6,15 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_url
-from flamezo_backend.flamezo.doctype.restaurant.qr_branding import build_table_qr_assets, generate_pdf_from_assets
+from flamezo_backend.flamezo.doctype.outlet.qr_branding import build_table_qr_assets, generate_pdf_from_assets
 
 
-class Restaurant(Document):
+class Outlet(Document):
 	def before_delete(self):
 		"""Cleanup linked records before deleting the restaurant"""
 		# 1. Cleanup User Permissions
 		permissions = frappe.get_all("User Permission", filters={
-			"allow": "Restaurant",
+			"allow": "Outlet",
 			"for_value": self.name
 		})
 		for p in permissions:
@@ -73,7 +73,7 @@ class Restaurant(Document):
 		"""
 		if not self.is_new():
 			# Fetch current balance directly from DB to avoid any cached/stale values
-			db_balance = frappe.db.get_value("Restaurant", self.name, "coins_balance")
+			db_balance = frappe.db.get_value("Outlet", self.name, "coins_balance")
 			
 			# If the document object has a different balance than the DB, 
 			# and it's not explicitly authorized (via record_transaction), REVERT IT to DB value.
@@ -100,7 +100,7 @@ class Restaurant(Document):
 		
 		# Handle referral code passed from UI (referred_by_restaurant_code)
 		if getattr(self, 'referred_by_restaurant_code', None):
-			referrer = frappe.db.get_value("Restaurant", {"referral_code": self.referred_by_restaurant_code}, "name")
+			referrer = frappe.db.get_value("Outlet", {"referral_code": self.referred_by_restaurant_code}, "name")
 			if referrer:
 				self.referred_by_restaurant = referrer
 			else:
@@ -168,7 +168,7 @@ class Restaurant(Document):
 		# Check if restaurant_id already exists, append number if needed
 		restaurant_id = base_id
 		counter = 1
-		while frappe.db.exists("Restaurant", {"restaurant_id": restaurant_id}):
+		while frappe.db.exists("Outlet", {"restaurant_id": restaurant_id}):
 			restaurant_id = f"{base_id}-{counter}"
 			counter += 1
 		
@@ -187,7 +187,7 @@ class Restaurant(Document):
 		new_code = f"DINE-{name_part}-{random_part}"
 		
 		# Collision check
-		while frappe.db.exists("Restaurant", {"referral_code": new_code}):
+		while frappe.db.exists("Outlet", {"referral_code": new_code}):
 			random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
 			new_code = f"DINE-{name_part}-{random_part}"
 			
@@ -199,7 +199,7 @@ class Restaurant(Document):
 		if self.platform_fee_percent is None:
 			updates["platform_fee_percent"] = 7.0
 		if updates:
-			frappe.db.set_value("Restaurant", self.name, updates)
+			frappe.db.set_value("Outlet", self.name, updates)
 			# Reflect the writes back on the in-memory doc for the rest of after_insert.
 			for k, v in updates.items():
 				setattr(self, k, v)
@@ -215,7 +215,7 @@ class Restaurant(Document):
 
 		# Auto-create default calm coupons for new restaurants
 		try:
-			from flamezo_backend.flamezo.doctype.restaurant.default_coupons import create_default_coupons
+			from flamezo_backend.flamezo.doctype.outlet.default_coupons import create_default_coupons
 			create_default_coupons(self.name)
 		except Exception as e:
 			frappe.log_error(f"Failed to auto-create coupons: {str(e)}", "Restaurant Coupon Auto-Creation")
@@ -263,7 +263,7 @@ class Restaurant(Document):
 			# Verify User Permission was created
 			user_permission_exists = frappe.db.exists("User Permission", {
 				"user": user,
-				"allow": "Restaurant",
+				"allow": "Outlet",
 				"for_value": self.name
 			})
 			
@@ -370,7 +370,7 @@ class Restaurant(Document):
 		"""
 		try:
 			import time
-			from flamezo_backend.flamezo.doctype.restaurant.qr_branding import (
+			from flamezo_backend.flamezo.doctype.outlet.qr_branding import (
 				build_table_qr_assets, 
 				build_special_qr_assets,
 				generate_pdf_from_assets
@@ -391,7 +391,7 @@ class Restaurant(Document):
 				"File",
 				{
 					"file_name": file_name,
-					"attached_to_doctype": "Restaurant",
+					"attached_to_doctype": "Outlet",
 					"attached_to_name": self.name,
 				},
 				["name"],
@@ -419,7 +419,7 @@ class Restaurant(Document):
 
 			# Clear URL field before creating new file
 			try:
-				if frappe.db.has_column("Restaurant", "qr_codes_pdf_url"):
+				if frappe.db.has_column("Outlet", "qr_codes_pdf_url"):
 					self.db_set("qr_codes_pdf_url", "", update_modified=False)
 			except Exception:
 				pass
@@ -432,7 +432,7 @@ class Restaurant(Document):
 					"file_name": file_name,
 					"content": pdf_bytes,
 					"is_private": 0,
-					"attached_to_doctype": "Restaurant",
+					"attached_to_doctype": "Outlet",
 					"attached_to_name": self.name,
 				}
 			)
@@ -451,7 +451,7 @@ class Restaurant(Document):
 				file_url += f"?t={timestamp}"
 
 			try:
-				if frappe.db.has_column("Restaurant", "qr_codes_pdf_url"):
+				if frappe.db.has_column("Outlet", "qr_codes_pdf_url"):
 					self.db_set("qr_codes_pdf_url", file_url, update_modified=False)
 			except Exception:
 				pass
@@ -476,7 +476,7 @@ class Restaurant(Document):
 		# First check if File record exists
 		existing_file = frappe.db.get_value("File", {
 			"file_name": file_name,
-			"attached_to_doctype": "Restaurant",
+			"attached_to_doctype": "Outlet",
 			"attached_to_name": self.name
 		}, ["file_url", "name"], as_dict=True)
 		
@@ -496,7 +496,7 @@ class Restaurant(Document):
 						frappe.delete_doc("File", existing_file.name, ignore_permissions=True, force=True)
 						frappe.db.commit()
 						# Clear the URL field
-						if frappe.db.has_column("Restaurant", "qr_codes_pdf_url"):
+						if frappe.db.has_column("Outlet", "qr_codes_pdf_url"):
 							self.db_set("qr_codes_pdf_url", "", update_modified=False)
 				else:
 					# For CDN files, we assume the URL is valid if File record exists
@@ -505,17 +505,17 @@ class Restaurant(Document):
 				pass
 		
 		# Check the qr_codes_pdf_url field as fallback, but validate it
-		doc_url = frappe.db.get_value("Restaurant", self.name, "qr_codes_pdf_url")
+		doc_url = frappe.db.get_value("Outlet", self.name, "qr_codes_pdf_url")
 		if doc_url:
 			# Verify this URL is still valid by checking if File record exists
 			file_exists = frappe.db.exists("File", {
 				"file_name": file_name,
-				"attached_to_doctype": "Restaurant", 
+				"attached_to_doctype": "Outlet", 
 				"attached_to_name": self.name
 			})
 			if not file_exists:
 				# Clear the invalid URL
-				if frappe.db.has_column("Restaurant", "qr_codes_pdf_url"):
+				if frappe.db.has_column("Outlet", "qr_codes_pdf_url"):
 					self.db_set("qr_codes_pdf_url", "", update_modified=False)
 				doc_url = None
 		
@@ -532,7 +532,7 @@ class Restaurant(Document):
 				"File",
 				{
 					"file_name": file_name,
-					"attached_to_doctype": "Restaurant",
+					"attached_to_doctype": "Outlet",
 					"attached_to_name": self.name,
 				},
 				["name"],
@@ -551,7 +551,7 @@ class Restaurant(Document):
 			
 			# Clear the qr_codes_pdf_url field
 			try:
-				if frappe.db.has_column("Restaurant", "qr_codes_pdf_url"):
+				if frappe.db.has_column("Outlet", "qr_codes_pdf_url"):
 					self.db_set("qr_codes_pdf_url", "", update_modified=False)
 			except Exception:
 				pass
@@ -591,7 +591,7 @@ class Restaurant(Document):
 
 	@frappe.whitelist()
 	def get_special_qr_assets(self, force=False):
-		from flamezo_backend.flamezo.doctype.restaurant.qr_branding import build_special_qr_assets
+		from flamezo_backend.flamezo.doctype.outlet.qr_branding import build_special_qr_assets
 		assets = build_special_qr_assets(self, force=frappe.utils.cint(force))
 		return {
 			"restaurant": self.name,
@@ -604,7 +604,7 @@ class Restaurant(Document):
 def get_qr_codes_pdf_url(restaurant):
 	"""Get QR codes PDF URL for a restaurant"""
 	try:
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		pdf_url = restaurant_doc.get_qr_codes_pdf_url()
 		return {
 			"status": "success",
@@ -620,7 +620,7 @@ def get_qr_codes_pdf_url(restaurant):
 
 @frappe.whitelist()
 def get_table_qr_assets(restaurant, force=0):
-	restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+	restaurant_doc = frappe.get_doc("Outlet", restaurant)
 	return restaurant_doc.get_table_qr_assets(force=force)
 
 
@@ -628,7 +628,7 @@ def get_table_qr_assets(restaurant, force=0):
 def delete_qr_codes_pdf(restaurant):
 	"""Delete QR codes PDF for a restaurant"""
 	try:
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		result = restaurant_doc.delete_qr_codes_pdf()
 		return {
 			"status": "success",
@@ -641,7 +641,7 @@ def delete_qr_codes_pdf(restaurant):
 
 @frappe.whitelist()
 def get_special_qr_assets(restaurant, force=0):
-	restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+	restaurant_doc = frappe.get_doc("Outlet", restaurant)
 	return restaurant_doc.get_special_qr_assets(force=force)
 
 
@@ -654,7 +654,7 @@ def generate_qr_codes_pdf(restaurant, layout="2x2", background_image=None, qr_ty
 	qr_type: 'dine_in' or 'takeaway'
 	"""
 	frappe.enqueue(
-		"flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf_worker",
+		"flamezo_backend.flamezo.doctype.outlet.outlet.generate_qr_codes_pdf_worker",
 		queue="long",
 		timeout=1500,
 		restaurant=restaurant,
@@ -674,7 +674,7 @@ def generate_qr_codes_pdf_worker(restaurant, layout, background_image, qr_type, 
 	Background worker to actually generate the PDF.
 	"""
 	try:
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		pdf_url = restaurant_doc.generate_table_qr_codes_pdf(layout=layout, background_image=background_image, qr_type=qr_type)
 		
 		frappe.publish_realtime(
@@ -717,7 +717,7 @@ def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_
 		if not resolved_id:
 			return {"success": False, "error": "Missing outlet_id"}
 
-		restaurant_name = frappe.db.get_value("Restaurant", {"restaurant_id": resolved_id}, "name")
+		restaurant_name = frappe.db.get_value("Outlet", {"restaurant_id": resolved_id}, "name")
 		if not restaurant_name:
 			return {"success": False, "error": f"Restaurant {resolved_id} not found"}
 
@@ -725,7 +725,7 @@ def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_
 		table_val = None
 		if table_number:
 			table_number_int = frappe.utils.cint(table_number)
-			max_tables = frappe.db.get_value("Restaurant", restaurant_name, "tables") or 0
+			max_tables = frappe.db.get_value("Outlet", restaurant_name, "tables") or 0
 			if table_number_int > 0 and table_number_int <= max_tables:
 				table_val = str(table_number_int)
 
@@ -759,7 +759,7 @@ def get_qr_scan_analytics(restaurant, days=30):
 	Returns: total scans, per-table breakdown, daily trend, top tables.
 	"""
 	try:
-		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
+		restaurant_doc = frappe.get_doc("Outlet", restaurant)
 		restaurant_name = restaurant_doc.name
 		days_int = frappe.utils.cint(days) or 30
 
@@ -814,7 +814,7 @@ def get_qr_scan_analytics(restaurant, days=30):
 		special_stats = {}
 		
 		# Initial values for order types from known config
-		from flamezo_backend.flamezo.doctype.restaurant.qr_branding import SPECIAL_QR_CONFIGS
+		from flamezo_backend.flamezo.doctype.outlet.qr_branding import SPECIAL_QR_CONFIGS
 		for kt in SPECIAL_QR_CONFIGS.keys():
 			special_stats[kt] = 0
 

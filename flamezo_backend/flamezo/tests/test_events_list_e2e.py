@@ -49,7 +49,7 @@ def _make_restaurant(suffix, is_active=1):
     r = make_restaurant(name, outlet_type="dining")
     # make_restaurant sets is_active=1 by default; explicitly set for inactive tests
     if not is_active:
-        frappe.db.set_value("Restaurant", name, "is_active", 0)
+        frappe.db.set_value("Outlet", name, "is_active", 0)
         frappe.db.commit()
     return r.name
 
@@ -77,7 +77,7 @@ def _make_event(restaurant_name, title, status="upcoming", is_active=1,
 
 def _cleanup():
     frappe.db.sql("DELETE FROM `tabEvent` WHERE description='E2E test event'")
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
 
 
@@ -135,7 +135,7 @@ class TestGetEventsConsumerMode(unittest.TestCase):
             self.assertNotIn("Event From Inactive Rest", titles)
         finally:
             frappe.db.sql("DELETE FROM `tabEvent` WHERE title='Event From Inactive Rest'")
-            frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name=%s", inactive_rest)
+            frappe.db.sql("DELETE FROM `tabOutlet` WHERE name=%s", inactive_rest)
             frappe.db.commit()
 
     def test_inactive_event_excluded(self):
@@ -163,7 +163,7 @@ class TestGetEventsConsumerMode(unittest.TestCase):
             frappe.db.sql(
                 "UPDATE `tabEvent` SET is_active=1 WHERE description='E2E test event'"
             )
-            frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name=%s", empty_rest)
+            frappe.db.sql("DELETE FROM `tabOutlet` WHERE name=%s", empty_rest)
             frappe.db.commit()
 
 
@@ -198,7 +198,7 @@ class TestGetEventsRestaurantMode(unittest.TestCase):
             self.assertTrue(result["success"])
             self.assertEqual(result["data"]["events"], [])
         finally:
-            frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name=%s", empty_rest)
+            frappe.db.sql("DELETE FROM `tabOutlet` WHERE name=%s", empty_rest)
             frappe.db.commit()
 
 

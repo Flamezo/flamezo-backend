@@ -39,7 +39,7 @@ def get_restaurant_permission_query_conditions(user, doctype=None, **kwargs):
 			restaurant_list = ",".join([f'"{r}"' for r in restaurant_ids])
 			
 			# For Restaurant doctype, filter by name directly
-			if doctype == "Restaurant":
+			if doctype == "Outlet":
 				return f"`tab{doctype}`.name IN ({restaurant_list})"
 			
 			# For other doctypes, filter by restaurant field if it exists
@@ -85,7 +85,7 @@ def has_restaurant_permission(doc, ptype="read", user=None, **kwargs):
 		
 		try:
 			# For Restaurant doctype, check by name
-			if doctype == "Restaurant":
+			if doctype == "Outlet":
 				restaurant_ids = get_user_restaurant_ids(user)
 				return doc.name in restaurant_ids
 			

@@ -19,7 +19,7 @@ def execute():
 	rows = frappe.db.sql(
 		"""
 		SELECT r.name AS restaurant, c.logo AS config_logo
-		FROM `tabRestaurant` r
+		FROM `tabOutlet` r
 		JOIN `tabRestaurant Config` c ON c.restaurant = r.name
 		WHERE (r.logo IS NULL OR r.logo = '')
 		  AND c.logo IS NOT NULL AND c.logo != ''
@@ -27,7 +27,7 @@ def execute():
 		as_dict=True,
 	)
 	for row in rows:
-		frappe.db.set_value("Restaurant", row.restaurant, "logo", row.config_logo, update_modified=False)
+		frappe.db.set_value("Outlet", row.restaurant, "logo", row.config_logo, update_modified=False)
 	frappe.db.commit()
 	frappe.logger().info(f"[consolidate_logo_to_restaurant] backfilled {len(rows)} outlet(s)")
 

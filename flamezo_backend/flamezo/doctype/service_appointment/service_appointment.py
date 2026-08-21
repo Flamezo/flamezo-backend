@@ -6,7 +6,7 @@ from frappe.utils import now_datetime
 class ServiceAppointment(Document):
 	def validate(self):
 		if self.restaurant and not self.outlet_type:
-			self.outlet_type = frappe.db.get_value("Restaurant", self.restaurant, "outlet_type") or ""
+			self.outlet_type = frappe.db.get_value("Outlet", self.restaurant, "outlet_type") or ""
 
 	def on_update(self):
 		if self.status == "Confirmed" and not self.confirmed_at:

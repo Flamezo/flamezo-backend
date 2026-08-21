@@ -1686,7 +1686,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         self.assertEqual(
-            frappe.db.get_value("Restaurant", self._res, "enable_loyalty"), 0
+            frappe.db.get_value("Outlet", self._res, "enable_loyalty"), 0
         )
         # Re-enable
         result = update_loyalty_config(
@@ -1694,7 +1694,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         self.assertEqual(
-            frappe.db.get_value("Restaurant", self._res, "enable_loyalty"), 1
+            frappe.db.get_value("Outlet", self._res, "enable_loyalty"), 1
         )
 
     def test_update_config_writes_platform_earn_type(self):

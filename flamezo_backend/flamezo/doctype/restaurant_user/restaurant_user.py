@@ -83,11 +83,11 @@ class RestaurantUser(Document):
 			if create:
 				if not frappe.db.exists("User Permission", {
 					"user": self.user,
-					"allow": "Restaurant",
+					"allow": "Outlet",
 					"for_value": self.restaurant
 				}):
 					frappe.permissions.add_user_permission(
-						doctype="Restaurant",
+						doctype="Outlet",
 						name=self.restaurant,
 						user=self.user,
 						is_default=self.is_default,
@@ -96,7 +96,7 @@ class RestaurantUser(Document):
 			else:
 				try:
 					frappe.permissions.remove_user_permission(
-						doctype="Restaurant",
+						doctype="Outlet",
 						name=self.restaurant,
 						user=self.user,
 						ignore_permissions=True

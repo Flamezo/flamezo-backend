@@ -163,7 +163,7 @@ def get_my_orders(phone=None, page=1, limit=20, status=None, outlet_id=None):
 		rest_meta = {}
 		if rest_ids:
 			for r in frappe.get_all(
-				"Restaurant",
+				"Outlet",
 				filters={"name": ["in", rest_ids]},
 				fields=["name", "restaurant_name", "logo"],
 			):
@@ -230,7 +230,7 @@ def get_order_detail(order_id=None, phone=None):
 		# Enrich with restaurant info
 		if doc.restaurant:
 			rm = frappe.db.get_value(
-				"Restaurant", doc.restaurant,
+				"Outlet", doc.restaurant,
 				["restaurant_name", "logo", "city"], as_dict=True,
 			) or {}
 			fmt["outlet_name"] = rm.get("restaurant_name") or doc.restaurant

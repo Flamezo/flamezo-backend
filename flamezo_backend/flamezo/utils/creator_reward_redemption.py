@@ -167,7 +167,7 @@ def redeem_creator_reward(creator_name: str, outlet: str, amount: float) -> dict
 	"""
 	if not frappe.db.exists("Flamezo Creator", creator_name):
 		frappe.throw(f"Unknown creator: {creator_name}")
-	if not frappe.db.exists("Restaurant", outlet):
+	if not frappe.db.exists("Outlet", outlet):
 		frappe.throw(f"Unknown outlet: {outlet}")
 
 	balance = get_available_balance(creator_name)

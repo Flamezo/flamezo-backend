@@ -187,11 +187,11 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
     if not is_supervisor():
         frappe.throw(_("Permission denied"), frappe.PermissionError)
 
-    if not frappe.db.exists("Restaurant", outlet_id):
+    if not frappe.db.exists("Outlet", outlet_id):
         return {"success": False, "error": "Outlet not found"}
 
     r = frappe.db.get_value(
-        "Restaurant", outlet_id,
+        "Outlet", outlet_id,
         ["restaurant_name", "address", "city", "google_place_id", "latitude", "longitude"],
         as_dict=True,
     )
@@ -209,7 +209,7 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
         except requests.RequestException as e:
             return {"success": False, "error": f"Could not verify manual place_id: {e}"}
 
-        frappe.db.set_value("Restaurant", outlet_id, "google_place_id", place["id"], update_modified=False)
+        frappe.db.set_value("Outlet", outlet_id, "google_place_id", place["id"], update_modified=False)
         frappe.db.commit()
         return {
             "success": True, "already_resolved": False, "manual": True,
@@ -264,7 +264,7 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
         }
 
     place_id = place["id"]
-    frappe.db.set_value("Restaurant", outlet_id, "google_place_id", place_id, update_modified=False)
+    frappe.db.set_value("Outlet", outlet_id, "google_place_id", place_id, update_modified=False)
     frappe.db.commit()
 
     return {
@@ -296,11 +296,11 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
 
     max_photos = int(max_photos) if max_photos else MAX_PHOTOS_PER_OUTLET_DEFAULT
 
-    if not frappe.db.exists("Restaurant", outlet_id):
+    if not frappe.db.exists("Outlet", outlet_id):
         return {"success": False, "error": "Outlet not found"}
 
     r = frappe.db.get_value(
-        "Restaurant", outlet_id,
+        "Outlet", outlet_id,
         ["restaurant_name", "address", "city", "google_place_id"],
         as_dict=True,
     )
@@ -338,7 +338,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
     # Existing hashes for this outlet's already-synced Google photos, for dedup.
     existing_hashes = set(frappe.get_all(
         "Media Asset",
-        filters={"restaurant": outlet_id, "owner_doctype": "Restaurant", "media_role": "restaurant_gallery_image", "source_filename": ["like", "google_places_%"]},
+        filters={"restaurant": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image", "source_filename": ["like", "google_places_%"]},
         pluck="source_sha256",
     ))
 
@@ -369,7 +369,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
         media_id = f"med_gp_{frappe.generate_hash(length=12)}"
         filename = f"google_places_{i+1:02d}.jpg"
         object_key = generate_object_key(
-            outlet_id, "Restaurant", outlet_id, "restaurant_gallery_image", media_id, filename,
+            outlet_id, "Outlet", outlet_id, "restaurant_gallery_image", media_id, filename,
         )
 
         try:
@@ -382,7 +382,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
             "doctype": "Media Asset",
             "media_id": media_id,
             "restaurant": outlet_id,
-            "owner_doctype": "Restaurant",
+            "owner_doctype": "Outlet",
             "owner_name": outlet_id,
             "media_role": "restaurant_gallery_image",
             "media_kind": "image",
@@ -430,10 +430,10 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
             now=False,
         )
 
-    frappe.db.set_value("Restaurant", outlet_id, {
+    frappe.db.set_value("Outlet", outlet_id, {
         "google_place_photos_synced_at": now_datetime(),
         "google_place_photos_count": frappe.db.count("Media Asset", {
-            "restaurant": outlet_id, "owner_doctype": "Restaurant", "media_role": "restaurant_gallery_image",
+            "restaurant": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image",
             "source_filename": ["like", "google_places_%"],
         }),
     }, update_modified=False)
@@ -466,7 +466,7 @@ def bulk_sync_google_photos(outlet_ids=None, max_photos=None, only_active=1):
 
     if not outlet_ids:
         filters = {"is_active": 1} if int(only_active) else {}
-        outlet_ids = frappe.get_all("Restaurant", filters=filters, pluck="name")
+        outlet_ids = frappe.get_all("Outlet", filters=filters, pluck="name")
 
     results = []
     for outlet_id in outlet_ids:
@@ -497,7 +497,7 @@ def list_outlets_needing_manual_google_photos():
         frappe.throw(_("Permission denied"), frappe.PermissionError)
 
     return frappe.get_all(
-        "Restaurant",
+        "Outlet",
         filters={"is_active": 1, "google_place_id": ["in", ["", None]]},
         fields=["name", "restaurant_name", "address", "city", "outlet_type"],
         order_by="creation desc",
@@ -539,7 +539,7 @@ def backfill_missing_google_photos():
     """
     BATCH_SIZE = 20
     outlet_ids = frappe.get_all(
-        "Restaurant",
+        "Outlet",
         filters={"is_active": 1, "google_place_photos_synced_at": ["is", "not set"]},
         pluck="name",
         limit_page_length=BATCH_SIZE,
@@ -686,11 +686,11 @@ def sync_outlet_details_from_google(outlet_id):
     if not is_supervisor():
         frappe.throw(_("Permission denied"), frappe.PermissionError)
 
-    if not frappe.db.exists("Restaurant", outlet_id):
+    if not frappe.db.exists("Outlet", outlet_id):
         return {"success": False, "error": "Outlet not found"}
 
     r = frappe.db.get_value(
-        "Restaurant", outlet_id,
+        "Outlet", outlet_id,
         ["google_place_id", "amenities_mask"],
         as_dict=True,
     )
@@ -733,7 +733,7 @@ def sync_outlet_details_from_google(outlet_id):
     if hours:
         updates["hours_json"] = json.dumps(hours)
 
-    frappe.db.set_value("Restaurant", outlet_id, updates, update_modified=False)
+    frappe.db.set_value("Outlet", outlet_id, updates, update_modified=False)
     frappe.db.commit()
     frappe.cache().delete_value(f"flamezo:outlet_detail:{outlet_id}")
 
@@ -755,7 +755,7 @@ def bulk_sync_google_details(outlet_ids=None, only_active=1):
 
     if not outlet_ids:
         filters = {"is_active": 1} if int(only_active) else {}
-        outlet_ids = frappe.get_all("Restaurant", filters=filters, pluck="name")
+        outlet_ids = frappe.get_all("Outlet", filters=filters, pluck="name")
 
     results = []
     for outlet_id in outlet_ids:

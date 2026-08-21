@@ -49,7 +49,7 @@
    "fieldname": "restaurant",
    "fieldtype": "Link",
    "label": "Outlet (context)",
-   "options": "Restaurant",
+   "options": "Outlet",
    "search_index": 1
   },
   {

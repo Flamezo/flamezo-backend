@@ -60,7 +60,7 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	# truth (Restaurant Config.logo was removed).
 	if restaurant_doc.logo:
 		logo_url = get_media_asset_data(
-			"Restaurant",
+			"Outlet",
 			restaurant_doc.name,
 			"restaurant_logo",
 			restaurant_doc.logo,

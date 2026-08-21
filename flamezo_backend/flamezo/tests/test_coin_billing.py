@@ -137,7 +137,7 @@ class TestRecordTransaction(unittest.TestCase):
         )
         self.assertAlmostEqual(new_bal, 1200.0, places=2)
         self.assertAlmostEqual(
-            frappe.db.get_value("Restaurant", self._res_name, "coins_balance"),
+            frappe.db.get_value("Outlet", self._res_name, "coins_balance"),
             1200.0, places=2
         )
 
@@ -238,7 +238,7 @@ class TestRecordTransaction(unittest.TestCase):
         """
         reset_restaurant_balance(self._res_name, 100.0)
         with patch.object(
-            frappe.get_doc("Restaurant", self._res_name).__class__,
+            frappe.get_doc("Outlet", self._res_name).__class__,
             "suspend_restaurant_billing",
             return_value=None
         ) as mock_suspend:
@@ -249,7 +249,7 @@ class TestRecordTransaction(unittest.TestCase):
         """If new balance is -99, suspension must NOT be triggered."""
         reset_restaurant_balance(self._res_name, 1.0)
         with patch.object(
-            frappe.get_doc("Restaurant", self._res_name).__class__,
+            frappe.get_doc("Outlet", self._res_name).__class__,
             "suspend_restaurant_billing",
             return_value=None
         ) as mock_suspend:
@@ -381,16 +381,16 @@ class TestCreditAutoPayCoinsIdempotency(unittest.TestCase):
 
     def test_credits_on_first_call(self):
         self._credit_autopay_coins(self._res_name, 1000.0, "pay_unique_111", 200.0)
-        new_bal = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
+        new_bal = frappe.db.get_value("Outlet", self._res_name, "coins_balance")
         self.assertAlmostEqual(new_bal, 1500.0, places=2)
 
     def test_idempotent_on_duplicate_payment_id(self):
         """Second call with same payment_id must not credit again."""
         self._credit_autopay_coins(self._res_name, 1000.0, "pay_dup_222", 200.0)
-        balance_after_first = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
+        balance_after_first = frappe.db.get_value("Outlet", self._res_name, "coins_balance")
 
         self._credit_autopay_coins(self._res_name, 1000.0, "pay_dup_222", 200.0)
-        balance_after_second = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
+        balance_after_second = frappe.db.get_value("Outlet", self._res_name, "coins_balance")
 
         self.assertAlmostEqual(balance_after_first, balance_after_second, places=2,
                                msg="Duplicate payment_id must not credit twice")
@@ -399,7 +399,7 @@ class TestCreditAutoPayCoinsIdempotency(unittest.TestCase):
         """Two distinct payment IDs must both result in credits."""
         self._credit_autopay_coins(self._res_name, 500.0, "pay_A", 200.0)
         self._credit_autopay_coins(self._res_name, 500.0, "pay_B", 200.0)
-        final_bal = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
+        final_bal = frappe.db.get_value("Outlet", self._res_name, "coins_balance")
         self.assertAlmostEqual(final_bal, 1500.0, places=2)
 
 
@@ -522,9 +522,9 @@ class TestProcessReferralBonus(unittest.TestCase):
         reset_restaurant_balance(solo_res, 0.0)
         clear_transactions(solo_res)
         try:
-            bal_before = frappe.db.get_value("Restaurant", solo_res, "coins_balance")
+            bal_before = frappe.db.get_value("Outlet", solo_res, "coins_balance")
             self.process_referral_bonus(solo_res)  # must not raise
-            bal_after = frappe.db.get_value("Restaurant", solo_res, "coins_balance")
+            bal_after = frappe.db.get_value("Outlet", solo_res, "coins_balance")
             # No bonus must be granted — balance unchanged
             self.assertAlmostEqual(bal_after, bal_before, places=2)
         finally:
@@ -537,13 +537,13 @@ class TestProcessReferralBonus(unittest.TestCase):
         """
         # Simulate the first Purchase being already recorded (txn_count will be 1)
         make_coin_transaction(self._referee, "Purchase", 1000.0, "First recharge")
-        referrer_bal_before = frappe.db.get_value("Restaurant", self._referrer, "coins_balance")
-        referee_bal_before = frappe.db.get_value("Restaurant", self._referee, "coins_balance")
+        referrer_bal_before = frappe.db.get_value("Outlet", self._referrer, "coins_balance")
+        referee_bal_before = frappe.db.get_value("Outlet", self._referee, "coins_balance")
 
         self.process_referral_bonus(self._referee)
 
-        referrer_bal_after = frappe.db.get_value("Restaurant", self._referrer, "coins_balance")
-        referee_bal_after = frappe.db.get_value("Restaurant", self._referee, "coins_balance")
+        referrer_bal_after = frappe.db.get_value("Outlet", self._referrer, "coins_balance")
+        referee_bal_after = frappe.db.get_value("Outlet", self._referee, "coins_balance")
 
         self.assertAlmostEqual(referrer_bal_after - referrer_bal_before, 500.0, places=2,
                                msg="Referrer must receive ₹500 bonus")
@@ -555,9 +555,9 @@ class TestProcessReferralBonus(unittest.TestCase):
         make_coin_transaction(self._referee, "Purchase", 1000.0, "First recharge")
         make_coin_transaction(self._referee, "Purchase", 500.0, "Second recharge")
 
-        referrer_bal_before = frappe.db.get_value("Restaurant", self._referrer, "coins_balance")
+        referrer_bal_before = frappe.db.get_value("Outlet", self._referrer, "coins_balance")
         self.process_referral_bonus(self._referee)
-        referrer_bal_after = frappe.db.get_value("Restaurant", self._referrer, "coins_balance")
+        referrer_bal_after = frappe.db.get_value("Outlet", self._referrer, "coins_balance")
 
         self.assertAlmostEqual(referrer_bal_after, referrer_bal_before, places=2,
                                msg="No bonus should be granted for second purchase")
@@ -567,19 +567,19 @@ class TestProcessReferralBonus(unittest.TestCase):
         make_coin_transaction(self._referee, "Purchase", 1000.0, "First recharge")
         self.process_referral_bonus(self._referee)  # grants bonus
 
-        referrer_bal_mid = frappe.db.get_value("Restaurant", self._referrer, "coins_balance")
-        referee_bal_mid = frappe.db.get_value("Restaurant", self._referee, "coins_balance")
+        referrer_bal_mid = frappe.db.get_value("Outlet", self._referrer, "coins_balance")
+        referee_bal_mid = frappe.db.get_value("Outlet", self._referee, "coins_balance")
 
         # Second call — must be a no-op
         self.process_referral_bonus(self._referee)
 
         self.assertAlmostEqual(
-            frappe.db.get_value("Restaurant", self._referrer, "coins_balance"),
+            frappe.db.get_value("Outlet", self._referrer, "coins_balance"),
             referrer_bal_mid, places=2,
             msg="Referrer bonus must not be granted twice"
         )
         self.assertAlmostEqual(
-            frappe.db.get_value("Restaurant", self._referee, "coins_balance"),
+            frappe.db.get_value("Outlet", self._referee, "coins_balance"),
             referee_bal_mid, places=2,
             msg="Referee bonus must not be granted twice"
         )

@@ -86,7 +86,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 	"""
 	try:
 		_outlet_id = validate_restaurant_for_api(outlet_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
+		restaurant = frappe.get_doc("Outlet", cast(str, _outlet_id))
 
 		# Active-restaurant gate.
 		# New model: every onboarded restaurant gets online payments. The only
@@ -249,7 +249,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 						redeemed_coins = balance
 
 					# Plan-tiered redemption cap: GOLD 30% (single active tier).
-					plan = frappe.db.get_value("Restaurant", _outlet_id, "plan_type") or "GOLD"
+					plan = frappe.db.get_value("Outlet", _outlet_id, "plan_type") or "GOLD"
 					max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 					loyalty_discount = float(redeemed_coins)  # coin_value_in_inr is always 1
 					max_ld = orig_subtotal * max_redeem_pct
@@ -405,7 +405,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 			"notes": {
 				"order_id": order_doc.name,
 				"outlet_id": outlet_id,
-				"outlet_name": frappe.db.get_value("Restaurant", outlet_id, "restaurant_name") or outlet_id,
+				"outlet_name": frappe.db.get_value("Outlet", outlet_id, "restaurant_name") or outlet_id,
 				"platform_fee": platform_fee_paise,
 				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
@@ -704,7 +704,7 @@ def get_outlet_payment_stats(outlet_id):
 	try:
 		# Validate outlet (returns restaurant doc name), then fetch doc
 		_outlet_id = validate_restaurant_for_api(outlet_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
+		restaurant = frappe.get_doc("Outlet", cast(str, _outlet_id))
 
 		def mask_identifier(value, prefix_len=4):
 			if not value:
@@ -756,7 +756,7 @@ def create_razorpay_customer_and_token(outlet_id, customer_name, customer_email,
 	"""Create a Razorpay customer record and optionally store a token id for recurring charges."""
 	try:
 		_outlet_id = validate_restaurant_for_api(outlet_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _outlet_id))
+		restaurant = frappe.get_doc("Outlet", cast(str, _outlet_id))
 
 		client = get_razorpay_client()
 
@@ -914,7 +914,7 @@ def confirm_mandate_setup(outlet_id, razorpay_payment_id, razorpay_order_id, raz
 		# 3. Save to restaurant doc
 		if not _outlet_id:
 			raise Exception("Outlet not found")
-		restarurant_doc = frappe.get_doc("Restaurant", _outlet_id)
+		restarurant_doc = frappe.get_doc("Outlet", _outlet_id)
 		updated = False
 		
 		if customer_id and not restarurant_doc.razorpay_customer_id:
@@ -1020,20 +1020,20 @@ def schedule_monthly_billing():
 		from datetime import datetime
 		current_month = datetime.now().strftime("%Y-%m")
 		# For each active restaurant, compute GMV and create ledger row if not present
-		restaurants = frappe.get_all("Restaurant", filters={"is_active": 1}, fields=["name"])
+		restaurants = frappe.get_all("Outlet", filters={"is_active": 1}, fields=["name"])
 		created = []
 		for r in restaurants:
 			if frappe.db.exists("Monthly Billing Ledger", {"restaurant": r.name, "billing_month": current_month}):
 				continue
 			# Sum completed orders for month
 			total = frappe.db.sql("""
-				SELECT COALESCE(SUM(total),0) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabRestaurant` WHERE 1=0) 
+				SELECT COALESCE(SUM(total),0) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) 
 				WHERE restaurant=%s AND payment_status='completed' AND DATE_FORMAT(creation, '%%Y-%%m')=%s
 			""", (r.name, current_month))[0][0] or 0
 			# Convert to paise
 			total_paise = int(float(total) * 100)
 			# Fetch commission settings from Restaurant
-			res_doc = frappe.get_doc("Restaurant", r.name)
+			res_doc = frappe.get_doc("Outlet", r.name)
 			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
 			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
 
@@ -1094,7 +1094,7 @@ def charge_monthly_bill(ledger_name):
 		if ledger.payment_status == "paid":
 			return {"success": False, "error": "Already paid"}
 
-		restaurant = frappe.get_doc("Restaurant", ledger.restaurant)
+		restaurant = frappe.get_doc("Outlet", ledger.restaurant)
 		if not restaurant.razorpay_customer_id or not restaurant.razorpay_token_id:
 			return {"success": False, "error": "Outlet missing customer/token"}
 
@@ -1285,7 +1285,7 @@ def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, ski
 
 		# Restaurant's current success-share % — used to ESTIMATE the split for older
 		# orders that never persisted it (their split write failed before migration).
-		fee_pct = flt(frappe.db.get_value("Restaurant", outlet_id, "platform_fee_percent")) or 0.0
+		fee_pct = flt(frappe.db.get_value("Outlet", outlet_id, "platform_fee_percent")) or 0.0
 
 		def _breakdown(o):
 			# `total` is the amount the customer actually paid (already after any

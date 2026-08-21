@@ -100,7 +100,7 @@ def _cleanup(restaurant):
         frappe.delete_doc("Catalogue Item", item.name, ignore_permissions=True)
     for cat in frappe.get_all("Catalogue Category", {"restaurant": restaurant}, ["name"]):
         frappe.delete_doc("Catalogue Category", cat.name, ignore_permissions=True)
-    frappe.db.delete("Restaurant", restaurant)
+    frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
 
@@ -202,7 +202,7 @@ class TestGetCatalogue(unittest.TestCase):
             self.assertTrue(res["success"])
             self.assertEqual(res["data"]["categories"], [])
         finally:
-            frappe.db.delete("Restaurant", empty_rest)
+            frappe.db.delete("Outlet", empty_rest)
             frappe.db.commit()
 
     def test_inactive_item_excluded(self):
@@ -258,7 +258,7 @@ class TestGetCatalogueItem(unittest.TestCase):
             self.assertFalse(res["success"])
             self.assertEqual(res["error"]["code"], "NOT_FOUND")
         finally:
-            frappe.db.delete("Restaurant", other)
+            frappe.db.delete("Outlet", other)
             frappe.db.commit()
 
     def test_inactive_item_returns_not_found(self):

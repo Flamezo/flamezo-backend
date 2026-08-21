@@ -187,7 +187,7 @@ def _get_price_tier(avg_price: float) -> str:
 def _get_outlet_context(outlet_id: str) -> dict[str, Any]:
     """Fetch all relevant restaurant data for the AI prompt."""
     restaurant = frappe.db.get_value(
-        "Restaurant",
+        "Outlet",
         outlet_id,
         [
             "restaurant_name", "city", "state", "currency",
@@ -298,7 +298,7 @@ def _check_quota_status(outlet_id: str) -> dict[str, Any]:
     Returns {"used": int, "limit": int, "free_remaining": int, "resets_on": str}
     """
     restaurant = frappe.db.get_value(
-        "Restaurant", outlet_id,
+        "Outlet", outlet_id,
         ["ai_coupon_generations_this_month", "ai_coupon_quota_reset_month"],
         as_dict=True,
     )
@@ -324,7 +324,7 @@ def _check_and_increment_quota(outlet_id: str) -> dict[str, Any]:
     Returns {"allowed": bool, "used": int, "limit": int, "free_remaining": int, "resets_on": str}
     """
     restaurant = frappe.db.get_value(
-        "Restaurant", outlet_id,
+        "Outlet", outlet_id,
         ["ai_coupon_generations_this_month", "ai_coupon_quota_reset_month"],
         as_dict=True,
     )
@@ -338,7 +338,7 @@ def _check_and_increment_quota(outlet_id: str) -> dict[str, Any]:
 
     if reset_month != current_month:
         used = 0
-        frappe.db.set_value("Restaurant", outlet_id, {
+        frappe.db.set_value("Outlet", outlet_id, {
             "ai_coupon_generations_this_month": 0,
             "ai_coupon_quota_reset_month": current_month,
         }, update_modified=False)
@@ -350,9 +350,9 @@ def _check_and_increment_quota(outlet_id: str) -> dict[str, Any]:
                 "free_remaining": 0, "resets_on": resets_on}
 
     new_used = used + 1
-    frappe.db.set_value("Restaurant", outlet_id, {
+    frappe.db.set_value("Outlet", outlet_id, {
         "ai_coupon_generations_this_month": new_used,
-        "total_ai_generations": (frappe.db.get_value("Restaurant", outlet_id, "total_ai_generations") or 0) + 1,
+        "total_ai_generations": (frappe.db.get_value("Outlet", outlet_id, "total_ai_generations") or 0) + 1,
     }, update_modified=False)
     frappe.db.commit()
 
@@ -1030,8 +1030,8 @@ def generate_suggestions(
         raw_text = response.text.strip()
     except Exception as e:
         # Roll back quota increment since generation failed
-        used = int(frappe.db.get_value("Restaurant", outlet_id, "ai_coupon_generations_this_month") or 1)
-        frappe.db.set_value("Restaurant", outlet_id,
+        used = int(frappe.db.get_value("Outlet", outlet_id, "ai_coupon_generations_this_month") or 1)
+        frappe.db.set_value("Outlet", outlet_id,
             {"ai_coupon_generations_this_month": max(used - 1, 0)}, update_modified=False)
         frappe.db.commit()
         return handle_ai_error(e)

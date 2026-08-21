@@ -624,7 +624,7 @@ def generate_coupon_suggestions(outlet_id, tone="attractive", offer_type_filter=
 
 		if not quota_status["free_remaining"]:
 			# Quota exhausted — deduct 2 coins per generation
-			balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+			balance = flt(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 			if balance < COINS_PER_AI_COUPON:
 				return {
 					"success": False,
@@ -697,7 +697,7 @@ def get_ai_coupon_quota(outlet_id):
 			_check_quota_status, FREE_MONTHLY_QUOTA,
 		)
 		status = _check_quota_status(restaurant)
-		balance = flt(frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0)
+		balance = flt(frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0)
 		return {
 			"success": True,
 			"data": {
@@ -1294,7 +1294,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 
 		# Build the pay-bill deep link so the frontend can surface it immediately too
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {
@@ -1398,7 +1398,7 @@ def claim_offer(outlet_id, coupon_id):
 		)
 
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Restaurant", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {

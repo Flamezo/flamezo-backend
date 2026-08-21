@@ -198,7 +198,7 @@ def _cleanup():
         "DELETE FROM `tabFlamezo Creator` WHERE customer_phone IN (%s, %s)",
         [_PHONE_A, _PHONE_B],
     )
-    frappe.db.sql("DELETE FROM `tabRestaurant` WHERE name LIKE %s", [f"{_PREFIX}%"])
+    frappe.db.sql("DELETE FROM `tabOutlet` WHERE name LIKE %s", [f"{_PREFIX}%"])
     frappe.db.commit()
     _clear_feed_cache()
 

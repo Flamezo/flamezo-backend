@@ -91,7 +91,7 @@ def get_loyalty_summary(outlet_id, phone):
 		lifetime_coins = sum(e.coins for e in entries if e.transaction_type == 'Earn' and e.is_settled == 1)
 		
 		cross_redemption = is_cross_restaurant_redemption_enabled()
-		outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or outlet_id
 
 		return {
 			"success": True,
@@ -122,7 +122,7 @@ def get_loyalty_config(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Check if loyalty is enabled for this outlet
-		is_enabled = frappe.db.get_value("Restaurant", restaurant, "enable_loyalty")
+		is_enabled = frappe.db.get_value("Outlet", restaurant, "enable_loyalty")
 		if not is_enabled:
 			return {"success": True, "data": None}
 
@@ -171,12 +171,12 @@ def get_loyalty_config(outlet_id):
 		}
 
 		# Add current outlet's city
-		outlet_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
+		outlet_info = frappe.db.get_value("Outlet", restaurant, ["city", "address", "company"], as_dict=True)
 		config["city"] = outlet_info.city or "Surat"
 		cross_redemption = is_cross_restaurant_redemption_enabled()
 		config["cross_outlet_redemption_enabled"] = cross_redemption
 		config["earning_outlet_name"] = None if cross_redemption else (
-			frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or outlet_id
+			frappe.db.get_value("Outlet", restaurant, "restaurant_name") or outlet_id
 		)
 
 		# Fetch other outlets (Real + Mock)
@@ -187,7 +187,7 @@ def get_loyalty_config(outlet_id):
 			filters["city"] = outlet_info.city
 
 		other_outlets = frappe.get_all(
-			"Restaurant",
+			"Outlet",
 			filters=filters,
 			fields=["restaurant_id as id", "restaurant_name as name", "logo as imageSrc", "address", "city"],
 			limit=5
@@ -573,13 +573,13 @@ def get_referral_details(identifier):
 		referrer_full_name = frappe.db.get_value("Customer", link_info.referrer, "customer_name") or link_info.referrer
 		# Swiggy/Zomato style: Show first name only for privacy
 		referrer_name = referrer_full_name.split(' ')[0] if referrer_full_name else link_info.referrer
-		outlet_name = frappe.db.get_value("Restaurant", link_info.restaurant, "name")
+		outlet_name = frappe.db.get_value("Outlet", link_info.restaurant, "name")
 		
 		# Get welcome coins from platform config (source of truth)
 		welcome_coins = get_welcome_reward_coins()
 		
 		# Get outlet logo — Restaurant.logo is the single source of truth
-		logo = frappe.db.get_value("Restaurant", link_info.restaurant, "logo")
+		logo = frappe.db.get_value("Outlet", link_info.restaurant, "logo")
 		# Using logo as fallback for banner as ‘banner_image’ field doesn’t exist
 		banner = logo 
 		
@@ -707,7 +707,7 @@ def update_loyalty_config(outlet_id, config, enable_loyalty=None):
 		if enable_loyalty is not None:
 			enabled = 1 if enable_loyalty else 0
 
-			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", enabled)
+			frappe.db.set_value("Outlet", restaurant, "enable_loyalty", enabled)
 			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
 
 			# Under the single-tier model loyalty and ordering are independent —

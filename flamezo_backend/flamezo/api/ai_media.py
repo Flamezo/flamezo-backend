@@ -58,13 +58,13 @@ def _get_outlet_config_name(restaurant):
     if config_name:
         return config_name
 
-    outlet_name = frappe.db.get_value("Restaurant", restaurant, "restaurant_name") or restaurant
+    outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
     config_doc = frappe.get_doc({
         "doctype": "Restaurant Config",
         "restaurant": restaurant,
         "restaurant_name": outlet_name,
         "default_theme": "light",
-        "currency": frappe.db.get_value("Restaurant", restaurant, "currency") or "INR",
+        "currency": frappe.db.get_value("Outlet", restaurant, "currency") or "INR",
         "menu_layout": "2 Columns",
     })
     config_doc.insert(ignore_permissions=True)
@@ -262,7 +262,7 @@ def enqueue_enhancement(restaurant, owner_doctype, owner_name, original_image_ur
     COIN_COST = BASE_COST + BRANDING_COST
 
     # Step 1: Verify coin balance before even creating the doc
-    balance = frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0.0
+    balance = frappe.db.get_value("Outlet", restaurant, "coins_balance") or 0.0
     if balance < COIN_COST:
         frappe.throw(
             f"Insufficient Wallet Balance (₹). You need {COIN_COST} coins but only have {balance}. "
@@ -808,7 +808,7 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
     
     try:
         # Get extra context
-        outlet_name = frappe.db.get_value("Restaurant", doc.restaurant, "restaurant_name")
+        outlet_name = frappe.db.get_value("Outlet", doc.restaurant, "restaurant_name")
         dish_name = "Dish"
         dish_description = ""
         dish_category = ""

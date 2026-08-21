@@ -297,7 +297,7 @@ def _get_tagged_outlets_map(post_ids):
         f"""
         SELECT t.post AS tag_post, {outlet_cols}
         FROM `tabCreator Club Post Tag` t
-        JOIN `tabRestaurant` r ON r.name = t.outlet
+        JOIN `tabOutlet` r ON r.name = t.outlet
         WHERE t.post IN ({post_placeholders})
         ORDER BY t.creation ASC
         """,
@@ -529,7 +529,7 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
     tag_ids = list(dict.fromkeys(tag_ids))[:5]  # dedupe, cap at 5 tagged outlets
     if tag_ids:
         valid = frappe.db.sql_list(
-            f"""SELECT name FROM `tabRestaurant` WHERE is_active=1 AND name IN ({",".join(["%s"] * len(tag_ids))})""",
+            f"""SELECT name FROM `tabOutlet` WHERE is_active=1 AND name IN ({",".join(["%s"] * len(tag_ids))})""",
             tag_ids,
         )
         tag_ids = [t for t in tag_ids if t in valid]

@@ -16,7 +16,7 @@ def execute():
 	Runs in [post_model_sync] so the Coupon doctype (incl. review_reward_type) is
 	already synced. Safe to re-run.
 	"""
-	from flamezo_backend.flamezo.doctype.restaurant.default_coupons import create_default_coupons
+	from flamezo_backend.flamezo.doctype.outlet.default_coupons import create_default_coupons
 
 	# 1. Rename legacy REVIEW50 → GOOGLEREVIEW
 	for c in frappe.get_all(
@@ -33,7 +33,7 @@ def execute():
 
 	# 2. Create the default coupons for restaurants missing them
 	created = 0
-	for name in frappe.get_all("Restaurant", pluck="name"):
+	for name in frappe.get_all("Outlet", pluck="name"):
 		try:
 			created += create_default_coupons(name)
 		except Exception:
