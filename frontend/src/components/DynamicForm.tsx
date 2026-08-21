@@ -61,7 +61,7 @@ interface DynamicFormProps {
 // Character limits for specific doctype fields to ensure UI consistency in ono-menu.
 // Values are derived from actual UI constraints (line-clamp, container width, font size).
 const CHARACTER_LIMITS: Record<string, Record<string, number>> = {
-  'Restaurant Config': {
+  'Outlet Config': {
     'tagline': 70,
     'subtitle': 100,
     'description': 200, // legacy page hard-truncates at 200 chars
@@ -631,7 +631,7 @@ export default function DynamicForm({
     }
 
     // Restaurant Config doctype specific examples
-    if (doctype === 'Restaurant Config') {
+    if (doctype === 'Outlet Config') {
       const examples: Record<string, string> = {
         'restaurant_name': ' (e.g., Pizza Palace)',
         'tagline': ' (e.g., Authentic Italian Cuisine)',

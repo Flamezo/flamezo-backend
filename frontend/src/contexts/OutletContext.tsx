@@ -70,7 +70,7 @@ interface OutletContextType {
   googleMapsApiKey: string | null
   referralCode: string | null
   /** Role of the current user for the selected outlet */
-  userRole: 'Restaurant Admin' | 'Restaurant Staff' | null
+  userRole: 'Outlet Admin' | 'Outlet Staff' | null
   /** True if current user is Restaurant Admin (or system Administrator/Supervisor) */
   isAdmin: boolean
   /** True if current user has Flamezo Supervisor role */
@@ -267,14 +267,14 @@ export function OutletProvider({ children }: { children: ReactNode }) {
   const isGold = true
 
   // User role for the selected outlet (populated by get_outlet_config)
-  const userRole = (outletConfig?.subscription?.userRole as 'Restaurant Admin' | 'Restaurant Staff' | null) ?? null
+  const userRole = (outletConfig?.subscription?.userRole as 'Outlet Admin' | 'Outlet Staff' | null) ?? null
 
   // Check for global supervisor role from boot data
   const userRoles = (window as any)?.frappe?.boot?.user_roles || []
   const isSupervisor = userRoles.includes('Flamezo Supervisor')
 
   // isAdmin is true if they are a restaurant admin, or if they are a supervisor, or if no config is loaded yet (guest/admin)
-  const isAdmin = isSupervisor || userRole === 'Restaurant Admin' || userRole === null
+  const isAdmin = isSupervisor || userRole === 'Outlet Admin' || userRole === null
 
   // Under the single-tier model the backend reports every feature as `true`
   // for every outlet. The defaults below also resolve to `true` so the

@@ -96,11 +96,11 @@
   },
   {
    "read": 1,
-   "role": "Restaurant Admin"
+   "role": "Outlet Admin"
   },
   {
    "read": 1,
-   "role": "Restaurant Staff"
+   "role": "Outlet Staff"
   }
  ],
  "row_format": "Dynamic",

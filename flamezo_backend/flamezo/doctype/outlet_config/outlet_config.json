@@ -321,7 +321,7 @@
  "modified": "2025-01-15 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
- "name": "Restaurant Config",
+ "name": "Outlet Config",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
@@ -340,12 +340,12 @@
   {
    "create": 1,
    "read": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "write": 1
   },
   {
    "read": 1,
-   "role": "Restaurant Staff"
+   "role": "Outlet Staff"
   },
   {
    "read": 1,

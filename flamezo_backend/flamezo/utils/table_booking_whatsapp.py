@@ -74,7 +74,7 @@ def dispatch_table_booking_whatsapp(booking_name, attempt=1):
         # Same fallback chain as order_whatsapp.py — outlets already have this configured.
         to_phone = (
             getattr(restaurant, "order_whatsapp_number", None)
-            or frappe.db.get_value("Restaurant Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
+            or frappe.db.get_value("Outlet Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
             or getattr(restaurant, "owner_phone", None)
         )
         if not to_phone:

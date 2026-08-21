@@ -422,7 +422,7 @@ def _get_trigger_customers(trigger):
             SELECT c.name as customer, c.phone, c.customer_name,
                    SUM(CASE WHEN le.transaction_type = 'Earn' THEN le.coins ELSE -le.coins END) as balance
             FROM `tabCustomer` c
-            JOIN `tabRestaurant Loyalty Entry` le ON le.customer = c.name
+            JOIN `tabOutlet Loyalty Entry` le ON le.customer = c.name
             WHERE le.restaurant = %s AND c.phone IS NOT NULL
               AND (c.opted_out_of_marketing IS NULL OR c.opted_out_of_marketing = 0)
             GROUP BY c.name, c.phone, c.customer_name

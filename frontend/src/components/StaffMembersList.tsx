@@ -32,7 +32,7 @@ interface StaffMember {
   full_name: string
   email: string
   user_image?: string
-  role: 'Restaurant Admin' | 'Restaurant Staff'
+  role: 'Outlet Admin' | 'Outlet Staff'
   is_active: boolean
   is_default: boolean
   creation: string
@@ -85,7 +85,7 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteFullName, setInviteFullName] = useState('')
-  const [inviteRole, setInviteRole] = useState<'Restaurant Staff' | 'Restaurant Admin'>('Restaurant Staff')
+  const [inviteRole, setInviteRole] = useState<'Outlet Staff' | 'Outlet Admin'>('Outlet Staff')
   const [inviteLoading, setInviteLoading] = useState(false)
 
   const { data: staffDataRaw, isLoading, mutate } = useFrappeGetCall<{ message: { success: boolean; data: StaffData } }>(
@@ -126,7 +126,7 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
         setShowInviteModal(false)
         setInviteEmail('')
         setInviteFullName('')
-        setInviteRole('Restaurant Staff')
+        setInviteRole('Outlet Staff')
         mutate()
         onAdd?.()
       } else {
@@ -160,7 +160,7 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
     }
   }, [removeTarget, outletId, callRemove, mutate])
 
-  const handleUpdateRole = useCallback(async (member: StaffMember, newRole: 'Restaurant Admin' | 'Restaurant Staff') => {
+  const handleUpdateRole = useCallback(async (member: StaffMember, newRole: 'Outlet Admin' | 'Outlet Staff') => {
     try {
       const res = await callUpdate({
         outlet_id: outletId,
@@ -169,7 +169,7 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
       }) as any
       const payload = res?.message ?? res
       if (payload?.success) {
-        toast.success(`Role updated to ${newRole === 'Restaurant Admin' ? 'Admin' : 'Staff'}`)
+        toast.success(`Role updated to ${newRole === 'Outlet Admin' ? 'Admin' : 'Staff'}`)
         mutate()
       } else {
         toast.error(payload?.error || 'Failed to update role')
@@ -318,25 +318,25 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
                               variant="outline"
                               className={cn(
                                 "text-xs rounded-full gap-1 border-none pointer-events-none",
-                                member.role === 'Restaurant Admin'
+                                member.role === 'Outlet Admin'
                                   ? 'bg-primary/10 text-primary'
                                   : 'bg-muted/60 text-muted-foreground'
                               )}
                             >
-                              {member.role === 'Restaurant Admin'
+                              {member.role === 'Outlet Admin'
                                 ? <Shield className="w-3 h-3" />
                                 : <User className="w-3 h-3" />}
-                              {member.role === 'Restaurant Admin' ? 'Admin' : 'Staff'}
+                              {member.role === 'Outlet Admin' ? 'Admin' : 'Staff'}
                             </Badge>
                           </SelectTrigger>
                           <SelectContent align="start" className="rounded-xl shadow-xl">
-                            <SelectItem value="Restaurant Staff" className="rounded-lg">
+                            <SelectItem value="Outlet Staff" className="rounded-lg">
                               <div className="flex items-center gap-2">
                                 <User className="w-3.5 h-3.5" />
                                 <span>Staff</span>
                               </div>
                             </SelectItem>
-                            <SelectItem value="Restaurant Admin" className="rounded-lg">
+                            <SelectItem value="Outlet Admin" className="rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Shield className="w-3.5 h-3.5" />
                                 <span>Admin</span>
@@ -349,15 +349,15 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
                           variant="outline"
                           className={cn(
                             "text-xs rounded-full gap-1 border-none",
-                            member.role === 'Restaurant Admin'
+                            member.role === 'Outlet Admin'
                               ? 'bg-primary/10 text-primary'
                               : 'bg-muted/60 text-muted-foreground'
                           )}
                         >
-                          {member.role === 'Restaurant Admin'
+                          {member.role === 'Outlet Admin'
                             ? <Shield className="w-3 h-3" />
                             : <User className="w-3 h-3" />}
-                          {member.role === 'Restaurant Admin' ? 'Admin' : 'Staff'}
+                          {member.role === 'Outlet Admin' ? 'Admin' : 'Staff'}
                         </Badge>
                       )}
 
@@ -440,12 +440,12 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="invite-role">Role</Label>
-              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'Restaurant Staff' | 'Restaurant Admin')}>
+              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'Outlet Staff' | 'Outlet Admin')}>
                 <SelectTrigger id="invite-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Restaurant Staff">
+                  <SelectItem value="Outlet Staff">
                     <div className="flex items-center gap-2 py-0.5">
                       <User className="w-4 h-4 flex-shrink-0" />
                       <div>
@@ -454,7 +454,7 @@ export default function StaffMembersList({ outletId, onAdd }: StaffMembersListPr
                       </div>
                     </div>
                   </SelectItem>
-                  <SelectItem value="Restaurant Admin">
+                  <SelectItem value="Outlet Admin">
                     <div className="flex items-center gap-2 py-0.5">
                       <Shield className="w-4 h-4 flex-shrink-0" />
                       <div>

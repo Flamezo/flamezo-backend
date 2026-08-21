@@ -7,7 +7,7 @@ from frappe.model.document import Document
 
 from frappe import _
 
-class RestaurantConfig(Document):
+class OutletConfig(Document):
 	pass
 
 

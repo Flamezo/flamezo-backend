@@ -135,12 +135,12 @@ def execute():
             # Re-enable transactional flags on the restaurant's config — but only
             # if currently OFF, so we don't trample an owner who intentionally
             # disabled a feature post-migration.
-            config_name = frappe.db.get_value("Restaurant Config", {"restaurant": res.name}, "name")
+            config_name = frappe.db.get_value("Outlet Config", {"restaurant": res.name}, "name")
             if config_name:
                 for field in _CONFIG_FEATURE_FIELDS:
-                    current = frappe.db.get_value("Restaurant Config", config_name, field)
+                    current = frappe.db.get_value("Outlet Config", config_name, field)
                     if not current:
-                        frappe.db.set_value("Restaurant Config", config_name, field, 1, update_modified=False)
+                        frappe.db.set_value("Outlet Config", config_name, field, 1, update_modified=False)
                         config_flips += 1
 
             # Re-enable previously-disabled Home Features for this restaurant.

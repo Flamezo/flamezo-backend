@@ -80,7 +80,7 @@ class TableBooking(Document):
 		if not assigned_table:
 			return
 
-		table = frappe.get_doc("Restaurant Table", assigned_table)
+		table = frappe.get_doc("Outlet Table", assigned_table)
 		if table.restaurant != self.restaurant:
 			frappe.throw(f"Table {assigned_table} does not belong to this outlet")
 		
@@ -133,7 +133,7 @@ class TableBooking(Document):
 		"""Intelligently assign the best available table based on capacity and availability"""
 		# Get all available tables for this restaurant
 		tables = frappe.get_all(
-			"Restaurant Table",
+			"Outlet Table",
 			filters={
 				"restaurant": self.restaurant,
 				"status": "available"
@@ -214,7 +214,7 @@ class TableBooking(Document):
 		assigned_table = self._get_assigned_table()
 		if assigned_table:
 			try:
-				table = frappe.get_doc("Restaurant Table", assigned_table)
+				table = frappe.get_doc("Outlet Table", assigned_table)
 				if table.status == "reserved":
 					table.status = "available"
 					table.save(ignore_permissions=True)

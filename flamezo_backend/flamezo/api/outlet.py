@@ -253,7 +253,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 
 		# --- Bulk fetch Restaurant Config (tagline, description) ---
 		configs = frappe.get_all(
-			"Restaurant Config",
+			"Outlet Config",
 			filters={"restaurant": ["in", outlet_names]},
 			fields=["restaurant", "tagline", "subtitle", "description"],
 		)
@@ -261,7 +261,7 @@ def list_restaurants(active_only=True, city=None, limit=50):
 
 		# --- Bulk fetch Gallery photos (up to 6 per outlet) ---
 		gallery_items = frappe.get_all(
-			"Restaurant Gallery Item",
+			"Outlet Gallery Item",
 			filters={"restaurant": ["in", outlet_names], "is_selected": 1},
 			fields=["restaurant", "url"],
 			order_by="sort_order asc",
@@ -353,7 +353,7 @@ def get_outlet_gallery(outlet_id):
 		outlet = validate_restaurant_for_api(outlet_id)
 
 		items = frappe.get_all(
-			"Restaurant Gallery Item",
+			"Outlet Gallery Item",
 			filters={
 				"restaurant": outlet,
 				"is_selected": 1
@@ -526,7 +526,7 @@ def get_outlet_detail(outlet_id):
 
 		# Fetch social links + table booking flag from Restaurant Config (single query)
 		cfg = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": rest_name},
 			["google_review_link", "enable_table_booking", "tagline"],
 			as_dict=True,
@@ -794,7 +794,7 @@ def get_outlet_media_pool(outlet_id):
 
 		# 3. Existing Gallery Items (both selected and unselected)
 		gallery_items = frappe.get_all(
-			"Restaurant Gallery Item",
+			"Outlet Gallery Item",
 			filters={"restaurant": outlet},
 			fields=["name", "url", "media_type as type", "title as source_title", "is_selected"]
 		)

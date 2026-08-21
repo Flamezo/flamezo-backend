@@ -5,12 +5,12 @@ import frappe
 from frappe.model.document import Document
 
 
-class RestaurantTable(Document):
+class OutletTable(Document):
 	def validate(self):
 		"""Validate table data"""
 		# Ensure table_number is unique per restaurant
 		if self.is_new():
-			existing = frappe.db.exists("Restaurant Table", {
+			existing = frappe.db.exists("Outlet Table", {
 				"restaurant": self.restaurant,
 				"table_number": self.table_number,
 				"name": ["!=", self.name]

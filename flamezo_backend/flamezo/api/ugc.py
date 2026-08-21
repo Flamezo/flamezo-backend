@@ -646,7 +646,7 @@ def verify_story_with_pin(outlet_id, submission_id, pin):
 		if submission.status != "story_shared":
 			return _err("INVALID_STATE", f"Cannot verify from '{submission.status}'.")
 
-		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored_pin = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
 			return _err("PIN_NOT_SET", "This outlet has not set up a verification PIN.")
 		if str(pin).strip() != stored_pin:
@@ -1201,13 +1201,13 @@ def _assert_staff_or_admin(restaurant):
 	if (
 		user == "Administrator"
 		or any(r in GLOBAL_ADMIN_ROLES or r in SUPERVISOR_ROLES for r in roles)
-		or "Restaurant Admin" in roles
+		or "Outlet Admin" in roles
 	):
 		return
 	rec_role = frappe.db.get_value(
-		"Restaurant User", {"user": user, "restaurant": restaurant, "is_active": 1}, "role"
+		"Outlet User", {"user": user, "restaurant": restaurant, "is_active": 1}, "role"
 	)
-	if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
+	if rec_role not in ("Outlet Admin", "Outlet Staff"):
 		frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
 
 
@@ -1306,7 +1306,7 @@ def verify_ugc_story_with_pin(outlet_id, submission_id, pin):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
-		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored_pin = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
 			return _err("PIN_NOT_SET", "No verification PIN set for this outlet. Set it under Setup & Config.")
 		if str(pin).strip() != str(stored_pin).strip():
@@ -1348,7 +1348,7 @@ def claim_ugc_with_pin(outlet_id, order_id, pin):
 			return _err("SESSION_REQUIRED")
 
 		# Verify PIN first — fail fast before touching any data
-		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored_pin = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
 			return _err("PIN_NOT_SET", "No verification PIN has been set for this outlet.")
 		if str(pin).strip() != str(stored_pin).strip():
@@ -1905,7 +1905,7 @@ def activate_ugc_with_pin(outlet_id, voucher_code, pin):
 			return _err("SESSION_REQUIRED")
 
 		# Validate PIN
-		stored_pin = frappe.db.get_value("Restaurant Config", restaurant, "offer_verification_pin") or ""
+		stored_pin = frappe.db.get_value("Outlet Config", restaurant, "offer_verification_pin") or ""
 		if not stored_pin:
 			return _err("PIN_NOT_SET", "This outlet has not set up offer verification.")
 		if str(pin).strip() != stored_pin:

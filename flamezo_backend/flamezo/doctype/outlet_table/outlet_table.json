@@ -131,7 +131,7 @@
  "modified": "2025-03-08 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
- "name": "Restaurant Table",
+ "name": "Outlet Table",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
@@ -151,12 +151,12 @@
    "create": 1,
    "delete": 1,
    "read": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "write": 1
   },
   {
    "read": 1,
-   "role": "Restaurant Staff",
+   "role": "Outlet Staff",
    "write": 1
   }
  ],

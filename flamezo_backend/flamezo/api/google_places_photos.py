@@ -345,7 +345,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
     outlet_safe = _sanitize(outlet_id)
     created, skipped, errors = 0, 0, []
     existing_max_sort = frappe.db.sql(
-        "select coalesce(max(sort_order), 0) from `tabRestaurant Gallery Item` where restaurant=%s", (outlet_id,)
+        "select coalesce(max(sort_order), 0) from `tabOutlet Gallery Item` where restaurant=%s", (outlet_id,)
     )[0][0] or 0
 
     for i, photo in enumerate(photos):
@@ -402,7 +402,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
         media_asset.insert(ignore_permissions=True)
 
         gallery_item = frappe.get_doc({
-            "doctype": "Restaurant Gallery Item",
+            "doctype": "Outlet Gallery Item",
             "restaurant": outlet_id,
             "media_type": "Image",
             "url": cdn_url,

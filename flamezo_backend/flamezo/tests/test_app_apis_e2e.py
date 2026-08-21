@@ -1595,7 +1595,7 @@ class TestSeedDataSanity(unittest.TestCase):
 
     def test_primary_user_has_loyalty_entries(self):
         cust = frappe.db.get_value("Customer", {"phone": PRIMARY_PHONE}, "name")
-        count = frappe.db.count("Restaurant Loyalty Entry", {"customer": cust})
+        count = frappe.db.count("Outlet Loyalty Entry", {"customer": cust})
         self.assertGreater(count, 0)
 
     def test_primary_user_has_notifications(self):

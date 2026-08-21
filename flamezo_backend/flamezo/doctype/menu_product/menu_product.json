@@ -327,7 +327,7 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "share": 1,
    "write": 1
   },
@@ -339,7 +339,7 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Restaurant Staff",
+   "role": "Outlet Staff",
    "share": 1,
    "write": 1
   }

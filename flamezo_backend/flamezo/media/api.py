@@ -313,7 +313,7 @@ def validate_restaurant_access(restaurant):
 	
 	# Check if user is restaurant manager or has restaurant user role
 	user_restaurants = frappe.get_all(
-		"Restaurant User",
+		"Outlet User",
 		filters={"user": frappe.session.user},
 		fields=["restaurant"]
 	)

@@ -14,13 +14,13 @@ def get_staff_seat_limit(restaurant):
 	return STAFF_SEAT_LIMIT
 
 
-class RestaurantUser(Document):
+class OutletUser(Document):
 	def validate(self):
 		"""Validate Restaurant User"""
 		# Ensure only one default restaurant per user
 		if self.is_default:
 			existing_default = frappe.db.get_value(
-				"Restaurant User",
+				"Outlet User",
 				{"user": self.user, "is_default": 1, "name": ["!=", self.name]},
 				"name"
 			)
@@ -28,7 +28,7 @@ class RestaurantUser(Document):
 				frappe.throw("User can have only one default outlet")
 
 		# --- Seat Limit Enforcement (only for new Staff records) ---
-		if self.is_new() and self.role == "Restaurant Staff":
+		if self.is_new() and self.role == "Outlet Staff":
 			self._enforce_seat_limit()
 
 	def _enforce_seat_limit(self):
@@ -37,10 +37,10 @@ class RestaurantUser(Document):
 
 		# Count existing active non-admin staff
 		current_count = frappe.db.count(
-			"Restaurant User",
+			"Outlet User",
 			{
 				"restaurant": self.restaurant,
-				"role": "Restaurant Staff",
+				"role": "Outlet Staff",
 				"is_active": 1,
 			}
 		)
@@ -68,7 +68,7 @@ class RestaurantUser(Document):
 		"""Add Frappe role to user if not already present"""
 		try:
 			user_doc = frappe.get_doc("User", self.user)
-			role = self.role or "Restaurant Staff"
+			role = self.role or "Outlet Staff"
 
 			existing_roles = [r.role for r in user_doc.roles]
 			if role not in existing_roles:

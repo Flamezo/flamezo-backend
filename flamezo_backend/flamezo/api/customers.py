@@ -282,9 +282,9 @@ def get_outlet_customers(outlet_id, search=None, page=1, page_size=20):
 		# 1. Activity-based: customers who have orders/bookings at this restaurant
 		# 2. Import-based: customers explicitly imported for this restaurant
 		customer_ids = set()
-		for doctype in ["Order", "Table Booking", "Banquet Booking", "Restaurant Loyalty Entry"]:
+		for doctype in ["Order", "Table Booking", "Banquet Booking", "Outlet Loyalty Entry"]:
 			filters = {"restaurant": restaurant}
-			if doctype == "Restaurant Loyalty Entry":
+			if doctype == "Outlet Loyalty Entry":
 				filters["customer"] = ["is", "set"]
 				pluck_field = "customer"
 			else:

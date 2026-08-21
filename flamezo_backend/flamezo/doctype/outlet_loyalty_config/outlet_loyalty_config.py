@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class RestaurantLoyaltyConfig(Document):
+class OutletLoyaltyConfig(Document):
 	pass

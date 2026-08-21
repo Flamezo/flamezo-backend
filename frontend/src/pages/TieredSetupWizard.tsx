@@ -63,8 +63,8 @@ export default function TieredSetupWizard() {
   // Define All Possible Steps
   const allPotentialSteps: WizardStep[] = [
     { id: 'restaurant', title: 'Merchant Profile', description: 'Set up your merchant basic information and contact details.', doctype: 'Outlet', required: true },
-    { id: 'config', title: 'Branding & Config', description: 'Configure your brand colors, logos, and operational settings.', doctype: 'Restaurant Config', required: true },
-    { id: 'users', title: 'Staff Members', description: 'Invite your team members and assign roles.', doctype: 'Restaurant User', required: false, customComponent: 'StaffMembersList' },
+    { id: 'config', title: 'Branding & Config', description: 'Configure your brand colors, logos, and operational settings.', doctype: 'Outlet Config', required: true },
+    { id: 'users', title: 'Staff Members', description: 'Invite your team members and assign roles.', doctype: 'Outlet User', required: false, customComponent: 'StaffMembersList' },
     { id: 'legacy', title: 'Legacy Content', description: 'Tell your story and showcase your brand heritage.', doctype: 'Legacy Content', required: false, customComponent: 'LegacyContentStep' },
   ]
 

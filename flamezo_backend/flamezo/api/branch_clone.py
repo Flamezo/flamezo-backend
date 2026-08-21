@@ -255,11 +255,11 @@ def _clone_gallery(source, target):
 	"""Copy gallery items. Additive: skip an item whose url already exists.
 	Media urls are reused — no re-upload."""
 	copied = skipped = 0
-	for g in frappe.get_all("Restaurant Gallery Item", filters={"restaurant": source}, fields=["name", "url"]):
-		if g.url and frappe.db.exists("Restaurant Gallery Item", {"restaurant": target, "url": g.url}):
+	for g in frappe.get_all("Outlet Gallery Item", filters={"restaurant": source}, fields=["name", "url"]):
+		if g.url and frappe.db.exists("Outlet Gallery Item", {"restaurant": target, "url": g.url}):
 			skipped += 1
 			continue
-		src = frappe.get_doc("Restaurant Gallery Item", g.name)
+		src = frappe.get_doc("Outlet Gallery Item", g.name)
 		new = frappe.copy_doc(src)
 		new.restaurant = target
 		new.insert(ignore_permissions=True)
@@ -291,12 +291,12 @@ def _clone_branding(source, target):
 		frappe.db.set_value("Outlet", target, "logo", src_logo)
 		changed = True
 
-	src_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": source}, "name")
-	tgt_cfg = frappe.db.get_value("Restaurant Config", {"restaurant": target}, "name")
+	src_cfg = frappe.db.get_value("Outlet Config", {"restaurant": source}, "name")
+	tgt_cfg = frappe.db.get_value("Outlet Config", {"restaurant": target}, "name")
 	if not src_cfg or not tgt_cfg:
 		return changed
-	src_doc = frappe.get_doc("Restaurant Config", src_cfg)
-	tgt_doc = frappe.get_doc("Restaurant Config", tgt_cfg)
+	src_doc = frappe.get_doc("Outlet Config", src_cfg)
+	tgt_doc = frappe.get_doc("Outlet Config", tgt_cfg)
 	for f in _BRANDING_FIELDS:
 		val = src_doc.get(f)
 		if val not in (None, "") and tgt_doc.get(f) != val:

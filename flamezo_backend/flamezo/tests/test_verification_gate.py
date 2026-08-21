@@ -57,7 +57,7 @@ _PREFIX = "TEST-VG"
 
 def _clear_loyalty_entries(customer, restaurant):
     frappe.db.delete(
-        "Restaurant Loyalty Entry",
+        "Outlet Loyalty Entry",
         {"customer": customer, "restaurant": restaurant},
     )
     frappe.db.commit()
@@ -104,7 +104,7 @@ class TestEarnGate(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
@@ -137,7 +137,7 @@ class TestEarnGate(unittest.TestCase):
         self.assertEqual(earned, 0)
         # And no entry was created
         entry_count = frappe.db.count(
-            "Restaurant Loyalty Entry",
+            "Outlet Loyalty Entry",
             {"customer": self._customer.name, "restaurant": self._res, "reason": "Order"},
         )
         self.assertEqual(entry_count, 0)
@@ -240,7 +240,7 @@ class TestPricingGate(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        frappe.db.delete("Restaurant Loyalty Entry", {"customer": cls._customer.name})
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.delete("Coupon", {"restaurant": cls._res})
         cleanup_restaurant(cls._res)
 

@@ -821,12 +821,12 @@ def _assert_outlet_access(outlet, phone=None):
         frappe.throw(_("Authentication required."), frappe.AuthenticationError)
     roles = frappe.get_roles(user)
     GLOBAL_ADMIN = {"System Manager", "Flamezo Admin", "Flamezo Supervisor"}
-    if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Restaurant Admin" in roles:
+    if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Outlet Admin" in roles:
         return
     rec_role = frappe.db.get_value(
-        "Restaurant User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+        "Outlet User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
     )
-    if rec_role not in ("Restaurant Admin", "Restaurant Staff"):
+    if rec_role not in ("Outlet Admin", "Outlet Staff"):
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
 
 

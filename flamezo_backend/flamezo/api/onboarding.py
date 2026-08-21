@@ -29,7 +29,7 @@ def generate_onboarding_link(outlet_name=None, linked_restaurant=None):
         token = secrets.token_urlsafe(16)
         
         # Create the onboarding record
-        doc = frappe.new_doc('Restaurant Onboarding')
+        doc = frappe.new_doc('Outlet Onboarding')
         doc.restaurant_name = outlet_name
         doc.linked_restaurant = linked_restaurant
         
@@ -70,11 +70,11 @@ def get_onboarding_details(token):
         if not token:
             return {'success': False, 'error': 'Token is missing'}
             
-        doc_name = frappe.db.get_value('Restaurant Onboarding', {'unique_token': token}, 'name')
+        doc_name = frappe.db.get_value('Outlet Onboarding', {'unique_token': token}, 'name')
         if not doc_name:
             return {'success': False, 'error': 'Invalid or expired onboarding link'}
             
-        doc = frappe.get_doc('Restaurant Onboarding', doc_name)
+        doc = frappe.get_doc('Outlet Onboarding', doc_name)
         
         # Step 1-6 (Defensive checks for fields that might not have synced to DB yet)
         data_dict = {
@@ -147,11 +147,11 @@ def submit_onboarding_data(token, data):
             import json
             data = json.loads(data)
             
-        doc_name = frappe.db.get_value('Restaurant Onboarding', {'unique_token': token}, 'name')
+        doc_name = frappe.db.get_value('Outlet Onboarding', {'unique_token': token}, 'name')
         if not doc_name:
             return {'success': False, 'error': 'Invalid token'}
             
-        doc = frappe.get_doc('Restaurant Onboarding', doc_name)
+        doc = frappe.get_doc('Outlet Onboarding', doc_name)
         
         if doc.status == 'Completed':
             return {'success': False, 'error': 'Onboarding is already completed'}
@@ -206,7 +206,7 @@ def get_all_onboarding_requests():
             return {'success': False, 'error': 'Admin access required'}
 
         requests = frappe.get_all(
-            'Restaurant Onboarding',
+            'Outlet Onboarding',
             fields=['name', 'restaurant_name', 'owner_name', 'owner_email', 'status', 'unique_token', 'onboarding_link', 'creation', 'linked_restaurant'],
             order_by='creation desc',
             limit=0,
@@ -239,7 +239,7 @@ def delete_onboarding_request(name):
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        frappe.delete_doc('Restaurant Onboarding', name, ignore_permissions=True)
+        frappe.delete_doc('Outlet Onboarding', name, ignore_permissions=True)
         frappe.db.commit()
         
         return {'success': True, 'message': 'Request deleted successfully'}
@@ -264,7 +264,7 @@ def bulk_delete_onboarding_requests(names):
             names = json.loads(names)
 
         for name in names:
-            frappe.delete_doc('Restaurant Onboarding', name, ignore_permissions=True)
+            frappe.delete_doc('Outlet Onboarding', name, ignore_permissions=True)
             
         frappe.db.commit()
         
@@ -284,7 +284,7 @@ def get_onboarding_by_name(name):
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        doc = frappe.get_doc('Restaurant Onboarding', name)
+        doc = frappe.get_doc('Outlet Onboarding', name)
 
         data = {
             'name': doc.name,
@@ -350,7 +350,7 @@ def sync_onboarding_to_outlet(name):
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        doc = frappe.get_doc('Restaurant Onboarding', name)
+        doc = frappe.get_doc('Outlet Onboarding', name)
 
         if not doc.linked_restaurant:
             return {
@@ -394,9 +394,9 @@ def sync_onboarding_to_outlet(name):
         res_doc.save(ignore_permissions=True)
 
         # ── Sync to Restaurant Config ───────────────────────────────────────
-        config_name = frappe.db.get_value('Restaurant Config', {'restaurant': restaurant}, 'name')
+        config_name = frappe.db.get_value('Outlet Config', {'restaurant': restaurant}, 'name')
         if config_name:
-            config_doc = frappe.get_doc('Restaurant Config', config_name)
+            config_doc = frappe.get_doc('Outlet Config', config_name)
 
             config_field_map = {
                 'tagline': 'tagline',
@@ -484,7 +484,7 @@ def auto_sync_onboarding_display(doc, method=None):
         if r_updates:
             frappe.db.set_value('Outlet', restaurant, r_updates)
 
-        config = frappe.db.get_value('Restaurant Config', {'restaurant': restaurant}, 'name')
+        config = frappe.db.get_value('Outlet Config', {'restaurant': restaurant}, 'name')
         if config:
             c_updates = {}
             for src, dest in _ONBOARD_CONFIG_DISPLAY.items():
@@ -492,7 +492,7 @@ def auto_sync_onboarding_display(doc, method=None):
                 if value not in (None, ''):
                     c_updates[dest] = value
             if c_updates:
-                frappe.db.set_value('Restaurant Config', config, c_updates)
+                frappe.db.set_value('Outlet Config', config, c_updates)
     except Exception:
         frappe.log_error(frappe.get_traceback(), 'onboarding.auto_sync_onboarding_display')
 
@@ -506,14 +506,14 @@ def backfill_onboarding_display():
 
     Not whitelisted — bench-only (privileged), so no web exposure."""
     rows = frappe.get_all(
-        'Restaurant Onboarding',
+        'Outlet Onboarding',
         filters={'linked_restaurant': ['is', 'set']},
         fields=['name'],
     )
     synced = 0
     for r in rows:
         try:
-            auto_sync_onboarding_display(frappe.get_doc('Restaurant Onboarding', r['name']))
+            auto_sync_onboarding_display(frappe.get_doc('Outlet Onboarding', r['name']))
             synced += 1
         except Exception:
             frappe.log_error(frappe.get_traceback(), 'onboarding.backfill_onboarding_display')
@@ -539,12 +539,12 @@ def upload_onboarding_media(token):
             return {'success': False, 'error': 'Authentication token required for upload'}
 
         # Validate token
-        doc_name = frappe.db.get_value('Restaurant Onboarding', {'unique_token': token}, 'name')
+        doc_name = frappe.db.get_value('Outlet Onboarding', {'unique_token': token}, 'name')
         if not doc_name:
             return {'success': False, 'error': 'Invalid or expired onboarding session'}
 
         # Check status
-        status = frappe.db.get_value('Restaurant Onboarding', doc_name, 'status')
+        status = frappe.db.get_value('Outlet Onboarding', doc_name, 'status')
         if status == 'Completed':
             return {'success': False, 'error': 'This onboarding session has already been finalized'}
 
@@ -560,7 +560,7 @@ def upload_onboarding_media(token):
         file_doc = save_file(
             fname=file.filename,
             content=file.read(),
-            dt='Restaurant Onboarding',
+            dt='Outlet Onboarding',
             dn=doc_name,
             decode=False,
             is_private=0,
@@ -589,7 +589,7 @@ def extract_cheque_details(token, base64_image=None):
 	try:
 		if not token:
 			return {'success': False, 'error': 'Missing onboarding token'}
-		if not frappe.db.exists('Restaurant Onboarding', {'unique_token': token}):
+		if not frappe.db.exists('Outlet Onboarding', {'unique_token': token}):
 			return {'success': False, 'error': 'Invalid or expired onboarding link'}
 		if not base64_image:
 			return {'success': False, 'error': 'No image provided'}

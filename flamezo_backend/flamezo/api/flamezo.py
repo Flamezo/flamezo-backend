@@ -929,26 +929,26 @@ def get_flamezo_member(phone=None):
 		# Lifetime stats
 		lifetime_earned = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS total
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Earn' AND is_settled = 1
 		""", (customer.name,), as_dict=True)[0].total or 0
 
 		lifetime_redeemed = frappe.db.sql("""
 			SELECT COALESCE(SUM(coins), 0) AS total
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Redeem' AND is_settled = 1
 		""", (customer.name,), as_dict=True)[0].total or 0
 
 		# Restaurants visited (distinct)
 		visited_restaurants = frappe.db.sql("""
 			SELECT COUNT(DISTINCT restaurant) AS count
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Earn'
 		""", (customer.name,), as_dict=True)[0].count or 0
 
 		# Expiring soon (within 30 days)
 		expiring_rows = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={
 				"customer": customer.name,
 				"is_settled": 1,
@@ -1047,7 +1047,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 		# Fetch ledger entries across all restaurants
 		entries = frappe.get_all(
-			"Restaurant Loyalty Entry",
+			"Outlet Loyalty Entry",
 			filters={"customer": customer.name},
 			fields=[
 				"transaction_type", "coins", "reason", "restaurant",
@@ -1060,7 +1060,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 		)
 
 		# Enrich with restaurant names and compute running balance info
-		total_entries = frappe.db.count("Restaurant Loyalty Entry", {"customer": customer.name})
+		total_entries = frappe.db.count("Outlet Loyalty Entry", {"customer": customer.name})
 		current_balance = flt(get_loyalty_balance(customer.name))
 
 		formatted_entries = []
@@ -1231,7 +1231,7 @@ def get_outlet_summary(outlet_id):
 			return {"success": False, "error": {"code": "OUTLET_INACTIVE", "message": "Outlet is currently inactive"}}
 
 		config = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": outlet.name},
 			["restaurant_name", "tagline", "default_theme"],
 			as_dict=True,

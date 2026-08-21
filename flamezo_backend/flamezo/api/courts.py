@@ -59,7 +59,7 @@ def _assert_restaurant_access(restaurant_name):
 	if frappe.session.user in ("Administrator",):
 		return
 	has_access = frappe.db.exists(
-		"Restaurant User",
+		"Outlet User",
 		{"restaurant": restaurant_name, "user": frappe.session.user, "is_active": 1},
 	)
 	if not has_access:

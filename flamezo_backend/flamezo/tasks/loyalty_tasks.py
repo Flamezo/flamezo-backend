@@ -50,7 +50,7 @@ def grant_birthday_bonuses():
 
 	# Get all active loyalty programs
 	active_configs = frappe.get_all(
-		"Restaurant Loyalty Config",
+		"Outlet Loyalty Config",
 		filters={"is_active": 1},
 		fields=["restaurant"]
 	)
@@ -69,7 +69,7 @@ def grant_birthday_bonuses():
 		# Build set of customers who already got a birthday bonus this year at this restaurant
 		already_granted_rows = frappe.db.sql("""
 			SELECT DISTINCT customer
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s
 			  AND reason = 'Birthday Bonus'
 			  AND YEAR(posting_date) = %s
@@ -83,7 +83,7 @@ def grant_birthday_bonuses():
 		# Build set of customers who have loyalty history at this restaurant
 		has_history_rows = frappe.db.sql("""
 			SELECT DISTINCT customer
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE restaurant = %s
 			  AND customer IN ({placeholders})
 		""".format(placeholders=",".join(["%s"] * len(customer_ids))),
@@ -129,7 +129,7 @@ def send_coin_expiry_notifications():
 	# Find customers with coins expiring within 7 days (settled, non-expired)
 	expiry_rows = frappe.db.sql("""
 		SELECT DISTINCT customer
-		FROM `tabRestaurant Loyalty Entry`
+		FROM `tabOutlet Loyalty Entry`
 		WHERE transaction_type = 'Earn'
 		  AND is_settled = 1
 		  AND expiry_date IS NOT NULL
@@ -176,7 +176,7 @@ def send_coin_expiry_notifications():
 		# Find the earliest expiry date for this customer's coins in the window
 		earliest = frappe.db.sql("""
 			SELECT MIN(expiry_date) AS earliest_expiry
-			FROM `tabRestaurant Loyalty Entry`
+			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s
 			  AND transaction_type = 'Earn'
 			  AND is_settled = 1

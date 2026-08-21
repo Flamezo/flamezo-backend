@@ -200,7 +200,7 @@ class TestCreatorCollabs(unittest.TestCase):
 		via the SAME `validate_restaurant_for_api` helper every other
 		merchant-portal endpoint in the app relies on."""
 		with patch("flamezo_backend.flamezo.utils.permissions.validate_restaurant_access", return_value=False), \
-			patch("frappe.get_roles", return_value=["Restaurant Manager"]):  # not a global-admin role
+			patch("frappe.get_roles", return_value=["Outlet Manager"]):  # not a global-admin role
 			with self.assertRaises(frappe.exceptions.PermissionError):
 				collabs.send_collab_invite(self.outlet, self.creator.name, "offer")
 
@@ -210,7 +210,7 @@ class TestCreatorCollabs(unittest.TestCase):
 		collabs.respond_to_invite(invite_id, accept=1, phone=_PHONE)
 
 		with patch("flamezo_backend.flamezo.utils.permissions.validate_restaurant_access", return_value=False), \
-			patch("frappe.get_roles", return_value=["Restaurant Manager"]):
+			patch("frappe.get_roles", return_value=["Outlet Manager"]):
 			with self.assertRaises(frappe.exceptions.PermissionError):
 				collabs.complete_collab(invite_id, merchant_rating=5)
 

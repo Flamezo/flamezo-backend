@@ -141,7 +141,7 @@ def has_cart_entry_permission(doc, ptype, user, **kwargs):
 	return has_restaurant_permission(doc, ptype=ptype, user=user)
 
 
-def get_restaurant_user_permission_query_conditions(user, doctype="Restaurant User", **kwargs):
+def get_restaurant_user_permission_query_conditions(user, doctype="Outlet User", **kwargs):
 	"""Get permission query for Restaurant User - filter by restaurants user has access to"""
 	if not user:
 		user = frappe.session.user

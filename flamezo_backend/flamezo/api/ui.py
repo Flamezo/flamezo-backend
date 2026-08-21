@@ -157,8 +157,8 @@ def get_outlet_setup_progress(outlet_id):
 
 		progress = {
 			'restaurant': frappe.db.exists("Outlet", outlet_id),
-			'config': frappe.db.exists("Restaurant Config", {"restaurant": outlet_id}),
-			'users': frappe.db.exists("Restaurant User", {"restaurant": outlet_id}),
+			'config': frappe.db.exists("Outlet Config", {"restaurant": outlet_id}),
+			'users': frappe.db.exists("Outlet User", {"restaurant": outlet_id}),
 			'categories': frappe.db.exists("Menu Category", {"restaurant": outlet_id}),
 			'products': frappe.db.exists("Menu Product", {"restaurant": outlet_id}),
 			'offers': frappe.db.exists("Offer", {"restaurant": outlet_id}),
@@ -198,7 +198,7 @@ def get_setup_wizard_steps(restaurant=None):
 			'id': 'config',
 			'title': 'Restaurant Configuration',
 			'description': 'Configure branding, colors, settings, tax, delivery fees, and features',
-			'doctype': 'Restaurant Config',
+			'doctype': 'Outlet Config',
 			'required': True,
 			'depends_on': 'restaurant',
 		},
@@ -206,7 +206,7 @@ def get_setup_wizard_steps(restaurant=None):
 			'id': 'users',
 			'title': 'Staff Members',
 			'description': 'View and manage staff members for your restaurant (Owner is automatically created)',
-			'doctype': 'Restaurant User',
+			'doctype': 'Outlet User',
 			'required': False,
 			'depends_on': 'restaurant',
 			'view_only': True,

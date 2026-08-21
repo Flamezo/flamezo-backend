@@ -41,7 +41,7 @@ def _data(res):
 
 def _ugc_credited(customer):
 	rows = frappe.get_all(
-		"Restaurant Loyalty Entry",
+		"Outlet Loyalty Entry",
 		filters={"customer": customer, "reason": "UGC Cashback", "transaction_type": "Earn"},
 		fields=["coins"],
 	)
@@ -101,7 +101,7 @@ def _ensure_config(restaurant, **overrides):
 def _purge_order(order_id):
 	"""Remove any prior UGC submissions + ledger entries for an order (clean slate)."""
 	for s in frappe.get_all("UGC Story Submission", filters={"order": order_id}, fields=["name"]):
-		frappe.db.delete("Restaurant Loyalty Entry",
+		frappe.db.delete("Outlet Loyalty Entry",
 						 {"reference_doctype": "UGC Story Submission", "reference_name": s.name})
 		frappe.delete_doc("UGC Story Submission", s.name, force=True, ignore_permissions=True)
 	frappe.db.commit()
@@ -318,7 +318,7 @@ def _run():
 	from frappe.utils import add_days as _add_days, getdate
 	from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 	_check("platform Cash expiry = 45 days", get_expiry_days() == 45)
-	ent = frappe.get_all("Restaurant Loyalty Entry",
+	ent = frappe.get_all("Outlet Loyalty Entry",
 		filters={"customer": customer, "reason": "UGC Cashback", "transaction_type": "Earn"},
 		fields=["posting_date", "expiry_date"], limit=1)
 	if ent and ent[0].expiry_date:
@@ -415,7 +415,7 @@ def _cleanup():
 	try:
 		for oid in TOUCHED_ORDERS:
 			for s in frappe.get_all("UGC Story Submission", filters={"order": oid}, fields=["name"]):
-				frappe.db.delete("Restaurant Loyalty Entry",
+				frappe.db.delete("Outlet Loyalty Entry",
 								 {"reference_doctype": "UGC Story Submission", "reference_name": s.name})
 				frappe.delete_doc("UGC Story Submission", s.name, force=True, ignore_permissions=True)
 		for flag in list(CREATED_FLAGS):

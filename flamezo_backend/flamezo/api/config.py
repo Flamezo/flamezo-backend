@@ -30,21 +30,21 @@ def get_currency_info(currency_code):
 
 
 def _get_user_role_for_restaurant(user, restaurant):
-	"""Return 'Restaurant Admin' or 'Restaurant Staff' for the current user, or None for guests."""
+	"""Return 'Outlet Admin' or 'Outlet Staff' for the current user, or None for guests."""
 	if not user or user == "Guest":
 		return None
 	
 	# Global Admins & Supervisors
-	if user == "Administrator" or is_supervisor(user) or "Restaurant Admin" in frappe.get_roles(user):
-		return "Restaurant Admin"
+	if user == "Administrator" or is_supervisor(user) or "Outlet Admin" in frappe.get_roles(user):
+		return "Outlet Admin"
 		
 	# Check specific restaurant role
 	role = frappe.db.get_value(
-		"Restaurant User",
+		"Outlet User",
 		{"user": user, "restaurant": restaurant, "is_active": 1},
 		"role"
 	)
-	return role or "Restaurant Staff"
+	return role or "Outlet Staff"
 
 
 @frappe.whitelist(allow_guest=True)
@@ -69,7 +69,7 @@ def get_outlet_config(outlet_id):
 		
 		# Get or create restaurant config
 		config = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": restaurant},
 			["restaurant_name", "tagline", "subtitle", "description", "default_theme",
 			 "logo_size", "hero_video", "apple_touch_icon",
@@ -115,8 +115,8 @@ def get_outlet_config(outlet_id):
 		# Batch fetch branding Media Assets in one go. Logo lives on Restaurant
 		# now (single source of truth), everything else stays on Restaurant Config.
 		media_roles = ["restaurant_config_hero_video", "apple_touch_icon"]
-		config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "name")
-		media_batch = get_media_assets_batch("Restaurant Config", [config_name], media_roles) if config_name else {}
+		config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name")
+		media_batch = get_media_assets_batch("Outlet Config", [config_name], media_roles) if config_name else {}
 		logo_media_batch = get_media_assets_batch("Outlet", [restaurant], ["restaurant_logo"])
 
 		# Get logo with variants and blur placeholder
@@ -573,7 +573,7 @@ def get_home_features(outlet_id):
 		
 		# Get global toggles from Restaurant Config
 		global_config = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": restaurant},
 			["enable_table_booking", "enable_banquet_booking"],
 			as_dict=True
@@ -813,7 +813,7 @@ def get_filters(outlet_id):
 		
 		# Try to get custom colors from restaurant config if available
 		config = frappe.db.get_value(
-			"Restaurant Config",
+			"Outlet Config",
 			{"restaurant": restaurant},
 			["color_palette_green", "color_palette_red", "color_palette_yellow"],
 			as_dict=True

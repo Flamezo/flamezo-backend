@@ -148,7 +148,7 @@ def sync_media_asset_to_owner(asset):
 		field_mappings = {
 			"Home Feature": {"home_feature_image": "image_src"},
 			"Outlet": {"restaurant_logo": "logo"},
-			"Restaurant Config": {
+			"Outlet Config": {
 				"restaurant_config_hero_video": "hero_video",
 				"apple_touch_icon": "apple_touch_icon",
 			},

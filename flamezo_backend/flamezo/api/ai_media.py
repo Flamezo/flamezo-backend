@@ -54,13 +54,13 @@ def _gemini_post_with_retry(url, payload, max_retries=4, base_delay=2.0, timeout
 
 
 def _get_outlet_config_name(restaurant):
-    config_name = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant}, "name")
+    config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name")
     if config_name:
         return config_name
 
     outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
     config_doc = frappe.get_doc({
-        "doctype": "Restaurant Config",
+        "doctype": "Outlet Config",
         "restaurant": restaurant,
         "restaurant_name": outlet_name,
         "default_theme": "light",
@@ -91,7 +91,7 @@ def _to_json_string(value):
 
 
 def _update_theme_history(config_name, image_url, source_images, activate=False):
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     history = _coerce_json_list(config_doc.menu_theme_background_history)
     entry = {
         "id": frappe.generate_hash(length=10),
@@ -1037,7 +1037,7 @@ def upload_menu_theme_wallpaper(restaurant, filedata, filename, index):
         # Generate object key for R2
         object_key = generate_object_key(
             outlet_id=restaurant,
-            owner_doctype="Restaurant Config",
+            owner_doctype="Outlet Config",
             owner_name=config_name,
             media_role="menu_wallpaper",
             media_id=f"wall_{index}_{uid}",
@@ -1053,7 +1053,7 @@ def upload_menu_theme_wallpaper(restaurant, filedata, filename, index):
         r2_url = upload_object(temp_path, object_key, content_type=content_type)
 
         # Update Restaurant Config
-        config_doc = frappe.get_doc("Restaurant Config", config_name)
+        config_doc = frappe.get_doc("Outlet Config", config_name)
         wallpapers = _coerce_json_list(config_doc.menu_theme_wallpapers)
         
         # Ensure we have 3 slots
@@ -1089,7 +1089,7 @@ def set_main_menu_theme_wallpaper(restaurant, index):
         frappe.throw("Invalid wallpaper index.")
 
     config_name = _get_outlet_config_name(restaurant)
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     wallpapers = _coerce_json_list(config_doc.menu_theme_wallpapers)
     
     if index < len(wallpapers) and index != 0:
@@ -1116,7 +1116,7 @@ def delete_menu_theme_wallpaper(restaurant, index):
     """
     index = frappe.utils.cint(index)
     config_name = _get_outlet_config_name(restaurant)
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     wallpapers = _coerce_json_list(config_doc.menu_theme_wallpapers)
     
     if index < len(wallpapers):
@@ -1129,7 +1129,7 @@ def delete_menu_theme_wallpaper(restaurant, index):
 @frappe.whitelist(allow_guest=False)
 def get_menu_theme_background_status(restaurant):
     config_name = _get_outlet_config_name(restaurant)
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     return {
         "success": True,
         "enabled": bool(config_doc.menu_theme_background_enabled),
@@ -1145,7 +1145,7 @@ def set_menu_theme_background_enabled(restaurant, enabled):
     Toggles the Menu Theme Background feature.
     """
     config_name = _get_outlet_config_name(restaurant)
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     enabled_value = 1 if frappe.utils.cint(enabled) else 0
 
     # Menu Theme Background is included for every restaurant under the
@@ -1171,7 +1171,7 @@ def activate_menu_theme_background(restaurant, image_url):
         frappe.throw("image_url is required")
 
     config_name = _get_outlet_config_name(restaurant)
-    config_doc = frappe.get_doc("Restaurant Config", config_name)
+    config_doc = frappe.get_doc("Outlet Config", config_name)
     history = _coerce_json_list(config_doc.menu_theme_background_history)
     found = False
     for item in history:

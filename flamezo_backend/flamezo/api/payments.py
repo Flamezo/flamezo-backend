@@ -576,7 +576,7 @@ def process_loyalty_and_coupons(order):
 		coins_to_redeem = int(order.loyalty_coins_redeemed or 0)
 		if coins_to_redeem > 0:
 			# Idempotency: skip if a Redeem entry already exists for this order
-			already_redeemed = frappe.db.exists("Restaurant Loyalty Entry", {
+			already_redeemed = frappe.db.exists("Outlet Loyalty Entry", {
 				"customer": platform_customer,
 				"restaurant": outlet_id,
 				"reference_doctype": "Order",
@@ -611,7 +611,7 @@ def process_loyalty_and_coupons(order):
 	# ── 2. Earn Coins on Final Paid Amount ──────────────────────────────────────
 	try:
 		# Idempotency: skip if an Earn entry already exists for this order
-		already_earned = frappe.db.exists("Restaurant Loyalty Entry", {
+		already_earned = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": platform_customer,
 			"restaurant": outlet_id,
 			"reference_doctype": "Order",

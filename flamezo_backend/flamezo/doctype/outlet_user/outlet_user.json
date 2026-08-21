@@ -40,12 +40,12 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Restaurant Staff",
+   "default": "Outlet Staff",
    "fieldname": "role",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Role",
-   "options": "Restaurant Admin\nRestaurant Staff",
+   "options": "Outlet Admin\nOutlet Staff",
    "reqd": 1
   },
   {
@@ -68,7 +68,7 @@
  "modified": "2025-01-15 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
- "name": "Restaurant User",
+ "name": "Outlet User",
  "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [
@@ -88,12 +88,12 @@
    "create": 1,
    "delete": 1,
    "read": 1,
-   "role": "Restaurant Admin",
+   "role": "Outlet Admin",
    "write": 1
   },
   {
    "read": 1,
-   "role": "Restaurant Staff"
+   "role": "Outlet Staff"
   }
  ],
  "row_format": "Dynamic",
