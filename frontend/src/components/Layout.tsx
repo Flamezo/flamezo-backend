@@ -11,7 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useOutlet } from '@/contexts/OutletContext'
 import { useCurrency } from '@/hooks/useCurrency'
 import Breadcrumb from './Breadcrumb'
-import { BillingNotificationBar } from './BillingNotificationBar'
+// import { BillingNotificationBar } from './BillingNotificationBar' — commented out with its render call below
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -1339,8 +1339,8 @@ export default function Layout({ children }: LayoutProps) {
               <UserProfileDropdown />
             </div>
           </div>
-          {/* Global Billing Notifications */}
-          <BillingNotificationBar billingInfo={billingInfo} isActive={isActive} />
+          {/* Global Billing Notifications — commented out, wallet balance no longer shown to merchants */}
+          {/* <BillingNotificationBar billingInfo={billingInfo} isActive={isActive} /> */}
         </header>
 
         {/* Page Content */}
