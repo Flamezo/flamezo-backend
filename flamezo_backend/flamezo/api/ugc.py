@@ -93,6 +93,11 @@ PLATFORM_STEPS = [
 	},
 ]
 
+# Moved above PLATFORM_REDEEM_STEPS (was defined at line ~162, after this first use) —
+# module-level code runs top-to-bottom at import time, so referencing it before this
+# point raised a NameError that broke every function in this module, not just this one.
+PLATFORM_VOUCHER_PER_VISIT_PCT = 33   # % of each visit's bill = max free-dish budget
+
 PLATFORM_REDEEM_STEPS = [
 	{
 		"title": "Visit again",
@@ -159,7 +164,7 @@ def _platform_terms_list():
 	]
 # Voucher rules — platform-fixed, non-editable by restaurants.
 PLATFORM_VOUCHER_EARNING_CAP = 2000   # ₹ — max voucher any single claim can issue
-PLATFORM_VOUCHER_PER_VISIT_PCT = 33   # % of each visit's bill = max free-dish budget
+# PLATFORM_VOUCHER_PER_VISIT_PCT now defined near PLATFORM_REDEEM_STEPS above (its first use)
 # Privacy + storage: restaurants can view a diner's proof for 7 days; the proof
 # video is deleted from storage 30 days after it was submitted.
 PLATFORM_STAFF_PROOF_DAYS = 7
