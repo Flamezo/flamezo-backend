@@ -8,7 +8,7 @@
  "field_order": [
   "voucher",
   "customer",
-  "restaurant",
+  "outlet",
   "column_break_identity",
   "order",
   "redeemed_at",
@@ -42,7 +42,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

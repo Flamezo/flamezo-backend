@@ -7,7 +7,7 @@
  "field_order": ["restaurant", "section_name", "section_kind"],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "options": "Outlet",
    "label": "Outlet",

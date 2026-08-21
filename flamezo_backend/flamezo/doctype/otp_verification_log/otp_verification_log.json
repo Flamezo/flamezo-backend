@@ -5,7 +5,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "restaurant",
+  "outlet",
   "phone",
   "channel",
   "verified",
@@ -14,7 +14,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet",

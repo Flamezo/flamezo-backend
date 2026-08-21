@@ -7,7 +7,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "restaurant",
+  "outlet",
   "is_active",
   "section_break_eligibility",
   "min_order_amount",
@@ -42,7 +42,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

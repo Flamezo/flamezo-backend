@@ -10,7 +10,7 @@
  "engine": "InnoDB",
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet"

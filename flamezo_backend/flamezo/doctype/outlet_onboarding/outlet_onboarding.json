@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "hidden": 1,
  "field_order": [
-  "restaurant_name",
+  "outlet_name",
   "linked_restaurant",
   "status",
   "unique_token",
@@ -68,7 +68,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant_name",
+   "fieldname": "outlet_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Outlet Name"

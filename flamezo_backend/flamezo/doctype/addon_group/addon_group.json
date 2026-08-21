@@ -11,7 +11,7 @@
   "group_name",
   "group_id",
   "group_type",
-  "restaurant",
+  "outlet",
   "column_break_1",
   "status",
   "is_required",
@@ -54,7 +54,7 @@
    "description": "addon = extras (multi-select), variation = size/type (single-select, replaces base price)"
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

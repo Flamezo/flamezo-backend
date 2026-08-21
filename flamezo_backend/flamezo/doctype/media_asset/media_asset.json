@@ -8,7 +8,7 @@
  "field_order": [
   "section_identity",
   "media_id",
-  "restaurant",
+  "outlet",
   "owner_doctype",
   "owner_name",
   "column_break_identity",
@@ -68,7 +68,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet",

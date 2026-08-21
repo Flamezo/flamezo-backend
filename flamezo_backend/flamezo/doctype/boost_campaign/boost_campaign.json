@@ -7,7 +7,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "restaurant",
+  "outlet",
   "campaign_name",
   "status",
   "column_break_basic",
@@ -33,8 +33,8 @@
   "creative_approved",
   "section_break_targeting",
   "geo_radius_km",
-  "restaurant_lat",
-  "restaurant_lng",
+  "outlet_lat",
+  "outlet_lng",
   "column_break_targeting",
   "target_age_min",
   "target_age_max",
@@ -91,7 +91,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -250,13 +250,13 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant_lat",
+   "fieldname": "outlet_lat",
    "fieldtype": "Float",
    "label": "Outlet Latitude",
    "precision": "8"
   },
   {
-   "fieldname": "restaurant_lng",
+   "fieldname": "outlet_lng",
    "fieldtype": "Float",
    "label": "Outlet Longitude",
    "precision": "8"
