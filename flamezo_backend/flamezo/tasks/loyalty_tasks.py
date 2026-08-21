@@ -52,14 +52,14 @@ def grant_birthday_bonuses():
 	active_configs = frappe.get_all(
 		"Outlet Loyalty Config",
 		filters={"is_active": 1},
-		fields=["restaurant"]
+		fields=["outlet"]
 	)
 
 	from flamezo_backend.flamezo.utils.loyalty import add_loyalty_coins
 	from flamezo_backend.flamezo.utils.platform_config import get_birthday_bonus_coins
 
 	for config in active_configs:
-		restaurant = config.restaurant
+		restaurant = config.outlet
 		plan = frappe.db.get_value("Outlet", restaurant, "plan_type") or "GOLD"
 		bonus_coins = get_birthday_bonus_coins(plan)  # GOLD=100 (sole active tier; SILVER value kept for legacy rows)
 
@@ -70,7 +70,7 @@ def grant_birthday_bonuses():
 		already_granted_rows = frappe.db.sql("""
 			SELECT DISTINCT customer
 			FROM `tabOutlet Loyalty Entry`
-			WHERE restaurant = %s
+			WHERE outlet = %s
 			  AND reason = 'Birthday Bonus'
 			  AND YEAR(posting_date) = %s
 			  AND customer IN ({placeholders})
@@ -84,7 +84,7 @@ def grant_birthday_bonuses():
 		has_history_rows = frappe.db.sql("""
 			SELECT DISTINCT customer
 			FROM `tabOutlet Loyalty Entry`
-			WHERE restaurant = %s
+			WHERE outlet = %s
 			  AND customer IN ({placeholders})
 		""".format(placeholders=",".join(["%s"] * len(customer_ids))),
 			tuple([restaurant] + customer_ids),

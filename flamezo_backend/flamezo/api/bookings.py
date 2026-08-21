@@ -74,13 +74,13 @@ def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_
 
 		# Validate the Boost campaign belongs to this outlet before linking —
 		# never blocks the booking, just silently drops a mismatched/bad reference.
-		if boost_campaign and frappe.db.get_value("Boost Campaign", boost_campaign, "restaurant") != restaurant:
+		if boost_campaign and frappe.db.get_value("Boost Campaign", boost_campaign, "outlet") != restaurant:
 			boost_campaign = None
 
 		# Create table booking
 		booking_doc = frappe.get_doc({
 			"doctype": "Table Booking",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"user": user,
 			"session_id": session_id,
 			"number_of_diners": int(number_of_diners),
@@ -156,7 +156,7 @@ def get_table_bookings(outlet_id, status=None, date_from=None, date_to=None, pag
 			session_id = frappe.session.get("session_id")
 		
 		# Build filters
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		
 		# In admin mode, don't filter by user - get all bookings
 		if not admin_mode:
@@ -289,7 +289,7 @@ def get_available_time_slots(outlet_id, date, number_of_diners=None):
 		booked_slots = frappe.get_all(
 			"Table Booking",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"date": date,
 				"status": ["!=", "cancelled"]
 			},
@@ -366,7 +366,7 @@ def create_banquet_booking(outlet_id, number_of_guests, event_type, date, time_s
 		# Create banquet booking
 		booking_doc = frappe.get_doc({
 			"doctype": "Banquet Booking",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"user": user,
 			"session_id": session_id,
 			"number_of_guests": int(number_of_guests),
@@ -436,7 +436,7 @@ def get_banquet_bookings(outlet_id, status=None, event_type=None, date_from=None
 			session_id = frappe.session.get("session_id")
 		
 		# Build filters
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		if user:
 			filters["user"] = user
 		elif session_id:
@@ -540,7 +540,7 @@ def get_banquet_available_time_slots(outlet_id, date, number_of_guests=None, eve
 		booked_slots = frappe.get_all(
 			"Banquet Booking",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"date": date,
 				"status": ["!=", "cancelled"]
 			},
@@ -586,7 +586,7 @@ def confirm_booking(booking_id, outlet_id, assigned_table=None):
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
 		# Verify booking belongs to this outlet
-		if booking.restaurant != restaurant:
+		if booking.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
@@ -643,7 +643,7 @@ def reject_booking(booking_id, outlet_id, reason=None):
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
 		# Verify booking belongs to this outlet
-		if booking.restaurant != restaurant:
+		if booking.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
@@ -689,7 +689,7 @@ def reassign_table(booking_id, outlet_id, new_table_id):
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
 		# Verify booking belongs to this outlet
-		if booking.restaurant != restaurant:
+		if booking.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
@@ -697,7 +697,7 @@ def reassign_table(booking_id, outlet_id, new_table_id):
 		
 		# Verify new table belongs to outlet
 		table = frappe.get_doc("Outlet Table", new_table_id)
-		if table.restaurant != restaurant:
+		if table.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_TABLE", "message": "Table does not belong to this outlet"}
@@ -741,7 +741,7 @@ def mark_no_show(booking_id, outlet_id):
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
 		# Verify booking belongs to this outlet
-		if booking.restaurant != restaurant:
+		if booking.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
@@ -783,7 +783,7 @@ def mark_completed(booking_id, outlet_id):
 		booking = frappe.get_doc("Table Booking", booking_id)
 		
 		# Verify booking belongs to this outlet
-		if booking.restaurant != restaurant:
+		if booking.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {"code": "INVALID_BOOKING", "message": "Booking does not belong to this outlet"}
@@ -823,7 +823,7 @@ def get_admin_bookings(outlet_id, date_from=None, date_to=None, status=None, pag
 		restaurant = validate_restaurant_for_api(outlet_id, frappe.session.user)
 		
 		# Build filters
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		
 		if status:
 			filters["status"] = status
@@ -953,7 +953,7 @@ def get_outlet_tables(outlet_id):
 		# Get all tables
 		tables = frappe.get_all(
 			"Outlet Table",
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			fields=[
 				"name as id",
 				"table_number",
@@ -1023,7 +1023,7 @@ def get_all_customer_bookings(phone, limit=50):
 		def _fetch_table(bad_statuses):
 			st = ", ".join(["%s"] * len(bad_statuses))
 			return frappe.db.sql(
-				"SELECT name, restaurant, `date`, time_slot, status FROM `tabTable Booking` "
+				"SELECT name, outlet, `date`, time_slot, status FROM `tabTable Booking` "
 				"WHERE customer_phone IN (" + ph + ") AND `date` >= %s "
 				"AND status NOT IN (" + st + ") ORDER BY `date` ASC LIMIT 50",
 				phone_variants + [today_str] + bad_statuses, as_dict=True,
@@ -1033,7 +1033,7 @@ def get_all_customer_bookings(phone, limit=50):
 		def _fetch_banquet(bad_statuses):
 			st = ", ".join(["%s"] * len(bad_statuses))
 			return frappe.db.sql(
-				"SELECT name, restaurant, `date`, time_slot, status FROM `tabBanquet Booking` "
+				"SELECT name, outlet, `date`, time_slot, status FROM `tabBanquet Booking` "
 				"WHERE customer_phone IN (" + ph + ") AND `date` >= %s "
 				"AND status NOT IN (" + st + ") ORDER BY `date` ASC LIMIT 50",
 				phone_variants + [today_str] + bad_statuses, as_dict=True,
@@ -1042,7 +1042,7 @@ def get_all_customer_bookings(phone, limit=50):
 		# ── Service Appointments ──────────────────────────────────────────────
 		def _fetch_appointments():
 			return frappe.db.sql(
-				"SELECT name, restaurant, outlet_type, appointment_date, appointment_time, "
+				"SELECT name, outlet, outlet_type, appointment_date, appointment_time, "
 				"catalogue_item_name, sub_item_name, status "
 				"FROM `tabService Appointment` "
 				"WHERE customer_phone IN (" + ph + ") AND appointment_date >= %s "
@@ -1054,7 +1054,7 @@ def get_all_customer_bookings(phone, limit=50):
 		# ── Court Bookings ────────────────────────────────────────────────────
 		def _fetch_court_bookings():
 			return frappe.db.sql(
-				"SELECT name, restaurant, court_name, sport_type, booking_date, "
+				"SELECT name, outlet, court_name, sport_type, booking_date, "
 				"start_time, end_time, status, payment_status, consumer_fee "
 				"FROM `tabCourt Booking` "
 				"WHERE customer_phone IN (" + ph + ") AND booking_date >= %s "
@@ -1070,23 +1070,23 @@ def get_all_customer_bookings(phone, limit=50):
 
 		# Gather all outlet IDs for a single meta fetch
 		all_rows = table_rows + banquet_rows + appt_rows + court_rows
-		outlet_ids = list({r.get("restaurant") for r in all_rows if r.get("restaurant")})
+		outlet_ids = list({r.get("outlet") for r in all_rows if r.get("outlet")})
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
 				"Outlet",
 				filters={"name": ["in", outlet_ids]},
-				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
+				fields=["name", "outlet_name", "city", "outlet_type", "logo"],
 			):
 				meta[m["name"]] = m
 
 		def _base(r, btype, date_field):
-			m = meta.get(r.get("restaurant"), {})
+			m = meta.get(r.get("outlet"), {})
 			return {
 				"id": r.get("name"),
 				"type": btype,
-				"outletId": r.get("restaurant"),
-				"outletName": m.get("restaurant_name") or r.get("restaurant"),
+				"outletId": r.get("outlet"),
+				"outletName": m.get("outlet_name") or r.get("outlet"),
 				"city": m.get("city") or "",
 				"logo": m.get("logo") or "",
 				"outlet_type": m.get("outlet_type") or "",
@@ -1190,7 +1190,7 @@ def get_customer_booking_history(phone, limit=50):
 		# ── Table Bookings ────────────────────────────────────────────────────
 		def _fetch_table():
 			return frappe.db.sql(
-				"SELECT name, restaurant, `date`, time_slot, status FROM `tabTable Booking` "
+				"SELECT name, outlet, `date`, time_slot, status FROM `tabTable Booking` "
 				"WHERE customer_phone IN (" + ph + ") "
 				"AND (`date` < %s OR status IN ('cancelled', 'completed', 'rejected', 'no-show')) "
 				"ORDER BY `date` DESC LIMIT 50",
@@ -1200,7 +1200,7 @@ def get_customer_booking_history(phone, limit=50):
 		# ── Banquet Bookings ──────────────────────────────────────────────────
 		def _fetch_banquet():
 			return frappe.db.sql(
-				"SELECT name, restaurant, `date`, time_slot, status FROM `tabBanquet Booking` "
+				"SELECT name, outlet, `date`, time_slot, status FROM `tabBanquet Booking` "
 				"WHERE customer_phone IN (" + ph + ") "
 				"AND (`date` < %s OR status IN ('cancelled', 'completed')) "
 				"ORDER BY `date` DESC LIMIT 50",
@@ -1210,7 +1210,7 @@ def get_customer_booking_history(phone, limit=50):
 		# ── Service Appointments ──────────────────────────────────────────────
 		def _fetch_appointments():
 			return frappe.db.sql(
-				"SELECT name, restaurant, outlet_type, appointment_date, appointment_time, "
+				"SELECT name, outlet, outlet_type, appointment_date, appointment_time, "
 				"catalogue_item_name, sub_item_name, status "
 				"FROM `tabService Appointment` "
 				"WHERE customer_phone IN (" + ph + ") "
@@ -1222,7 +1222,7 @@ def get_customer_booking_history(phone, limit=50):
 		# ── Court Bookings ────────────────────────────────────────────────────
 		def _fetch_court_bookings():
 			return frappe.db.sql(
-				"SELECT name, restaurant, court_name, sport_type, booking_date, "
+				"SELECT name, outlet, court_name, sport_type, booking_date, "
 				"start_time, end_time, status, payment_status, consumer_fee "
 				"FROM `tabCourt Booking` "
 				"WHERE customer_phone IN (" + ph + ") "
@@ -1237,23 +1237,23 @@ def get_customer_booking_history(phone, limit=50):
 		court_rows   = _fetch_court_bookings()
 
 		all_rows = table_rows + banquet_rows + appt_rows + court_rows
-		outlet_ids = list({r.get("restaurant") for r in all_rows if r.get("restaurant")})
+		outlet_ids = list({r.get("outlet") for r in all_rows if r.get("outlet")})
 		meta = {}
 		if outlet_ids:
 			for m in frappe.get_all(
 				"Outlet",
 				filters={"name": ["in", outlet_ids]},
-				fields=["name", "restaurant_name", "city", "outlet_type", "logo"],
+				fields=["name", "outlet_name", "city", "outlet_type", "logo"],
 			):
 				meta[m["name"]] = m
 
 		def _base(r, btype, date_field):
-			m = meta.get(r.get("restaurant"), {})
+			m = meta.get(r.get("outlet"), {})
 			return {
 				"id": r.get("name"),
 				"type": btype,
-				"outletId": r.get("restaurant"),
-				"outletName": m.get("restaurant_name") or r.get("restaurant"),
+				"outletId": r.get("outlet"),
+				"outletName": m.get("outlet_name") or r.get("outlet"),
 				"city": m.get("city") or "",
 				"logo": m.get("logo") or "",
 				"outlet_type": m.get("outlet_type") or "",

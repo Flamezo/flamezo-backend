@@ -56,7 +56,7 @@ export default function HotDrops() {
 
   const { data: activeCoupons } = useFrappeGetDocList('Coupon', {
     fields: ['name', 'code', 'description'],
-    filters: selectedOutlet ? [['restaurant', '=', selectedOutlet], ['is_active', '=', 1]] : [],
+    filters: selectedOutlet ? [['outlet', '=', selectedOutlet], ['is_active', '=', 1]] : [],
     limit: 100,
   })
 

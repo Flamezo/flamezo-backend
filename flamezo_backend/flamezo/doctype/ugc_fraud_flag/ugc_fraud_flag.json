@@ -11,7 +11,7 @@
   "is_active",
   "blocked_until",
   "column_break_1",
-  "restaurant",
+  "outlet",
   "reference_submission",
   "section_break_reason",
   "reason"
@@ -46,7 +46,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet (context)",
    "options": "Outlet",

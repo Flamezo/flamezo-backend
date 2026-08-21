@@ -192,7 +192,7 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
 
     r = frappe.db.get_value(
         "Outlet", outlet_id,
-        ["restaurant_name", "address", "city", "google_place_id", "latitude", "longitude"],
+        ["outlet_name", "address", "city", "google_place_id", "latitude", "longitude"],
         as_dict=True,
     )
 
@@ -224,9 +224,9 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
     if override_query:
         query = override_query
     else:
-        if not r.restaurant_name or not (r.address or r.city):
+        if not r.outlet_name or not (r.address or r.city):
             return {"success": False, "error": "Outlet has no name/address to search with — needs manual_place_id"}
-        query = f"{r.restaurant_name}, {r.address or r.city}"
+        query = f"{r.outlet_name}, {r.address or r.city}"
 
     try:
         # Ask for several candidates, not just the top hit — chains return
@@ -244,13 +244,13 @@ def resolve_google_place_id(outlet_id, override_query=None, manual_place_id=None
     # Text Search ranks by relevance/popularity, not proximity to our outlet.
     place, confident, reason = None, False, None
     for candidate in candidates:
-        is_confident, why = _match_confidence(r.restaurant_name, candidate, r.latitude, r.longitude)
+        is_confident, why = _match_confidence(r.outlet_name, candidate, r.latitude, r.longitude)
         if is_confident:
             place, confident, reason = candidate, True, None
             break
     if not confident:
         place, reason = candidates[0], (
-            _match_confidence(r.restaurant_name, candidates[0], r.latitude, r.longitude)[1]
+            _match_confidence(r.outlet_name, candidates[0], r.latitude, r.longitude)[1]
         )
 
     if not confident:
@@ -301,7 +301,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
 
     r = frappe.db.get_value(
         "Outlet", outlet_id,
-        ["restaurant_name", "address", "city", "google_place_id"],
+        ["outlet_name", "address", "city", "google_place_id"],
         as_dict=True,
     )
 
@@ -338,14 +338,14 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
     # Existing hashes for this outlet's already-synced Google photos, for dedup.
     existing_hashes = set(frappe.get_all(
         "Media Asset",
-        filters={"restaurant": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image", "source_filename": ["like", "google_places_%"]},
+        filters={"outlet": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image", "source_filename": ["like", "google_places_%"]},
         pluck="source_sha256",
     ))
 
     outlet_safe = _sanitize(outlet_id)
     created, skipped, errors = 0, 0, []
     existing_max_sort = frappe.db.sql(
-        "select coalesce(max(sort_order), 0) from `tabOutlet Gallery Item` where restaurant=%s", (outlet_id,)
+        "select coalesce(max(sort_order), 0) from `tabOutlet Gallery Item` where outlet=%s", (outlet_id,)
     )[0][0] or 0
 
     for i, photo in enumerate(photos):
@@ -381,7 +381,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
         media_asset = frappe.get_doc({
             "doctype": "Media Asset",
             "media_id": media_id,
-            "restaurant": outlet_id,
+            "outlet": outlet_id,
             "owner_doctype": "Outlet",
             "owner_name": outlet_id,
             "media_role": "restaurant_gallery_image",
@@ -403,10 +403,10 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
 
         gallery_item = frappe.get_doc({
             "doctype": "Outlet Gallery Item",
-            "restaurant": outlet_id,
+            "outlet": outlet_id,
             "media_type": "Image",
             "url": cdn_url,
-            "title": f"{r.restaurant_name} — Google Photo {i+1}",
+            "title": f"{r.outlet_name} — Google Photo {i+1}",
             # Auto-selected: real Google Places photos of the actual outlet are
             # the strongest cover-image signal we have, so they go live in the
             # Gallery immediately (batch_resolve_outlet_media additionally
@@ -433,7 +433,7 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
     frappe.db.set_value("Outlet", outlet_id, {
         "google_place_photos_synced_at": now_datetime(),
         "google_place_photos_count": frappe.db.count("Media Asset", {
-            "restaurant": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image",
+            "outlet": outlet_id, "owner_doctype": "Outlet", "media_role": "restaurant_gallery_image",
             "source_filename": ["like", "google_places_%"],
         }),
     }, update_modified=False)
@@ -499,7 +499,7 @@ def list_outlets_needing_manual_google_photos():
     return frappe.get_all(
         "Outlet",
         filters={"is_active": 1, "google_place_id": ["in", ["", None]]},
-        fields=["name", "restaurant_name", "address", "city", "outlet_type"],
+        fields=["name", "outlet_name", "address", "city", "outlet_type"],
         order_by="creation desc",
     )
 

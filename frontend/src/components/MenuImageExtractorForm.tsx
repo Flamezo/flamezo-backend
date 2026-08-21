@@ -117,7 +117,7 @@ export default function MenuImageExtractorForm({
       } else if (extractionDocName) {
         setActiveStep('images')
       }
-      if (extractionDoc.restaurant_name && !outletName) setRestaurantName(extractionDoc.restaurant_name)
+      if (extractionDoc.outlet_name && !outletName) setRestaurantName(extractionDoc.outlet_name)
     }
   }, [extractionDoc?.name])
 
@@ -200,8 +200,8 @@ export default function MenuImageExtractorForm({
       const result = await insertDoc({
         doctype: 'Menu Image Extractor',
         doc_data: {
-          restaurant: outletId,
-          restaurant_name: outletName,
+          outlet: outletId,
+          outlet_name: outletName,
           generate_descriptions: autoDescriptions ? 1 : 0
         }
       })

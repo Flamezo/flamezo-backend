@@ -13,7 +13,7 @@
   "column_break_1",
   "usage_date",
   "discount_amount",
-  "restaurant"
+  "outlet"
  ],
  "fields": [
   {
@@ -64,7 +64,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet",

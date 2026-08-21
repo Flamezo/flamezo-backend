@@ -248,7 +248,7 @@ def save_merchant_subscription(outlet_id, fcm_token):
 
         config = frappe.db.get_value(
             "Outlet Config",
-            {"restaurant": outlet_id},
+            {"outlet": outlet_id},
             ["name", "merchant_push_tokens"],
             as_dict=True
         )
@@ -449,7 +449,7 @@ def send_order_status_push_to_customer(order_name: str):
             "order_id": order.order_id or order.name,
             "order_number": str(order_num),
             "status": order.status,
-            "outlet_id": order.restaurant,
+            "outlet_id": order.outlet,
         }
 
         stale_tokens = []
@@ -491,12 +491,12 @@ def send_new_order_push_to_merchant(order_name: str):
     """
     try:
         order = frappe.get_doc("Order", order_name)
-        outlet_id = order.restaurant
+        outlet_id = order.outlet
 
         # Fetch merchant tokens from Restaurant Config
         config = frappe.db.get_value(
             "Outlet Config",
-            {"restaurant": outlet_id},
+            {"outlet": outlet_id},
             "merchant_push_tokens"
         )
 
@@ -550,7 +550,7 @@ def send_new_order_push_to_merchant(order_name: str):
         if stale_tokens:
             config_name = frappe.db.get_value(
                 "Outlet Config",
-                {"restaurant": outlet_id},
+                {"outlet": outlet_id},
                 "name"
             )
             if config_name:

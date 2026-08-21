@@ -72,7 +72,7 @@ def run(dry_run=False):
     links_created = 0
 
     for product_name, product_questions in questions_by_product.items():
-        restaurant = frappe.db.get_value("Menu Product", product_name, "restaurant")
+        restaurant = frappe.db.get_value("Menu Product", product_name, "outlet")
         if not restaurant:
             continue
 
@@ -97,7 +97,7 @@ def run(dry_run=False):
                     "group_name": q.title,
                     "group_id": slug,
                     "group_type": group_type,
-                    "restaurant": restaurant,
+                    "outlet": restaurant,
                     "is_required": cint(q.is_required),
                     "min_selections": 1 if q.is_required else 0,
                     "max_selections": max_sel,

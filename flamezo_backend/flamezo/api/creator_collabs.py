@@ -127,7 +127,7 @@ def get_my_collab_invites(phone, status=None):
 		"""
 		SELECT ci.name, ci.outlet, ci.status, ci.offer_details, ci.deliverable,
 		       ci.proposed_date, ci.completed_at, ci.merchant_rating, ci.creation,
-		       r.restaurant_name AS outlet_name
+		       r.outlet_name AS outlet_name
 		FROM `tabCreator Collab Invite` ci
 		LEFT JOIN `tabOutlet` r ON r.name = ci.outlet
 		WHERE ci.creator=%(creator)s {status_clause}

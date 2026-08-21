@@ -158,7 +158,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 			try:
 				order_doc = frappe.get_doc("Order", existing_order_id)
 				# Only reuse if it's still pending payment and belongs to the same restaurant
-				if order_doc.payment_status != "pending" or order_doc.restaurant != outlet_id:
+				if order_doc.payment_status != "pending" or order_doc.outlet != outlet_id:
 					order_doc = None
 			except frappe.DoesNotExistError:
 				order_doc = None
@@ -172,7 +172,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 			order_doc.update({
 				"order_id": order_id,
 				"order_number": order_number,
-				"restaurant": outlet_id,
+				"outlet": outlet_id,
 			})
 
 		# Update basic info
@@ -405,7 +405,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 			"notes": {
 				"order_id": order_doc.name,
 				"outlet_id": outlet_id,
-				"outlet_name": frappe.db.get_value("Outlet", outlet_id, "restaurant_name") or outlet_id,
+				"outlet_name": frappe.db.get_value("Outlet", outlet_id, "outlet_name") or outlet_id,
 				"platform_fee": platform_fee_paise,
 				"gateway_fee": gateway_fee_paise,
 				"cash_netoff": netoff_paise,
@@ -426,7 +426,7 @@ def create_payment_order(outlet_id, order_items, total_amount, subtotal=None, pa
 		order_doc.payment_source = payment_source
 		if transfer_payload:
 			# merchant slice = total - platform_keep
-			order_doc.restaurant_transfer_amount = final_total_paise - platform_keep_paise
+			order_doc.outlet_transfer_amount = final_total_paise - platform_keep_paise
 		order_doc.save(ignore_permissions=True)
 
 		# Get public key for frontend.
@@ -465,8 +465,8 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 		except Exception:
 			order = None
 
-		if order and getattr(order, "restaurant", None):
-			client = get_razorpay_client(order.restaurant)
+		if order and getattr(order, "outlet", None):
+			client = get_razorpay_client(order.outlet)
 		else:
 			client = get_razorpay_client()
 
@@ -531,7 +531,7 @@ def verify_payment(razorpay_order_id, razorpay_payment_id, razorpay_signature):
 			# (no queue / no delay). send_ugc_cashback_nudge swallows its own errors.
 			try:
 				from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
-				ugc_config = _get_active_config(order.restaurant)
+				ugc_config = _get_active_config(order.outlet)
 				if ugc_config and _is_ugc_active(ugc_config):
 					from flamezo_backend.flamezo.tasks.ugc_tasks import send_ugc_cashback_nudge
 					send_ugc_cashback_nudge(order.name)
@@ -561,7 +561,7 @@ def process_loyalty_and_coupons(order):
 	"""
 	from flamezo_backend.flamezo.utils.loyalty import redeem_loyalty_coins, earn_loyalty_coins
 
-	outlet_id = order.restaurant
+	outlet_id = order.outlet
 	platform_customer = order.platform_customer
 
 	if not platform_customer:
@@ -578,7 +578,7 @@ def process_loyalty_and_coupons(order):
 			# Idempotency: skip if a Redeem entry already exists for this order
 			already_redeemed = frappe.db.exists("Outlet Loyalty Entry", {
 				"customer": platform_customer,
-				"restaurant": outlet_id,
+				"outlet": outlet_id,
 				"reference_doctype": "Order",
 				"reference_name": order.name,
 				"transaction_type": "Redeem"
@@ -613,7 +613,7 @@ def process_loyalty_and_coupons(order):
 		# Idempotency: skip if an Earn entry already exists for this order
 		already_earned = frappe.db.exists("Outlet Loyalty Entry", {
 			"customer": platform_customer,
-			"restaurant": outlet_id,
+			"outlet": outlet_id,
 			"reference_doctype": "Order",
 			"reference_name": order.name,
 			"transaction_type": "Earn"
@@ -651,7 +651,7 @@ def process_loyalty_and_coupons(order):
 					"coupon": order.coupon,
 					"customer": platform_customer,
 					"order": order.name,
-					"restaurant": outlet_id,
+					"outlet": outlet_id,
 					"discount_amount": order.discount
 				})
 				usage_doc.insert(ignore_permissions=True)
@@ -670,7 +670,7 @@ def process_loyalty_and_coupons(order):
 			claim_name = frappe.db.get_value(
 				"Offer Claim",
 				{
-					"restaurant": outlet_id,
+					"outlet": outlet_id,
 					"customer": platform_customer,
 					"coupon": order.coupon,
 					"is_paid": 0,
@@ -802,7 +802,7 @@ def create_tokenization_order(outlet_id, customer_name=None, customer_email=None
 		# Create a TokenizationAttempt doc
 		attempt_doc = frappe.get_doc({
 			"doctype": "Tokenization Attempt",
-			"restaurant": outlet_id,
+			"outlet": outlet_id,
 			"amount": 100, # ₹1
 			"currency": "INR",
 			"status": "pending",
@@ -1023,12 +1023,12 @@ def schedule_monthly_billing():
 		restaurants = frappe.get_all("Outlet", filters={"is_active": 1}, fields=["name"])
 		created = []
 		for r in restaurants:
-			if frappe.db.exists("Monthly Billing Ledger", {"restaurant": r.name, "billing_month": current_month}):
+			if frappe.db.exists("Monthly Billing Ledger", {"outlet": r.name, "billing_month": current_month}):
 				continue
 			# Sum completed orders for month
 			total = frappe.db.sql("""
-				SELECT COALESCE(SUM(total),0) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) 
-				WHERE restaurant=%s AND payment_status='completed' AND DATE_FORMAT(creation, '%%Y-%%m')=%s
+				SELECT COALESCE(SUM(total),0) FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) 
+				WHERE outlet=%s AND payment_status='completed' AND DATE_FORMAT(creation, '%%Y-%%m')=%s
 			""", (r.name, current_month))[0][0] or 0
 			# Convert to paise
 			total_paise = int(float(total) * 100)
@@ -1050,7 +1050,7 @@ def schedule_monthly_billing():
 
 			ledger = frappe.get_doc({
 				"doctype": "Monthly Billing Ledger",
-				"restaurant": r.name,
+				"outlet": r.name,
 				"billing_month": current_month,
 				"total_gmv": total_paise,
 				"calculated_fee": base_commission,
@@ -1094,7 +1094,7 @@ def charge_monthly_bill(ledger_name):
 		if ledger.payment_status == "paid":
 			return {"success": False, "error": "Already paid"}
 
-		restaurant = frappe.get_doc("Outlet", ledger.restaurant)
+		restaurant = frappe.get_doc("Outlet", ledger.outlet)
 		if not restaurant.razorpay_customer_id or not restaurant.razorpay_token_id:
 			return {"success": False, "error": "Outlet missing customer/token"}
 
@@ -1111,7 +1111,7 @@ def charge_monthly_bill(ledger_name):
 					"accept_partial": False,
 					"description": f"Flamezo SaaS Bill: {ledger.billing_month}",
 					"customer": {
-						"name": restaurant.owner_name or restaurant.restaurant_name,
+						"name": restaurant.owner_name or restaurant.outlet_name,
 						"email": restaurant.owner_email or "",
 						"contact": restaurant.owner_phone or ""
 					},
@@ -1156,7 +1156,7 @@ def charge_monthly_bill(ledger_name):
 			},
 			"notes": {
 				"ledger": ledger.name,
-				"restaurant": ledger.restaurant,
+				"restaurant": ledger.outlet,
 				"type": "monthly_bill"
 			}
 		})
@@ -1167,7 +1167,7 @@ def charge_monthly_bill(ledger_name):
 		# STEP 2: Create recurring charge via mandate token
 		# Uses SDK: client.payment.createRecurring -> POST /v1/payments/create/recurring
 		contact = restaurant.get("owner_phone") or "9999999999"
-		email = restaurant.get("owner_email") or f"billing@{ledger.restaurant.replace(' ', '').lower()}.com"
+		email = restaurant.get("owner_email") or f"billing@{ledger.outlet.replace(' ', '').lower()}.com"
 
 		payment = None
 		try:
@@ -1183,7 +1183,7 @@ def charge_monthly_bill(ledger_name):
 				"description": f"Flamezo Monthly Bill: {ledger.billing_month}",
 				"notes": {
 					"ledger": ledger.name,
-					"restaurant": ledger.restaurant,
+					"restaurant": ledger.outlet,
 					"type": "monthly_bill"
 				}
 			})
@@ -1258,22 +1258,22 @@ def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, ski
 		BREAKDOWN_FIELDS = [
 			"name", "razorpay_payment_id", "razorpay_order_id", "coupon",
 			"total", "discount", "loyalty_discount",
-			"platform_fee_amount", "restaurant_transfer_amount", "settlement_mode",
+			"platform_fee_amount", "outlet_transfer_amount", "settlement_mode",
 			"payment_source",
 		]
 		breakdown_enabled = True
 		try:
-			orders = frappe.db.get_all("Order", filters={"restaurant": outlet_id}, fields=BREAKDOWN_FIELDS)
+			orders = frappe.db.get_all("Order", filters={"outlet": outlet_id}, fields=BREAKDOWN_FIELDS)
 		except Exception:
 			breakdown_enabled = False
 			orders = frappe.db.get_all(
-				"Order", filters={"restaurant": outlet_id},
+				"Order", filters={"outlet": outlet_id},
 				fields=["name", "razorpay_payment_id", "razorpay_order_id"],
 			)
 
 		order_payment_ids = {o.razorpay_payment_id for o in orders if o.razorpay_payment_id}
 		order_ids = {o.razorpay_order_id for o in orders if o.razorpay_order_id}
-		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"restaurant": outlet_id}, pluck="razorpay_payment_id"))
+		ledger_payment_ids = set(frappe.db.get_all("Monthly Billing Ledger", filters={"outlet": outlet_id}, pluck="razorpay_payment_id"))
 
 		# Resolve applied-coupon codes in one batch (Order.coupon is the Coupon docname).
 		coupon_codes = {}
@@ -1296,7 +1296,7 @@ def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, ski
 			# Gross bill before the offer. Derived as final + saving so the three
 			# figures always reconcile on screen, regardless of packaging/delivery fees.
 			gross_total = round(final_paid + offer_applied, 2)
-			merchant = (o.get("restaurant_transfer_amount") or 0) / 100.0
+			merchant = (o.get("outlet_transfer_amount") or 0) / 100.0
 			flamezo = (o.get("platform_fee_amount") or 0) / 100.0
 			estimated = False
 			if merchant <= 0 and flamezo <= 0:

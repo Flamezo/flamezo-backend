@@ -19,12 +19,12 @@ from flamezo_backend.flamezo.services.ai.recommendations import RecommendationEn
 
 class MenuImageExtractor(Document):
 	def validate(self):
-		"""Auto-fill restaurant_name from restaurant field if not provided"""
-		if self.restaurant and not self.restaurant_name:
+		"""Auto-fill outlet_name from outlet field if not provided"""
+		if self.outlet and not self.outlet_name:
 			# Get restaurant name from the selected restaurant
-			restaurant_name = frappe.db.get_value("Outlet", self.restaurant, "restaurant_name")
+			restaurant_name = frappe.db.get_value("Outlet", self.outlet, "outlet_name")
 			if restaurant_name:
-				self.restaurant_name = restaurant_name
+				self.outlet_name = restaurant_name
 
 	def on_trash(self):
 		"""Delete all associated Media Assets from R2 when the extraction doc is deleted"""
@@ -73,7 +73,7 @@ def generate_product_id_from_name(product_name, restaurant=None):
 	if restaurant:
 		base_id = product_id
 		counter = 1
-		while frappe.db.get_value("Menu Product", {"product_id": product_id, "restaurant": restaurant}, "name"):
+		while frappe.db.get_value("Menu Product", {"product_id": product_id, "outlet": restaurant}, "name"):
 			product_id = f"{base_id}-{counter}"
 			counter += 1
 			# Prevent infinite loop
@@ -106,7 +106,7 @@ def generate_category_id_from_name(category_name, restaurant=None):
 	if restaurant:
 		base_id = category_id
 		counter = 1
-		while frappe.db.get_value("Menu Category", {"category_id": category_id, "restaurant": restaurant}, "name"):
+		while frappe.db.get_value("Menu Category", {"category_id": category_id, "outlet": restaurant}, "name"):
 			category_id = f"{base_id}-{counter}"
 			counter += 1
 			# Prevent infinite loop
@@ -318,9 +318,9 @@ def _extract_batch_internal(docname, batch_images, batch_number, total_batches):
 			)
 			return  # finally records this as a failed batch
 
-		restaurant_name_for_api = doc.restaurant_name
-		if not restaurant_name_for_api and doc.restaurant:
-			restaurant_name_for_api = frappe.db.get_value("Outlet", doc.restaurant, "restaurant_name")
+		restaurant_name_for_api = doc.outlet_name
+		if not restaurant_name_for_api and doc.outlet:
+			restaurant_name_for_api = frappe.db.get_value("Outlet", doc.outlet, "outlet_name")
 
 		_set_progress(docname, _("Batch {0}/{1}: extracting menu data ({2} images)...").format(
 			batch_number, total_batches, len(image_paths)
@@ -1131,8 +1131,8 @@ def process_extracted_data(data, extractor_doc):
 	restaurant = None
 	
 	# First, try to use the restaurant Link field (preferred)
-	if extractor_doc.restaurant:
-		restaurant = extractor_doc.restaurant
+	if extractor_doc.outlet:
+		restaurant = extractor_doc.outlet
 		# Validate restaurant exists
 		if not frappe.db.exists("Outlet", restaurant):
 			frappe.throw(
@@ -1141,13 +1141,13 @@ def process_extracted_data(data, extractor_doc):
 			)
 	
 	# Fallback: Try to find restaurant by restaurant_name (for backward compatibility)
-	if not restaurant and extractor_doc.restaurant_name:
-		# Try to find restaurant by restaurant_name or restaurant_id
-		restaurant = frappe.db.get_value("Outlet", {"restaurant_name": extractor_doc.restaurant_name}, "name")
+	if not restaurant and extractor_doc.outlet_name:
+		# Try to find restaurant by outlet_name or outlet_id
+		restaurant = frappe.db.get_value("Outlet", {"outlet_name": extractor_doc.outlet_name}, "name")
 		if not restaurant:
-			# Try by restaurant_id (slug format)
-			restaurant_id = extractor_doc.restaurant_name.lower().strip().replace(" ", "-")
-			restaurant = frappe.db.get_value("Outlet", {"restaurant_id": restaurant_id}, "name")
+			# Try by outlet_id (slug format)
+			restaurant_id = extractor_doc.outlet_name.lower().strip().replace(" ", "-")
+			restaurant = frappe.db.get_value("Outlet", {"outlet_id": restaurant_id}, "name")
 	
 	if not restaurant:
 		frappe.throw(
@@ -1225,15 +1225,15 @@ def process_extracted_data(data, extractor_doc):
 			# Check if category already exists for THIS restaurant (by category_id AND restaurant)
 			existing_category_name = frappe.db.get_value(
 				"Menu Category", 
-				{"category_id": category_id, "restaurant": restaurant}, 
+				{"category_id": category_id, "outlet": restaurant}, 
 				"name"
 			)
 			
 			if not existing_category_name:
-				# Also check by category_name AND restaurant in case category_id changed
+				# Also check by category_name AND outlet in case category_id changed
 				existing_category_name = frappe.db.get_value(
 					"Menu Category", 
-					{"category_name": category_name, "restaurant": restaurant}, 
+					{"category_name": category_name, "outlet": restaurant}, 
 					"name"
 				)
 			
@@ -1252,13 +1252,13 @@ def process_extracted_data(data, extractor_doc):
 				# IMPORTANT: Since category_id is no longer globally unique, 
 				# we just use the one provided (which generate_category_id_from_name ensures is unique for us)
 				# But if the API provided a conflicting one, let's double check
-				if frappe.db.get_value("Menu Category", {"category_id": category_id, "restaurant": restaurant}, "name"):
+				if frappe.db.get_value("Menu Category", {"category_id": category_id, "outlet": restaurant}, "name"):
 					# This should be handled by the update logic above, but safety first
 					category_id = generate_category_id_from_name(category_name, restaurant=restaurant)
 
 				cat_doc = frappe.new_doc("Menu Category")
 				cat_doc.category_id = category_id
-				cat_doc.restaurant = restaurant
+				cat_doc.outlet = restaurant
 				cat_doc.category_name = category_name
 				cat_doc.display_name = cat_data.get('displayName', category_name)
 				cat_doc.description = cat_data.get('description', '')
@@ -1295,14 +1295,14 @@ def process_extracted_data(data, extractor_doc):
 		# Check if product exists for THIS restaurant
 		existing_product_name = frappe.db.get_value(
 			"Menu Product", 
-			{"product_id": product_id, "restaurant": restaurant}, 
+			{"product_id": product_id, "outlet": restaurant}, 
 			"name"
 		)
 		
 		if not existing_product_name:
 			existing_product_name = frappe.db.get_value(
 				"Menu Product", 
-				{"product_name": product_name, "restaurant": restaurant}, 
+				{"product_name": product_name, "outlet": restaurant}, 
 				"name"
 			)
 		
@@ -1318,8 +1318,8 @@ def process_extracted_data(data, extractor_doc):
 			product_doc.product_id = product_id
 			stats['items_created'] += 1
 		
-		# Set restaurant (mandatory field)
-		product_doc.restaurant = restaurant
+		# Set outlet (mandatory field)
+		product_doc.outlet = restaurant
 		
 		# Set basic fields
 		product_doc.product_name = product_name
@@ -1344,12 +1344,12 @@ def process_extracted_data(data, extractor_doc):
 			
 			if not cat_to_link:
 				# Deep lookup in DB for this restaurant if not in current map
-				cat_to_link = frappe.db.get_value("Menu Category", {"category_id": category_name, "restaurant": restaurant}, "category_id")
+				cat_to_link = frappe.db.get_value("Menu Category", {"category_id": category_name, "outlet": restaurant}, "category_id")
 				if not cat_to_link:
-					cat_to_link = frappe.db.get_value("Menu Category", {"category_name": category_name, "restaurant": restaurant}, "category_id")
+					cat_to_link = frappe.db.get_value("Menu Category", {"category_name": category_name, "outlet": restaurant}, "category_id")
 		
 		if cat_to_link:
-			product_doc.category = frappe.db.get_value("Menu Category", {"category_id": cat_to_link, "restaurant": restaurant}, "name")
+			product_doc.category = frappe.db.get_value("Menu Category", {"category_id": cat_to_link, "outlet": restaurant}, "name")
 			product_doc.category_name = category_name or frappe.db.get_value("Menu Category", product_doc.category, "category_name")
 		elif category_name:
 			product_doc.category_name = category_name
@@ -1462,14 +1462,14 @@ def process_extracted_data(data, extractor_doc):
 					# Check if addon group with same name already exists for this restaurant
 					existing_ag = frappe.db.get_value(
 						"Addon Group",
-						{"group_name": group_name, "restaurant": product_doc.restaurant, "status": "Active"}
+						{"group_name": group_name, "outlet": product_doc.outlet, "status": "Active"}
 					)
 
 					if not existing_ag:
 						ag = frappe.new_doc("Addon Group")
 						ag.group_name = group_name
 						ag.group_type = group_type
-						ag.restaurant = product_doc.restaurant
+						ag.outlet = product_doc.outlet
 						ag.is_required = 1 if custom_data.get('required') else 0
 						ag.min_selections = 1 if custom_data.get('required') else 0
 						ag.max_selections = 1 if group_type == 'variation' else 0
@@ -1766,32 +1766,32 @@ def generate_recommendations(docname):
 			frappe.throw(_("Recommendations can only be generated after extraction is completed."))
 		
 		# Get restaurant
-		if not doc.restaurant:
+		if not doc.outlet:
 			frappe.throw(_("Outlet is required to generate recommendations."))
-		
-		restaurant = doc.restaurant
-		
+
+		restaurant = doc.outlet
+
 		# Get restaurant name for API
-		restaurant_name = doc.restaurant_name
+		restaurant_name = doc.outlet_name
 		if not restaurant_name:
-			restaurant_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name")
-		
+			restaurant_name = frappe.db.get_value("Outlet", restaurant, "outlet_name")
+
 		# Get all active products for this restaurant
 		products = frappe.get_all(
 			"Menu Product",
-			fields=["product_id", "product_name", "category_name", "main_category", "price", 
+			fields=["product_id", "product_name", "category_name", "main_category", "price",
 			        "description", "is_vegetarian", "name"],
-			filters={"restaurant": restaurant, "is_active": 1}
+			filters={"outlet": restaurant, "is_active": 1}
 		)
-		
+
 		if not products:
 			frappe.throw(_("No active products found for this outlet. Please create products first."))
-		
+
 		# Get categories
 		categories = frappe.get_all(
 			"Menu Category",
 			fields=["category_id", "category_name"],
-			filters={"restaurant": restaurant}
+			filters={"outlet": restaurant}
 		)
 		
 		# Prepare dishes data for API

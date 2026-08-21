@@ -50,7 +50,7 @@ def make_category(restaurant, category_name, parent_category=None, is_active=1):
     """Create a Menu Category and return the doc."""
     doc = frappe.get_doc({
         "doctype": "Menu Category",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "category_name": category_name,
         "is_active": is_active,
         "parent_category": parent_category,
@@ -64,7 +64,7 @@ def make_product(restaurant, product_name, category_docname, is_active=1):
     """Create a Menu Product linked to a category (by docname)."""
     doc = frappe.get_doc({
         "doctype": "Menu Product",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "product_name": product_name,
         "category": category_docname,
         "price": 100.0,
@@ -81,9 +81,9 @@ class TestMenuCategorySubcategoryDoctype(unittest.TestCase):
     def setUp(self):
         self.restaurant = make_restaurant(f"{TEST_PREFIX}DOCTYPE").name
         frappe.set_user("Administrator")
-        for name in frappe.get_all("Menu Product", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Product", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Product", name, force=True, ignore_permissions=True)
-        for name in frappe.get_all("Menu Category", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Category", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Category", name, force=True, ignore_permissions=True)
         frappe.db.commit()
 
@@ -99,7 +99,7 @@ class TestMenuCategorySubcategoryDoctype(unittest.TestCase):
 
         self.assertIsNotNone(parent.name)
         self.assertEqual(sub.parent_category, parent.name)
-        self.assertEqual(sub.restaurant, self.restaurant)
+        self.assertEqual(sub.outlet, self.restaurant)
 
     def test_sub_category_id_generated(self):
         parent = make_category(self.restaurant, "Main Course")
@@ -180,9 +180,9 @@ class TestGetCategoriesAPI(unittest.TestCase):
     def setUp(self):
         self.restaurant = make_restaurant(f"{TEST_PREFIX}API").name
         frappe.set_user("Administrator")
-        for name in frappe.get_all("Menu Product", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Product", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Product", name, force=True, ignore_permissions=True)
-        for name in frappe.get_all("Menu Category", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Category", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Category", name, force=True, ignore_permissions=True)
         frappe.db.commit()
 
@@ -298,9 +298,9 @@ class TestGetProductsWithSubcategories(unittest.TestCase):
         self.restaurant = make_restaurant(f"{TEST_PREFIX}PROD").name
         frappe.set_user("Administrator")
         # Clean any leftover data from previous runs (make_restaurant reuses the same name)
-        for name in frappe.get_all("Menu Product", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Product", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Product", name, force=True, ignore_permissions=True)
-        for name in frappe.get_all("Menu Category", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Category", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Category", name, force=True, ignore_permissions=True)
         frappe.db.commit()
 
@@ -316,9 +316,9 @@ class TestGetProductsWithSubcategories(unittest.TestCase):
 
     def tearDown(self):
         # Explicitly delete Menu Products and Categories before restaurant cleanup
-        for name in frappe.get_all("Menu Product", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Product", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Product", name, force=True, ignore_permissions=True)
-        for name in frappe.get_all("Menu Category", filters={"restaurant": self.restaurant}, pluck="name"):
+        for name in frappe.get_all("Menu Category", filters={"outlet": self.restaurant}, pluck="name"):
             frappe.delete_doc("Menu Category", name, force=True, ignore_permissions=True)
         cleanup_restaurant(self.restaurant)
         frappe.db.commit()

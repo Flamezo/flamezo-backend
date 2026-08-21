@@ -8,7 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
-  "restaurant",
+  "outlet",
   "previous_plan",
   "new_plan",
   "column_break_1",
@@ -27,7 +27,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

@@ -40,7 +40,7 @@ def _make_coupon(restaurant, is_active=1):
     """Insert a minimal Coupon for offer-count tests."""
     doc = frappe.get_doc({
         "doctype": "Coupon",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "code": frappe.generate_hash(length=8).upper(),
         "discount_type": "percent",
         "discount_value": 10,
@@ -55,9 +55,9 @@ def _make_coupon(restaurant, is_active=1):
 
 def _cleanup(res_names):
     for name in res_names:
-        frappe.db.delete("Outlet Gallery Item", {"restaurant": name})
-        frappe.db.delete("Coupon", {"restaurant": name})
-        frappe.db.delete("Outlet Config", {"restaurant": name})
+        frappe.db.delete("Outlet Gallery Item", {"outlet": name})
+        frappe.db.delete("Coupon", {"outlet": name})
+        frappe.db.delete("Outlet Config", {"outlet": name})
         frappe.db.delete("Outlet", name)
     frappe.db.commit()
 
@@ -156,7 +156,7 @@ class TestListRestaurants(unittest.TestCase):
         # Add one gallery photo to A
         frappe.get_doc({
             "doctype": "Outlet Gallery Item",
-            "restaurant": cls.res_a,
+            "outlet": cls.res_a,
             "url": "https://example.com/photo1.jpg",
             "media_type": "Image",
             "is_selected": 1,

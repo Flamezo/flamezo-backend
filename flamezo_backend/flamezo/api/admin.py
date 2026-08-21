@@ -70,7 +70,7 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
         settings = frappe.get_single("Flamezo Settings")
 
         if search:
-            where_conditions.append("(r.restaurant_name LIKE %s OR r.restaurant_id LIKE %s OR r.owner_email LIKE %s)")
+            where_conditions.append("(r.outlet_name LIKE %s OR r.outlet_id LIKE %s OR r.owner_email LIKE %s)")
             search_val = f"%{search}%"
             params.extend([search_val, search_val, search_val])
 
@@ -163,8 +163,8 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
         # throttle indicators without a second round-trip.
         _select_cols = f"""
             r.name,
-            r.restaurant_id as outlet_id,
-            r.restaurant_name as outlet_name,
+            r.outlet_id as outlet_id,
+            r.outlet_name as outlet_name,
             r.owner_email,
             r.owner_phone,
             r.is_active,
@@ -289,7 +289,7 @@ def get_outlet_details(outlet_id):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -347,7 +347,7 @@ def toggle_outlet_status(outlet_id, is_active):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -400,7 +400,7 @@ def delete_outlet(outlet_id):
             }
 
         # Get restaurant record
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {
                 'success': False,
@@ -512,8 +512,8 @@ def delete_outlet(outlet_id):
                 meta = frappe.get_meta(dt)
                 link_field = None
 
-                if meta.has_field("restaurant"):
-                    link_field = "restaurant"
+                if meta.has_field("outlet"):
+                    link_field = "outlet"
                 else:
                     # Find any field that is a Link to Restaurant
                     for df in meta.fields:
@@ -602,7 +602,7 @@ def admin_give_coins(outlet_id, amount, reason="Admin Grant"):
             return {'success': False, 'error': 'Invalid amount'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -640,7 +640,7 @@ def admin_update_outlet_settings(outlet_id, updates):
             return {'success': False, 'error': 'Admin access required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -654,7 +654,7 @@ def admin_update_outlet_settings(outlet_id, updates):
         allowed_fields = [
             'platform_fee_percent', 'is_active', 'is_featured', 'is_signature',
             'limelight_start_date', 'limelight_end_date',
-            'restaurant_name', 'owner_email',
+            'outlet_name', 'owner_email',
             'owner_phone', 'owner_name', 'billing_status', 'mandate_status',
             'enable_loyalty', 'enable_dine_in',
             'tax_rate', 'gst_number',
@@ -728,7 +728,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
             return {'success': False, 'error': 'Owner email is required'}
 
         # Get restaurant
-        restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+        restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         if not restaurant:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -751,7 +751,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
         # Generate password
         import string
         import random
-        clean_name = ''.join(e for e in restaurant.restaurant_name if e.isalnum())
+        clean_name = ''.join(e for e in restaurant.outlet_name if e.isalnum())
         if not clean_name:
             clean_name = outlet_id.replace('-', '')
             
@@ -817,7 +817,7 @@ def admin_onboard_outlet_owner(outlet_id, owner_name, owner_email):
         create_restaurant_user_permission(user_id, restaurant.name, is_default=is_default_flag)
 
         # Check if already in 'Outlet User' doctype
-        if not frappe.db.exists("Outlet User", {"user": user_id, "restaurant": restaurant.name}):
+        if not frappe.db.exists("Outlet User", {"user": user_id, "outlet": restaurant.name}):
             assign_user_to_restaurant(user_id, restaurant.name, role="Outlet Admin", is_default=is_default_flag)
 
         frappe.db.commit()
@@ -938,7 +938,7 @@ def admin_assign_owner_to_branches(owner_email, owner_name=None, branch_ids=None
                 results.append({'branch': bid, 'status': 'not_found'})
                 continue
 
-            if frappe.db.exists("Outlet User", {"user": user_id, "restaurant": branch}):
+            if frappe.db.exists("Outlet User", {"user": user_id, "outlet": branch}):
                 results.append({'branch': branch, 'status': 'skipped'})
                 continue
 
@@ -998,10 +998,10 @@ def admin_list_branch_access(multi_only=0):
 
         rows = frappe.db.sql(
             """
-            SELECT ru.user, ru.restaurant, ru.role,
-                   COALESCE(r.restaurant_name, ru.restaurant) AS outlet_name
+            SELECT ru.user, ru.outlet, ru.role,
+                   COALESCE(r.outlet_name, ru.outlet) AS outlet_name
             FROM `tabOutlet User` ru
-            LEFT JOIN `tabOutlet` r ON r.name = ru.restaurant
+            LEFT JOIN `tabOutlet` r ON r.name = ru.outlet
             WHERE ru.is_active = 1
             ORDER BY ru.user
             """,
@@ -1012,7 +1012,7 @@ def admin_list_branch_access(multi_only=0):
         for row in rows:
             g = grouped.setdefault(row.user, {'user': row.user, 'branches': []})
             g['branches'].append({
-                'name': row.restaurant,
+                'name': row.outlet,
                 'outlet_name': row.outlet_name,
                 'role': row.role,
             })
@@ -1205,7 +1205,7 @@ def admin_create_manual_recharge_link(outlet_id, amount):
 
         # Get restaurant record
         try:
-            restaurant = frappe.get_doc('Outlet', {'restaurant_id': outlet_id})
+            restaurant = frappe.get_doc('Outlet', {'outlet_id': outlet_id})
         except Exception:
             return {'success': False, 'error': 'Outlet not found'}
 
@@ -1224,7 +1224,7 @@ def admin_create_manual_recharge_link(outlet_id, amount):
             "accept_partial": False,
             "description": f"Manual Wallet Recharge — ₹{base_amount}" + (f" + ₹{gst_amount} GST" if charge_gst else ""),
             "customer": {
-                "name": restaurant.owner_name or restaurant.restaurant_name,
+                "name": restaurant.owner_name or restaurant.outlet_name,
                 "email": restaurant.owner_email or "",
                 "contact": clean_phone or ""
             },
@@ -1251,7 +1251,7 @@ def admin_create_manual_recharge_link(outlet_id, amount):
             'amount': total_payable,
             'base_amount': base_amount,
             'gst_amount': gst_amount,
-            'outlet_name': restaurant.restaurant_name
+            'outlet_name': restaurant.outlet_name
         }
 
     except Exception as e:
@@ -1361,7 +1361,7 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
     conds  = ["1=1"]
     params: list = []
     if search:
-        conds.append("(e.title LIKE %s OR e.category LIKE %s OR e.location LIKE %s OR r.restaurant_name LIKE %s)")
+        conds.append("(e.title LIKE %s OR e.category LIKE %s OR e.location LIKE %s OR r.outlet_name LIKE %s)")
         s = f"%{search}%"
         params += [s, s, s, s]
     if status in ("upcoming", "recurring", "past"):
@@ -1373,7 +1373,7 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
         "date":     "e.date",
         "created":  "e.creation",
         "modified": "e.modified",
-        "outlet":   "r.restaurant_name",
+        "outlet":   "r.outlet_name",
         "category": "e.category",
     }
     sort_col  = _sort_map.get(sort_by, "e.date")
@@ -1384,9 +1384,9 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
         SELECT
             e.name, e.title, e.category, e.status, e.is_active, e.featured,
             e.date, e.time, e.end_time, e.location, e.image_src,
-            e.restaurant, COALESCE(r.restaurant_name, e.restaurant) AS outlet_name
+            e.outlet, COALESCE(r.outlet_name, e.outlet) AS outlet_name
         FROM `tabEvent` e
-        LEFT JOIN `tabOutlet` r ON r.name = e.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = e.outlet
         WHERE {where}
         ORDER BY {sort_col} {order_dir}
         LIMIT %s OFFSET %s
@@ -1395,7 +1395,7 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
     total = frappe.db.sql(f"""
         SELECT COUNT(*) AS cnt
         FROM `tabEvent` e
-        LEFT JOIN `tabOutlet` r ON r.name = e.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = e.outlet
         WHERE {where}
     """, params, as_dict=True)[0].cnt
 
@@ -1415,8 +1415,8 @@ def admin_get_all_events(search=None, page=1, page_size=20, sort_by='date', sort
                     "end_time":    str(r.end_time) if r.end_time else None,
                     "location":    r.location or "",
                     "image_src":   r.image_src or "",
-                    "outlet":      r.restaurant or "",
-                    "outlet_name": r.outlet_name or r.restaurant or "",
+                    "outlet":      r.outlet or "",
+                    "outlet_name": r.outlet_name or r.outlet or "",
                 }
                 for r in rows
             ],
@@ -1443,7 +1443,7 @@ def admin_create_event(title, restaurant=None, description=None, category=None, 
 
     doc = frappe.get_doc({
         "doctype": "Event",
-        "restaurant": restaurant or None,
+        "outlet": restaurant or None,
         "title": title.strip(),
         "description": description or "",
         "category": category or "",
@@ -1475,8 +1475,8 @@ def admin_get_event_detail(event_id):
 
     e = frappe.get_doc("Event", event_id)
     outlet_name = ""
-    if e.restaurant:
-        outlet_name = frappe.db.get_value("Outlet", e.restaurant, "restaurant_name") or ""
+    if e.outlet:
+        outlet_name = frappe.db.get_value("Outlet", e.outlet, "outlet_name") or ""
 
     days = [d for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") if e.get(d)]
 
@@ -1531,8 +1531,8 @@ def admin_get_event_detail(event_id):
                 "created":          str(e.creation),
                 "modified":         str(e.modified),
             },
-            "outlet":      e.restaurant or "",
-            "outlet_name": outlet_name or e.restaurant or "",
+            "outlet":      e.outlet or "",
+            "outlet_name": outlet_name or e.outlet or "",
             "attendees": attendees,
             "attendees_count": len(attendees),
             "attendees_available": True,
@@ -1564,7 +1564,7 @@ def admin_get_customer_full_profile(customer_id):
     orders = frappe.get_all(
         "Order",
         filters={"platform_customer": customer_id},
-        fields=["name", "order_id", "order_number", "restaurant", "status", "payment_status",
+        fields=["name", "order_id", "order_number", "outlet", "status", "payment_status",
                 "payment_method", "order_type", "acquisition_source", "subtotal", "discount",
                 "loyalty_discount", "loyalty_coins_redeemed", "coupon", "tax", "total", "creation"],
         order_by="creation desc",
@@ -1575,14 +1575,14 @@ def admin_get_customer_full_profile(customer_id):
     table_bookings = frappe.get_all(
         "Table Booking",
         filters={"platform_customer": customer_id},
-        fields=["name", "restaurant", "booking_number", "date", "time_slot", "status", "creation"],
+        fields=["name", "outlet", "booking_number", "date", "time_slot", "status", "creation"],
         order_by="creation desc",
         limit_page_length=100
     )
     banquet_bookings = frappe.get_all(
         "Banquet Booking",
         filters={"platform_customer": customer_id},
-        fields=["name", "restaurant", "booking_number", "date", "event_type", "status", "creation"],
+        fields=["name", "outlet", "booking_number", "date", "event_type", "status", "creation"],
         order_by="creation desc",
         limit_page_length=50
     )
@@ -1590,7 +1590,7 @@ def admin_get_customer_full_profile(customer_id):
     court_bookings = frappe.get_all(
         "Court Booking",
         filters={"customer_phone": phone},
-        fields=["name", "restaurant", "court_name", "sport_type", "booking_date", "start_time",
+        fields=["name", "outlet", "court_name", "sport_type", "booking_date", "start_time",
                 "end_time", "slot_price", "consumer_fee", "payment_status", "status", "creation"],
         order_by="creation desc",
         limit_page_length=100
@@ -1598,7 +1598,7 @@ def admin_get_customer_full_profile(customer_id):
     service_appointments = frappe.get_all(
         "Service Appointment",
         filters={"customer_phone": phone},
-        fields=["name", "restaurant", "catalogue_item_name", "sub_item_name", "sub_item_price",
+        fields=["name", "outlet", "catalogue_item_name", "sub_item_name", "sub_item_price",
                 "appointment_date", "appointment_time", "duration_minutes", "status", "creation"],
         order_by="creation desc",
         limit_page_length=100
@@ -1608,7 +1608,7 @@ def admin_get_customer_full_profile(customer_id):
     loyalty_entries = frappe.get_all(
         "Outlet Loyalty Entry",
         filters={"customer": customer_id},
-        fields=["name", "restaurant", "transaction_type", "coins", "reason",
+        fields=["name", "outlet", "transaction_type", "coins", "reason",
                 "posting_date", "expiry_date", "is_settled", "reference_doctype", "reference_name"],
         order_by="creation desc",
         limit_page_length=500
@@ -1657,7 +1657,7 @@ def admin_get_customer_full_profile(customer_id):
     ugc_submissions = frappe.get_all(
         "UGC Story Submission",
         filters={"customer": customer_id},
-        fields=["name", "restaurant", "order", "status", "order_amount",
+        fields=["name", "outlet", "order", "status", "order_amount",
                 "cashback_coins", "submission_date", "story_verified_at", "proof_submitted_at",
                 "proof_video", "ai_view_count", "ai_confidence", "ai_tamper_signals",
                 "review_notes", "rejection_reason", "story_shared_at", "ai_provider"],
@@ -1676,7 +1676,7 @@ def admin_get_customer_full_profile(customer_id):
     ugc_vouchers = frappe.get_all(
         "UGC Voucher",
         filters={"customer": customer_id},
-        fields=["name", "voucher_code", "restaurant", "status", "ugc_submission",
+        fields=["name", "voucher_code", "outlet", "status", "ugc_submission",
                 "original_amount", "balance", "issued_at", "expires_at", "pin_activated_at"],
         order_by="issued_at desc",
         limit_page_length=50
@@ -1684,7 +1684,7 @@ def admin_get_customer_full_profile(customer_id):
     ugc_voucher_redemptions = frappe.get_all(
         "UGC Voucher Redemption",
         filters={"customer": customer_id},
-        fields=["name", "voucher", "restaurant", "order", "redeemed_at", "bill_amount",
+        fields=["name", "voucher", "outlet", "order", "redeemed_at", "bill_amount",
                 "amount_used", "balance_before", "balance_after", "dish_name", "dish_price"],
         order_by="redeemed_at desc",
         limit_page_length=100
@@ -1692,7 +1692,7 @@ def admin_get_customer_full_profile(customer_id):
     ugc_fraud_flags = frappe.get_all(
         "UGC Fraud Flag",
         filters={"customer": customer_id},
-        fields=["name", "is_active", "blocked_until", "restaurant", "reference_submission", "reason", "creation"],
+        fields=["name", "is_active", "blocked_until", "outlet", "reference_submission", "reason", "creation"],
         order_by="creation desc",
         limit_page_length=20
     )
@@ -1701,7 +1701,7 @@ def admin_get_customer_full_profile(customer_id):
     coupon_usage = frappe.get_all(
         "Coupon Usage",
         filters={"customer": customer_id},
-        fields=["name", "coupon", "order", "usage_date", "discount_amount", "restaurant"],
+        fields=["name", "coupon", "order", "usage_date", "discount_amount", "outlet"],
         order_by="usage_date desc",
         limit_page_length=100
     )
@@ -1710,7 +1710,7 @@ def admin_get_customer_full_profile(customer_id):
         or_filters=(
             [{"customer": customer_id}, {"customer_phone": phone}] if phone else [{"customer": customer_id}]
         ),
-        fields=["name", "restaurant", "coupon", "coupon_code", "claimed_at", "locked_until",
+        fields=["name", "outlet", "coupon", "coupon_code", "claimed_at", "locked_until",
                 "is_paid", "paid_amount", "paid_at"],
         order_by="claimed_at desc",
         limit_page_length=100
@@ -1758,25 +1758,25 @@ def admin_get_customer_full_profile(customer_id):
 
     # ── Restaurant names map ──────────────────────────────────────────────────
     all_rest_ids = set(
-        [b.restaurant for b in table_bookings] +
-        [b.restaurant for b in banquet_bookings] +
-        [b.restaurant for b in court_bookings] +
-        [b.restaurant for b in service_appointments] +
-        [o.restaurant for o in orders] +
-        [e.restaurant for e in loyalty_entries] +
-        [u.restaurant for u in ugc_submissions] +
-        [v.restaurant for v in ugc_vouchers] +
-        [r.restaurant for r in ugc_voucher_redemptions] +
-        [f.restaurant for f in ugc_fraud_flags] +
-        [c.restaurant for c in coupon_usage] +
-        [c.restaurant for c in offer_claims]
+        [b.outlet for b in table_bookings] +
+        [b.outlet for b in banquet_bookings] +
+        [b.outlet for b in court_bookings] +
+        [b.outlet for b in service_appointments] +
+        [o.outlet for o in orders] +
+        [e.outlet for e in loyalty_entries] +
+        [u.outlet for u in ugc_submissions] +
+        [v.outlet for v in ugc_vouchers] +
+        [r.outlet for r in ugc_voucher_redemptions] +
+        [f.outlet for f in ugc_fraud_flags] +
+        [c.outlet for c in coupon_usage] +
+        [c.outlet for c in offer_claims]
     )
     all_rest_ids.discard(None)
     rest_name_map = {}
     if all_rest_ids:
         rest_rows = frappe.get_all(
             "Outlet", filters={"name": ["in", list(all_rest_ids)]},
-            fields=["name", "restaurant_name as outlet_name"]
+            fields=["name", "outlet_name as outlet_name"]
         )
         rest_name_map = {r.name: r.outlet_name for r in rest_rows}
 
@@ -1806,15 +1806,15 @@ def admin_get_customer_full_profile(customer_id):
             s["last_visited"] = w
 
     for o in orders:
-        _touch(o.restaurant, o.creation, spend=o.total if o.payment_status == "completed" else 0, kind="orders")
+        _touch(o.outlet, o.creation, spend=o.total if o.payment_status == "completed" else 0, kind="orders")
     for b in table_bookings:
-        _touch(b.restaurant, b.creation, kind="table_bookings")
+        _touch(b.outlet, b.creation, kind="table_bookings")
     for b in banquet_bookings:
-        _touch(b.restaurant, b.creation, kind="banquet_bookings")
+        _touch(b.outlet, b.creation, kind="banquet_bookings")
     for b in court_bookings:
-        _touch(b.restaurant, b.creation, kind="court_bookings")
+        _touch(b.outlet, b.creation, kind="court_bookings")
     for b in service_appointments:
-        _touch(b.restaurant, b.creation, kind="service_appointments")
+        _touch(b.outlet, b.creation, kind="service_appointments")
 
     outlets_visited = sorted(outlet_stats.values(), key=lambda s: s["last_visited"] or "", reverse=True)
 
@@ -1852,30 +1852,30 @@ def admin_get_customer_full_profile(customer_id):
             },
             "outlets_visited": outlets_visited,
             "orders": [
-                {**dict(o), "outlet_name": rn(o.restaurant)}
+                {**dict(o), "outlet_name": rn(o.outlet)}
                 for o in orders
             ],
             "table_bookings": [
-                {**dict(b), "outlet_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.outlet)}
                 for b in table_bookings
             ],
             "banquet_bookings": [
-                {**dict(b), "outlet_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.outlet)}
                 for b in banquet_bookings
             ],
             "court_bookings": [
-                {**dict(b), "outlet_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.outlet)}
                 for b in court_bookings
             ],
             "service_appointments": [
-                {**dict(b), "outlet_name": rn(b.restaurant)}
+                {**dict(b), "outlet_name": rn(b.outlet)}
                 for b in service_appointments
             ],
             "loyalty": {
                 "balance":        balance,
                 "lifetime_earned": lifetime_earned,
                 "entries": [
-                    {**dict(e), "outlet_name": rn(e.restaurant)}
+                    {**dict(e), "outlet_name": rn(e.outlet)}
                     for e in loyalty_entries
                 ],
             },
@@ -1891,27 +1891,27 @@ def admin_get_customer_full_profile(customer_id):
                 "referrals_made": [dict(r) for r in referrals_made],
             },
             "ugc": [
-                {**dict(u), "outlet_name": rn(u.restaurant)}
+                {**dict(u), "outlet_name": rn(u.outlet)}
                 for u in ugc_submissions
             ],
             "ugc_vouchers": [
-                {**dict(v), "outlet_name": rn(v.restaurant)}
+                {**dict(v), "outlet_name": rn(v.outlet)}
                 for v in ugc_vouchers
             ],
             "ugc_voucher_redemptions": [
-                {**dict(r), "outlet_name": rn(r.restaurant)}
+                {**dict(r), "outlet_name": rn(r.outlet)}
                 for r in ugc_voucher_redemptions
             ],
             "ugc_fraud_flags": [
-                {**dict(f), "outlet_name": rn(f.restaurant)}
+                {**dict(f), "outlet_name": rn(f.outlet)}
                 for f in ugc_fraud_flags
             ],
             "coupon_usage": [
-                {**dict(c), "outlet_name": rn(c.restaurant)}
+                {**dict(c), "outlet_name": rn(c.outlet)}
                 for c in coupon_usage
             ],
             "offer_claims": [
-                {**dict(c), "outlet_name": rn(c.restaurant)}
+                {**dict(c), "outlet_name": rn(c.outlet)}
                 for c in offer_claims
             ],
             "addresses": [dict(a) for a in addresses],
@@ -2032,7 +2032,7 @@ def admin_generate_bulk_food_photos(outlet_id):
 
 def process_bulk_food_photos(outlet_id):
     try:
-        products = frappe.get_all('Menu Product', filters={'restaurant': outlet_id}, pluck='name')
+        products = frappe.get_all('Menu Product', filters={'outlet': outlet_id}, pluck='name')
         for product_name in products:
             product = frappe.get_doc('Menu Product', product_name)
 
@@ -2044,7 +2044,7 @@ def process_bulk_food_photos(outlet_id):
             # Prevents duplicate jobs when the button is clicked twice or after a
             # partial run leaves pending/processing/completed records behind.
             active_job = frappe.db.exists("AI Image Generation", {
-                "restaurant": outlet_id,
+                "outlet": outlet_id,
                 "owner_doctype": "Menu Product",
                 "owner_name": product_name,
                 "status": ["in", ["Pending_Upload", "Processing", "Completed"]],
@@ -2054,7 +2054,7 @@ def process_bulk_food_photos(outlet_id):
 
             doc = frappe.get_doc({
                 "doctype": "AI Image Generation",
-                "restaurant": outlet_id,
+                "outlet": outlet_id,
                 "owner_doctype": "Menu Product",
                 "owner_name": product_name,
                 "original_image_url": "",

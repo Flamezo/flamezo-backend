@@ -41,7 +41,7 @@ def _make_restaurant(suffix="01", outlet_type="wellness"):
 def _make_category(restaurant, name="Hair Services", sort_order=0):
     doc = frappe.get_doc({
         "doctype": "Catalogue Category",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "category_name": name,
         "is_active": 1,
         "sort_order": sort_order,
@@ -54,7 +54,7 @@ def _make_category(restaurant, name="Hair Services", sort_order=0):
 def _make_item(restaurant, category, name="Haircut", price=500, price_prefix="starts at"):
     doc = frappe.get_doc({
         "doctype": "Catalogue Item",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "category": category,
         "item_name": name,
         "price": price,
@@ -96,9 +96,9 @@ def _make_item(restaurant, category, name="Haircut", price=500, price_prefix="st
 def _cleanup(restaurant):
     for sub in frappe.get_all("Catalogue Sub-item", {"parent": ["like", f"%"]}, ["name", "parent"]):
         pass  # child tables deleted with parent
-    for item in frappe.get_all("Catalogue Item", {"restaurant": restaurant}, ["name"]):
+    for item in frappe.get_all("Catalogue Item", {"outlet": restaurant}, ["name"]):
         frappe.delete_doc("Catalogue Item", item.name, ignore_permissions=True)
-    for cat in frappe.get_all("Catalogue Category", {"restaurant": restaurant}, ["name"]):
+    for cat in frappe.get_all("Catalogue Category", {"outlet": restaurant}, ["name"]):
         frappe.delete_doc("Catalogue Category", cat.name, ignore_permissions=True)
     frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()

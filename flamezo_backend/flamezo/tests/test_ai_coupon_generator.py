@@ -43,8 +43,8 @@ def _make_restaurant(suffix="aicg"):
         frappe.delete_doc("Outlet", name, force=True)
     doc = frappe.get_doc({
         "doctype": "Outlet",
-        "restaurant_id": name,
-        "restaurant_name": f"Test Restaurant {suffix}",
+        "outlet_id": name,
+        "outlet_name": f"Test Restaurant {suffix}",
         "city": "Mumbai",
         "state": "Maharashtra",
         "currency": "INR",
@@ -61,7 +61,7 @@ def _make_menu_item(restaurant, name, price, category="Starters", veg=True):
     """Create a test menu item."""
     doc = frappe.get_doc({
         "doctype": "Menu Product",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "product_name": name,
         "price": price,
         "category_name": category,
@@ -76,7 +76,7 @@ def _make_menu_item(restaurant, name, price, category="Starters", veg=True):
 def _cleanup(restaurant):
     """Remove test data."""
     for doctype in ["Coupon", "Menu Product"]:
-        for r in frappe.get_all(doctype, filters={"restaurant": restaurant}, fields=["name"]):
+        for r in frappe.get_all(doctype, filters={"outlet": restaurant}, fields=["name"]):
             try:
                 frappe.delete_doc(doctype, r.name, force=True)
             except Exception:
@@ -285,7 +285,7 @@ class TestBuildPrompt(unittest.TestCase):
         # Add a coupon so it shows up in existing_codes
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant_id,
+            "outlet": self.restaurant_id,
             "code": "EXISTINGONE",
             "discount_type": "flat",
             "discount_value": 50,
@@ -431,7 +431,7 @@ class TestGenerateSuggestionsWithMock(unittest.TestCase):
         # Add a coupon that matches a mock suggestion code
         frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant_id,
+            "outlet": self.restaurant_id,
             "code": "MOCK20",
             "discount_type": "flat",
             "discount_value": 10,

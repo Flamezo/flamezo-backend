@@ -361,6 +361,14 @@ scheduler_events = {
 		"0 5 1 * *": [
 			"flamezo_backend.flamezo.api.creator_onboarding.monthly_follower_refresh",
 		],
+		# Creator Program — daily follower-count snapshot (in-app + last-synced
+		# Instagram value) that feeds the creator-facing insights trend chart.
+		# NOTE: "0 2 * * *" is already used above (chills_feed.sync_preferences_to_db)
+		# — a duplicate dict key here would silently drop that entry, so this
+		# gets its own distinct slot instead of merging into it.
+		"0 6 * * *": [
+			"flamezo_backend.flamezo.api.creator_analytics.daily_follower_snapshot",
+		],
 		# Menu extraction self-heal: sweep docs stuck in 'Processing' for >5min
 		# (worker restart / transient failures) and re-aggregate or mark Failed.
 		"*/5 * * * *": [

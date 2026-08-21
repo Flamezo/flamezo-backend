@@ -29,7 +29,7 @@ def list_ledger_entries(outlet_id, status=None, limit=50, offset=0):
     """Paginated Commission Ledger history. `status` may be
     'outstanding' / 'partial' / 'settled' / 'voided' or omitted for all."""
     name = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    filters = {"restaurant": name}
+    filters = {"outlet": name}
     if status:
         filters["status"] = status
 
@@ -54,7 +54,7 @@ def get_ledger_entry(outlet_id, ledger_name):
     """Full Commission Ledger Entry incl. settlement child rows. Used by
     drill-down view in the merchant dashboard."""
     name = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    if frappe.db.get_value("Commission Ledger Entry", ledger_name, "restaurant") != name:
+    if frappe.db.get_value("Commission Ledger Entry", ledger_name, "outlet") != name:
         frappe.throw(_("Not permitted"), frappe.PermissionError)
     doc = frappe.get_doc("Commission Ledger Entry", ledger_name)
     return {
@@ -321,7 +321,7 @@ def debug_bank_attach(outlet_id):
     phone_int = int(phone_str) if phone_str.isdigit() and phone_str else None
 
     sr = _requests.post(f"{BASE}/v2/accounts/{account_id}/stakeholders", auth=auth, json={
-        "name": res.get("owner_name") or res.restaurant_name,
+        "name": res.get("owner_name") or res.outlet_name,
         "email": res.owner_email,
         "phone": {"primary": phone_int} if phone_int else {},
         "kyc": {"pan": (res.get("pan_number") or "").strip()},
@@ -350,7 +350,7 @@ def debug_bank_attach(outlet_id):
                 "settlements": {
                     "account_number": (res.get("bank_account_number") or "").strip(),
                     "ifsc_code": (res.get("bank_ifsc") or "").strip().upper(),
-                    "beneficiary_name": (res.get("bank_holder_name") or res.restaurant_name).strip(),
+                    "beneficiary_name": (res.get("bank_holder_name") or res.outlet_name).strip(),
                 },
                 "tnc_accepted": True,
             })
@@ -361,7 +361,7 @@ def debug_bank_attach(outlet_id):
     return {
         "success": True,
         "account_id": account_id,
-        "restaurant": name,
+        "outlet": name,
         "credentials_mode": "live" if cfg.get("key_id", "").startswith("rzp_live") else "test",
         "steps": log,
     }
@@ -375,7 +375,7 @@ def admin_void_ledger(outlet_id, ledger_name, reason):
     if "System Manager" not in frappe.get_roles(frappe.session.user):
         frappe.throw(_("Not permitted"), frappe.PermissionError)
     name = validate_restaurant_for_api(outlet_id, frappe.session.user)
-    if frappe.db.get_value("Commission Ledger Entry", ledger_name, "restaurant") != name:
+    if frappe.db.get_value("Commission Ledger Entry", ledger_name, "outlet") != name:
         frappe.throw(_("Ledger entry does not belong to this outlet"))
 
     order = frappe.db.get_value("Commission Ledger Entry", ledger_name, "order")

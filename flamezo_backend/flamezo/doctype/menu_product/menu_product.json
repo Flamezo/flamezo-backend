@@ -8,7 +8,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "restaurant",
+  "outlet",
   "product_name",
   "product_id",
   "category",
@@ -57,7 +57,7 @@
    "unique": 0
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

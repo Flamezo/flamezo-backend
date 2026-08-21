@@ -33,7 +33,7 @@ class BoostCampaign(Document):
 		self.gst_on_fee = flt(self.flamezo_fee * 0.18)
 
 	def _compute_coupon_fields(self):
-		if not self.coupon_code and self.restaurant:
+		if not self.coupon_code and self.outlet:
 			self.coupon_code = self._generate_unique_coupon_code()
 		self.coupon_discount = flt(self.offer_amount)
 		self.coupon_min_order = flt(self.offer_amount) * 2 if flt(self.offer_amount) > 0 else 0
@@ -66,7 +66,7 @@ class BoostCampaign(Document):
 		try:
 			from flamezo_backend.flamezo.services.ai.coupon_generator import generate_suggestions
 			result = generate_suggestions(
-				outlet_id=self.restaurant,
+				outlet_id=self.outlet,
 				tone="attractive",
 				# Boost coupons are always staff-entered/typed codes, never
 				# auto-applied or combo deals — "coupon" is the matching
@@ -82,7 +82,7 @@ class BoostCampaign(Document):
 			)
 		except Exception:
 			frappe.log_error(
-				message=f"Restaurant: {self.restaurant}",
+				message=f"Restaurant: {self.outlet}",
 				title="Boost AI Coupon Code Generation Failed"
 			)
 			return None
@@ -107,7 +107,7 @@ class BoostCampaign(Document):
 		"""Safe random code, used when AI generation is unavailable/exhausted/fails."""
 		import random
 		import string
-		restaurant_short = (self.restaurant or "XX")[:8].upper().replace("-", "")
+		restaurant_short = (self.outlet or "XX")[:8].upper().replace("-", "")
 		for _ in range(50):
 			suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 			candidate = f"BOOST-{restaurant_short}-{suffix}"
@@ -119,7 +119,7 @@ class BoostCampaign(Document):
 		"""Ensure restaurant has GPS coordinates set — required for geo-targeting."""
 		if self.status == "Draft":
 			return  # Don't block draft creation
-		if not self.restaurant_lat or not self.restaurant_lng:
+		if not self.outlet_lat or not self.outlet_lng:
 			frappe.throw(
 				"Outlet GPS coordinates are required for Boost campaigns. "
 				"Please set latitude and longitude in Restaurant settings."
@@ -139,7 +139,7 @@ class BoostCampaign(Document):
 	def _set_first_campaign_flag(self):
 		if self.is_new():
 			existing = frappe.db.count("Boost Campaign", filters={
-				"restaurant": self.restaurant,
+				"outlet": self.outlet,
 				"status": ["not in", ["Draft", "Cancelled", "Failed"]],
 			})
 			self.is_first_campaign = 1 if existing == 0 else 0
@@ -188,7 +188,7 @@ class BoostCampaign(Document):
 		"""
 		pending = frappe.get_all("Boost Campaign",
 			filters={
-				"restaurant": self.restaurant,
+				"outlet": self.outlet,
 				"status": "Completed",
 				"guarantee_met": 0,
 				"topup_credit_amount": [">", 0],

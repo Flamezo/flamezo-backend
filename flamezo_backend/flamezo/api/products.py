@@ -26,7 +26,7 @@ from collections import defaultdict
 def invalidate_product_cache(doc, method=None):
 	"""Invalidates caches associated with a Menu Product when updated"""
 	import time
-	outlet_id = doc.get("restaurant") or doc.get("outlet_id")
+	outlet_id = doc.get("outlet") or doc.get("outlet_id")
 	if outlet_id:
 		frappe.cache().delete_key(f"top_picks:{outlet_id}")
 		frappe.cache().delete_key(f"chef_special:{outlet_id}")
@@ -59,7 +59,7 @@ def get_top_picks(outlet_id):
 
 		# Strict media prioritization: 
 		# Only return non-media products if ABSOLUTELY no media products exist for this restaurant.
-		has_any_media = frappe.db.exists("Menu Product", {"restaurant": restaurant, "is_active": 1, "has_no_media": 0})
+		has_any_media = frappe.db.exists("Menu Product", {"outlet": restaurant, "is_active": 1, "has_no_media": 0})
 		media_filter = " AND has_no_media = 0" if has_any_media else ""
 		
 		# Single prioritized query for all fallback logic
@@ -75,7 +75,7 @@ def get_top_picks(outlet_id):
 				recommendations
 			FROM `tabMenu Product`
 			WHERE
-				restaurant = %s AND is_active = 1 {media_filter}
+				outlet = %s AND is_active = 1 {media_filter}
 			ORDER BY 
 				(CASE WHEN product_type = 'top-picks' THEN 0 ELSE 1 END) ASC,
 				display_order ASC,
@@ -157,7 +157,7 @@ def get_chef_special(outlet_id):
 				recommendations
 			FROM `tabMenu Product`
 			WHERE
-				restaurant = %s AND is_active = 1
+				outlet = %s AND is_active = 1
 			ORDER BY
 				(CASE WHEN product_type = 'chef-special' THEN 0 ELSE 1 END) ASC,
 				(CASE WHEN EXISTS (
@@ -234,7 +234,7 @@ def get_products(outlet_id, category=None, type=None, vegetarian=None, search=No
 			cache_key = None
 
 		# Build filters
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		if not cint(include_inactive):
 			filters["is_active"] = 1
 		
@@ -245,14 +245,14 @@ def get_products(outlet_id, category=None, type=None, vegetarian=None, search=No
 			# which Frappe does NOT auto-propagate to existing product records on rename.
 			cat_docnames = frappe.get_all(
 				"Menu Category",
-				filters={"restaurant": restaurant, "category_name": category},
+				filters={"outlet": restaurant, "category_name": category},
 				pluck="name"
 			)
 			if not cat_docnames:
 				# Fallback: match by category_id slug (frontend may send either)
 				cat_docnames = frappe.get_all(
 					"Menu Category",
-					filters={"restaurant": restaurant, "category_id": category},
+					filters={"outlet": restaurant, "category_id": category},
 					pluck="name"
 				)
 			if cat_docnames:
@@ -320,7 +320,7 @@ def get_products(outlet_id, category=None, type=None, vegetarian=None, search=No
 		if or_filters and search:
 			# Use SQL COUNT to avoid fetching all rows just to count
 			like = f"%{search}%"
-			where_parts = ["`tabMenu Product`.restaurant = %s"]
+			where_parts = ["`tabMenu Product`.outlet = %s"]
 			params = [restaurant]
 			if not cint(include_inactive):
 				where_parts.append("`tabMenu Product`.is_active = 1")
@@ -728,7 +728,7 @@ def get_product(outlet_id, product_id):
 		product_doc = frappe.get_doc("Menu Product", product_id)
 		
 		# Validate product belongs to restaurant
-		if product_doc.restaurant != restaurant:
+		if product_doc.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {
@@ -935,7 +935,7 @@ def get_product_by_slug(outlet_id, slug):
 		# Find product by slug
 		product = frappe.db.get_value(
 			"Menu Product",
-			{"restaurant": restaurant, "seo_slug": slug, "is_active": 1},
+			{"outlet": restaurant, "seo_slug": slug, "is_active": 1},
 			"name"
 		)
 		
@@ -981,7 +981,7 @@ def update_product_order(product_orders):
 		# Invalidate cache since order changed
 		if product_orders:
 			# Get restaurant of first product to invalidate cache
-			restaurant = frappe.db.get_value("Menu Product", product_orders[0]["name"], "restaurant")
+			restaurant = frappe.db.get_value("Menu Product", product_orders[0]["name"], "outlet")
 			if restaurant:
 				frappe.cache().delete_key(f"top_picks:{restaurant}")
 
@@ -1076,7 +1076,7 @@ def bulk_update_prices(
 		if isinstance(product_ids, str):
 			product_ids = json.loads(product_ids) if product_ids.strip().startswith("[") else [product_ids]
 
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		if scope == "category":
 			if not categories:
 				return {"success": False, "error": "categories are required for scope 'category'"}
@@ -1125,7 +1125,7 @@ def bulk_update_prices(
 
 		if not dry_run and updated:
 			frappe.db.commit()
-			invalidate_product_cache({"restaurant": restaurant})
+			invalidate_product_cache({"outlet": restaurant})
 
 		return {
 			"success": True,

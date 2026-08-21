@@ -96,7 +96,7 @@ export default function MenuManagement() {
     mutate: mutateCategories
   } = useFrappeGetDocList('Menu Category', {
     fields: ['name', 'category_name', 'display_name', 'display_order', 'is_special', 'is_active', 'parent_category'],
-    filters: selectedOutlet ? [['restaurant', '=', selectedOutlet]] : [],
+    filters: selectedOutlet ? [['outlet', '=', selectedOutlet]] : [],
     orderBy: { field: 'display_order', order: 'asc' },
     limit: 200
   })
@@ -485,7 +485,7 @@ export default function MenuManagement() {
             {!isPOSManaged && (
               <Button
                 className="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white shadow-md"
-                onClick={() => openForm('Menu Category', 'create', undefined, { restaurant: selectedOutlet, is_active: 1 })}
+                onClick={() => openForm('Menu Category', 'create', undefined, { outlet: selectedOutlet, is_active: 1 })}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 ADD NEW CATEGORY
@@ -525,7 +525,7 @@ export default function MenuManagement() {
                         isExpanded={subs.length > 0 ? isParentExpanded : undefined}
                         onToggleExpand={() => toggleParentExpand(category.name)}
                         onAddSubcategory={!isPOSManaged ? () => openForm('Menu Category', 'create', undefined, {
-                          restaurant: selectedOutlet,
+                          outlet: selectedOutlet,
                           is_active: 1,
                           parent_category: category.name,
                         }) : undefined}
@@ -735,18 +735,18 @@ export default function MenuManagement() {
               onCancel={() => setIsFormOpen(false)}
               hideFields={
                 formConfig.doctype === 'Menu Category'
-                  ? ['category_id', 'restaurant', 'display_name', 'display_order']
+                  ? ['category_id', 'outlet', 'display_name', 'display_order']
                   : isPOSManaged
-                    ? ['product_id', 'seo_slug', 'category_name', 'restaurant', 'main_category',
+                    ? ['product_id', 'seo_slug', 'category_name', 'outlet', 'main_category',
                        'has_no_media', 'display_order', 'product_name', 'price', 'original_price',
                        'description', 'is_vegetarian', 'is_active', 'category', 'calories']
-                    : ['product_id', 'seo_slug', 'category_name', 'restaurant', 'main_category', 'has_no_media', 'display_order']
+                    : ['product_id', 'seo_slug', 'category_name', 'outlet', 'main_category', 'has_no_media', 'display_order']
               }
-              readOnlyFields={['restaurant']}
+              readOnlyFields={['outlet']}
               initialData={
                 formConfig.mode === 'create'
                   ? {
-                      restaurant: selectedOutlet,
+                      outlet: selectedOutlet,
                       category: formConfig.doctype === 'Menu Product' ? selectedCategoryId : undefined,
                       is_active: 1,
                       ...(formConfig.initialData || {})

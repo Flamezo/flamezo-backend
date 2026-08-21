@@ -77,11 +77,11 @@ def _outlet_context(outlet_id: str) -> dict[str, Any]:
         return frappe.db.get_value(
             "Outlet",
             outlet_id,
-            ["restaurant_name", "city", "state", "address"],
+            ["outlet_name", "city", "state", "address"],
             as_dict=True,
         ) or {}
     except Exception:
-        return {"restaurant_name": frappe.db.get_value("Outlet", outlet_id, "restaurant_name") or ""}
+        return {"outlet_name": frappe.db.get_value("Outlet", outlet_id, "outlet_name") or ""}
 
 
 def _build_prompt(ctx: dict, user_prompt: str | None, from_poster: bool) -> str:
@@ -119,7 +119,7 @@ STRICT RULES:
 Turn the source below into a structured event for THIS restaurant.
 {source_block}
 ## Restaurant
-- Name: {ctx.get("restaurant_name") or "this restaurant"}
+- Name: {ctx.get("outlet_name") or "this restaurant"}
 - City: {ctx.get("city") or "India"}{", " + ctx["state"] if ctx.get("state") else ""}
 - Address (use as default location): {ctx.get("address") or ctx.get("city") or ""}
 

@@ -6,7 +6,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "restaurant",
+  "outlet",
   "transaction_type",
   "column_break_1",
   "amount",
@@ -21,7 +21,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

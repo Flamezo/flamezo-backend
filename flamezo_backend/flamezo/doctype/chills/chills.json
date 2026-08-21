@@ -50,7 +50,7 @@
    "fieldname": "outlet_name",
    "fieldtype": "Data",
    "label": "Outlet Name",
-   "fetch_from": "outlet.restaurant_name",
+   "fetch_from": "outlet.outlet_name",
    "read_only": 1
   },
   {

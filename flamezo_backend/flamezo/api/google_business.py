@@ -29,12 +29,12 @@ def handle_product_update(doc, method=None):
             doc.db_set("seo_slug", doc.seo_slug, update_modified=False)
 
         # Use get_doc (not cached) to ensure fresh data with all fields
-        restaurant = frappe.get_doc("Outlet", doc.restaurant)
+        restaurant = frappe.get_doc("Outlet", doc.outlet)
         if getattr(restaurant, "enable_google_sync", False):
             # Enqueue sync to avoid slowing down save
             frappe.enqueue(
                 "flamezo_backend.flamezo.api.google_business.sync_menu_to_google",
-                outlet_id=doc.restaurant,
+                outlet_id=doc.outlet,
                 now=frappe.flags.in_test
             )
     except Exception as e:
@@ -144,7 +144,7 @@ def google_callback(code, state):
                         locations = loc_res.json().get("locations", [])
                         if locations:
                             # Try to match by name or just take the first one
-                            outlet_name = frappe.db.get_value("Outlet", state, "restaurant_name")
+                            outlet_name = frappe.db.get_value("Outlet", state, "outlet_name")
                             match = next((l for l in locations if l.get("title") == outlet_name), locations[0])
                             frappe.db.set_value("Outlet", state, "google_business_location_id", match.get("name"))
         except Exception as e:
@@ -201,8 +201,8 @@ def sync_menu_to_google(outlet_id):
         return {"success": False, "message": "Google Account not authorized."}
 
     # Fetch all active products
-    products = frappe.get_all("Menu Product", 
-        filters={"restaurant": outlet_id, "is_active": 1},
+    products = frappe.get_all("Menu Product",
+        filters={"outlet": outlet_id, "is_active": 1},
         fields=["product_name", "description", "price", "category_name"]
     )
 
@@ -303,13 +303,13 @@ def generate_review_reply(review_text, rating, outlet_id=None):
         if outlet_id:
             res = frappe.get_doc("Outlet", outlet_id)
             city = res.city or ""
-            res_name = res.restaurant_name or res.name
+            res_name = res.outlet_name or res.name
             contact_info = f"Phone: {res.owner_phone}" if res.owner_phone else ""
             if res.owner_email:
                 contact_info += f" Email: {res.owner_email}"
             
-            top_products = frappe.get_all("Menu Product", 
-                filters={"restaurant": outlet_id, "is_active": 1},
+            top_products = frappe.get_all("Menu Product",
+                filters={"outlet": outlet_id, "is_active": 1},
                 fields=["product_name"],
                 limit=5,
                 order_by="creation desc"

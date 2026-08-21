@@ -19,7 +19,7 @@ class BanquetBooking(Document):
 		count = frappe.db.count("Banquet Booking", filters={
 			"creation": [">=", f"{year}-01-01"],
 			"creation": ["<=", f"{year}-12-31"],
-			"restaurant": self.restaurant
+			"outlet": self.outlet
 		})
 		sequence = str(count + 1).zfill(3)
 		return f"BQ-{year}-{sequence}"

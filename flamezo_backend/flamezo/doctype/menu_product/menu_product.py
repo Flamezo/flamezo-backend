@@ -19,7 +19,7 @@ class MenuProduct(Document):
 			self.seo_slug = self.generate_slug_from_name(self.product_name)
 		
 		# Auto-resolve duplicates for product_id and seo_slug
-		if self.restaurant:
+		if self.outlet:
 			self.resolve_duplicate_slugs()
 
 		self.validate_dietary_attributes()
@@ -50,7 +50,7 @@ class MenuProduct(Document):
 		if self.product_id:
 			original_pid = self.product_id
 			counter = 1
-			while frappe.db.exists("Menu Product", {"product_id": self.product_id, "restaurant": self.restaurant, "name": ["!=", self.name]}):
+			while frappe.db.exists("Menu Product", {"product_id": self.product_id, "outlet": self.outlet, "name": ["!=", self.name]}):
 				self.product_id = f"{original_pid}-{counter}"
 				counter += 1
 
@@ -58,7 +58,7 @@ class MenuProduct(Document):
 		if self.seo_slug:
 			original_slug = self.seo_slug
 			counter = 1
-			while frappe.db.exists("Menu Product", {"seo_slug": self.seo_slug, "restaurant": self.restaurant, "name": ["!=", self.name]}):
+			while frappe.db.exists("Menu Product", {"seo_slug": self.seo_slug, "outlet": self.outlet, "name": ["!=", self.name]}):
 				self.seo_slug = f"{original_slug}-{counter}"
 				counter += 1
 		
@@ -74,8 +74,8 @@ class MenuProduct(Document):
 
 	def after_save(self):
 		"""Clear top picks cache for the restaurant"""
-		if self.get('restaurant'):
-			frappe.cache().delete_value(f"top_picks:{self.restaurant}")
+		if self.get('outlet'):
+			frappe.cache().delete_value(f"top_picks:{self.outlet}")
 
 	def before_delete(self):
 		"""Clean up attached Files and linked Media Assets before deletion verification runs."""
@@ -103,8 +103,8 @@ class MenuProduct(Document):
 	def on_trash(self):
 		"""Cleanup associated assets and references on deletion"""
 		# 1. Clear top picks cache
-		if self.get('restaurant'):
-			frappe.cache().delete_value(f"top_picks:{self.restaurant}")
+		if self.get('outlet'):
+			frappe.cache().delete_value(f"top_picks:{self.outlet}")
 		
 		# 2. Delete associated Media Assets
 		media_assets = frappe.get_all("Media Asset", filters={"owner_doctype": "Menu Product", "owner_name": self.name}, fields=["name"])
@@ -133,7 +133,7 @@ class MenuProduct(Document):
 		import json
 		combo_coupons = frappe.get_all(
 			"Coupon",
-			filters={"restaurant": self.restaurant, "offer_type": "combo", "is_active": 1},
+			filters={"outlet": self.outlet, "offer_type": "combo", "is_active": 1},
 			fields=["name", "code", "required_items"],
 		)
 		deactivated = []

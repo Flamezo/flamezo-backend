@@ -17,7 +17,7 @@ export default function GoogleGrowthSync() {
 
   const { data: products, isLoading, mutate: refreshProducts } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name', 'category_name', 'price', 'is_active', 'google_item_id', 'google_product_id', 'seo_slug'],
-    filters: [['restaurant', '=', selectedOutlet || '']],
+    filters: [['outlet', '=', selectedOutlet || '']],
     limit: 1000
   }, selectedOutlet || '')
 

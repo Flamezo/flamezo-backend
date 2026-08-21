@@ -8,7 +8,7 @@
  "field_order": [
   "campaign",
   "trigger",
-  "restaurant",
+  "outlet",
   "customer",
   "channel",
   "phone",
@@ -37,7 +37,7 @@
    "search_index": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

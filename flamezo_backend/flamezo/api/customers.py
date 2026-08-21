@@ -79,17 +79,17 @@ def get_customer_by_phone(phone, outlet_id):
 			order_fields.extend(["customer_rating", "customer_feedback"])
 		orders = frappe.get_all(
 			"Order",
-			filters={"restaurant": restaurant, "platform_customer": customer_id},
+			filters={"outlet": restaurant, "platform_customer": customer_id},
 			fields=order_fields
 		)
 		table_bookings = frappe.get_all(
 			"Table Booking",
-			filters={"restaurant": restaurant, "platform_customer": customer_id},
+			filters={"outlet": restaurant, "platform_customer": customer_id},
 			fields=["name", "booking_number", "date", "time_slot", "status", "creation", "customer_phone"]
 		)
 		banquet_bookings = frappe.get_all(
 			"Banquet Booking",
-			filters={"restaurant": restaurant, "platform_customer": customer_id},
+			filters={"outlet": restaurant, "platform_customer": customer_id},
 			fields=["name", "booking_number", "date", "event_type", "status", "creation", "customer_phone"]
 		)
 		if not ph and orders:
@@ -176,13 +176,13 @@ def get_customer_profile(customer_id, outlet_id=None):
 		restaurants = []
 
 		# Orders (include feedback)
-		order_fields = ["name", "restaurant", "order_number", "total", "status", "creation"]
+		order_fields = ["name", "outlet", "order_number", "total", "status", "creation"]
 		if frappe.db.has_column("Order", "customer_rating"):
 			order_fields.extend(["customer_rating", "customer_feedback"])
             
 		order_filters = {"platform_customer": customer_id}
 		if outlet_id:
-			order_filters["restaurant"] = outlet_id
+			order_filters["outlet"] = outlet_id
             
 		orders = frappe.get_all(
 			"Order",
@@ -191,7 +191,7 @@ def get_customer_profile(customer_id, outlet_id=None):
 		)
 		order_by_rest = {}
 		for o in orders:
-			rest = o.restaurant
+			rest = o.outlet
 			if rest not in order_by_rest:
 				order_by_rest[rest] = []
 			order_by_rest[rest].append(o)
@@ -199,16 +199,16 @@ def get_customer_profile(customer_id, outlet_id=None):
 		# Table bookings
 		tb_filters = {"platform_customer": customer_id}
 		if outlet_id:
-			tb_filters["restaurant"] = outlet_id
+			tb_filters["outlet"] = outlet_id
             
 		table_bookings = frappe.get_all(
 			"Table Booking",
 			filters=tb_filters,
-			fields=["name", "restaurant", "booking_number", "date", "time_slot", "status", "creation"]
+			fields=["name", "outlet", "booking_number", "date", "time_slot", "status", "creation"]
 		)
 		tb_by_rest = {}
 		for b in table_bookings:
-			rest = b.restaurant
+			rest = b.outlet
 			if rest not in tb_by_rest:
 				tb_by_rest[rest] = []
 			tb_by_rest[rest].append(b)
@@ -216,23 +216,23 @@ def get_customer_profile(customer_id, outlet_id=None):
 		# Banquet bookings
 		bb_filters = {"platform_customer": customer_id}
 		if outlet_id:
-			bb_filters["restaurant"] = outlet_id
+			bb_filters["outlet"] = outlet_id
             
 		banquet_bookings = frappe.get_all(
 			"Banquet Booking",
 			filters=bb_filters,
-			fields=["name", "restaurant", "booking_number", "date", "event_type", "status", "creation"]
+			fields=["name", "outlet", "booking_number", "date", "event_type", "status", "creation"]
 		)
 		bb_by_rest = {}
 		for b in banquet_bookings:
-			rest = b.restaurant
+			rest = b.outlet
 			if rest not in bb_by_rest:
 				bb_by_rest[rest] = []
 			bb_by_rest[rest].append(b)
 
 		all_rests = set(order_by_rest.keys()) | set(tb_by_rest.keys()) | set(bb_by_rest.keys())
 		for rest_id in all_rests:
-			rest_name = frappe.db.get_value("Outlet", rest_id, "restaurant_name") or rest_id
+			rest_name = frappe.db.get_value("Outlet", rest_id, "outlet_name") or rest_id
 			restaurants.append({
 				"outlet_id": rest_id,
 				"outlet_name": rest_name,
@@ -283,7 +283,7 @@ def get_outlet_customers(outlet_id, search=None, page=1, page_size=20):
 		# 2. Import-based: customers explicitly imported for this restaurant
 		customer_ids = set()
 		for doctype in ["Order", "Table Booking", "Banquet Booking", "Outlet Loyalty Entry"]:
-			filters = {"restaurant": restaurant}
+			filters = {"outlet": restaurant}
 			if doctype == "Outlet Loyalty Entry":
 				filters["customer"] = ["is", "set"]
 				pluck_field = "customer"
@@ -346,7 +346,7 @@ def get_outlet_customers(outlet_id, search=None, page=1, page_size=20):
 			activity = frappe.db.sql(f"""
 				SELECT platform_customer, MAX(creation) as max_date
 				FROM `{table_name}`
-				WHERE restaurant = %s AND platform_customer IN ({', '.join(['%s'] * len(customer_ids))})
+				WHERE outlet = %s AND platform_customer IN ({', '.join(['%s'] * len(customer_ids))})
 				GROUP BY platform_customer
 			""", [restaurant] + list(customer_ids), as_dict=True)
 			
@@ -393,19 +393,19 @@ def get_outlet_customers(outlet_id, search=None, page=1, page_size=20):
 				
 			orders = frappe.get_all(
 				"Order",
-				filters={"restaurant": restaurant, "platform_customer": cid},
+				filters={"outlet": restaurant, "platform_customer": cid},
 				fields=order_fields,
 				order_by="creation desc"
 			)
 			table_bookings = frappe.get_all(
 				"Table Booking",
-				filters={"restaurant": restaurant, "platform_customer": cid},
+				filters={"outlet": restaurant, "platform_customer": cid},
 				fields=["name", "booking_number", "date", "time_slot", "status", "creation", "customer_phone"],
 				order_by="creation desc"
 			)
 			banquet_bookings = frappe.get_all(
 				"Banquet Booking",
-				filters={"restaurant": restaurant, "platform_customer": cid},
+				filters={"outlet": restaurant, "platform_customer": cid},
 				fields=["name", "booking_number", "date", "event_type", "status", "creation", "customer_phone"],
 				order_by="creation desc"
 			)

@@ -231,7 +231,7 @@ def handle_payment_captured(payload):
 			orders = frappe.get_all(
 				"Order",
 				filters={"razorpay_order_id": order_id},
-				fields=["name", "restaurant", "total", "platform_fee_amount",
+				fields=["name", "outlet", "total", "platform_fee_amount",
 				        "cash_netoff_applied_paise", "settlement_mode"],
 			)
 			if orders:
@@ -271,7 +271,7 @@ def handle_payment_captured(payload):
 				# this returns instantly without a second send.
 				try:
 					from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
-					ugc_config = _get_active_config(order_row.restaurant)
+					ugc_config = _get_active_config(order_row.outlet)
 					if ugc_config and _is_ugc_active(ugc_config):
 						from flamezo_backend.flamezo.tasks.ugc_tasks import send_ugc_cashback_nudge
 						send_ugc_cashback_nudge(order_name)
@@ -285,7 +285,7 @@ def handle_payment_captured(payload):
 				if netoff_paise > 0:
 					try:
 						commission_engine.apply_online_netoff(
-							restaurant=order_row.restaurant,
+							restaurant=order_row.outlet,
 							online_order_name=order_name,
 							netoff_amount_paise=netoff_paise,
 							razorpay_payment_id=payment_id,
@@ -297,7 +297,7 @@ def handle_payment_captured(payload):
 						)
 
 				# Update monthly ledger
-				update_monthly_ledger(order_row.restaurant, order_row.total, order_row.platform_fee_amount)
+				update_monthly_ledger(order_row.outlet, order_row.total, order_row.platform_fee_amount)
 				return {"success": True, "order_updated": order_name, "netoff_applied_paise": netoff_paise}
 
 		return {"success": True, "message": "Event processed but no specific action taken"}
@@ -327,7 +327,7 @@ def handle_refund_processed(payload):
 		orders = frappe.get_all(
 			"Order",
 			filters={"razorpay_payment_id": payment_id},
-			fields=["name", "restaurant", "total", "platform_fee_amount", "settlement_mode"],
+			fields=["name", "outlet", "total", "platform_fee_amount", "settlement_mode"],
 		)
 
 		if orders:
@@ -362,7 +362,7 @@ def handle_refund_processed(payload):
 					if to_reverse > 0:
 						reverse_earned_cashback(
 							customer=order.platform_customer,
-							restaurant=order.restaurant,
+							restaurant=order.outlet,
 							coins_to_reverse=to_reverse,
 							reason="Refund Reversal",
 							description=(f"Order {order.name} {kind} refunded ₹{int(refund_amount / 100)} "
@@ -377,7 +377,7 @@ def handle_refund_processed(payload):
 				frappe.log_error(f"Cashback clawback failed on refund for {order.name}: {e}",
 				                 "loyalty.refund_clawback")
 
-			reverse_monthly_ledger(order.restaurant, refund_amount, platform_fee_refund)
+			reverse_monthly_ledger(order.outlet, refund_amount, platform_fee_refund)
 
 			# If this order had a cash ledger entry (extremely rare — implies
 			# a cash order that was later upgraded to online refund), void it
@@ -529,7 +529,7 @@ def handle_payment_link_paid(payload):
 
 			# Idempotency guard: prevent double-credit for the same payment
 			already_credited = frappe.db.exists("Coin Transaction", {
-				"restaurant": outlet_id,
+				"outlet": outlet_id,
 				"payment_id": payment_id,
 				"transaction_type": "Purchase"
 			})
@@ -588,10 +588,10 @@ def handle_payment_failed(payload):
 		payment_id = payment_data.get("id")
 		
 		# Mark ledger failed if applicable
-		ledgers = frappe.get_all("Monthly Billing Ledger", filters={"razorpay_payment_id": payment_id}, fields=["name", "restaurant"])
+		ledgers = frappe.get_all("Monthly Billing Ledger", filters={"razorpay_payment_id": payment_id}, fields=["name", "outlet"])
 		if ledgers:
 			frappe.db.set_value("Monthly Billing Ledger", ledgers[0].name, "payment_status", "failed")
-			frappe.db.set_value("Outlet", ledgers[0].restaurant, "billing_status", "overdue")
+			frappe.db.set_value("Outlet", ledgers[0].outlet, "billing_status", "overdue")
 			frappe.db.commit()
 		return {"success": True, "failure_recorded": True}
 	except Exception as e:
@@ -699,7 +699,7 @@ def update_monthly_ledger(outlet_id, order_total, platform_fee_amount):
 		if not frappe.db.exists("Monthly Revenue Ledger", ledger_name):
 			doc = frappe.get_doc({
 				"doctype": "Monthly Revenue Ledger",
-				"restaurant": outlet_id,
+				"outlet": outlet_id,
 				"month": current_month,
 				"total_gmv": 0,
 				"total_platform_fee": 0,

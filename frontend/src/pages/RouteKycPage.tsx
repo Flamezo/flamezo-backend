@@ -57,7 +57,7 @@ const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
 
 interface RestaurantDoc {
   name: string
-  restaurant_name?: string
+  outlet_name?: string
   legal_name?: string
   business_type?: string
   pan_number?: string
@@ -193,7 +193,7 @@ export default function RouteKycPage() {
   useEffect(() => {
     if (!restaurantDoc) return
     setForm({
-      legal_name: (restaurantDoc.legal_name || restaurantDoc.restaurant_name || '').trim(),
+      legal_name: (restaurantDoc.legal_name || restaurantDoc.outlet_name || '').trim(),
       business_type: restaurantDoc.business_type || '',
       pan_number: (restaurantDoc.pan_number || '').trim().toUpperCase(),
       bank_account_number: (restaurantDoc.bank_account_number || '').replace(/\D/g, ''),

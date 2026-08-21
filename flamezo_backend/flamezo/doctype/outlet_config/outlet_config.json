@@ -1,16 +1,16 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:restaurant",
+ "autoname": "field:outlet",
  "creation": "2025-01-15 10:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "issingle": 0,
  "field_order": [
-  "restaurant",
+  "outlet",
   "section_break_branding",
-  "restaurant_name",
+  "outlet_name",
   "tagline",
   "subtitle",
   "description",
@@ -53,7 +53,7 @@
  ],
  "fields": [
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -69,7 +69,7 @@
    "label": "Branding"
   },
   {
-   "fieldname": "restaurant_name",
+   "fieldname": "outlet_name",
    "fieldtype": "Data",
    "label": "Outlet Name"
   },
@@ -353,7 +353,7 @@
   }
  ],
  "row_format": "Dynamic",
- "sort_field": "restaurant",
+ "sort_field": "outlet",
  "sort_order": "ASC",
  "states": [],
  "track_changes": 1

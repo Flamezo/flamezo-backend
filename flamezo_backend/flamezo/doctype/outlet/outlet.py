@@ -21,45 +21,45 @@ class Outlet(Document):
 			frappe.delete_doc("User Permission", p.name, ignore_permissions=True)
 
 		# 2. Cleanup Restaurant Users
-		res_users = frappe.get_all("Outlet User", filters={"restaurant": self.name})
+		res_users = frappe.get_all("Outlet User", filters={"outlet": self.name})
 		for ru in res_users:
 			frappe.delete_doc("Outlet User", ru.name, ignore_permissions=True)
 
 		# 3. Cleanup Restaurant Config
-		res_config = frappe.db.get_value("Outlet Config", {"restaurant": self.name}, "name")
+		res_config = frappe.db.get_value("Outlet Config", {"outlet": self.name}, "name")
 		if res_config:
 			frappe.delete_doc("Outlet Config", res_config, ignore_permissions=True)
 
 		# 4. Cleanup Home Features
-		home_feats = frappe.get_all("Home Feature", filters={"restaurant": self.name})
+		home_feats = frappe.get_all("Home Feature", filters={"outlet": self.name})
 		for hf in home_feats:
 			frappe.delete_doc("Home Feature", hf.name, ignore_permissions=True)
 
 		# 5. Cleanup Menu Products (optional but good for total cleanup)
-		menu_products = frappe.get_all("Menu Product", filters={"restaurant": self.name})
+		menu_products = frappe.get_all("Menu Product", filters={"outlet": self.name})
 		for mp in menu_products:
 			frappe.delete_doc("Menu Product", mp.name, ignore_permissions=True)
 
 	def autoname(self):
-		"""Auto-generate restaurant_id and set as name"""
-		if not self.restaurant_id and self.restaurant_name:
-			self.restaurant_id = self.generate_restaurant_id()
-		if self.restaurant_id:
-			self.name = self.restaurant_id
+		"""Auto-generate outlet_id and set as name"""
+		if not self.outlet_id and self.outlet_name:
+			self.outlet_id = self.generate_restaurant_id()
+		if self.outlet_id:
+			self.name = self.outlet_id
 	
 	def validate(self):
 		"""Validate restaurant data"""
-		# Auto-generate restaurant_id if not provided (before autoname)
-		if not self.restaurant_id and self.restaurant_name:
-			self.restaurant_id = self.generate_restaurant_id()
+		# Auto-generate outlet_id if not provided (before autoname)
+		if not self.outlet_id and self.outlet_name:
+			self.outlet_id = self.generate_restaurant_id()
 		
 		# Auto-generate slug if not provided
-		if not self.slug and self.restaurant_id:
-			self.slug = self.restaurant_id.lower().replace(" ", "-")
+		if not self.slug and self.outlet_id:
+			self.slug = self.outlet_id.lower().replace(" ", "-")
 		
 		# Auto-generate subdomain if not provided
-		if not self.subdomain and self.restaurant_id:
-			self.subdomain = self.restaurant_id.lower().replace(" ", "-")
+		if not self.subdomain and self.outlet_id:
+			self.subdomain = self.outlet_id.lower().replace(" ", "-")
 
 		# branch_group is an explicit named Merchant Group link — clear it if it
 		# points at a group that no longer exists.
@@ -151,7 +151,7 @@ class Outlet(Document):
 		from frappe.utils import cstr
 		
 		# Create base ID from restaurant name
-		base_id = self.restaurant_name.strip()
+		base_id = self.outlet_name.strip()
 		# Remove special characters, keep only alphanumeric and spaces
 		base_id = re.sub(r'[^a-zA-Z0-9\s-]', '', base_id)
 		# Replace spaces and multiple hyphens with single hyphen
@@ -168,7 +168,7 @@ class Outlet(Document):
 		# Check if restaurant_id already exists, append number if needed
 		restaurant_id = base_id
 		counter = 1
-		while frappe.db.exists("Outlet", {"restaurant_id": restaurant_id}):
+		while frappe.db.exists("Outlet", {"outlet_id": restaurant_id}):
 			restaurant_id = f"{base_id}-{counter}"
 			counter += 1
 		
@@ -180,7 +180,7 @@ class Outlet(Document):
 		import string
 		
 		# Base part: "DINE" + first 4 chars of restaurant name (slugified)
-		name_part = self.restaurant_id[:4].upper() if self.restaurant_id else "DINE"
+		name_part = self.outlet_id[:4].upper() if self.outlet_id else "DINE"
 		# Random part: 4 alphanumeric characters
 		random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
 		
@@ -246,7 +246,7 @@ class Outlet(Document):
 					return  # Error already logged and messaged
 			
 			# Check if Restaurant User already exists
-			if frappe.db.exists("Outlet User", {"user": user, "restaurant": self.name}):
+			if frappe.db.exists("Outlet User", {"user": user, "outlet": self.name}):
 				frappe.msgprint(f"Owner {self.owner_email} is already assigned to this outlet")
 				return
 			
@@ -378,10 +378,10 @@ class Outlet(Document):
 
 			if qr_type == "takeaway":
 				assets = build_special_qr_assets(self, force=True)
-				file_name = f"{self.restaurant_id}_takeaway_qr_codes.pdf"
+				file_name = f"{self.outlet_id}_takeaway_qr_codes.pdf"
 			else:
 				assets = build_table_qr_assets(self, force=True, override_background_url=background_image)
-				file_name = f"{self.restaurant_id}_table_qr_codes.pdf"
+				file_name = f"{self.outlet_id}_table_qr_codes.pdf"
 
 			# Delegate all PDF rendering to qr_branding module
 			pdf_bytes = generate_pdf_from_assets(assets, layout=layout)
@@ -471,7 +471,7 @@ class Outlet(Document):
 	@frappe.whitelist()
 	def get_qr_codes_pdf_url(self):
 		"""Get the URL of the QR codes PDF if it exists"""
-		file_name = f"{self.restaurant_id}_table_qr_codes.pdf"
+		file_name = f"{self.outlet_id}_table_qr_codes.pdf"
 		
 		# First check if File record exists
 		existing_file = frappe.db.get_value("File", {
@@ -525,7 +525,7 @@ class Outlet(Document):
 	def delete_qr_codes_pdf(self):
 		"""Delete the QR codes PDF file"""
 		try:
-			file_name = f"{self.restaurant_id}_table_qr_codes.pdf"
+			file_name = f"{self.outlet_id}_table_qr_codes.pdf"
 			
 			# Find and delete all File records
 			existing_files = frappe.get_all(
@@ -584,7 +584,7 @@ class Outlet(Document):
 		assets = build_table_qr_assets(self, force=frappe.utils.cint(force))
 		return {
 			"restaurant": self.name,
-			"restaurant_id": self.restaurant_id,
+			"restaurant_id": self.outlet_id,
 			"tables": len(assets),
 			"items": assets,
 		}
@@ -595,7 +595,7 @@ class Outlet(Document):
 		assets = build_special_qr_assets(self, force=frappe.utils.cint(force))
 		return {
 			"restaurant": self.name,
-			"restaurant_id": self.restaurant_id,
+			"restaurant_id": self.outlet_id,
 			"tables": len(assets),
 			"items": assets,
 		}
@@ -717,7 +717,7 @@ def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_
 		if not resolved_id:
 			return {"success": False, "error": "Missing outlet_id"}
 
-		restaurant_name = frappe.db.get_value("Outlet", {"restaurant_id": resolved_id}, "name")
+		restaurant_name = frappe.db.get_value("Outlet", {"outlet_id": resolved_id}, "name")
 		if not restaurant_name:
 			return {"success": False, "error": f"Restaurant {resolved_id} not found"}
 
@@ -737,7 +737,7 @@ def record_qr_scan(outlet_id=None, restaurant_id=None, table_number=None, order_
 		
 		doc = frappe.get_doc({
 			"doctype": "Analytics Event",
-			"restaurant": restaurant_name,
+			"outlet": restaurant_name,
 			"event_type": "qr_scan",
 			"event_value": event_value,
 			"session_id": session_id,
@@ -769,14 +769,14 @@ def get_qr_scan_analytics(restaurant, days=30):
 
 		# Total scans in period
 		total_scans = frappe.db.count("Analytics Event", {
-			"restaurant": restaurant_name,
+			"outlet": restaurant_name,
 			"event_type": "qr_scan",
 			"creation": ["between", [start_date, end_date]],
 		})
 
 		# Lifetime scans
 		lifetime_scans = frappe.db.count("Analytics Event", {
-			"restaurant": restaurant_name,
+			"outlet": restaurant_name,
 			"event_type": "qr_scan",
 		})
 
@@ -786,7 +786,7 @@ def get_qr_scan_analytics(restaurant, days=30):
 				event_value AS table_number,
 				COUNT(*) AS scan_count
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s
+			WHERE outlet = %s
 			  AND event_type = 'qr_scan'
 			  AND creation BETWEEN %s AND %s
 			GROUP BY event_value
@@ -799,7 +799,7 @@ def get_qr_scan_analytics(restaurant, days=30):
 				DATE(creation) AS scan_date,
 				COUNT(*) AS scan_count
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s
+			WHERE outlet = %s
 			  AND event_type = 'qr_scan'
 			  AND creation BETWEEN %s AND %s
 			GROUP BY DATE(creation)
@@ -857,15 +857,15 @@ def create_restaurant_config(self):
 	"""Create Restaurant Config record for new restaurant"""
 	try:
 		# Check if Restaurant Config already exists
-		existing_config = frappe.db.exists("Outlet Config", {"restaurant": self.name})
+		existing_config = frappe.db.exists("Outlet Config", {"outlet": self.name})
 		if existing_config:
 			return
 		
 		# Create Restaurant Config with default values
 		config_doc = frappe.get_doc({
 			"doctype": "Outlet Config",
-			"restaurant": self.name,
-			"restaurant_name": self.restaurant_name,
+			"outlet": self.name,
+			"outlet_name": self.outlet_name,
 			"tagline": "",
 			"subtitle": "",
 			"description": self.description or "",
@@ -898,7 +898,7 @@ def create_default_home_features(self):
 	"""Create default Home Features for new restaurant"""
 	try:
 		# Check if Home Features already exist
-		existing_features = frappe.get_all("Home Feature", filters={"restaurant": self.name})
+		existing_features = frappe.get_all("Home Feature", filters={"outlet": self.name})
 		if existing_features:
 			return
 		
@@ -924,7 +924,7 @@ def create_default_home_features(self):
 			
 			feat_doc = frappe.get_doc({
 				"doctype": "Home Feature",
-				"restaurant": self.name,
+				"outlet": self.name,
 				"feature_id": feat["feature_id"],
 				"title": feat["title"],
 				"subtitle": feat.get("subtitle", ""),

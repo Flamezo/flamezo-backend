@@ -23,7 +23,7 @@ def get_addon_groups(outlet_id, status=None, group_type=None, include_items=1):
     try:
         restaurant = validate_restaurant_for_api(outlet_id)
 
-        filters = {"restaurant": restaurant}
+        filters = {"outlet": restaurant}
         if status:
             filters["status"] = status
         if group_type:
@@ -90,7 +90,7 @@ def create_addon_group(outlet_id, group_name, group_type="addon", items=None,
             "doctype": "Addon Group",
             "group_name": group_name,
             "group_type": group_type,
-            "restaurant": restaurant,
+            "outlet": restaurant,
             "is_required": cint(is_required),
             "min_selections": cint(min_selections),
             "max_selections": cint(max_selections),
@@ -227,7 +227,7 @@ def link_addon_group_to_products(outlet_id, group_id, product_ids, display_order
         for product_id in product_ids:
             product_name = frappe.db.get_value(
                 "Menu Product",
-                {"product_id": product_id, "restaurant": restaurant}
+                {"product_id": product_id, "outlet": restaurant}
             ) or frappe.db.get_value("Menu Product", product_id)
 
             if not product_name:
@@ -292,11 +292,11 @@ def toggle_addon_item_stock(outlet_id, group_id, item_id, in_stock):
 def _resolve_group(group_id, restaurant):
     """Resolve group_id or name to Frappe document name."""
     # Try direct name first
-    if frappe.db.exists("Addon Group", {"name": group_id, "restaurant": restaurant}):
+    if frappe.db.exists("Addon Group", {"name": group_id, "outlet": restaurant}):
         return group_id
     # Try by group_id
     return frappe.db.get_value(
-        "Addon Group", {"group_id": group_id, "restaurant": restaurant}
+        "Addon Group", {"group_id": group_id, "outlet": restaurant}
     )
 
 

@@ -58,7 +58,7 @@ def _make_event(restaurant_name, title, status="upcoming", is_active=1,
                 featured=0, category="dining", days_ahead=5):
     doc = frappe.get_doc({
         "doctype": "Event",
-        "restaurant": restaurant_name,
+        "outlet": restaurant_name,
         "title": title,
         "image_src": "https://r2.example.com/events/test.jpg",
         "description": "E2E test event",
@@ -275,7 +275,7 @@ class TestGetEventsResponseShape(unittest.TestCase):
         # Recurring event
         self.rec_evt = frappe.get_doc({
             "doctype": "Event",
-            "restaurant": self.rest,
+            "outlet": self.rest,
             "title": "Shape Recurring",
             "image_src": "https://r2.example.com/events/rec.jpg",
             "description": "E2E test event",
@@ -324,7 +324,7 @@ class TestGetEventsResponseShape(unittest.TestCase):
     def test_google_maps_and_registration_links_in_response(self):
         special = frappe.get_doc({
             "doctype": "Event",
-            "restaurant": self.rest,
+            "outlet": self.rest,
             "title": "Shape Links Event",
             "image_src": "https://r2.example.com/events/links.jpg",
             "description": "E2E test event",

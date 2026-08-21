@@ -46,15 +46,15 @@ class MediaAsset(Document):
 	
 	def validate_restaurant_ownership(self):
 		"""Validate that owner document belongs to the same restaurant"""
-		if not self.owner_doctype or not self.owner_name or not self.restaurant:
+		if not self.owner_doctype or not self.owner_name or not self.outlet:
 			return
-		
+
 		# Get restaurant from owner document
 		owner_restaurant = get_restaurant_from_owner(self.owner_doctype, self.owner_name)
-		
-		if owner_restaurant and owner_restaurant != self.restaurant:
+
+		if owner_restaurant and owner_restaurant != self.outlet:
 			frappe.throw(
-				f"Outlet mismatch: Media Asset outlet '{self.restaurant}' "
+				f"Outlet mismatch: Media Asset outlet '{self.outlet}' "
 				f"does not match owner document outlet '{owner_restaurant}'"
 			)
 	

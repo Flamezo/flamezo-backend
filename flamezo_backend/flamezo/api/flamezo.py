@@ -50,18 +50,18 @@ def _batch_active_offers_count(outlet_ids):
 	placeholders = ",".join(["%s"] * len(outlet_ids))
 	rows = frappe.db.sql(
 		f"""
-		SELECT restaurant, COUNT(*) AS cnt
+		SELECT outlet, COUNT(*) AS cnt
 		FROM `tabCoupon`
 		WHERE is_active = 1
-		  AND restaurant IN ({placeholders})
+		  AND outlet IN ({placeholders})
 		  AND (valid_from IS NULL OR valid_from <= %s)
 		  AND (valid_until IS NULL OR valid_until >= %s)
-		GROUP BY restaurant
+		GROUP BY outlet
 		""",
 		outlet_ids + [today_str, today_str],
 		as_dict=True,
 	)
-	return {r.restaurant: r.cnt for r in rows}
+	return {r.outlet: r.cnt for r in rows}
 
 
 def _batch_engagement_count(outlet_ids, days=30):
@@ -81,17 +81,17 @@ def _batch_engagement_count(outlet_ids, days=30):
 	placeholders = ",".join(["%s"] * len(outlet_ids))
 	rows = frappe.db.sql(
 		f"""
-		SELECT restaurant, COUNT(*) AS cnt
+		SELECT outlet, COUNT(*) AS cnt
 		FROM `tabAnalytics Event`
 		WHERE event_type IN ('qr_scan', 'menu_view', 'item_view')
-		  AND restaurant IN ({placeholders})
+		  AND outlet IN ({placeholders})
 		  AND creation >= %s
-		GROUP BY restaurant
+		GROUP BY outlet
 		""",
 		outlet_ids + [cutoff],
 		as_dict=True,
 	)
-	return {r.restaurant: r.cnt for r in rows}
+	return {r.outlet: r.cnt for r in rows}
 
 
 def _is_open_now(hours_json_str):
@@ -134,7 +134,7 @@ def _is_open_now(hours_json_str):
 
 
 _DISCOVERY_FIELDS = [
-	"name", "restaurant_name", "logo", "latitude", "longitude",
+	"name", "outlet_name", "logo", "latitude", "longitude",
 	"city", "plan_type", "onboarding_date", "description", "outlet_type",
 	"contact_phone", "whatsapp_number", "instagram_url",
 	"is_featured", "limelight_start_date", "limelight_end_date", "is_signature", "rating", "review_count",
@@ -166,10 +166,11 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 
 	return {
 		"id": r["name"],
-		"outlet_name": r["restaurant_name"],
+		"outlet_name": r["outlet_name"],
 		"logo": r.get("logo") or "",
-		# Batch-resolved (see batch_resolve_outlet_media): curated Gallery photo
-		# first, food/product photo fallback, then logo — no per-card round trip.
+		# Batch-resolved (see batch_resolve_outlet_media, include_food_fallback=False
+		# here): curated Gallery photo (Google Places ranked first) then logo —
+		# no food/product photo fallback on cards, no per-card round trip.
 		"cover_image": cover_images[0] if cover_images else (r.get("logo") or ""),
 		# Up to a few images per card so the app can auto-rotate the visible
 		# card's photo instead of showing just one static shot.
@@ -288,7 +289,7 @@ def get_all_outlets(
 		# Full-text search across name, cuisines, description, city
 		if search:
 			sql_filters.append(
-				"(r.restaurant_name LIKE %s OR r.cuisines LIKE %s "
+				"(r.outlet_name LIKE %s OR r.cuisines LIKE %s "
 				"OR r.description LIKE %s OR r.city LIKE %s)"
 			)
 			like = f"%{search}%"
@@ -322,7 +323,7 @@ def get_all_outlets(
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
-		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 
 		# ── has_offer filter (post-query, uses the same offers_map) ──────────────
 		if cint(has_offer):
@@ -490,7 +491,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
-		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map)
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
@@ -688,14 +689,14 @@ def get_outlets_for_map(
 				params.extend(types)
 
 		if search:
-			sql_filters.append("(restaurant_name LIKE %s OR cuisines LIKE %s)")
+			sql_filters.append("(outlet_name LIKE %s OR cuisines LIKE %s)")
 			like = f"%{search}%"
 			params += [like, like]
 
 		where = " AND ".join(sql_filters)
 		rows = frappe.db.sql(
 			f"""
-			SELECT name, restaurant_name, logo, latitude, longitude,
+			SELECT name, outlet_name, logo, latitude, longitude,
 			       outlet_type, is_featured, limelight_start_date, limelight_end_date
 			FROM `tabOutlet`
 			WHERE {where}
@@ -742,7 +743,7 @@ def get_outlets_for_map(
 
 			markers.append({
 				"id": r["name"],
-				"name": r["restaurant_name"],
+				"name": r["outlet_name"],
 				"logo": (site_url + r["logo"]) if r.get("logo") and r["logo"].startswith("/") else (r.get("logo") or ""),
 				"lat": flt(r["latitude"]),
 				"lng": flt(r["longitude"]),
@@ -803,7 +804,7 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 		active_restaurants = frappe.get_all(
 			"Outlet",
 			filters=restaurant_filters,
-			fields=["name", "restaurant_name", "city", "logo"],
+			fields=["name", "outlet_name", "city", "logo"],
 		)
 		restaurant_map = {r.name: r for r in active_restaurants}
 
@@ -814,13 +815,13 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 		coupons = frappe.db.get_list(
 			"Coupon",
 			filters={
-				"restaurant": ["in", list(restaurant_map.keys())],
+				"outlet": ["in", list(restaurant_map.keys())],
 				"is_active": 1,
 			},
 			fields=[
 				"name", "code", "description", "discount_type", "discount_value",
 				"min_order_amount", "offer_type", "free_item",
-				"valid_from", "valid_until", "restaurant",
+				"valid_from", "valid_until", "outlet",
 			],
 			ignore_permissions=True,
 			order_by="discount_value desc",
@@ -837,11 +838,11 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 				continue
 			v_until = getdate(raw_until) if raw_until else None
 
-			restaurant = restaurant_map.get(c.restaurant)
+			restaurant = restaurant_map.get(c.outlet)
 			if not restaurant:
 				continue
 
-			primary_color = _get_outlet_primary_color(c.restaurant)
+			primary_color = _get_outlet_primary_color(c.outlet)
 
 			offers.append({
 				"name": c.name,
@@ -850,8 +851,8 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 				"discount_type": c.discount_type or "percent",
 				"discount_value": flt(c.discount_value),
 				"min_order_amount": flt(c.min_order_amount),
-				"outlet_id": c.restaurant,
-				"outlet_name": restaurant.restaurant_name,
+				"outlet_id": c.outlet,
+				"outlet_name": restaurant.outlet_name,
 				"outlet_logo": restaurant.logo or "",
 				"city": restaurant.city or "",
 				"primary_color": primary_color,
@@ -941,7 +942,7 @@ def get_flamezo_member(phone=None):
 
 		# Restaurants visited (distinct)
 		visited_restaurants = frappe.db.sql("""
-			SELECT COUNT(DISTINCT restaurant) AS count
+			SELECT COUNT(DISTINCT outlet) AS count
 			FROM `tabOutlet Loyalty Entry`
 			WHERE customer = %s AND transaction_type = 'Earn'
 		""", (customer.name,), as_dict=True)[0].count or 0
@@ -1050,7 +1051,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 			"Outlet Loyalty Entry",
 			filters={"customer": customer.name},
 			fields=[
-				"transaction_type", "coins", "reason", "restaurant",
+				"transaction_type", "coins", "reason", "outlet",
 				"reference_doctype", "reference_name",
 				"posting_date", "creation", "is_settled", "expiry_date",
 			],
@@ -1065,7 +1066,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 		formatted_entries = []
 		for e in entries:
-			outlet_name = frappe.db.get_value("Outlet", e.restaurant, "restaurant_name") if e.restaurant else "FLAMEZO"
+			outlet_name = frappe.db.get_value("Outlet", e.outlet, "outlet_name") if e.outlet else "FLAMEZO"
 
 			# Map type
 			if e.transaction_type == "Earn":
@@ -1077,7 +1078,7 @@ def get_points_ledger(phone=None, page=1, limit=20):
 
 			formatted_entries.append({
 				"outlet_name": outlet_name,
-				"outlet_id": e.restaurant or "",
+				"outlet_id": e.outlet or "",
 				"points": flt(e.coins),
 				"type": entry_type,
 				"reason": e.reason or "",
@@ -1205,12 +1206,12 @@ def get_outlet_summary(outlet_id):
 		if cached:
 			return json.loads(cached)
 
-		_summary_fields = ["name", "restaurant_name", "logo", "city", "plan_type", "is_active",
+		_summary_fields = ["name", "outlet_name", "logo", "city", "plan_type", "is_active",
 			"latitude", "longitude", "outlet_type", "contact_phone", "whatsapp_number", "instagram_url"]
 
 		outlet = frappe.db.get_value(
 			"Outlet",
-			{"restaurant_id": outlet_id},
+			{"outlet_id": outlet_id},
 			_summary_fields,
 			as_dict=True,
 		)
@@ -1232,8 +1233,8 @@ def get_outlet_summary(outlet_id):
 
 		config = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": outlet.name},
-			["restaurant_name", "tagline", "default_theme"],
+			{"outlet": outlet.name},
+			["outlet_name", "tagline", "default_theme"],
 			as_dict=True,
 		) or {}
 
@@ -1243,7 +1244,7 @@ def get_outlet_summary(outlet_id):
 			"success": True,
 			"data": {
 				"id": outlet.name,
-				"outlet_name": config.get("restaurant_name") or outlet.restaurant_name,
+				"outlet_name": config.get("outlet_name") or outlet.outlet_name,
 				"tagline": config.get("tagline") or "",
 				"logo": outlet.logo or "",
 				"city": outlet.city or "",

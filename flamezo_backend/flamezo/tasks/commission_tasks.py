@@ -35,7 +35,7 @@ def retry_wallet_settlements():
         """
         SELECT cle.name AS ledger_name
         FROM `tabCommission Ledger Entry` cle
-        JOIN `tabOutlet` r ON r.name = cle.restaurant
+        JOIN `tabOutlet` r ON r.name = cle.outlet
         WHERE cle.status IN ('outstanding', 'partial')
           AND cle.outstanding_paise > 0
           AND r.coins_balance > 0

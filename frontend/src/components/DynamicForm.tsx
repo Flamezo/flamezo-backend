@@ -293,8 +293,8 @@ export default function DynamicForm({
           readOnlyFields.forEach(fieldname => {
             const value = initialData[fieldname]
             if (value !== undefined && value !== null && value !== '') {
-              // Special handling for restaurant field to avoid currency codes
-              if (fieldname === 'restaurant' && typeof value === 'string' && /^[A-Z]{3}$/.test(value)) {
+              // Special handling for outlet field to avoid currency codes
+              if (fieldname === 'outlet' && typeof value === 'string' && /^[A-Z]{3}$/.test(value)) {
                 // Skip currency codes like USD, INR, etc.
                 return
               }
@@ -612,7 +612,7 @@ export default function DynamicForm({
     // Restaurant doctype specific examples
     if (doctype === 'Outlet') {
       const examples: Record<string, string> = {
-        'restaurant_name': ' (e.g., Urban Bites, Glow Studio, FitZone)',
+        'outlet_name': ' (e.g., Urban Bites, Glow Studio, FitZone)',
         'subdomain': ' (e.g., urban-bites-surat)',
         'slug': ' (e.g., urban-bites)',
         'owner_email': ' (e.g., owner@yourbusiness.com)',
@@ -633,7 +633,7 @@ export default function DynamicForm({
     // Restaurant Config doctype specific examples
     if (doctype === 'Outlet Config') {
       const examples: Record<string, string> = {
-        'restaurant_name': ' (e.g., Pizza Palace)',
+        'outlet_name': ' (e.g., Pizza Palace)',
         'tagline': ' (e.g., Authentic Italian Cuisine)',
         'subtitle': ' (e.g., Since 1995)',
         'description': ' (e.g., Experience the finest Italian dining...)',
@@ -700,7 +700,7 @@ export default function DynamicForm({
 
     // For Restaurant doctype, make IDs and base_url read-only after creation
     if (doctype === 'Outlet' && mode === 'edit' && docname) {
-      const lockedFields = ['restaurant_id', 'slug', 'subdomain', 'base_url']
+      const lockedFields = ['outlet_id', 'slug', 'subdomain', 'base_url']
       if (lockedFields.includes(field.fieldname)) {
         isReadOnly = true
       }
@@ -1441,7 +1441,7 @@ export default function DynamicForm({
                 value={Array.isArray(value) ? value : []}
                 onChange={(links) => handleFieldChange(field.fieldname, links)}
                 disabled={isReadOnly}
-                outletId={formData?.restaurant || undefined}
+                outletId={formData?.outlet || undefined}
               />
               {field.description && (
                 <p className="text-xs text-muted-foreground">{field.description}</p>
@@ -1824,8 +1824,8 @@ function LinkFieldReadOnly({
   const displayValue = (function () {
     // Priority 1: Use full linked record if available
     if (linkedRecord) {
-      if (linkedDoctype === 'Outlet' && linkedRecord.restaurant_name) {
-        return linkedRecord.restaurant_name
+      if (linkedDoctype === 'Outlet' && linkedRecord.outlet_name) {
+        return linkedRecord.outlet_name
       }
       return linkedRecord.name || String(value)
     }
@@ -1893,7 +1893,7 @@ function LinkField({
   const getFieldsForDoctype = (doctype: string) => {
     switch (doctype) {
       case 'Outlet':
-        return ['name', 'restaurant_name']
+        return ['name', 'outlet_name']
       case 'Menu Category':
         return ['name', 'display_name', 'category_name', 'parent_category', 'display_order']
       default:
@@ -1905,7 +1905,7 @@ function LinkField({
 
   const filters: any[] = []
   if (linkedDoctype === 'Menu Category' && selectedOutlet) {
-    filters.push(['restaurant', '=', selectedOutlet])
+    filters.push(['outlet', '=', selectedOutlet])
   }
 
   // Fetch linked records
@@ -1963,9 +1963,9 @@ function LinkField({
   // Get display value for selected record
   const getDisplayValue = (record: any) => {
     if (!record) return ''
-    // For Restaurant, use restaurant_name
-    if (linkedDoctype === 'Outlet' && record.restaurant_name) {
-      return record.restaurant_name
+    // For Restaurant, use outlet_name
+    if (linkedDoctype === 'Outlet' && record.outlet_name) {
+      return record.outlet_name
     }
     // For Menu Category, prefer display_name then category_name
     if (linkedDoctype === 'Menu Category') {

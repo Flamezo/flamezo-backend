@@ -84,7 +84,7 @@ export default function Events() {
     setSearchQuery
   } = useDataTable({
     doctype: 'Event',
-    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'media_gallery', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'restaurant', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'end_time', 'location', 'image_src', 'media_gallery', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'outlet', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
     initialFilters,
     searchFields: ['title', 'category', 'description', 'location'],
     // Active events first, inactive (past/deactivated) fall to the bottom.
@@ -121,7 +121,7 @@ export default function Events() {
           doctype: 'Event',
           ...mappedData,
           // Merchant picked in the modal wins; else default to the current outlet.
-          restaurant: mappedData.restaurant || selectedOutlet,
+          outlet: mappedData.outlet || selectedOutlet,
         }
       })
       toast.success('Event created successfully')
@@ -306,8 +306,8 @@ export default function Events() {
                             </div>
                             <div className="flex items-center gap-1.5 text-xs font-medium">
                               <Store className="h-3.5 w-3.5 text-muted-foreground" />
-                              {event.restaurant
-                                ? <span className="text-muted-foreground truncate">Organised by <span className="text-foreground">{event.restaurant}</span></span>
+                              {event.outlet
+                                ? <span className="text-muted-foreground truncate">Organised by <span className="text-foreground">{event.outlet}</span></span>
                                 : <span className="text-muted-foreground italic">Platform event</span>}
                             </div>
                           </div>
@@ -491,7 +491,7 @@ export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMer
   const [media, setMedia] = useState<{ type: 'image' | 'video'; url: string }[]>([])
 
   useEffect(() => {
-    setMerchant(event?.restaurant ? { id: event.restaurant, name: merchantName || event.restaurant } : null)
+    setMerchant(event?.outlet ? { id: event.outlet, name: merchantName || event.outlet } : null)
     // Prefill existing media so editing other fields never drops it. Accepts
     // either `media` (already-parsed array, from the outlet event API) or the
     // raw `media_gallery` JSON string (from the dashboard list query).
@@ -601,7 +601,7 @@ export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMer
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({ ...formData, restaurant: merchant?.id || '', media_gallery: JSON.stringify(media) })
+    onSave({ ...formData, outlet: merchant?.id || '', media_gallery: JSON.stringify(media) })
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

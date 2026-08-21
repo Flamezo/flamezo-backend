@@ -59,7 +59,7 @@ def _make_court(restaurant, court_name="Badminton Court 1", sport_type="Badminto
                 available_days="Mon,Tue,Wed,Thu,Fri,Sat,Sun", is_active=1):
     doc = frappe.get_doc({
         "doctype": "Court",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court_name": court_name,
         "sport_type": sport_type,
         "is_active": is_active,
@@ -82,7 +82,7 @@ def _make_court_booking(restaurant, court, phone=_PHONE, date=None,
                         payment_status="Paid", consumer_fee=20, slot_price=300):
     booking = frappe.get_doc({
         "doctype": "Court Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court": court,
         "court_name": frappe.db.get_value("Court", court, "court_name"),
         "sport_type": frappe.db.get_value("Court", court, "sport_type"),
@@ -104,8 +104,8 @@ def _make_court_booking(restaurant, court, phone=_PHONE, date=None,
 
 
 def _cleanup(restaurant):
-    frappe.db.delete("Court Booking", {"restaurant": restaurant})
-    frappe.db.delete("Court", {"restaurant": restaurant})
+    frappe.db.delete("Court Booking", {"outlet": restaurant})
+    frappe.db.delete("Court", {"outlet": restaurant})
     frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 

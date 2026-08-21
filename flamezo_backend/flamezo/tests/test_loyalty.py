@@ -47,7 +47,7 @@ _PREFIX = "TEST-LOY"
 def _clear_loyalty_entries(customer, restaurant):
     frappe.db.delete("Outlet Loyalty Entry", {
         "customer": customer,
-        "restaurant": restaurant,
+        "outlet": restaurant,
     })
     frappe.db.commit()
 
@@ -109,7 +109,7 @@ class TestGetLoyaltyBalance(unittest.TestCase):
         doc = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 200,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -198,7 +198,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         )
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "reason": "Order"},
+            {"customer": self._customer.name, "outlet": self._res, "reason": "Order"},
             ["is_settled"],
             as_dict=True
         )
@@ -215,7 +215,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         )
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "reference_name": "TEST-ORDER-INSTANT"},
+            {"customer": self._customer.name, "outlet": self._res, "reference_name": "TEST-ORDER-INSTANT"},
             ["is_settled"], as_dict=True
         )
         self.assertEqual(entry.is_settled, 1)
@@ -247,7 +247,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         )
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "reason": "Referral Order"},
+            {"customer": self._customer.name, "outlet": self._res, "reason": "Referral Order"},
             ["is_settled"],
             as_dict=True
         )
@@ -259,7 +259,7 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         self.earn(self._customer.name, self._res, 1000.0, reason="Order")
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res},
+            {"customer": self._customer.name, "outlet": self._res},
             ["expiry_date"],
             as_dict=True
         )
@@ -320,7 +320,7 @@ class TestRedeemLoyaltyCoins(unittest.TestCase):
         self.redeem(self._customer.name, self._res, 50)
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "transaction_type": "Redeem"},
+            {"customer": self._customer.name, "outlet": self._res, "transaction_type": "Redeem"},
             ["transaction_type", "coins"], as_dict=True
         )
         self.assertIsNotNone(entry)
@@ -335,7 +335,7 @@ class TestRedeemLoyaltyCoins(unittest.TestCase):
         # DB entry should also be for 100, not 500
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "transaction_type": "Redeem"},
+            {"customer": self._customer.name, "outlet": self._res, "transaction_type": "Redeem"},
             "coins"
         )
         self.assertEqual(entry, 100)
@@ -392,7 +392,7 @@ class TestSettleLoyaltyPoints(unittest.TestCase):
         return frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 50,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -482,7 +482,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
         doc = MagicMock()
         doc.name = order_name or f"TEST-ORD-{frappe.generate_hash(length=8)}"
         doc.status = status
-        doc.restaurant = self._res
+        doc.outlet = self._res
         doc.platform_customer = self._customer.name
         doc.loyalty_coins_redeemed = coins_redeemed
         doc.coins_earned = coins_earned
@@ -493,7 +493,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
         self.cancel_hook(doc)
         count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
         })
         self.assertEqual(count, 0, "Hook must be a no-op for non-cancelled orders")
 
@@ -512,7 +512,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
             "Outlet Loyalty Entry",
             {
                 "customer": self._customer.name,
-                "restaurant": self._res,
+                "outlet": self._res,
                 "reference_name": order_name,
                 "reason": "Cancellation Refund",
             },
@@ -540,7 +540,7 @@ class TestHandleOrderCancellation(unittest.TestCase):
             "Outlet Loyalty Entry",
             {
                 "customer": self._customer.name,
-                "restaurant": self._res,
+                "outlet": self._res,
                 "reference_name": order_name,
                 "reason": "Cancellation Revert",
             },
@@ -565,13 +565,13 @@ class TestHandleOrderCancellation(unittest.TestCase):
 
         refund_count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "reference_name": order_name,
             "reason": "Cancellation Refund",
         })
         revert_count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "reference_name": order_name,
             "reason": "Cancellation Revert",
         })
@@ -612,7 +612,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
     def _make_order_doc(self, status, payment_status="pending", order_name=None):
         doc = MagicMock()
         doc.name = order_name or f"TEST-ORD-{frappe.generate_hash(length=8)}"
-        doc.restaurant = self._res
+        doc.outlet = self._res
         doc.status = status
         doc.payment_status = payment_status
         return doc
@@ -621,7 +621,7 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         return frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 100,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -693,9 +693,9 @@ class TestHandleLoyaltySettlement(unittest.TestCase):
         self.assertEqual(settled, 0, "Accepted order must not prematurely settle points")
 
     def test_no_restaurant_is_noop(self):
-        """If doc.restaurant is None, the hook must not raise."""
+        """If doc.outlet is None, the hook must not raise."""
         doc = self._make_order_doc("billed")
-        doc.restaurant = None
+        doc.outlet = None
         try:
             self.settle_hook(doc)  # must not raise
         except Exception as e:
@@ -728,7 +728,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
 
     def setUp(self):
         frappe.db.delete("Outlet Loyalty Entry", {
-            "customer": self._customer.name, "restaurant": self._res
+            "customer": self._customer.name, "outlet": self._res
         })
         frappe.db.commit()
 
@@ -738,7 +738,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         doc = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": coins,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -761,7 +761,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
             "Outlet Loyalty Entry",
             filters={
                 "customer": self._customer.name,
-                "restaurant": self._res,
+                "outlet": self._res,
                 "is_settled": 1,
                 "transaction_type": "Earn",
                 "expiry_date": ["between", [today(), add_days(today(), 30)]]
@@ -779,7 +779,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
         redeem_entry = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 80,
             "transaction_type": "Redeem",
             "reason": "Redemption",
@@ -797,7 +797,7 @@ class TestExpiringSoonBalance(unittest.TestCase):
             "Outlet Loyalty Entry",
             filters={
                 "customer": self._customer.name,
-                "restaurant": self._res,
+                "outlet": self._res,
                 "is_settled": 1,
                 "transaction_type": "Earn",
                 "expiry_date": ["between", [today(), add_days(today(), 30)]]
@@ -843,7 +843,7 @@ class TestCancellationZerosRedeemed(unittest.TestCase):
         order_name = f"TEST-CZR-{_hash}"
         frappe.db.sql("""
             INSERT INTO `tabOrder`
-            (name, restaurant, platform_customer, status, order_type, order_id,
+            (name, outlet, platform_customer, status, order_type, order_id,
              order_number, subtotal, total, loyalty_coins_redeemed, coins_earned,
              creation, modified, owner, docstatus, idx)
             VALUES (%s, %s, %s, 'confirmed', 'dine_in', %s,
@@ -860,7 +860,7 @@ class TestCancellationZerosRedeemed(unittest.TestCase):
             doc = MagicMock()
             doc.name = order_name
             doc.status = "cancelled"
-            doc.restaurant = self._res
+            doc.outlet = self._res
             doc.platform_customer = self._customer.name
             doc.loyalty_coins_redeemed = 50
             doc.coins_earned = 30
@@ -975,7 +975,7 @@ class TestGetLoyaltyTier(unittest.TestCase):
 
     def setUp(self):
         frappe.db.delete("Outlet Loyalty Entry", {
-            "customer": self._customer.name, "restaurant": self._res
+            "customer": self._customer.name, "outlet": self._res
         })
         frappe.db.commit()
 
@@ -1011,7 +1011,7 @@ class TestGetLoyaltyTier(unittest.TestCase):
         doc = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 600,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -1063,7 +1063,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
 
     def setUp(self):
         frappe.db.delete("Outlet Loyalty Entry", {
-            "customer": self._customer.name, "restaurant": self._res
+            "customer": self._customer.name, "outlet": self._res
         })
         frappe.db.commit()
 
@@ -1073,7 +1073,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
         grant_birthday_bonuses()
         count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "reason": "Birthday Bonus"
         })
         self.assertEqual(count, 0, "No bonus without prior loyalty history at restaurant")
@@ -1088,7 +1088,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
 
         count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "reason": "Birthday Bonus"
         })
         self.assertEqual(count, 1, "Birthday bonus must be granted once to eligible customer")
@@ -1103,7 +1103,7 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
 
         count = frappe.db.count("Outlet Loyalty Entry", {
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "reason": "Birthday Bonus"
         })
         self.assertEqual(count, 1, "Birthday bonus must never be granted more than once per year")
@@ -1218,7 +1218,7 @@ class TestTrackReferralVisitNoReward(unittest.TestCase):
             frappe.get_doc({
                 "doctype": "Referral Link",
                 "referrer": cls._referrer.name,
-                "restaurant": cls._res,
+                "outlet": cls._res,
                 "identifier": cls._identifier,
                 "is_active": 1,
                 "rewarded_opens_in_cycle": 0,
@@ -1294,7 +1294,7 @@ class TestClaimReferralReward(unittest.TestCase):
             frappe.get_doc({
                 "doctype": "Referral Link",
                 "referrer": cls._referrer.name,
-                "restaurant": cls._res,
+                "outlet": cls._res,
                 "identifier": cls._identifier,
                 "is_active": 1,
                 "rewarded_opens_in_cycle": 0,
@@ -1332,7 +1332,7 @@ class TestClaimReferralReward(unittest.TestCase):
 
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._referee.name, "restaurant": self._res, "reason": "Welcome Bonus"},
+            {"customer": self._referee.name, "outlet": self._res, "reason": "Welcome Bonus"},
             ["coins", "transaction_type"], as_dict=True
         )
         self.assertIsNotNone(entry, "Welcome Bonus entry must be created for referee")
@@ -1345,7 +1345,7 @@ class TestClaimReferralReward(unittest.TestCase):
         self.assertTrue(result.get("success"))
         entry = frappe.db.get_value(
             "Outlet Loyalty Entry",
-            {"customer": self._referrer.name, "restaurant": self._res, "reason": "Referral Share"},
+            {"customer": self._referrer.name, "outlet": self._res, "reason": "Referral Share"},
             ["coins", "transaction_type"], as_dict=True
         )
         self.assertIsNotNone(entry, "Referral Share entry must be created for referrer")
@@ -1377,7 +1377,7 @@ class TestClaimReferralReward(unittest.TestCase):
         self.assertEqual(result.get("data", {}).get("referrer_coins"), 0, "Referrer must not earn beyond cycle limit")
         # Referee still gets welcome bonus
         coins = frappe.db.get_value("Outlet Loyalty Entry",
-            {"customer": self._referee.name, "restaurant": self._res, "reason": "Welcome Bonus"}, "coins")
+            {"customer": self._referee.name, "outlet": self._res, "reason": "Welcome Bonus"}, "coins")
         self.assertEqual(coins, 150)
 
     def test_restaurant_mismatch_rejected(self):
@@ -1444,7 +1444,7 @@ class TestPlatformCentralizedEarnRate(unittest.TestCase):
 
     def _clear(self, res):
         frappe.db.delete("Outlet Loyalty Entry", {
-            "customer": self._customer.name, "restaurant": res
+            "customer": self._customer.name, "outlet": res
         })
         frappe.db.commit()
 
@@ -1637,7 +1637,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         saved = frappe.db.get_value(
-            "Outlet Loyalty Config", {"restaurant": self._res}, "earn_percentage"
+            "Outlet Loyalty Config", {"outlet": self._res}, "earn_percentage"
         )
         self.assertEqual(
             float(saved), get_earn_percentage(),
@@ -1654,7 +1654,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         )
         self.assertTrue(result.get("success"))
         saved = frappe.db.get_value(
-            "Outlet Loyalty Config", {"restaurant": self._res}, "coin_value_in_inr"
+            "Outlet Loyalty Config", {"outlet": self._res}, "coin_value_in_inr"
         )
         self.assertEqual(float(saved), 1.0, "coin_value_in_inr must always be 1 in DB")
 
@@ -1670,7 +1670,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
         self.assertTrue(result.get("success"))
         # DB value should remain platform constant (set by update_loyalty_config)
         saved = frappe.db.get_value(
-            "Outlet Loyalty Config", {"restaurant": self._res}, "max_coins_per_order"
+            "Outlet Loyalty Config", {"outlet": self._res}, "max_coins_per_order"
         )
         # Note: max_coins_per_order is stripped but not re-written by update_loyalty_config
         # (only earn_type, earn_percentage, points_per_inr, coin_value_in_inr are written back)
@@ -1706,7 +1706,7 @@ class TestCentralizedLoyaltyModel(unittest.TestCase):
             enable_loyalty=True
         )
         saved = frappe.db.get_value(
-            "Outlet Loyalty Config", {"restaurant": self._res}, "earn_type"
+            "Outlet Loyalty Config", {"outlet": self._res}, "earn_type"
         )
         self.assertEqual(saved, "Percentage of Bill",
             "earn_type must always be Percentage of Bill (platform-enforced)")
@@ -1949,7 +1949,7 @@ class TestGlobalWelcomeBonusDeduplication(unittest.TestCase):
                 frappe.get_doc({
                     "doctype": "Referral Link",
                     "referrer": referrer,
-                    "restaurant": restaurant,
+                    "outlet": restaurant,
                     "identifier": identifier,
                     "is_active": 1,
                     "rewarded_opens_in_cycle": 0,
@@ -1993,7 +1993,7 @@ class TestGlobalWelcomeBonusDeduplication(unittest.TestCase):
     def test_only_one_welcome_bonus_entry_in_db(self):
         """Regardless of how many restaurants are tried, only one Welcome Bonus entry exists."""
         print(f"DEBUG REF: name={self._referee.name}, phone={getattr(self._referee, 'phone', None)}, mobile={getattr(self._referee, 'mobile_no', None)}")
-        existing_entries = frappe.db.get_all("Outlet Loyalty Entry", filters={"reason": "Welcome Bonus"}, fields=["customer", "restaurant", "coins"])
+        existing_entries = frappe.db.get_all("Outlet Loyalty Entry", filters={"reason": "Welcome Bonus"}, fields=["customer", "outlet", "coins"])
         print(f"DEBUG ENTRIES BEFORE CLAIM: {existing_entries}")
         r1 = self._claim(self._res_a, self._id_a)
         r2 = self._claim(self._res_b, self._id_b)  # will fail, but must not create a second entry
@@ -2028,7 +2028,7 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
                 frappe.get_doc({
                     "doctype": "Referral Link",
                     "referrer": cls._referrer.name,
-                    "restaurant": cls._res,
+                    "outlet": cls._res,
                     "identifier": identifier,
                     "is_active": 1,
                     "rewarded_opens_in_cycle": 7,  # partially used
@@ -2096,7 +2096,7 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
         frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._referrer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 10,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -2115,7 +2115,7 @@ class TestMonthlyReferralCycleReset(unittest.TestCase):
         # Fire settlement hook
         doc = MagicMock()
         doc.name = order_name
-        doc.restaurant = self._res
+        doc.outlet = self._res
         doc.status = "completed"
         doc.payment_status = "completed"
         doc.platform_customer = self._referrer.name
@@ -2318,7 +2318,7 @@ class TestCoinExpiryNotifications(unittest.TestCase):
         doc = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": coins,
             "transaction_type": "Earn",
             "reason": "Order",
@@ -2344,7 +2344,7 @@ class TestCoinExpiryNotifications(unittest.TestCase):
         doc = frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": self._customer.name,
-            "restaurant": self._res,
+            "outlet": self._res,
             "coins": 100,
             "transaction_type": "Redeem",
             "reason": "Redemption",
@@ -2435,7 +2435,7 @@ class TestLoyaltyAnalytics(unittest.TestCase):
         frappe.get_doc({
             "doctype": "Outlet Loyalty Entry",
             "customer": cls._c2.name,
-            "restaurant": cls._res,
+            "outlet": cls._res,
             "coins": 100,
             "transaction_type": "Earn",
             "reason": "Welcome Bonus",

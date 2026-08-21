@@ -47,8 +47,8 @@ import { UpdateLimelightModal } from '@/components/UpdateLimelightModal'
 
 interface Merchant {
   name: string
-  restaurant_id: string
-  restaurant_name: string
+  outlet_id: string
+  outlet_name: string
   owner_email?: string
   owner_phone?: string
   owner_name?: string
@@ -434,7 +434,7 @@ function AdminMerchantDetailsPage() {
             </Button>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 mb-1">
-                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight break-words">{merchant.restaurant_name}</h1>
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight break-words">{merchant.outlet_name}</h1>
                 <Badge 
                   variant={merchant.is_active ? 'default' : 'secondary'}
                   className={cn(
@@ -446,7 +446,7 @@ function AdminMerchantDetailsPage() {
                 </Badge>
               </div>
               <div className="text-muted-foreground font-mono text-sm flex flex-wrap items-center gap-2">
-                <span className="shrink-0">ID: {merchant.restaurant_id}</span>
+                <span className="shrink-0">ID: {merchant.outlet_id}</span>
               </div>
             </div>
           </div>
@@ -483,7 +483,7 @@ function AdminMerchantDetailsPage() {
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
                 <MenuImageExtractorForm 
                   outletId={merchant.name} 
-                  outletName={merchant.restaurant_name}
+                  outletName={merchant.outlet_name}
                   onComplete={() => {
                       toast.success('Catalogue extraction complete!')
                   }}
@@ -667,13 +667,13 @@ function AdminMerchantDetailsPage() {
                     <div className="space-y-2">
                       <Label>Legal Business Name</Label>
                       <Input 
-                        value={merchant.restaurant_name} 
-                        onChange={(e) => setMerchant({...merchant, restaurant_name: e.target.value})}
+                        value={merchant.outlet_name} 
+                        onChange={(e) => setMerchant({...merchant, outlet_name: e.target.value})}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Internal Slug / ID</Label>
-                      <Input value={merchant.restaurant_id} disabled className="bg-muted/50 font-mono" />
+                      <Input value={merchant.outlet_id} disabled className="bg-muted/50 font-mono" />
                     </div>
                   </div>
 
@@ -999,8 +999,8 @@ function AdminMerchantDetailsPage() {
                             const action = isSuspended ? 'reactivate' : 'suspend'
                             const confirmed = window.confirm(
                               isSuspended
-                                ? `Reactivate linked account ${merchant.razorpay_account_id} for ${merchant.restaurant_name}?`
-                                : `Suspend linked account ${merchant.razorpay_account_id} for ${merchant.restaurant_name}? No Route transfers will go to this merchant until reactivated.`
+                                ? `Reactivate linked account ${merchant.razorpay_account_id} for ${merchant.outlet_name}?`
+                                : `Suspend linked account ${merchant.razorpay_account_id} for ${merchant.outlet_name}? No Route transfers will go to this merchant until reactivated.`
                             )
                             if (!confirmed) return
                             setIsRouteActionLoading(true)
@@ -1286,7 +1286,7 @@ function AdminMerchantDetailsPage() {
                             size="icon" 
                             className="shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
                             onClick={async () => {
-                              const msg = `Hi ${merchant.owner_name || merchant.restaurant_name}, please use this link to top-up your Flamezo wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
+                              const msg = `Hi ${merchant.owner_name || merchant.outlet_name}, please use this link to top-up your Flamezo wallet with ₹${parseFloat(manualRechargeAmount).toLocaleString()}: ${generatedRechargeLink}\n\nCredits will reflect in your account automatically after payment. Thanks!`
                               const success = await copyToClipboard(msg)
                               if (success) toast.success('Recharge message copied!')
                             }}
@@ -1436,7 +1436,7 @@ function AdminMerchantDetailsPage() {
       <UpdateSuccessShareModal
         open={showShareModal}
         onOpenChange={setShowShareModal}
-        merchantName={merchant.restaurant_name}
+        merchantName={merchant.outlet_name}
         currentRate={shareModalBaseRate}
         onConfirm={(newRate) => {
           setMerchant({ ...merchant, platform_fee_percent: newRate })
@@ -1453,7 +1453,7 @@ function AdminMerchantDetailsPage() {
             setMerchant(prev => ({...prev, is_featured: 0}))
           }
         }}
-        merchantName={merchant.restaurant_name}
+        merchantName={merchant.outlet_name}
         onConfirm={(startDate, endDate) => {
           setMerchant({ 
             ...merchant, 

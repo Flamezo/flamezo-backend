@@ -26,7 +26,7 @@ def _build_payload_for_restaurant(restaurant_doc) -> tuple:
             "product_id", "product_name", "category_name", "main_category",
             "price", "description", "is_vegetarian", "name",
         ],
-        filters={"restaurant": restaurant_doc.name, "is_active": 1},
+        filters={"outlet": restaurant_doc.name, "is_active": 1},
     )
 
     if not products:
@@ -35,7 +35,7 @@ def _build_payload_for_restaurant(restaurant_doc) -> tuple:
     categories = frappe.get_all(
         "Menu Category",
         fields=["category_id", "category_name"],
-        filters={"restaurant": restaurant_doc.name},
+        filters={"outlet": restaurant_doc.name},
     )
 
     dishes: List[Dict] = []
@@ -60,7 +60,7 @@ def _build_payload_for_restaurant(restaurant_doc) -> tuple:
     return {
         "dishes": dishes,
         "categories": categories_data,
-        "outlet_name": restaurant_doc.restaurant_name or restaurant_doc.name,
+        "outlet_name": restaurant_doc.outlet_name or restaurant_doc.name,
         "min_recommendations": MAX_RECOMMENDATIONS_PER_PRODUCT,
     }, products
 
@@ -91,7 +91,7 @@ def _store_recommendations(restaurant_doc, products: List[Dict], api_result: Dic
     product_map = {p.product_id: p for p in products}
 
     # Clear existing recommendations for this restaurant
-    frappe.db.delete("Menu Recommendation", {"restaurant": restaurant_doc.name})
+    frappe.db.delete("Menu Recommendation", {"outlet": restaurant_doc.name})
 
     updated_products = 0
     total_relations = 0
@@ -118,7 +118,7 @@ def _store_recommendations(restaurant_doc, products: List[Dict], api_result: Dic
 
             rec_doc_name = frappe.db.get_value(
                 "Menu Product",
-                {"product_id": rec_id, "restaurant": restaurant_doc.name},
+                {"product_id": rec_id, "outlet": restaurant_doc.name},
                 "name",
             )
 
@@ -128,7 +128,7 @@ def _store_recommendations(restaurant_doc, products: List[Dict], api_result: Dic
 
             menu_rec = frappe.get_doc({
                 "doctype": "Menu Recommendation",
-                "restaurant": restaurant_doc.name,
+                "outlet": restaurant_doc.name,
                 "source_product": product_doc.name,
                 "source_product_id": product_doc.product_id,
                 "source_product_name": product_doc.product_name,
@@ -223,7 +223,7 @@ def get_recommendations_tree(outlet_id: str):
             "product_id", "product_name", "category_name", "main_category",
             "recommendations", "name",
         ],
-        filters={"restaurant": restaurant_doc.name, "is_active": 1},
+        filters={"outlet": restaurant_doc.name, "is_active": 1},
         order_by="display_order, product_name",
     )
 
@@ -324,7 +324,7 @@ def _get_ctr_stats_bulk(outlet_name: str) -> Dict[str, Dict]:
             """
             SELECT source_product_id, recommended_product_id, action, COUNT(*) as cnt
             FROM `tabRecommendation Interaction`
-            WHERE restaurant = %s
+            WHERE outlet = %s
             GROUP BY source_product_id, recommended_product_id, action
             """,
             outlet_name,
@@ -356,7 +356,7 @@ def _process_interaction(outlet_id: str, source_product_id: str, recommended_pro
     try:
         outlet_name = frappe.db.get_value(
             "Outlet",
-            {"restaurant_id": outlet_id},
+            {"outlet_id": outlet_id},
             "name",
         )
         if not outlet_name:
@@ -364,7 +364,7 @@ def _process_interaction(outlet_id: str, source_product_id: str, recommended_pro
 
         frappe.get_doc({
             "doctype": "Recommendation Interaction",
-            "restaurant": outlet_name,
+            "outlet": outlet_name,
             "source_product_id": source_product_id,
             "recommended_product_id": recommended_product_id,
             "action": action,
@@ -454,7 +454,7 @@ def update_product_recommendations(outlet_id: str, source_product_id: str, recom
     source_rows = frappe.get_all(
         "Menu Product",
         fields=["name", "product_id", "product_name", "category_name", "main_category", "price", "description", "is_vegetarian"],
-        filters={"restaurant": restaurant_doc.name, "product_id": source_product_id, "is_active": 1},
+        filters={"outlet": restaurant_doc.name, "product_id": source_product_id, "is_active": 1},
         limit=1,
     )
     if not source_rows:
@@ -467,12 +467,12 @@ def update_product_recommendations(outlet_id: str, source_product_id: str, recom
         target_rows = frappe.get_all(
             "Menu Product",
             fields=["name", "product_id", "product_name", "category_name", "main_category", "price", "description", "is_vegetarian"],
-            filters={"restaurant": restaurant_doc.name, "product_id": ["in", clean_ids], "is_active": 1},
+            filters={"outlet": restaurant_doc.name, "product_id": ["in", clean_ids], "is_active": 1},
         )
 
     target_by_id = {row.product_id: row for row in target_rows}
 
-    frappe.db.delete("Menu Recommendation", {"restaurant": restaurant_doc.name, "source_product_id": source_product_id})
+    frappe.db.delete("Menu Recommendation", {"outlet": restaurant_doc.name, "source_product_id": source_product_id})
 
     formatted_recs: List[Dict] = []
     rank = 0
@@ -486,7 +486,7 @@ def update_product_recommendations(outlet_id: str, source_product_id: str, recom
 
         menu_rec = frappe.get_doc({
             "doctype": "Menu Recommendation",
-            "restaurant": restaurant_doc.name,
+            "outlet": restaurant_doc.name,
             "source_product": source_row.name,
             "source_product_id": source_row.product_id,
             "source_product_name": source_row.product_name,

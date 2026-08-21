@@ -33,13 +33,13 @@ class OutletUser(Document):
 
 	def _enforce_seat_limit(self):
 		"""Enforce staff seat limits."""
-		limit = get_staff_seat_limit(self.restaurant)
+		limit = get_staff_seat_limit(self.outlet)
 
 		# Count existing active non-admin staff
 		current_count = frappe.db.count(
 			"Outlet User",
 			{
-				"restaurant": self.restaurant,
+				"outlet": self.outlet,
 				"role": "Outlet Staff",
 				"is_active": 1,
 			}
@@ -84,11 +84,11 @@ class OutletUser(Document):
 				if not frappe.db.exists("User Permission", {
 					"user": self.user,
 					"allow": "Outlet",
-					"for_value": self.restaurant
+					"for_value": self.outlet
 				}):
 					frappe.permissions.add_user_permission(
 						doctype="Outlet",
-						name=self.restaurant,
+						name=self.outlet,
 						user=self.user,
 						is_default=self.is_default,
 						ignore_permissions=True
@@ -97,7 +97,7 @@ class OutletUser(Document):
 				try:
 					frappe.permissions.remove_user_permission(
 						doctype="Outlet",
-						name=self.restaurant,
+						name=self.outlet,
 						user=self.user,
 						ignore_permissions=True
 					)

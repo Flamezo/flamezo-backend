@@ -8,7 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "section_break_outlet",
-  "restaurant",
+  "outlet",
   "outlet_type",
   "column_break_outlet",
   "catalogue_item",
@@ -41,7 +41,7 @@
    "label": "Outlet"
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,

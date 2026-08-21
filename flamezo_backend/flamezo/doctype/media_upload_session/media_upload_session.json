@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "upload_id",
-  "restaurant",
+  "outlet",
   "owner_doctype",
   "owner_name",
   "column_break_1",
@@ -31,7 +31,7 @@
    "unique": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "label": "Outlet",
    "options": "Outlet",

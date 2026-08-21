@@ -44,7 +44,7 @@ def _make_hot_drop(restaurant, label="Flash Deal", hours_from_now=0, duration_ho
     ends = add_to_date(starts, hours=duration_hours)
     doc = frappe.get_doc({
         "doctype": "Hot Drop",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "coupon": coupon,
         "deal_label": label,
         "starts_at": starts,
@@ -58,10 +58,10 @@ def _make_hot_drop(restaurant, label="Flash Deal", hours_from_now=0, duration_ho
 
 
 def _cleanup(restaurant):
-    frappe.db.delete("Analytics Event", {"restaurant": restaurant})
-    frappe.db.delete("Offer Claim", {"restaurant": restaurant})
-    frappe.db.delete("Coupon", {"restaurant": restaurant})
-    frappe.db.delete("Hot Drop", {"restaurant": restaurant})
+    frappe.db.delete("Analytics Event", {"outlet": restaurant})
+    frappe.db.delete("Offer Claim", {"outlet": restaurant})
+    frappe.db.delete("Coupon", {"outlet": restaurant})
+    frappe.db.delete("Hot Drop", {"outlet": restaurant})
     frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
@@ -130,7 +130,7 @@ class TestCreateHotDrop(unittest.TestCase):
         from flamezo_backend.flamezo.api.hot_drops import create_hot_drop
         coupon = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.other,
+            "outlet": self.other,
             "code": "TESTHD01",
             "offer_type": "coupon",
             "discount_type": "flat",
@@ -259,7 +259,7 @@ class TestHotDropAnalytics(unittest.TestCase):
         res = track_hot_drop_event(hot_drop_name=drop, event_type="hotdrop_view")
         self.assertTrue(res["success"])
         self.assertEqual(
-            frappe.db.count("Analytics Event", {"restaurant": self.restaurant, "event_type": "hotdrop_view"}), 1
+            frappe.db.count("Analytics Event", {"outlet": self.restaurant, "event_type": "hotdrop_view"}), 1
         )
 
     def test_track_event_invalid_type_rejected(self):
@@ -267,7 +267,7 @@ class TestHotDropAnalytics(unittest.TestCase):
         drop = _make_hot_drop(self.restaurant)
         res = track_hot_drop_event(hot_drop_name=drop, event_type="something_else")
         self.assertFalse(res["success"])
-        self.assertEqual(frappe.db.count("Analytics Event", {"restaurant": self.restaurant}), 0)
+        self.assertEqual(frappe.db.count("Analytics Event", {"outlet": self.restaurant}), 0)
 
     def test_analytics_shape(self):
         from flamezo_backend.flamezo.api.hot_drops import get_hot_drop_analytics, track_hot_drop_event
@@ -300,7 +300,7 @@ class TestHotDropDoctypeCapBackstop(unittest.TestCase):
         starts = now_datetime()
         ends = add_to_date(starts, hours=-1)
         doc = frappe.get_doc({
-            "doctype": "Hot Drop", "restaurant": self.restaurant, "deal_label": "Bad",
+            "doctype": "Hot Drop", "outlet": self.restaurant, "deal_label": "Bad",
             "starts_at": starts, "ends_at": ends, "is_active": 1,
         })
         with self.assertRaises(frappe.ValidationError):
@@ -313,7 +313,7 @@ class TestHotDropDoctypeCapBackstop(unittest.TestCase):
         starts = add_to_date(now_datetime(), hours=20)
         ends = add_to_date(starts, hours=2)
         doc = frappe.get_doc({
-            "doctype": "Hot Drop", "restaurant": self.restaurant, "deal_label": "4th one",
+            "doctype": "Hot Drop", "outlet": self.restaurant, "deal_label": "4th one",
             "starts_at": starts, "ends_at": ends, "is_active": 1,
         })
         with self.assertRaises(frappe.ValidationError):

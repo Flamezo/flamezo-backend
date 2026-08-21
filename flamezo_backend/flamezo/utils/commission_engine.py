@@ -145,7 +145,7 @@ def _record_settlement(ledger_entry_name: str, method: str, amount_paise: int,
         "note": note,
     })
     ledger.save(ignore_permissions=True)
-    _bump_restaurant_outstanding(ledger.restaurant, -int(amount_paise))
+    _bump_restaurant_outstanding(ledger.outlet, -int(amount_paise))
     return ledger
 
 
@@ -193,14 +193,14 @@ def accrue_for_order(order, attempt_wallet_sweep: bool = True) -> Optional["frap
             try_wallet_settlement(ledger)
         return ledger
 
-    fee_percent = _get_commission_percent(order_doc.restaurant)
+    fee_percent = _get_commission_percent(order_doc.outlet)
     gst_percent = _get_gst_percent()
     total_paise = int(round(float(order_doc.total or 0) * 100))
     base, gst, total_owed = _compute_commission_paise(total_paise, fee_percent, gst_percent)
 
     ledger = frappe.get_doc({
         "doctype": "Commission Ledger Entry",
-        "restaurant": order_doc.restaurant,
+        "outlet": order_doc.outlet,
         "order": order_doc.name,
         "accrual_source": "pay_at_counter" if order_doc.get("payment_method") == "pay_at_counter" else "cash_order",
         "status": "outstanding",
@@ -215,7 +215,7 @@ def accrue_for_order(order, attempt_wallet_sweep: bool = True) -> Optional["frap
         "notes": f"Accrued on cash order {order_doc.name} (₹{total_paise/100:.2f} GMV).",
     })
     ledger.insert(ignore_permissions=True)
-    _bump_restaurant_outstanding(order_doc.restaurant, total_owed)
+    _bump_restaurant_outstanding(order_doc.outlet, total_owed)
 
     # Mark the order so dashboards/reports can show "commission tracked"
     try:
@@ -277,7 +277,7 @@ def void_for_order(order, reason: str = "Order cancelled"):
         if s.method == "wallet" and int(s.amount_paise or 0) > 0:
             try:
                 refund_coins(
-                    restaurant=ledger.restaurant,
+                    restaurant=ledger.outlet,
                     amount=int(s.amount_paise) / 100.0,
                     description=f"Refund: cash commission voided for order {order_name} ({reason})",
                     ref_doctype="Commission Ledger Entry",
@@ -290,7 +290,7 @@ def void_for_order(order, reason: str = "Order cancelled"):
                 )
 
     # Wipe out remaining outstanding from the Restaurant cache
-    _bump_restaurant_outstanding(ledger.restaurant, -int(ledger.outstanding_paise or 0))
+    _bump_restaurant_outstanding(ledger.outlet, -int(ledger.outstanding_paise or 0))
 
     ledger.status = "voided"
     ledger.voided_reason = reason
@@ -315,7 +315,7 @@ def try_wallet_settlement(ledger) -> int:
         return 0
 
     # Read wallet balance in paise
-    balance_rupees = frappe.db.get_value("Outlet", ledger.restaurant, "coins_balance") or 0
+    balance_rupees = frappe.db.get_value("Outlet", ledger.outlet, "coins_balance") or 0
     balance_paise = int(round(float(balance_rupees) * 100))
     if balance_paise <= 0:
         return 0
@@ -326,7 +326,7 @@ def try_wallet_settlement(ledger) -> int:
     from flamezo_backend.flamezo.api.coin_billing import record_transaction
     try:
         record_transaction(
-            restaurant=ledger.restaurant,
+            restaurant=ledger.outlet,
             txn_type=WALLET_TXN_TYPE,
             amount=take_rupees,
             description=(
@@ -350,7 +350,7 @@ def try_wallet_settlement(ledger) -> int:
         method="wallet",
         amount_paise=take_paise,
         ref_doctype="Outlet",
-        ref_name=ledger.restaurant,
+        ref_name=ledger.outlet,
         note=f"Wallet balance was ₹{balance_rupees:.2f}",
     )
     return take_paise
@@ -394,7 +394,7 @@ def apply_online_netoff(restaurant: str, online_order_name: str,
     open_ledgers = frappe.get_all(
         "Commission Ledger Entry",
         filters={
-            "restaurant": restaurant,
+            "outlet": restaurant,
             "status": ["in", ["outstanding", "partial"]],
         },
         fields=["name", "outstanding_paise"],
@@ -511,7 +511,7 @@ def apply_autopay_sweep_capture(restaurant: str, amount_paise: int, razorpay_pay
 
     open_ledgers = frappe.get_all(
         "Commission Ledger Entry",
-        filters={"restaurant": restaurant, "status": ["in", ["outstanding", "partial"]]},
+        filters={"outlet": restaurant, "status": ["in", ["outstanding", "partial"]]},
         fields=["name", "outstanding_paise"],
         order_by="creation asc",
         limit_page_length=500,
@@ -594,7 +594,7 @@ def get_outstanding_summary(restaurant: str) -> dict:
                COALESCE(SUM(settled_paise), 0) AS settled,
                COALESCE(SUM(outstanding_paise), 0) AS outstanding
         FROM `tabCommission Ledger Entry`
-        WHERE restaurant = %s
+        WHERE outlet = %s
         GROUP BY status
         """,
         (restaurant,),

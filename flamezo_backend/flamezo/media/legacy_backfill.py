@@ -92,12 +92,12 @@ def _gallery_batch(after_name, limit, restaurant=None):
 	conditions = ["url like %s", "url not like %s", "name > %s"]
 	params = [f"{base}/%", "%-opt.webp", after_name or ""]
 	if restaurant:
-		conditions.append("restaurant = %s")
+		conditions.append("outlet = %s")
 		params.append(restaurant)
 	params.append(limit)
 	return frappe.db.sql(
 		f"""
-		select name, restaurant, url
+		select name, outlet, url
 		from `tabOutlet Gallery Item`
 		where {" and ".join(conditions)}
 		order by name
@@ -116,12 +116,12 @@ def _product_media_batch(after_name, limit, restaurant=None):
 	]
 	params = [f"{base}/%", "%-opt.webp", after_name or ""]
 	if restaurant:
-		conditions.append("mp.restaurant = %s")
+		conditions.append("mp.outlet = %s")
 		params.append(restaurant)
 	params.append(limit)
 	return frappe.db.sql(
 		f"""
-		select pm.name, pm.parent, pm.media_url, mp.restaurant as outlet_id
+		select pm.name, pm.parent, pm.media_url, mp.outlet as outlet_id
 		from `tabProduct Media` pm
 		left join `tabMenu Product` mp on mp.name = pm.parent
 		where {" and ".join(conditions)}
@@ -233,7 +233,7 @@ def run(dry_run=True, restaurant=None, batch_size=BATCH_SIZE, max_rows=None):
 				summary["bytes_saved"] += old_size - new_size
 				if len(samples["gallery"]) < 10:
 					samples["gallery"].append(
-						{"row": row.name, "restaurant": row.restaurant,
+						{"row": row.name, "restaurant": row.outlet,
 						 "old_url": row.url, "new_url": new_url,
 						 "old_size": old_size, "new_size": new_size}
 					)
@@ -289,7 +289,7 @@ def run(dry_run=True, restaurant=None, batch_size=BATCH_SIZE, max_rows=None):
 
 		if not dry_run:
 			for outlet_id in touched_outlets:
-				invalidate_product_cache({"restaurant": outlet_id})
+				invalidate_product_cache({"outlet": outlet_id})
 			frappe.db.commit()
 	finally:
 		if not dry_run:

@@ -4,10 +4,10 @@ from frappe.model.document import Document
 
 class CatalogueCategory(Document):
 	def on_update(self):
-		_invalidate_catalogue_cache(self.restaurant)
+		_invalidate_catalogue_cache(self.outlet)
 
 	def on_trash(self):
-		_invalidate_catalogue_cache(self.restaurant)
+		_invalidate_catalogue_cache(self.outlet)
 
 
 def _invalidate_catalogue_cache(restaurant):

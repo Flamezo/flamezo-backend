@@ -40,7 +40,7 @@ def get_offer_analytics(outlet_id, start_date=None, end_date=None):
 		# Get all offers for restaurant
 		offers = frappe.get_all(
 			"Coupon",
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			fields=["name", "code", "offer_type", "is_active", "usage_count", "max_uses"]
 		)
 		
@@ -67,7 +67,7 @@ def get_offer_analytics(outlet_id, start_date=None, end_date=None):
 				c.discount_type
 			FROM `tabCoupon Usage` cu
 			JOIN `tabCoupon` c ON cu.coupon = c.name
-			WHERE cu.restaurant = %s
+			WHERE cu.outlet = %s
 			AND cu.usage_date BETWEEN %s AND %s
 			GROUP BY cu.coupon
 			ORDER BY usage_count DESC
@@ -85,8 +85,8 @@ def get_offer_analytics(outlet_id, start_date=None, end_date=None):
 				SUM(subtotal) as total_subtotal,
 				SUM(discount) as total_discount,
 				SUM(total) as total_revenue
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			AND creation BETWEEN %s AND %s
 			AND coupon IS NOT NULL
 		""", (restaurant, start_date, end_date), as_dict=True)
@@ -103,8 +103,8 @@ def get_offer_analytics(outlet_id, start_date=None, end_date=None):
 			SELECT 
 				COUNT(*) as total_orders,
 				SUM(total) as total_revenue
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			AND creation BETWEEN %s AND %s
 			AND (coupon IS NULL OR coupon = '')
 		""", (restaurant, start_date, end_date), as_dict=True)
@@ -189,7 +189,7 @@ def get_coupon_performance(outlet_id, coupon_id):
 		# Get coupon details
 		coupon = frappe.get_doc("Coupon", coupon_id)
 		
-		if coupon.restaurant != restaurant:
+		if coupon.outlet != restaurant:
 			return {
 				"success": False,
 				"error": {
@@ -286,7 +286,7 @@ def log_event(outlet_id, event_type, event_value=None, session_id=None, platform
 
 		doc = frappe.get_doc({
 			"doctype": "Analytics Event",
-			"restaurant": outlet_id,
+			"outlet": outlet_id,
 			"event_type": event_type,
 			"event_value": event_value,
 			"session_id": session_id or "anonymous",
@@ -328,7 +328,7 @@ def get_dashboard_summary(outlet_id):
 				COUNT(*) as total_views,
 				COUNT(DISTINCT session_id) as unique_visitors
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s 
+			WHERE outlet = %s 
 			AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
 		""", (outlet_id, start_date_7d, end_date), as_dict=True)[0]
@@ -338,7 +338,7 @@ def get_dashboard_summary(outlet_id):
 		prev_traffic = frappe.db.sql("""
 			SELECT COUNT(*) as total_views
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s 
+			WHERE outlet = %s 
 			AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
 		""", (outlet_id, start_date_prev, start_date_7d), as_dict=True)[0]
@@ -348,7 +348,7 @@ def get_dashboard_summary(outlet_id):
 			growth = ((traffic_stats.total_views - prev_traffic.total_views) / prev_traffic.total_views) * 100
 
 		lifetime_scans = frappe.db.count("Analytics Event", {
-			"restaurant": outlet_id,
+			"outlet": outlet_id,
 			"event_type": "menu_view"
 		})
 
@@ -367,7 +367,7 @@ def get_dashboard_summary(outlet_id):
 		peak_hour_data = frappe.db.sql("""
 			SELECT HOUR(creation) as hour, COUNT(*) as count
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s AND event_type = 'menu_view'
+			WHERE outlet = %s AND event_type = 'menu_view'
 			AND creation BETWEEN %s AND %s
 			GROUP BY hour ORDER BY count DESC LIMIT 1
 		""", (outlet_id, start_date_7d, end_date), as_dict=True)
@@ -383,8 +383,8 @@ def get_dashboard_summary(outlet_id):
 		# DAYNAME() returns 'Monday', 'Tuesday' etc. — real, not hardcoded.
 		peak_day_data = frappe.db.sql("""
 			SELECT DAYNAME(creation) as day_name, COUNT(*) as order_count
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			AND creation BETWEEN %s AND %s
 			AND status NOT IN ('cancelled', 'pending_verification')
 			GROUP BY DAYOFWEEK(creation), day_name
@@ -399,7 +399,7 @@ def get_dashboard_summary(outlet_id):
 		summary["traffic"]["topCategory"] = frappe.db.sql("""
 			SELECT event_value, COUNT(*) as count
 			FROM `tabAnalytics Event`
-			WHERE restaurant = %s AND event_type = 'category_view'
+			WHERE outlet = %s AND event_type = 'category_view'
 			GROUP BY event_value ORDER BY count DESC LIMIT 1
 		""", (outlet_id,), as_dict=True)
 
@@ -410,8 +410,8 @@ def get_dashboard_summary(outlet_id):
 				SELECT 
 					COUNT(*) as total_orders,
 					SUM(total) as revenue
-				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-				WHERE restaurant = %s
+				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+				WHERE outlet = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
 			""", (outlet_id, start_date_7d, end_date), as_dict=True)[0]
@@ -436,8 +436,8 @@ def get_dashboard_summary(outlet_id):
 					SUM(oi.quantity) as total_qty,
 					SUM(oi.total_price) as total_revenue
 				FROM (SELECT 0 as quantity, 0 as total_price, "" as product_name, "" as parent, "" as name, "" as product FROM `tabOutlet` WHERE 1=0) oi
-				INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
-				WHERE o.restaurant = %s
+				INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
+				WHERE o.outlet = %s
 				AND o.creation BETWEEN %s AND %s
 				AND o.status NOT IN ('cancelled', 'pending_verification')
 				GROUP BY oi.product_name
@@ -455,8 +455,8 @@ def get_dashboard_summary(outlet_id):
 						SUM(oi.quantity) as total_qty,
 						SUM(oi.total_price) as total_revenue
 					FROM (SELECT 0 as quantity, 0 as total_price, "" as product_name, "" as parent, "" as name, "" as product FROM `tabOutlet` WHERE 1=0) oi
-					INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
-					WHERE o.restaurant = %s
+					INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
+					WHERE o.outlet = %s
 					AND o.creation BETWEEN %s AND %s
 					GROUP BY item_name
 					ORDER BY order_count DESC
@@ -480,7 +480,7 @@ def get_dashboard_summary(outlet_id):
 					event_value as item_name,
 					COUNT(*) as views
 				FROM `tabAnalytics Event`
-				WHERE restaurant = %s AND event_type = 'item_view'
+				WHERE outlet = %s AND event_type = 'item_view'
 				AND creation BETWEEN %s AND %s
 				GROUP BY event_value
 				ORDER BY views DESC
@@ -498,16 +498,16 @@ def get_dashboard_summary(outlet_id):
 			# ── 2.3 Churn Risk — real computation (prev 7d vs current 7d) ────
 			prev_customers_raw = frappe.db.sql("""
 				SELECT COUNT(DISTINCT COALESCE(platform_customer, customer_phone)) as cnt
-				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-				WHERE restaurant = %s
+				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+				WHERE outlet = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
 			""", (outlet_id, start_date_prev, start_date_7d), as_dict=True)
 
 			curr_customers_raw = frappe.db.sql("""
 				SELECT COUNT(DISTINCT COALESCE(platform_customer, customer_phone)) as cnt
-				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-				WHERE restaurant = %s
+				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+				WHERE outlet = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
 			""", (outlet_id, start_date_7d, end_date), as_dict=True)
@@ -550,15 +550,15 @@ def get_dashboard_summary(outlet_id):
 				FROM (
 					SELECT event_value as item_name, COUNT(*) as views
 					FROM `tabAnalytics Event`
-					WHERE restaurant = %s AND event_type = 'item_view'
+					WHERE outlet = %s AND event_type = 'item_view'
 					AND creation BETWEEN %s AND %s
 					GROUP BY event_value
 				) v
 				LEFT JOIN (
 					SELECT oi.product_name as item_name, COUNT(*) as orders
 					FROM (SELECT 0 as quantity, 0 as total_price, "" as product_name, "" as parent, "" as name, "" as product FROM `tabOutlet` WHERE 1=0) oi
-					INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) ord ON ord.name = oi.parent
-					WHERE ord.restaurant = %s
+					INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) ord ON ord.name = oi.parent
+					WHERE ord.outlet = %s
 					AND ord.creation BETWEEN %s AND %s
 					AND ord.status NOT IN ('cancelled', 'pending_verification')
 					GROUP BY oi.product_name
@@ -598,8 +598,8 @@ def get_dashboard_summary(outlet_id):
 					END as source,
 					SUM(total) as revenue,
 					COUNT(*) as order_count
-				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-				WHERE restaurant = %s
+				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+				WHERE outlet = %s
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
 				GROUP BY source
@@ -607,8 +607,8 @@ def get_dashboard_summary(outlet_id):
 			
 			social_revenue_raw = frappe.db.sql("""
 				SELECT SUM(total) as revenue, COUNT(*) as orders
-				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-				WHERE restaurant = %s
+				FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+				WHERE outlet = %s
 				AND referral_link IS NOT NULL AND referral_link != ''
 				AND creation BETWEEN %s AND %s
 				AND status NOT IN ('cancelled', 'pending_verification')
@@ -659,8 +659,8 @@ def get_top_products(outlet_id, days=7, limit=8):
 				SUM(oi.quantity) as total_qty,
 				SUM(oi.total_price) as total_revenue
 			FROM (SELECT 0 as quantity, 0 as total_price, "" as product_name, "" as parent, "" as name, "" as product FROM `tabOutlet` WHERE 1=0) oi
-			INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
-			WHERE o.restaurant = %s
+			INNER JOIN (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) o ON o.name = oi.parent
+			WHERE o.outlet = %s
 			AND o.creation BETWEEN %s AND %s
 			AND o.status NOT IN ('cancelled', 'pending_verification')
 			GROUP BY item_name
@@ -726,8 +726,8 @@ def get_commission_summary(outlet_id, start_date=None, end_date=None):
 				COUNT(*) AS order_count,
 				COALESCE(SUM(total), 0) AS gmv_rupees,
 				COALESCE(SUM(platform_fee_amount), 0) AS commission_paise
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			  AND DATE(creation) BETWEEN %s AND %s
 			  AND status NOT IN ('cancelled', 'pending_verification')
 			  AND payment_status = 'completed'
@@ -782,8 +782,8 @@ def get_flamezo_acquisition_stats(outlet_id, start_date=None, end_date=None):
 				COUNT(DISTINCT COALESCE(platform_customer, customer_phone)) AS unique_customers,
 				COALESCE(SUM(total), 0) AS gmv_rupees,
 				COALESCE(SUM(platform_fee_amount), 0) AS commission_paise
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			  AND DATE(creation) BETWEEN %s AND %s
 			  AND status NOT IN ('cancelled', 'pending_verification')
 			  AND acquisition_source = 'flamezo_discovery'
@@ -800,8 +800,8 @@ def get_flamezo_acquisition_stats(outlet_id, start_date=None, end_date=None):
 				COALESCE(NULLIF(acquisition_source, ''), 'qr_direct') AS source,
 				COUNT(*) AS order_count,
 				COALESCE(SUM(total), 0) AS gmv_rupees
-			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as restaurant, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
-			WHERE restaurant = %s
+			FROM (SELECT 0 as total, 0 as platform_fee_amount, "" as name, "" as outlet, NOW() as creation, "" as status, 0 as quantity, "" as product_name, "" as parent, "" as platform_customer, "" as customer_phone, 0 as discount, "" as order_type, "" as date, "" as product, "" as order_number FROM `tabOutlet` WHERE 1=0) AS dummy_table
+			WHERE outlet = %s
 			  AND DATE(creation) BETWEEN %s AND %s
 			  AND status NOT IN ('cancelled', 'pending_verification')
 			GROUP BY source

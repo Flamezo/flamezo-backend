@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "customer",
-  "restaurant",
+  "outlet",
   "posting_date",
   "expiry_date",
   "is_settled",
@@ -31,7 +31,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

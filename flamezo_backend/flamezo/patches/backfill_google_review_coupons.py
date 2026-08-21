@@ -20,9 +20,9 @@ def execute():
 
 	# 1. Rename legacy REVIEW50 → GOOGLEREVIEW
 	for c in frappe.get_all(
-		"Coupon", filters={"code": "REVIEW50", "offer_type": "google_review"}, fields=["name", "restaurant"]
+		"Coupon", filters={"code": "REVIEW50", "offer_type": "google_review"}, fields=["name", "outlet"]
 	):
-		new_name = f"{c.restaurant}-GOOGLEREVIEW"
+		new_name = f"{c.outlet}-GOOGLEREVIEW"
 		if frappe.db.exists("Coupon", new_name):
 			continue
 		try:

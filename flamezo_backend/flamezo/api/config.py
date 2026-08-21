@@ -41,7 +41,7 @@ def _get_user_role_for_restaurant(user, restaurant):
 	# Check specific restaurant role
 	role = frappe.db.get_value(
 		"Outlet User",
-		{"user": user, "restaurant": restaurant, "is_active": 1},
+		{"user": user, "outlet": restaurant, "is_active": 1},
 		"role"
 	)
 	return role or "Outlet Staff"
@@ -70,8 +70,8 @@ def get_outlet_config(outlet_id):
 		# Get or create restaurant config
 		config = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": restaurant},
-			["restaurant_name", "tagline", "subtitle", "description", "default_theme",
+			{"outlet": restaurant},
+			["outlet_name", "tagline", "subtitle", "description", "default_theme",
 			 "logo_size", "hero_video", "apple_touch_icon",
 			 "menu_theme_background_active", "menu_theme_background_preview", "menu_theme_background_history", 
 			 "menu_theme_wallpapers", "menu_theme_main_index",
@@ -88,7 +88,7 @@ def get_outlet_config(outlet_id):
 		# If config doesn't exist, get from Restaurant doctype
 		if not config:
 			config = {
-				"restaurant_name": restaurant_doc.restaurant_name,
+				"outlet_name": restaurant_doc.outlet_name,
 				"tagline": "",
 				"subtitle": "",
 				"description": restaurant_doc.description,
@@ -115,7 +115,7 @@ def get_outlet_config(outlet_id):
 		# Batch fetch branding Media Assets in one go. Logo lives on Restaurant
 		# now (single source of truth), everything else stays on Restaurant Config.
 		media_roles = ["restaurant_config_hero_video", "apple_touch_icon"]
-		config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name")
+		config_name = frappe.db.get_value("Outlet Config", {"outlet": restaurant}, "name")
 		media_batch = get_media_assets_batch("Outlet Config", [config_name], media_roles) if config_name else {}
 		logo_media_batch = get_media_assets_batch("Outlet", [restaurant], ["restaurant_logo"])
 
@@ -159,7 +159,7 @@ def get_outlet_config(outlet_id):
 		# Include restaurant basic info and location (google map URL from restaurant context)
 		response_data = {
 			"restaurant": {
-				"name": config.get("restaurant_name", ""),
+				"name": config.get("outlet_name", ""),
 				"tagline": config.get("tagline", ""),
 				"subtitle": config.get("subtitle", ""),
 				"description": config.get("description", ""),
@@ -291,7 +291,7 @@ def get_outlet_config(outlet_id):
 
 		coupons = frappe.db.get_list("Coupon",
 				filters={
-					"restaurant": restaurant_doc.name,
+					"outlet": restaurant_doc.name,
 					"is_active": 1,
 				},
 				fields=[
@@ -357,7 +357,7 @@ def get_outlet_config(outlet_id):
 						return []
 					rows = frappe.get_all(
 						"Menu Product",
-						filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
+						filters={"product_id": ["in", ids], "outlet": restaurant_doc.name},
 						fields=["name", "product_id", "product_name", "price"],
 					)
 					lookup = {r.product_id: r for r in rows}
@@ -521,7 +521,7 @@ def get_home_features(outlet_id):
 				"is_mandatory",
 				"display_order"
 			],
-			filters={"restaurant": restaurant, "feature_id": ["!=", "menu"]},
+			filters={"outlet": restaurant, "feature_id": ["!=", "menu"]},
 			order_by="display_order asc"
 		)
 		
@@ -541,7 +541,7 @@ def get_home_features(outlet_id):
 			for idx, feat in enumerate(default_features, 1):
 				feat_doc = frappe.get_doc({
 					"doctype": "Home Feature",
-					"restaurant": restaurant,
+					"outlet": restaurant,
 					"feature_id": feat["id"],
 					"title": feat["title"],
 					"subtitle": feat.get("subtitle", ""),
@@ -560,7 +560,7 @@ def get_home_features(outlet_id):
 				"Home Feature",
 				fields=["name", "feature_id as id", "title", "subtitle", "image_src", "image_alt", "route",
 				        "size", "is_enabled", "is_mandatory", "display_order"],
-				filters={"restaurant": restaurant, "feature_id": ["!=", "menu"]},
+				filters={"outlet": restaurant, "feature_id": ["!=", "menu"]},
 				order_by="display_order asc"
 			)
 		
@@ -574,7 +574,7 @@ def get_home_features(outlet_id):
 		# Get global toggles from Restaurant Config
 		global_config = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": restaurant},
+			{"outlet": restaurant},
 			["enable_table_booking", "enable_banquet_booking"],
 			as_dict=True
 		) or {}
@@ -706,7 +706,7 @@ def update_home_features(outlet_id, features):
 			# Find existing feature
 			feature_name = frappe.db.get_value(
 				"Home Feature",
-				{"restaurant": restaurant, "feature_id": feature_id},
+				{"outlet": restaurant, "feature_id": feature_id},
 				"name"
 			)
 			
@@ -731,7 +731,7 @@ def update_home_features(outlet_id, features):
 		all_features = frappe.get_all(
 			"Home Feature",
 			fields=["feature_id as id", "is_enabled", "is_mandatory", "display_order"],
-			filters={"restaurant": restaurant},
+			filters={"outlet": restaurant},
 			order_by="display_order asc"
 		)
 		
@@ -814,7 +814,7 @@ def get_filters(outlet_id):
 		# Try to get custom colors from restaurant config if available
 		config = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": restaurant},
+			{"outlet": restaurant},
 			["color_palette_green", "color_palette_red", "color_palette_yellow"],
 			as_dict=True
 		)

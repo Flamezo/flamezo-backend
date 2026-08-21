@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "trigger_name",
-  "restaurant",
+  "outlet",
   "is_active",
   "total_fired",
   "column_break_1",
@@ -36,7 +36,7 @@
    "unique": 1
   },
   {
-   "fieldname": "restaurant",
+   "fieldname": "outlet",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Outlet",

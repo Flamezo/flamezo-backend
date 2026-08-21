@@ -181,7 +181,7 @@ def _fetch_template(submission):
 	if not asset_name:
 		# Fall back to the restaurant's config first template.
 		config_name = frappe.db.get_value(
-			"UGC Cashback Config", {"restaurant": submission.restaurant}, "name"
+			"UGC Cashback Config", {"outlet": submission.outlet}, "name"
 		)
 		if config_name:
 			config = frappe.get_doc("UGC Cashback Config", config_name)

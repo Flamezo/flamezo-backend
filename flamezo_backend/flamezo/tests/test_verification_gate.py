@@ -58,7 +58,7 @@ _PREFIX = "TEST-VG"
 def _clear_loyalty_entries(customer, restaurant):
     frappe.db.delete(
         "Outlet Loyalty Entry",
-        {"customer": customer, "restaurant": restaurant},
+        {"customer": customer, "outlet": restaurant},
     )
     frappe.db.commit()
 
@@ -138,7 +138,7 @@ class TestEarnGate(unittest.TestCase):
         # And no entry was created
         entry_count = frappe.db.count(
             "Outlet Loyalty Entry",
-            {"customer": self._customer.name, "restaurant": self._res, "reason": "Order"},
+            {"customer": self._customer.name, "outlet": self._res, "reason": "Order"},
         )
         self.assertEqual(entry_count, 0)
 
@@ -209,12 +209,12 @@ class TestPricingGate(unittest.TestCase):
 
         # Build a coupon: 10% off, auto-apply, no restrictions
         cls._coupon_code = f"AUTO-{frappe.generate_hash(length=4)}"
-        frappe.db.delete("Coupon", {"restaurant": cls._res})
+        frappe.db.delete("Coupon", {"outlet": cls._res})
         frappe.db.commit()
         frappe.get_doc(
             {
                 "doctype": "Coupon",
-                "restaurant": cls._res,
+                "outlet": cls._res,
                 "code": cls._coupon_code,
                 "offer_type": "auto",
                 "discount_type": "percent",
@@ -241,7 +241,7 @@ class TestPricingGate(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
-        frappe.db.delete("Coupon", {"restaurant": cls._res})
+        frappe.db.delete("Coupon", {"outlet": cls._res})
         cleanup_restaurant(cls._res)
 
     def test_unverified_skips_auto_offers(self):
@@ -377,12 +377,12 @@ class TestValidateCouponGate(unittest.TestCase):
         cls._res = f"{_PREFIX}-COUPON-{frappe.generate_hash(length=6)}"
         make_restaurant(cls._res, plan="GOLD")
         cls._code = f"VG-{frappe.generate_hash(length=4)}"
-        frappe.db.delete("Coupon", {"restaurant": cls._res})
+        frappe.db.delete("Coupon", {"outlet": cls._res})
         frappe.db.commit()
         frappe.get_doc(
             {
                 "doctype": "Coupon",
-                "restaurant": cls._res,
+                "outlet": cls._res,
                 "code": cls._code,
                 "offer_type": "coupon",
                 "discount_type": "percent",
@@ -395,7 +395,7 @@ class TestValidateCouponGate(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        frappe.db.delete("Coupon", {"restaurant": cls._res})
+        frappe.db.delete("Coupon", {"outlet": cls._res})
         cleanup_restaurant(cls._res)
 
     def test_unverified_phone_rejects(self):

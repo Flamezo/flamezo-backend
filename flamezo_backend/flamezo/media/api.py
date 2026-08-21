@@ -87,7 +87,7 @@ def request_upload_session(owner_doctype, owner_name, media_role, filename, cont
 	upload_session = frappe.get_doc({
 		"doctype": "Media Upload Session",
 		"upload_id": media_id,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"owner_doctype": owner_doctype,
 		"owner_name": owner_name,
 		"media_role": actual_role,
@@ -160,7 +160,7 @@ def confirm_upload(upload_id, owner_doctype, owner_name, media_role, alt_text=No
 	upload_session = frappe.db.get_value(
 		"Media Upload Session",
 		{"upload_id": upload_id},
-		["object_key", "restaurant", "media_kind", "filename", "content_type", "size_bytes"],
+		["object_key", "outlet", "media_kind", "filename", "content_type", "size_bytes"],
 		as_dict=True
 	)
 	
@@ -195,7 +195,7 @@ def confirm_upload(upload_id, owner_doctype, owner_name, media_role, alt_text=No
 	media_asset = frappe.get_doc({
 		"doctype": "Media Asset",
 		"media_id": upload_id,
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"owner_doctype": owner_doctype,
 		"owner_name": owner_name,
 		"media_role": actual_role,
@@ -284,7 +284,7 @@ def delete_media_asset(media_id):
 	asset_doc = frappe.get_doc("Media Asset", asset_name)
 	
 	# Validate restaurant access
-	validate_restaurant_access(asset_doc.restaurant)
+	validate_restaurant_access(asset_doc.outlet)
 	
 	# Soft delete
 	asset_doc.soft_delete()
@@ -315,10 +315,10 @@ def validate_restaurant_access(restaurant):
 	user_restaurants = frappe.get_all(
 		"Outlet User",
 		filters={"user": frappe.session.user},
-		fields=["restaurant"]
+		fields=["outlet"]
 	)
 	
-	user_restaurant_list = [r.restaurant for r in user_restaurants]
+	user_restaurant_list = [r.outlet for r in user_restaurants]
 	
 	if restaurant not in user_restaurant_list:
 		frappe.throw(_("You do not have access to this outlet"), frappe.PermissionError)
