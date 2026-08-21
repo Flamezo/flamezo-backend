@@ -463,7 +463,7 @@ class TestGetCatalogueItem(unittest.TestCase):
         # Fetch a real catalogue item ID from the seeded data
         result = frappe.db.get_value(
             "Catalogue Item",
-            {"restaurant": WELLNESS_ID, "is_active": 1},
+            {"outlet": WELLNESS_ID, "is_active": 1},
             ["name", "item_name"],
             as_dict=True,
         )
@@ -864,7 +864,7 @@ class TestCreateAppointment(unittest.TestCase):
         # Get a real catalogue item ID for the wellness outlet
         result = frappe.db.get_value(
             "Catalogue Item",
-            {"restaurant": WELLNESS_ID, "is_active": 1},
+            {"outlet": WELLNESS_ID, "is_active": 1},
             "name",
         )
         cls.catalogue_item_id = result
@@ -984,7 +984,7 @@ class TestGetCourtAvailability(unittest.TestCase):
     def setUpClass(cls):
         frappe.set_user("Administrator")
         courts_result = frappe.db.get_value(
-            "Court", {"restaurant": COURT_ID, "is_active": 1}, "name"
+            "Court", {"outlet": COURT_ID, "is_active": 1}, "name"
         )
         cls.court_id = courts_result
 
@@ -1586,11 +1586,11 @@ class TestSeedDataSanity(unittest.TestCase):
         self.assertGreaterEqual(count, 45)
 
     def test_wellness_has_catalogue_items(self):
-        count = frappe.db.count("Catalogue Item", {"restaurant": WELLNESS_ID, "is_active": 1})
+        count = frappe.db.count("Catalogue Item", {"outlet": WELLNESS_ID, "is_active": 1})
         self.assertGreater(count, 0)
 
     def test_fitness_has_catalogue_items(self):
-        count = frappe.db.count("Catalogue Item", {"restaurant": FITNESS_ID, "is_active": 1})
+        count = frappe.db.count("Catalogue Item", {"outlet": FITNESS_ID, "is_active": 1})
         self.assertGreater(count, 0)
 
     def test_primary_user_has_loyalty_entries(self):

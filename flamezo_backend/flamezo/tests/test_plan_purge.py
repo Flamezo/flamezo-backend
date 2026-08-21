@@ -30,8 +30,8 @@ def _make_restaurant(name: str, plan_type: str = "GOLD", **kwargs) -> str:
 
     doc = frappe.get_doc({
         "doctype": "Outlet",
-        "restaurant_id": name,
-        "restaurant_name": f"Test {name}",
+        "outlet_id": name,
+        "outlet_name": f"Test {name}",
         "plan_type": plan_type,
         "is_active": 1,
         "coins_balance": 1000.0,
@@ -272,8 +272,8 @@ class TestPlanPurge(unittest.TestCase):
         if not frappe.db.exists("Outlet", temp_id):
             frappe.get_doc({
                 "doctype": "Outlet",
-                "restaurant_id": temp_id,
-                "restaurant_name": "Plan Default Check",
+                "outlet_id": temp_id,
+                "outlet_name": "Plan Default Check",
                 "is_active": 0,
             }).insert(ignore_permissions=True)
 

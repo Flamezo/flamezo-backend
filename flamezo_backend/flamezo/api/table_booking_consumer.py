@@ -62,8 +62,8 @@ def _format_booking(b):
     return {
         "id": b.name,
         "booking_number": b.booking_number or b.name,
-        "outlet_id": b.restaurant_id or "",
-        "outlet_name": b.restaurant_name or "",
+        "outlet_id": b.outlet_id or "",
+        "outlet_name": b.outlet_name or "",
         "outlet_city": b.city or "",
         "date": str(b.date) if b.date else "",
         "time_slot": b.time_slot or "",
@@ -116,7 +116,7 @@ def create_table_booking(phone, outlet_id, date, time_slot, number_of_diners,
     outlet = frappe.db.get_value(
         "Outlet",
         outlet_id,
-        ["name", "restaurant_name", "city", "is_active"],
+        ["name", "outlet_name", "city", "is_active"],
         as_dict=True,
     )
     if not outlet:
@@ -135,7 +135,7 @@ def create_table_booking(phone, outlet_id, date, time_slot, number_of_diners,
 
     doc = frappe.get_doc({
         "doctype": "Table Booking",
-        "restaurant": outlet_id,
+        "outlet": outlet_id,
         "customer_phone": phone,
         "customer_name": customer_name or phone,
         "date": date,
@@ -202,12 +202,12 @@ def get_my_table_bookings(phone, page=1, limit=20, status=None):
     where = " AND ".join(conditions)
     rows = frappe.db.sql(
         f"""
-        SELECT tb.name, tb.booking_number, tb.restaurant, tb.date, tb.time_slot,
+        SELECT tb.name, tb.booking_number, tb.outlet, tb.date, tb.time_slot,
                tb.number_of_diners, tb.status, tb.notes, tb.customer_name, tb.customer_phone,
                tb.confirmed_at, tb.rejected_at, tb.rejection_reason, tb.cancelled_at, tb.creation,
-               r.restaurant_id, r.restaurant_name, r.city
+               r.outlet_id, r.outlet_name, r.city
         FROM `tabTable Booking` tb
-        LEFT JOIN `tabOutlet` r ON r.name = tb.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = tb.outlet
         WHERE {where}
         ORDER BY tb.creation DESC
         LIMIT %s OFFSET %s
@@ -244,12 +244,12 @@ def get_table_booking_detail(booking_id, phone):
 
     rows = frappe.db.sql(
         """
-        SELECT tb.name, tb.booking_number, tb.restaurant, tb.date, tb.time_slot,
+        SELECT tb.name, tb.booking_number, tb.outlet, tb.date, tb.time_slot,
                tb.number_of_diners, tb.status, tb.notes, tb.customer_name, tb.customer_phone,
                tb.confirmed_at, tb.rejected_at, tb.rejection_reason, tb.cancelled_at, tb.creation,
-               r.restaurant_id, r.restaurant_name, r.city
+               r.outlet_id, r.outlet_name, r.city
         FROM `tabTable Booking` tb
-        LEFT JOIN `tabOutlet` r ON r.name = tb.restaurant
+        LEFT JOIN `tabOutlet` r ON r.name = tb.outlet
         WHERE tb.name = %s
         """,
         booking_id,

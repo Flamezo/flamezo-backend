@@ -18,8 +18,8 @@ export default function ReviewExtraction({ outletId }: ReviewExtractionProps) {
   const { data: extractions, isLoading } = useFrappeGetDocList(
     'Menu Image Extractor',
     {
-      fields: ['name', 'restaurant', 'extraction_status', 'extraction_log', 'total_batches', 'completed_batches', 'creation', 'modified'],
-      filters: outletId ? [['restaurant', '=', outletId]] : undefined,
+      fields: ['name', 'outlet', 'extraction_status', 'extraction_log', 'total_batches', 'completed_batches', 'creation', 'modified'],
+      filters: outletId ? [['outlet', '=', outletId]] : undefined,
       orderBy: { field: 'creation', order: 'desc' },
       limit: 1
     },

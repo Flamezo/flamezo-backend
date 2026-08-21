@@ -100,8 +100,8 @@ def setup_test_data():
     # Restaurant
     rest = frappe.get_doc({
         "doctype": "Outlet",
-        "restaurant_id": rest_id,
-        "restaurant_name": f"Test Addon Restaurant {ts}",
+        "outlet_id": rest_id,
+        "outlet_name": f"Test Addon Restaurant {ts}",
         "plan_type": "GOLD",
         "is_active": 1,
         "coins_balance": 5000.0,
@@ -109,12 +109,12 @@ def setup_test_data():
     rest.insert(ignore_permissions=True)
 
     # Category
-    cat_name = frappe.db.get_value("Menu Category", {"restaurant": rest.name})
+    cat_name = frappe.db.get_value("Menu Category", {"outlet": rest.name})
     if not cat_name:
         cat = frappe.get_doc({
             "doctype": "Menu Category",
             "category_name": "Test Category",
-            "restaurant": rest.name,
+            "outlet": rest.name,
             "display_order": 0,
             "is_active": 1
         })
@@ -126,7 +126,7 @@ def setup_test_data():
         "doctype": "Menu Product",
         "product_name": f"Test Burger {ts}",
         "product_id": product1_id,
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "category": cat_name,
         "price": 200.0,
         "is_active": 1,
@@ -140,7 +140,7 @@ def setup_test_data():
         "doctype": "Menu Product",
         "product_name": f"Test Pizza {ts}",
         "product_id": product2_id,
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "category": cat_name,
         "price": 300.0,
         "is_active": 1,
@@ -170,10 +170,10 @@ def cleanup_test_data():
         frappe.delete_doc("Menu Product", p.name, ignore_permissions=True, force=True)
 
     # Delete restaurants
-    rests = frappe.get_all("Outlet", filters={"restaurant_id": ["like", f"{TEST_PREFIX}%"]})
+    rests = frappe.get_all("Outlet", filters={"outlet_id": ["like", f"{TEST_PREFIX}%"]})
     for r in rests:
         # Delete categories first
-        cats = frappe.get_all("Menu Category", filters={"restaurant": r.name})
+        cats = frappe.get_all("Menu Category", filters={"outlet": r.name})
         for c in cats:
             frappe.delete_doc("Menu Category", c.name, ignore_permissions=True, force=True)
         frappe.delete_doc("Outlet", r.name, ignore_permissions=True, force=True)
@@ -205,7 +205,7 @@ def test_create_addon_group(rest):
         "doctype": "Addon Group",
         "group_name": f"{TEST_PREFIX}Extra Toppings",
         "group_type": "addon",
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "is_required": 0,
         "min_selections": 0,
         "max_selections": 3,
@@ -228,7 +228,7 @@ def test_create_variation_group(rest):
         "doctype": "Addon Group",
         "group_name": f"{TEST_PREFIX}Size",
         "group_type": "variation",
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "is_required": 1,
         "min_selections": 1,
         "max_selections": 1,
@@ -251,7 +251,7 @@ def test_addon_group_validation(rest):
             "doctype": "Addon Group",
             "group_name": f"{TEST_PREFIX}Empty Group",
             "group_type": "addon",
-            "restaurant": rest.name,
+            "outlet": rest.name,
             "items": []
         })
         doc.insert(ignore_permissions=True)
@@ -265,7 +265,7 @@ def test_addon_group_validation(rest):
             "doctype": "Addon Group",
             "group_name": f"{TEST_PREFIX}Bad MinMax",
             "group_type": "addon",
-            "restaurant": rest.name,
+            "outlet": rest.name,
             "min_selections": 5,
             "max_selections": 2,
             "items": [{"item_name": "Test", "display_order": 0}]
@@ -281,7 +281,7 @@ def test_addon_group_auto_id(rest):
         "doctype": "Addon Group",
         "group_name": f"{TEST_PREFIX}Choice of Sauce!!!",
         "group_type": "addon",
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "items": [
             {"item_name": "BBQ Sauce", "price": 0, "display_order": 0},
             {"item_name": "Mayo", "price": 10, "display_order": 1},
@@ -294,7 +294,7 @@ def test_addon_group_auto_id(rest):
 
 def test_link_group_to_product(rest, product):
     groups = frappe.get_all("Addon Group", filters={
-        "restaurant": rest.name, "group_name": ["like", f"{TEST_PREFIX}%"]
+        "outlet": rest.name, "group_name": ["like", f"{TEST_PREFIX}%"]
     })
     _assert(len(groups) >= 2, "T06: Pre-condition — groups exist", f"found: {len(groups)}")
 
@@ -459,7 +459,7 @@ def test_api_create_addon_group(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group
 
     result = create_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_name=f"{TEST_PREFIX}API Sauces",
         group_type="addon",
         items=json.dumps([
@@ -479,7 +479,7 @@ def test_api_create_addon_group(rest):
 def test_api_list_addon_groups(rest):
     from flamezo_backend.flamezo.api.addon_groups import get_addon_groups
 
-    result = get_addon_groups(outlet_id=rest.restaurant_id)
+    result = get_addon_groups(outlet_id=rest.outlet_id)
     _assert(result.get("success"), "T22: API list addon groups")
     _assert(len(result.get("data", [])) >= 3, "T22: At least 3 groups", f"count: {len(result.get('data', []))}")
 
@@ -489,7 +489,7 @@ def test_api_update_addon_group(rest):
 
     # Create one to update
     cr = create_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_name=f"{TEST_PREFIX}API Update Test",
         group_type="addon",
         items=json.dumps([{"name": "Item A", "price": 10}])
@@ -498,7 +498,7 @@ def test_api_update_addon_group(rest):
 
     group_id = cr["data"]["groupId"]
     result = update_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_id=group_id,
         group_name=f"{TEST_PREFIX}API Updated Name",
         is_required=1,
@@ -518,7 +518,7 @@ def test_api_link_to_products(rest, product1, product2):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, link_addon_group_to_products
 
     cr = create_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_name=f"{TEST_PREFIX}API Link Test",
         group_type="addon",
         items=json.dumps([{"name": "Test Item", "price": 5}])
@@ -526,7 +526,7 @@ def test_api_link_to_products(rest, product1, product2):
     _assert(cr.get("success"), "T24: Pre-condition — group created for linking")
 
     result = link_addon_group_to_products(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_id=cr["data"]["groupId"],
         product_ids=json.dumps([product1.product_id, product2.product_id])
     )
@@ -538,7 +538,7 @@ def test_api_toggle_stock(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, toggle_addon_item_stock
 
     cr = create_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_name=f"{TEST_PREFIX}API Stock Test",
         group_type="addon",
         items=json.dumps([{"name": "Stockable Item", "price": 10, "id": "stockable"}])
@@ -547,7 +547,7 @@ def test_api_toggle_stock(rest):
 
     item_id = cr["data"]["items"][0]["itemId"]
     result = toggle_addon_item_stock(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_id=cr["data"]["groupId"],
         item_id=item_id,
         in_stock=0
@@ -563,7 +563,7 @@ def test_api_delete_addon_group(rest):
     from flamezo_backend.flamezo.api.addon_groups import create_addon_group, delete_addon_group
 
     cr = create_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_name=f"{TEST_PREFIX}API Delete Test",
         group_type="addon",
         items=json.dumps([{"name": "Deletable", "price": 0}])
@@ -571,7 +571,7 @@ def test_api_delete_addon_group(rest):
     _assert(cr.get("success"), "T26: Pre-condition — group created for delete")
 
     result = delete_addon_group(
-        outlet_id=rest.restaurant_id,
+        outlet_id=rest.outlet_id,
         group_id=cr["data"]["groupId"]
     )
     _assert(result.get("success"), "T26: API delete addon group")
@@ -583,12 +583,12 @@ def test_api_delete_addon_group(rest):
 def test_migration(rest):
     ts = int(time.time())
     # Create a product with old-style customization questions
-    cat_name = frappe.get_all("Menu Category", filters={"restaurant": rest.name})[0].name
+    cat_name = frappe.get_all("Menu Category", filters={"outlet": rest.name})[0].name
     product = frappe.get_doc({
         "doctype": "Menu Product",
         "product_name": f"{TEST_PREFIX}Migration Test Item {ts}",
         "product_id": f"{TEST_PREFIX}MIG_{ts}",
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "category": cat_name,
         "price": 100.0,
         "is_active": 1,
@@ -630,7 +630,7 @@ def test_migration(rest):
     # Test-created nested child tables aren't visible to get_all until commit+reload.
     # Verify migration ran on real data instead.
     migrated_groups = frappe.get_all("Addon Group", filters={
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "group_name": ["not like", f"{TEST_PREFIX}%"]
     })
     # There should be none for our test restaurant (it only has TEST_PREFIX groups from CRUD tests)
@@ -642,7 +642,7 @@ def test_migration(rest):
         "doctype": "Addon Group",
         "group_name": f"{TEST_PREFIX}Migration Variation Check",
         "group_type": "variation",
-        "restaurant": rest.name,
+        "outlet": rest.name,
         "is_required": 1,
         "min_selections": 1,
         "max_selections": 1,

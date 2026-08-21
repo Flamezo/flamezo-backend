@@ -96,7 +96,7 @@ def _get(endpoint, params=None):
 def create_campaign(boost_campaign):
 	"""Create a Meta ad campaign (PAUSED) for a Boost Campaign doc."""
 	data = {
-		"name": f"BOOST | {boost_campaign.restaurant} | {boost_campaign.name}",
+		"name": f"BOOST | {boost_campaign.outlet} | {boost_campaign.name}",
 		"objective": "OUTCOME_TRAFFIC",
 		"status": "PAUSED",
 		"special_ad_categories": "[]",
@@ -114,8 +114,8 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 	targeting = {
 		"geo_locations": {
 			"custom_locations": [{
-				"latitude": float(boost_campaign.restaurant_lat),
-				"longitude": float(boost_campaign.restaurant_lng),
+				"latitude": float(boost_campaign.outlet_lat),
+				"longitude": float(boost_campaign.outlet_lng),
 				"radius": radius_km,
 				"distance_unit": "kilometer"
 			}]
@@ -132,7 +132,7 @@ def create_ad_set(boost_campaign, meta_campaign_id):
 	}
 
 	data = {
-		"name": f"AdSet | {boost_campaign.restaurant} | {boost_campaign.name}",
+		"name": f"AdSet | {boost_campaign.outlet} | {boost_campaign.name}",
 		"campaign_id": meta_campaign_id,
 		"billing_event": "IMPRESSIONS",
 		# LANDING_PAGE_VIEWS instead of LINK_CLICKS: optimizes for people who
@@ -179,7 +179,7 @@ def create_ad_creative(boost_campaign, image_hash):
 	"""Create an ad creative with image, text, CTA, and link."""
 	page_id = _page_id()
 	# Landing page: public coupon claim page
-	restaurant_id = boost_campaign.restaurant
+	restaurant_id = boost_campaign.outlet
 	coupon_code = boost_campaign.coupon_code
 	link_url = f"https://flamezo.in/{restaurant_id}/boost-offer?code={coupon_code}"
 
@@ -326,12 +326,12 @@ def launch_boost_campaign(campaign_name):
 		campaign.status = "Failed"
 		campaign.save(ignore_permissions=True)
 		frappe.db.commit()
-		error_message = f"Campaign: {campaign_name}\nRestaurant: {campaign.restaurant}\nError: {str(e)}"
+		error_message = f"Campaign: {campaign_name}\nRestaurant: {campaign.outlet}\nError: {str(e)}"
 		frappe.log_error(message=error_message, title="Boost Campaign Launch Failed")
 		try:
 			from flamezo_backend.flamezo.tasks.boost_tasks import _alert_ops
 			_alert_ops(
-				subject=f"Boost campaign launch failed: {campaign.restaurant} ({campaign_name})",
+				subject=f"Boost campaign launch failed: {campaign.outlet} ({campaign_name})",
 				message=error_message,
 			)
 		except Exception:

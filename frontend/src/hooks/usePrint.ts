@@ -54,7 +54,7 @@ export function usePrint() {
       </head>
       <body>
         <div class="header">
-          <h1 class="restaurant-name">${restaurant?.restaurant_name || 'FLAMEZO RESTAURANT'}</h1>
+          <h1 class="restaurant-name">${restaurant?.outlet_name || 'FLAMEZO RESTAURANT'}</h1>
           <p class="restaurant-info">${restaurant?.address || 'Restaurant Address'}</p>
           <p class="restaurant-info">PH: ${restaurant?.contact_phone || 'N/A'}</p>
         </div>

@@ -119,7 +119,7 @@ def execute():
             try:
                 frappe.get_doc({
                     "doctype": "Plan Change Log",
-                    "restaurant": res.name,
+                    "outlet": res.name,
                     "previous_plan": "SILVER",
                     "new_plan": "GOLD",
                     "changed_by": "Administrator",
@@ -135,7 +135,7 @@ def execute():
             # Re-enable transactional flags on the restaurant's config — but only
             # if currently OFF, so we don't trample an owner who intentionally
             # disabled a feature post-migration.
-            config_name = frappe.db.get_value("Outlet Config", {"restaurant": res.name}, "name")
+            config_name = frappe.db.get_value("Outlet Config", {"outlet": res.name}, "name")
             if config_name:
                 for field in _CONFIG_FEATURE_FIELDS:
                     current = frappe.db.get_value("Outlet Config", config_name, field)
@@ -147,7 +147,7 @@ def execute():
             for feature_id in _HOME_FEATURE_IDS:
                 feature_row = frappe.db.get_value(
                     "Home Feature",
-                    {"restaurant": res.name, "feature_id": feature_id},
+                    {"outlet": res.name, "feature_id": feature_id},
                     ["name", "is_enabled"],
                     as_dict=True,
                 )

@@ -7,7 +7,7 @@ class TestGoogleGrowth(unittest.TestCase):
     def setUp(self):
         self.restaurant = frappe.get_doc({
             "doctype": "Outlet",
-            "restaurant_name": "Test Google Restaurant",
+            "outlet_name": "Test Google Restaurant",
             "owner_email": "test@google.com",
             "is_active": 1
         }).insert()
@@ -16,7 +16,7 @@ class TestGoogleGrowth(unittest.TestCase):
     def tearDown(self):
         try:
             # Delete linked products first if they exist
-            products = frappe.get_all("Menu Product", filters={"restaurant": self.restaurant.name})
+            products = frappe.get_all("Menu Product", filters={"outlet": self.restaurant.name})
             for p in products:
                 frappe.delete_doc("Menu Product", p.name, force=True)
             
@@ -44,7 +44,7 @@ class TestGoogleGrowth(unittest.TestCase):
         product = frappe.get_doc({
             "doctype": "Menu Product",
             "product_name": "Test Pizza",
-            "restaurant": self.restaurant.name,
+            "outlet": self.restaurant.name,
             "price": 500,
             "category_name": "Pizzas",
             "is_active": 1

@@ -50,8 +50,8 @@ def _format_event(event, include_outlet=False, outlet_meta=None):
 	}
 
 	if include_outlet and outlet_meta:
-		event_data["outletId"] = outlet_meta.get("restaurant_id", "")
-		event_data["outletName"] = outlet_meta.get("restaurant_name", "")
+		event_data["outletId"] = outlet_meta.get("outlet_id", "")
+		event_data["outletName"] = outlet_meta.get("outlet_name", "")
 		event_data["outletCity"] = outlet_meta.get("city", "")
 
 	if event.get("repeat_this_event"):
@@ -80,7 +80,7 @@ _EVENT_FIELDS = [
 	"date", "time", "location", "category", "featured", "status", "is_active",
 	"repeat_this_event", "repeat_on", "repeat_till", "google_maps_link",
 	"registration_link", "monday", "tuesday", "wednesday", "thursday",
-	"friday", "saturday", "sunday", "restaurant", "media_gallery",
+	"friday", "saturday", "sunday", "outlet", "media_gallery",
 ]
 
 
@@ -102,7 +102,7 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 			active_outlets = frappe.get_all(
 				"Outlet",
 				filters={"is_active": 1},
-				fields=["name", "restaurant_id", "restaurant_name", "city"],
+				fields=["name", "outlet_id", "outlet_name", "city"],
 			)
 			outlet_map = {r["name"]: r for r in active_outlets}
 			active_names = list(outlet_map.keys())
@@ -110,12 +110,12 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 			# Global events feed: show events that belong to an active outlet OR
 			# platform events with no merchant attached (restaurant unset).
 			filters = {"is_active": 1}
-			or_filters = [["restaurant", "is", "not set"]]
+			or_filters = [["outlet", "is", "not set"]]
 			if active_names:
-				or_filters.append(["restaurant", "in", active_names])
+				or_filters.append(["outlet", "in", active_names])
 		else:
 			restaurant = validate_restaurant_for_api(outlet_id)
-			filters = {"restaurant": restaurant, "is_active": 1}
+			filters = {"outlet": restaurant, "is_active": 1}
 
 		if featured is not None:
 			filters["featured"] = 1 if featured else 0
@@ -131,7 +131,7 @@ def get_events(outlet_id=None, featured=None, category=None, upcoming_only=True)
 		formatted_events = []
 		for event in events:
 			if consumer_mode:
-				meta = outlet_map.get(event.get("restaurant"), {})
+				meta = outlet_map.get(event.get("outlet"), {})
 				formatted_events.append(_format_event(event, include_outlet=True, outlet_meta=meta))
 			else:
 				formatted_events.append(_format_event(event))
@@ -229,7 +229,7 @@ def get_outlet_active_events(outlet_id):
 		restaurant = validate_restaurant_for_api(outlet_id, user=frappe.session.user)
 		rows = frappe.get_all(
 			"Event",
-			filters={"restaurant": restaurant, "is_active": 1},
+			filters={"outlet": restaurant, "is_active": 1},
 			or_filters=[["date", ">=", today()], ["repeat_this_event", "=", 1]],
 			fields=_EVENT_FIELDS,
 			order_by="date asc, title asc",
@@ -252,18 +252,18 @@ def get_event_detail(event_id):
 		if not event_id:
 			frappe.throw(_("event_id is required"))
 
-		events = frappe.get_all("Event", fields=_EVENT_FIELDS + ["restaurant"],
+		events = frappe.get_all("Event", fields=_EVENT_FIELDS + ["outlet"],
 								filters={"name": event_id, "is_active": 1}, limit=1)
 		if not events:
 			frappe.throw(_("Event not found"), frappe.DoesNotExistError)
 
 		event = events[0]
 		outlet_meta = {}
-		if event.get("restaurant"):
+		if event.get("outlet"):
 			r = frappe.db.get_value(
 				"Outlet",
-				event["restaurant"],
-				["restaurant_id", "restaurant_name", "city"],
+				event["outlet"],
+				["outlet_id", "outlet_name", "city"],
 				as_dict=True,
 			)
 			if r:
@@ -299,7 +299,7 @@ def save_event(outlet_id, event_data):
 		# Build doc data
 		doc_data = {
 			"doctype": "Event",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"title": event_data.get("title"),
 			"description": event_data.get("description"),
 			"date": event_data.get("date"),
@@ -338,7 +338,7 @@ def save_event(outlet_id, event_data):
 		if event_id:
 			# Update existing event
 			doc = frappe.get_doc("Event", event_id)
-			if doc.restaurant != restaurant:
+			if doc.outlet != restaurant:
 				frappe.throw(_("You don't have access to this event"), exc=frappe.PermissionError)
 			
 			doc.update(doc_data)
@@ -377,7 +377,7 @@ def delete_event(outlet_id, event_id):
 		
 		# Verify event belongs to outlet
 		doc = frappe.get_doc("Event", event_id)
-		if doc.restaurant != restaurant:
+		if doc.outlet != restaurant:
 			frappe.throw(_("You don't have access to this event"), exc=frappe.PermissionError)
 		
 		# Delete event
@@ -410,7 +410,7 @@ def toggle_event_status(outlet_id, event_id, field):
 		
 		# Verify event belongs to outlet
 		doc = frappe.get_doc("Event", event_id)
-		if doc.restaurant != restaurant:
+		if doc.outlet != restaurant:
 			frappe.throw(_("You don't have access to this event"), exc=frappe.PermissionError)
 		
 		# Toggle status

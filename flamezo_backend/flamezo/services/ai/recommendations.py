@@ -120,7 +120,7 @@ class RecommendationEngine:
                 cache_rows = frappe.get_all(
                     "Menu Product Embedding Cache",
                     fields=["product_id", "text_hash", "embedding_vector", "name"],
-                    filters={"restaurant": restaurant},
+                    filters={"outlet": restaurant},
                 )
                 for row in cache_rows:
                     cache_by_product_id[row.product_id] = row
@@ -190,7 +190,7 @@ class RecommendationEngine:
                 # Find the Menu Product doc name
                 product_doc_name = frappe.db.get_value(
                     "Menu Product",
-                    {"product_id": dish_id, "restaurant": restaurant},
+                    {"product_id": dish_id, "outlet": restaurant},
                     "name",
                 )
                 if not product_doc_name:
@@ -213,7 +213,7 @@ class RecommendationEngine:
                     # Insert new cache row
                     frappe.get_doc({
                         "doctype": "Menu Product Embedding Cache",
-                        "restaurant": restaurant,
+                        "outlet": restaurant,
                         "product": product_doc_name,
                         "product_id": dish_id,
                         "text_hash": text_hash,

@@ -17,7 +17,7 @@ from flamezo_backend.flamezo.utils.platform_config import get_expiry_days
 
 
 def _restaurant_name(restaurant):
-	return frappe.db.get_value("Outlet", restaurant, "restaurant_name") or "the restaurant"
+	return frappe.db.get_value("Outlet", restaurant, "outlet_name") or "the restaurant"
 
 
 def _customer_phone(customer):
@@ -76,7 +76,7 @@ def send_ugc_cashback_nudge(order_name):
 		# dead offer — so skip it (and mark sent so the cron doesn't keep retrying).
 		# This guards ALL callers (verify_payment, webhook, and the cron sweep).
 		from flamezo_backend.flamezo.api.ugc import _get_active_config, _is_ugc_active
-		_cfg = _get_active_config(order.restaurant)
+		_cfg = _get_active_config(order.outlet)
 		if not (_cfg and _is_ugc_active(_cfg)):
 			_mark_sent()
 			return
@@ -99,8 +99,8 @@ def send_ugc_cashback_nudge(order_name):
 			full_name = order.customer_name or ""
 		first_name = (full_name.strip().split()[0] if full_name.strip() else "").title() or "there"
 
-		restaurant_name = frappe.db.get_value("Outlet", order.restaurant, "restaurant_name") or "the restaurant"
-		restaurant_slug = frappe.db.get_value("Outlet", order.restaurant, "restaurant_id") or order.restaurant
+		restaurant_name = frappe.db.get_value("Outlet", order.outlet, "outlet_name") or "the restaurant"
+		restaurant_slug = frappe.db.get_value("Outlet", order.outlet, "outlet_id") or order.outlet
 		amount = int(order.total or 0)
 
 		from flamezo_backend.flamezo.api.otp import generate_whatsapp_auth_token
@@ -157,7 +157,7 @@ def dispatch_ugc_cashback_nudges():
 			"modified": ["between", [window_start, window_end]],
 			"platform_customer": ["is", "set"],
 		},
-		fields=["name", "restaurant"],
+		fields=["name", "outlet"],
 		limit_page_length=200,
 	)
 
@@ -203,7 +203,7 @@ def send_ugc_whatsapp(submission_name, kind):
 	if not phone:
 		return
 
-	rname = _restaurant_name(sub.restaurant)
+	rname = _restaurant_name(sub.outlet)
 	amount = str(cint(sub.cashback_coins))
 
 	# Build the deep-link SUFFIX for templates that include a button. These are
@@ -217,7 +217,7 @@ def send_ugc_whatsapp(submission_name, kind):
 	# suffix unconditionally.)
 	# For customer-facing links a WhatsApp auth token is appended below so the
 	# customer lands directly on the page without an OTP prompt.
-	slug = frappe.db.get_value("Outlet", sub.restaurant, "restaurant_id") or sub.restaurant
+	slug = frappe.db.get_value("Outlet", sub.outlet, "outlet_id") or sub.outlet
 	order = getattr(sub, "order", "") or ""
 	customer = getattr(sub, "customer", "")
 
@@ -379,7 +379,7 @@ def send_proof_reminders():
 	pending = frappe.get_all(
 		"UGC Story Submission",
 		filters={"status": "story_verified", "reminder_count": ["<", 2]},
-		fields=["name", "restaurant", "customer", "story_verified_at", "last_reminder_at", "reminder_count"],
+		fields=["name", "outlet", "customer", "story_verified_at", "last_reminder_at", "reminder_count"],
 		limit_page_length=500,
 	)
 	for row in pending:

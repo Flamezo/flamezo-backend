@@ -11,7 +11,7 @@ def generate_blog_post(outlet_id, keyword, title=None, length=1500, style="profe
     
     # Optional: Fetch outlet context to provide to AI
     restaurant = frappe.get_doc("Outlet", outlet_id)
-    context = f"Restaurant Name: {restaurant.restaurant_name}\n"
+    context = f"Restaurant Name: {restaurant.outlet_name}\n"
     if restaurant.description:
         context += f"Description: {restaurant.description}\n"
     

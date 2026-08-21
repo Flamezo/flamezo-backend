@@ -63,7 +63,7 @@ def _make_order(restaurant, phone=_PHONE, status="draft",
         "doctype": "Order",
         "order_id": order_id,
         "order_number": f"FZ-{order_id[:4].upper()}",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "status": status,
         "payment_status": payment_status,
         "payment_method": "online",
@@ -104,7 +104,7 @@ def _make_order(restaurant, phone=_PHONE, status="draft",
 
 
 def _cleanup(restaurant):
-    order_names = frappe.get_all("Order", {"restaurant": restaurant}, ["name"])
+    order_names = frappe.get_all("Order", {"outlet": restaurant}, ["name"])
     for o in order_names:
         frappe.delete_doc("Order", o.name, ignore_permissions=True)
     frappe.db.delete("Outlet", restaurant)
@@ -343,7 +343,7 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         # Future table booking
         self.table_bk = frappe.get_doc({
             "doctype": "Table Booking",
-            "restaurant": self.r_dining,
+            "outlet": self.r_dining,
             "customer_name": "Test Diner",
             "customer_phone": _PHONE,
             "date": add_days(today(), 3),
@@ -356,7 +356,7 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         # Future service appointment
         self.appt = frappe.get_doc({
             "doctype": "Service Appointment",
-            "restaurant": self.r_wellness,
+            "outlet": self.r_wellness,
             "outlet_type": "wellness",
             "customer_name": "Test Wellness",
             "customer_phone": _PHONE,
@@ -373,7 +373,7 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         # Future court booking
         court = frappe.get_doc({
             "doctype": "Court",
-            "restaurant": self.r_court,
+            "outlet": self.r_court,
             "court_name": "Court 1",
             "sport_type": "Badminton",
             "is_active": 1,
@@ -388,7 +388,7 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         frappe.db.commit()
         self.court_bk = frappe.get_doc({
             "doctype": "Court Booking",
-            "restaurant": self.r_court,
+            "outlet": self.r_court,
             "court": court.name,
             "court_name": "Court 1",
             "sport_type": "Badminton",
@@ -405,10 +405,10 @@ class TestGetAllCustomerBookingsExtended(unittest.TestCase):
         frappe.db.commit()
 
     def tearDown(self):
-        frappe.db.delete("Table Booking", {"restaurant": self.r_dining})
-        frappe.db.delete("Service Appointment", {"restaurant": self.r_wellness})
-        frappe.db.delete("Court Booking", {"restaurant": self.r_court})
-        frappe.db.delete("Court", {"restaurant": self.r_court})
+        frappe.db.delete("Table Booking", {"outlet": self.r_dining})
+        frappe.db.delete("Service Appointment", {"outlet": self.r_wellness})
+        frappe.db.delete("Court Booking", {"outlet": self.r_court})
+        frappe.db.delete("Court", {"outlet": self.r_court})
         for r in [self.r_dining, self.r_wellness, self.r_court]:
             frappe.db.delete("Outlet", r)
         frappe.db.commit()

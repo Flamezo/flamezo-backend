@@ -67,7 +67,7 @@ def get_restaurant_currency_info(restaurant_id):
 		# Try to get from Restaurant Config first
 		config_currency = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": restaurant_id},
+			{"outlet": restaurant_id},
 			"currency"
 		)
 		

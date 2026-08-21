@@ -54,7 +54,7 @@ def _make_appointment(restaurant, phone=_PHONE, date=None, status="Pending",
                       sub_item_price=350, time="10:00:00"):
     doc = frappe.get_doc({
         "doctype": "Service Appointment",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "outlet_type": frappe.db.get_value("Outlet", restaurant, "outlet_type") or "wellness",
         "catalogue_item_name": catalogue_item_name,
         "sub_item_name": sub_item_name,
@@ -73,7 +73,7 @@ def _make_appointment(restaurant, phone=_PHONE, date=None, status="Pending",
 
 
 def _cleanup(restaurant):
-    frappe.db.delete("Service Appointment", {"restaurant": restaurant})
+    frappe.db.delete("Service Appointment", {"outlet": restaurant})
     frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
 
@@ -109,7 +109,7 @@ class TestCreateAppointment(unittest.TestCase):
         # Verify in DB
         doc = frappe.get_doc("Service Appointment", res["data"]["appointment_id"])
         self.assertEqual(doc.customer_name, "Jane Doe")
-        self.assertEqual(doc.restaurant, self.restaurant)
+        self.assertEqual(doc.outlet, self.restaurant)
         self.assertEqual(doc.outlet_type, "wellness")
 
     def test_past_date_blocked(self):

@@ -99,7 +99,7 @@ export default function LedgerPage() {
   } = useDataTable({
     doctype: 'Coin Transaction',
     initialFilters: selectedOutlet ? [
-      { fieldname: 'restaurant', operator: '=', value: selectedOutlet }
+      { fieldname: 'outlet', operator: '=', value: selectedOutlet }
     ] : [],
     fields: ['name', 'creation', 'transaction_type', 'amount', 'gst_amount', 'total_paid_inr', 'balance_after', 'description', 'reference_doctype', 'reference_name', 'payment_id'],
     initialPageSize: 20,
@@ -121,7 +121,7 @@ export default function LedgerPage() {
     if (!selectedOutlet) return
 
     const baseFilters: FilterCondition[] = [
-      { fieldname: 'restaurant', operator: '=', value: selectedOutlet }
+      { fieldname: 'outlet', operator: '=', value: selectedOutlet }
     ]
     
     // Type Filter

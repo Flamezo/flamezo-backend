@@ -128,7 +128,7 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
                cr.date, cr.time, cr.max_members, cr.current_members,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
-               r.restaurant_name AS outlet_restaurant_name
+               r.outlet_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE {where}
@@ -170,7 +170,7 @@ def get_crowd_request_detail(request_id, phone=None):
                cr.date, cr.time, cr.max_members, cr.current_members,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
-               r.restaurant_name AS outlet_restaurant_name
+               r.outlet_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE cr.name=%s
@@ -415,7 +415,7 @@ def get_my_crowd_requests(phone, page=1, limit=20):
                cr.date, cr.time, cr.max_members, cr.current_members,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
-               r.restaurant_name AS outlet_restaurant_name
+               r.outlet_name AS outlet_restaurant_name
         FROM `tabCrowd Request` cr
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE cr.creator_phone=%s
@@ -486,7 +486,7 @@ def get_my_crowd_joins(phone, page=1, limit=20):
                cr.date, cr.time, cr.max_members, cr.current_members,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
-               r.restaurant_name AS outlet_restaurant_name
+               r.outlet_name AS outlet_restaurant_name
         FROM `tabCrowd Request Member` crm
         JOIN `tabCrowd Request` cr ON cr.name = crm.request
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet

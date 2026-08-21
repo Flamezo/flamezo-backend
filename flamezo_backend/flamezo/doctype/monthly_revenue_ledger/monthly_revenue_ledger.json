@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:MRL-{restaurant}-{month}",
+ "autoname": "format:MRL-{outlet}-{month}",
  "creation": "2026-02-20 10:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,

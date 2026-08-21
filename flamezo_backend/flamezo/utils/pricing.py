@@ -95,13 +95,13 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	# product bundles, not savings features.
 	all_offers = frappe.get_all(
 		"Coupon",
-		filters={"restaurant": restaurant, "is_active": 1},
+		filters={"outlet": restaurant, "is_active": 1},
 		fields=["*"]
 	) if savings_unlocked else (
 		# Even when savings are locked, load combo offers that match the coupon_code
 		frappe.get_all(
 			"Coupon",
-			filters={"restaurant": restaurant, "is_active": 1, "offer_type": "combo", "code": coupon_code},
+			filters={"outlet": restaurant, "is_active": 1, "offer_type": "combo", "code": coupon_code},
 			fields=["*"]
 		) if coupon_code else []
 	)

@@ -383,8 +383,8 @@ export default function Dashboard() {
   // Fetch data
 
   const { data: products } = useFrappeGetDocList('Menu Product', {
-    fields: ['name', 'product_name', 'price', 'is_active', 'restaurant'],
-    filters: selectedOutlet ? ({ restaurant: selectedOutlet } as any) : undefined,
+    fields: ['name', 'product_name', 'price', 'is_active', 'outlet'],
+    filters: selectedOutlet ? ({ outlet: selectedOutlet } as any) : undefined,
     limit: 100
   }, selectedOutlet ? `products-dashboard-${selectedOutlet}` : null)
 

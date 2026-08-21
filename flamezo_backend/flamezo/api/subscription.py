@@ -36,7 +36,7 @@ def get_outlet_plan(outlet_id):
 
     return {
         'outlet_id': restaurant.name,
-        'outlet_name': restaurant.restaurant_name,
+        'outlet_name': restaurant.outlet_name,
         'plan_type': plan_type,
         'plan_activated_on': restaurant.plan_activated_on,
         'plan_changed_by': restaurant.plan_changed_by,

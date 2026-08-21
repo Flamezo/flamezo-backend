@@ -82,7 +82,7 @@ def get_coupons(outlet_id, active_only=True):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Build filters
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 
 		if active_only:
 			filters["is_active"] = 1
@@ -90,7 +90,7 @@ def get_coupons(outlet_id, active_only=True):
 		# Restaurant-level Google review link (from setup / Restaurant Config) — used
 		# for every google_review offer so merchants don't set it per offer.
 		restaurant_review_link = frappe.db.get_value(
-			"Outlet Config", {"restaurant": restaurant}, "google_review_link"
+			"Outlet Config", {"outlet": restaurant}, "google_review_link"
 		) or ""
 		
 		# Get coupons — always fetch active ones; day/time-gated are returned with
@@ -150,7 +150,7 @@ def get_coupons(outlet_id, active_only=True):
 			if _customer and coupon_ids:
 				_claimed_rows = frappe.get_all(
 					"Offer Claim",
-					filters={"restaurant": restaurant, "customer": _customer, "coupon": ["in", coupon_ids], "is_paid": 1},
+					filters={"outlet": restaurant, "customer": _customer, "coupon": ["in", coupon_ids], "is_paid": 1},
 					fields=["coupon"],
 				)
 				claimed_review_coupon_ids = {r["coupon"] for r in _claimed_rows}
@@ -290,7 +290,7 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 	# Find coupon with all fields
 	coupon = frappe.db.get_value(
 		"Coupon",
-		{"code": coupon_code, "restaurant": restaurant},
+		{"code": coupon_code, "outlet": restaurant},
 		[
 			"name", "code", "discount_value", "min_order_amount", "discount_type",
 			"category", "is_active", "valid_from", "valid_until", "max_uses",
@@ -470,7 +470,7 @@ def export_coupons(outlet_id):
 
 	coupons = frappe.get_all(
 		"Coupon",
-		filters={"restaurant": restaurant},
+		filters={"outlet": restaurant},
 		fields=[
 			"code", "offer_type", "discount_type", "discount_value", "min_order_amount",
 			"max_discount_cap", "description", "detailed_description", "category",
@@ -527,14 +527,14 @@ def import_coupons(outlet_id, csv_content, overwrite_existing=False):
 			skipped += 1
 			continue
 
-		existing = frappe.db.get_value("Coupon", {"code": code, "restaurant": restaurant}, "name")
+		existing = frappe.db.get_value("Coupon", {"code": code, "outlet": restaurant}, "name")
 
 		if existing and not overwrite_existing:
 			skipped += 1
 			continue
 
 		fields = {
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"code": code,
 			"offer_type": row.get("offer_type") or "coupon",
 			"discount_type": row.get("discount_type") or "flat",
@@ -742,7 +742,7 @@ def get_applicable_offers(outlet_id, cart_items, cart_total, customer_id=None, o
 		offers = frappe.get_all(
 			"Coupon",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"is_active": 1
 			},
 			fields=[
@@ -760,7 +760,7 @@ def get_applicable_offers(outlet_id, cart_items, cart_total, customer_id=None, o
 		
 		# Fetch restaurant-level Google review link once (from Restaurant Config)
 		restaurant_review_link = frappe.db.get_value(
-			"Outlet Config", {"restaurant": restaurant}, "google_review_link"
+			"Outlet Config", {"outlet": restaurant}, "google_review_link"
 		) or ""
 
 		eligible_offers = []
@@ -796,7 +796,7 @@ def get_applicable_offers(outlet_id, cart_items, cart_total, customer_id=None, o
 			# actually USED (a PAID claim), so a claimed-but-unpaid offer stays visible
 			# (shown selected) until the customer pays with it this visit.
 			if offer.offer_type == "google_review" and customer_id and frappe.db.exists(
-				"Offer Claim", {"restaurant": restaurant, "customer": customer_id, "coupon": offer.name, "is_paid": 1}
+				"Offer Claim", {"outlet": restaurant, "customer": customer_id, "coupon": offer.name, "is_paid": 1}
 			):
 				continue
 
@@ -1226,7 +1226,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 		# Validate the coupon exists and belongs to this restaurant
 		coupon = frappe.db.get_value(
 			"Coupon",
-			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
+			{"name": coupon_id, "outlet": restaurant, "is_active": 1},
 			["name", "code", "daily_limit", "offer_type"],
 			as_dict=True,
 		)
@@ -1241,7 +1241,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 		existing_lock = frappe.db.exists(
 			"Offer Claim",
 			{
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"customer": customer_id,
 				"claimed_at": [">=", four_hours_ago],
 				"is_paid": 0,
@@ -1258,7 +1258,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 			lifetime_claim = frappe.db.exists(
 				"Offer Claim",
 				{
-					"restaurant": restaurant,
+					"outlet": restaurant,
 					"customer": customer_id,
 					"coupon": coupon.name,
 					"is_paid": 1
@@ -1271,7 +1271,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 		claim_time = now_datetime()
 		claim = frappe.get_doc({
 			"doctype": "Offer Claim",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"coupon": coupon.name,
 			"coupon_code": coupon.code,
 			"customer": customer_id,
@@ -1294,7 +1294,7 @@ def claim_offer_with_pin(outlet_id, coupon_id, pin):
 
 		# Build the pay-bill deep link so the frontend can surface it immediately too
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "outlet_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {
@@ -1335,7 +1335,7 @@ def claim_offer(outlet_id, coupon_id):
 
 		coupon = frappe.db.get_value(
 			"Coupon",
-			{"name": coupon_id, "restaurant": restaurant, "is_active": 1},
+			{"name": coupon_id, "outlet": restaurant, "is_active": 1},
 			["name", "code", "daily_limit", "offer_type"],
 			as_dict=True,
 		)
@@ -1349,7 +1349,7 @@ def claim_offer(outlet_id, coupon_id):
 		existing_lock = frappe.db.exists(
 			"Offer Claim",
 			{
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"customer": customer_id,
 				"claimed_at": [">=", four_hours_ago],
 				"is_paid": 0,
@@ -1365,7 +1365,7 @@ def claim_offer(outlet_id, coupon_id):
 			lifetime_claim = frappe.db.exists(
 				"Offer Claim",
 				{
-					"restaurant": restaurant,
+					"outlet": restaurant,
 					"customer": customer_id,
 					"coupon": coupon.name,
 					"is_paid": 1,
@@ -1377,7 +1377,7 @@ def claim_offer(outlet_id, coupon_id):
 		claim_time = now_datetime()
 		claim = frappe.get_doc({
 			"doctype": "Offer Claim",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"coupon": coupon.name,
 			"coupon_code": coupon.code,
 			"customer": customer_id,
@@ -1398,7 +1398,7 @@ def claim_offer(outlet_id, coupon_id):
 		)
 
 		base_url = (frappe.conf.get("customer_web_url") or "").rstrip("/")
-		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "restaurant_id") or restaurant
+		restaurant_slug = frappe.db.get_value("Outlet", restaurant, "outlet_id") or restaurant
 		pay_link = f"{base_url}/{restaurant_slug}/pay-bill?offer={coupon.code}" if base_url else ""
 
 		return {
@@ -1435,7 +1435,7 @@ def get_active_offer_claim(outlet_id):
 		claim = frappe.db.get_value(
 			"Offer Claim",
 			{
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"customer": customer_id,
 				"is_paid": 0,
 				"claimed_at": [">=", four_hours_ago],
@@ -1474,7 +1474,7 @@ def mark_claim_paid(outlet_id, claim_id, payment_id, paid_amount):
 		restaurant = validate_restaurant_for_api(outlet_id)
 
 		claim = frappe.get_doc("Offer Claim", claim_id)
-		if claim.restaurant != restaurant:
+		if claim.outlet != restaurant:
 			return {"success": False, "error": {"code": "FORBIDDEN", "message": "Claim does not belong to this outlet"}}
 
 		claim.is_paid = 1
@@ -1515,7 +1515,7 @@ def get_offer_claims_analytics(outlet_id, period="30d", coupon_id=None):
 			from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 			date_filter = [["claimed_at", ">=", from_date]]
 
-		base_filters = [["restaurant", "=", restaurant]] + date_filter
+		base_filters = [["outlet", "=", restaurant]] + date_filter
 		if coupon_id:
 			base_filters.append(["coupon", "=", coupon_id])
 
@@ -1624,7 +1624,7 @@ def apply_coupon(outlet_id, coupon_code, order_id, discount_amount=0, customer_i
 		restaurant = validate_restaurant_for_api(outlet_id)
 
 		# Resolve coupon by code
-		coupon_name = frappe.db.get_value("Coupon", {"restaurant": restaurant, "code": coupon_code}, "name")
+		coupon_name = frappe.db.get_value("Coupon", {"outlet": restaurant, "code": coupon_code}, "name")
 		if not coupon_name:
 			return {"success": False, "error": {"code": "COUPON_NOT_FOUND", "message": "Coupon not found"}}
 
@@ -1637,7 +1637,7 @@ def apply_coupon(outlet_id, coupon_code, order_id, discount_amount=0, customer_i
 			"coupon": coupon_name,
 			"customer": customer_id or "",
 			"order": order_id,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"discount_amount": frappe.utils.flt(discount_amount),
 		}).insert(ignore_permissions=True)
 

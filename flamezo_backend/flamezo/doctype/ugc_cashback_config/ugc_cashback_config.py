@@ -50,8 +50,8 @@ class UGCCashbackConfig(Document):
 
 		# next_visit_coupon must belong to this restaurant if set
 		if self.next_visit_coupon:
-			coupon_restaurant = frappe.db.get_value("Coupon", self.next_visit_coupon, "restaurant")
-			if coupon_restaurant != self.restaurant:
+			coupon_restaurant = frappe.db.get_value("Coupon", self.next_visit_coupon, "outlet")
+			if coupon_restaurant != self.outlet:
 				frappe.throw(_("Next-Visit Coupon does not belong to this outlet."))
 
 	def on_update(self):
@@ -74,7 +74,7 @@ class UGCCashbackConfig(Document):
 			return
 
 		coupon_fields = {
-			"restaurant": self.restaurant,
+			"outlet": self.outlet,
 			"offer_type": "coupon",
 			"code": self.viewer_coupon_code.upper().strip(),
 			"discount_type": self.viewer_discount_type,

@@ -1,8 +1,8 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:restaurant_id",
- "title_field": "restaurant_name",
+ "autoname": "field:outlet_id",
+ "title_field": "outlet_name",
  "creation": "2025-01-15 10:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -1007,7 +1007,7 @@
   }
  ],
  "row_format": "Dynamic",
- "sort_field": "restaurant_name",
+ "sort_field": "outlet_name",
  "sort_order": "ASC",
  "states": [],
  "track_changes": 1

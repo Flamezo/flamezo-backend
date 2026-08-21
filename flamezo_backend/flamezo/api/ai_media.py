@@ -54,15 +54,15 @@ def _gemini_post_with_retry(url, payload, max_retries=4, base_delay=2.0, timeout
 
 
 def _get_outlet_config_name(restaurant):
-    config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name")
+    config_name = frappe.db.get_value("Outlet Config", {"outlet": restaurant}, "name")
     if config_name:
         return config_name
 
-    outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or restaurant
+    outlet_name = frappe.db.get_value("Outlet", restaurant, "outlet_name") or restaurant
     config_doc = frappe.get_doc({
         "doctype": "Outlet Config",
-        "restaurant": restaurant,
-        "restaurant_name": outlet_name,
+        "outlet": restaurant,
+        "outlet_name": outlet_name,
         "default_theme": "light",
         "currency": frappe.db.get_value("Outlet", restaurant, "currency") or "INR",
         "menu_layout": "2 Columns",
@@ -275,7 +275,7 @@ def enqueue_enhancement(restaurant, owner_doctype, owner_name, original_image_ur
 
     doc = frappe.get_doc({
         "doctype": "AI Image Generation",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "owner_doctype": owner_doctype,
         "owner_name": owner_name,
         "original_image_url": original_image_url or "",
@@ -323,9 +323,9 @@ def get_enhancement_status(generation_id):
 @frappe.whitelist(allow_guest=False)
 def get_generative_gallery(restaurant, limit=50):
     """Returns a list of completed generations for a restaurant."""
-    generations = frappe.get_all("AI Image Generation", 
+    generations = frappe.get_all("AI Image Generation",
         filters={
-            "restaurant": restaurant,
+            "outlet": restaurant,
             "status": "Completed"
         },
         fields=["name", "creation", "owner_name", "original_image_url", "enhanced_image_url", "video_url"],
@@ -808,7 +808,7 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
     
     try:
         # Get extra context
-        outlet_name = frappe.db.get_value("Outlet", doc.restaurant, "restaurant_name")
+        outlet_name = frappe.db.get_value("Outlet", doc.outlet, "outlet_name")
         dish_name = "Dish"
         dish_description = ""
         dish_category = ""
@@ -842,7 +842,7 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         # 5. Upload to R2
         uid = frappe.generate_hash(length=8)
         object_key = generate_object_key(
-            outlet_id=doc.restaurant,
+            outlet_id=doc.outlet,
             owner_doctype=doc.owner_doctype,
             owner_name=doc.owner_name,
             media_role="product_image",
@@ -890,7 +890,7 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         if coins_to_refund > 0:
             try:
                 refund_coins(
-                    restaurant=doc.restaurant,
+                    restaurant=doc.outlet,
                     amount=coins_to_refund,
                     description=f"Refund for failed AI generation {generation_name}",
                     ref_doctype="AI Image Generation",
@@ -941,7 +941,7 @@ def retry_failed_image_generations(restaurant):
     candidates = frappe.get_all(
         "AI Image Generation",
         filters={
-            "restaurant": restaurant,
+            "outlet": restaurant,
             "status": ["in", ["Failed", "Pending_Upload"]],
         },
         fields=["name", "status", "owner_doctype", "owner_name", "original_image_url"],

@@ -9,11 +9,11 @@ class MonthlyRevenueLedger(Document):
 		"""Validate the monthly revenue ledger entry."""
 		# Ensure unique combination of restaurant and month
 		existing = frappe.db.exists("Monthly Revenue Ledger", {
-			"restaurant": self.restaurant,
+			"outlet": self.outlet,
 			"month": self.month,
 			"name": ("!=", self.name)
 		})
-		
+
 		if existing:
-			frappe.throw(f"Monthly Revenue Ledger already exists for outlet {self.restaurant} in {self.month}")
+			frappe.throw(f"Monthly Revenue Ledger already exists for outlet {self.outlet} in {self.month}")
 	

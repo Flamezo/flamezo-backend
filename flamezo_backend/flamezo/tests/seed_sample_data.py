@@ -530,7 +530,7 @@ def _upsert_restaurant(rest_id, restaurant_name, outlet_type="dining",
                         latitude=SURAT_LAT, longitude=SURAT_LON,
                         city="Surat", address="Surat, Gujarat"):
     defaults = {
-        "restaurant_name": restaurant_name,
+        "outlet_name": restaurant_name,
         "outlet_type": outlet_type,
         "is_active": 1,
         "plan_type": "GOLD",
@@ -550,18 +550,18 @@ def _upsert_restaurant(rest_id, restaurant_name, outlet_type="dining",
     else:
         frappe.get_doc({
             "doctype": "Outlet",
-            "restaurant_id": rest_id,
+            "outlet_id": rest_id,
             **defaults,
         }).insert(ignore_permissions=True)
     frappe.db.commit()
 
 
 def _ensure_loyalty_config(restaurant):
-    if frappe.db.get_value("Outlet Loyalty Config", {"restaurant": restaurant}, "name"):
+    if frappe.db.get_value("Outlet Loyalty Config", {"outlet": restaurant}, "name"):
         return
     frappe.get_doc({
         "doctype": "Outlet Loyalty Config",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "program_name": "Flamezo Rewards",
         "is_active": 1,
         "earn_type": "Percentage of Bill",
@@ -582,11 +582,11 @@ def _ensure_loyalty_config(restaurant):
 
 
 def _ensure_restaurant_config(restaurant):
-    if frappe.db.get_value("Outlet Config", {"restaurant": restaurant}, "name"):
+    if frappe.db.get_value("Outlet Config", {"outlet": restaurant}, "name"):
         return
     frappe.get_doc({
         "doctype": "Outlet Config",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "menu_theme_background_enabled": 0,
         "verify_my_user": 0,
     }).insert(ignore_permissions=True)
@@ -612,12 +612,12 @@ def _get_or_create_customer(phone, name=""):
 
 def _ensure_court(restaurant, court_name, sport_type, price=400, consumer_fee=20):
     existing = frappe.db.get_value("Court",
-        {"restaurant": restaurant, "court_name": court_name}, "name")
+        {"outlet": restaurant, "court_name": court_name}, "name")
     if existing:
         return frappe.get_doc("Court", existing)
     doc = frappe.get_doc({
         "doctype": "Court",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court_name": court_name,
         "sport_type": sport_type,
         "is_active": 1,
@@ -636,12 +636,12 @@ def _ensure_court(restaurant, court_name, sport_type, price=400, consumer_fee=20
 
 def _ensure_catalogue_category(restaurant, category_name):
     existing = frappe.db.get_value("Catalogue Category",
-        {"restaurant": restaurant, "category_name": category_name}, "name")
+        {"outlet": restaurant, "category_name": category_name}, "name")
     if existing:
         return existing
     doc = frappe.get_doc({
         "doctype": "Catalogue Category",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "category_name": category_name,
     })
     doc.insert(ignore_permissions=True)
@@ -652,11 +652,11 @@ def _ensure_catalogue_category(restaurant, category_name):
 def _ensure_catalogue_item(restaurant, cat_name, item_name, price):
     cat_id = _ensure_catalogue_category(restaurant, cat_name)
     if frappe.db.get_value("Catalogue Item",
-            {"restaurant": restaurant, "item_name": item_name}, "name"):
+            {"outlet": restaurant, "item_name": item_name}, "name"):
         return
     frappe.get_doc({
         "doctype": "Catalogue Item",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "category": cat_id,
         "item_name": item_name,
         "price": price,
@@ -672,7 +672,7 @@ def _loyalty_entry(customer_name, restaurant, coins, txn_type="Earn",
     frappe.get_doc({
         "doctype": "Outlet Loyalty Entry",
         "customer": customer_name,
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "coins": coins,
         "transaction_type": txn_type,
         "reason": reason,
@@ -710,7 +710,7 @@ def _seed_insert(data):
 def _table_booking(restaurant, phone, date, time_slot, diners=2, status="confirmed"):
     _seed_insert({
         "doctype": "Table Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer_phone": phone,
         "customer_name": _user_name(phone),
         "date": date,
@@ -724,7 +724,7 @@ def _banquet_booking(restaurant, phone, date, time_slot, guests=60,
                       event_type="Birthday", status="confirmed"):
     _seed_insert({
         "doctype": "Banquet Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "customer_phone": phone,
         "customer_name": _user_name(phone),
         "date": date,
@@ -739,7 +739,7 @@ def _appointment(restaurant, phone, date, catalogue_item_name, sub_item_name,
                   price, outlet_type, time="11:00:00", status="Confirmed"):
     _seed_insert({
         "doctype": "Service Appointment",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "outlet_type": outlet_type,
         "customer_phone": phone,
         "customer_name": _user_name(phone),
@@ -756,7 +756,7 @@ def _appointment(restaurant, phone, date, catalogue_item_name, sub_item_name,
 def _court_booking(restaurant, court_doc, phone, date, start, end, status="Confirmed"):
     _seed_insert({
         "doctype": "Court Booking",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "court": court_doc.name,
         "court_name": court_doc.court_name,
         "sport_type": court_doc.sport_type,
@@ -774,11 +774,11 @@ def _court_booking(restaurant, court_doc, phone, date, start, end, status="Confi
 
 def _menu_product(restaurant, name, price, category, is_veg=1, description=""):
     if frappe.db.get_value("Menu Product",
-            {"restaurant": restaurant, "product_name": name}, "name"):
+            {"outlet": restaurant, "product_name": name}, "name"):
         return
     frappe.get_doc({
         "doctype": "Menu Product",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "product_id": _uid(),
         "product_name": name,
         "price": price,
@@ -836,12 +836,12 @@ def run():
     # Clean up old partial-run artefacts
     for old_id in ["smashzone-ahmedabad"]:
         if frappe.db.exists("Outlet", old_id):
-            frappe.db.sql("UPDATE `tabCourt` SET restaurant=%s WHERE restaurant=%s",
+            frappe.db.sql("UPDATE `tabCourt` SET outlet=%s WHERE outlet=%s",
                           ["smashzone-surat", old_id])
-            frappe.db.sql("UPDATE `tabCourt Booking` SET restaurant=%s WHERE restaurant=%s",
+            frappe.db.sql("UPDATE `tabCourt Booking` SET outlet=%s WHERE outlet=%s",
                           ["smashzone-surat", old_id])
-            frappe.db.delete("Outlet Loyalty Config", {"restaurant": old_id})
-            frappe.db.delete("Outlet Config", {"restaurant": old_id})
+            frappe.db.delete("Outlet Loyalty Config", {"outlet": old_id})
+            frappe.db.delete("Outlet Config", {"outlet": old_id})
             frappe.db.delete("Outlet", old_id)
     frappe.db.commit()
 

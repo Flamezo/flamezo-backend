@@ -62,13 +62,13 @@ def create_default_coupons(restaurant_name):
 	created_count = 0
 	for coupon_data in default_coupons:
 		# Check if coupon code already exists for this restaurant
-		if frappe.db.exists("Coupon", {"restaurant": restaurant_name, "code": coupon_data["code"]}):
+		if frappe.db.exists("Coupon", {"outlet": restaurant_name, "code": coupon_data["code"]}):
 			continue
-		
+
 		try:
 			doc = frappe.get_doc({
 				"doctype": "Coupon",
-				"restaurant": restaurant_name,
+				"outlet": restaurant_name,
 				**coupon_data
 			})
 			doc.insert(ignore_permissions=True)

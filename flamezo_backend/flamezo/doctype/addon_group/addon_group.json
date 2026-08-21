@@ -155,7 +155,7 @@
    "write": 1
   }
  ],
- "search_fields": "group_name, restaurant, group_type",
+ "search_fields": "group_name, outlet, group_type",
  "sort_field": "display_order",
  "sort_order": "ASC",
  "states": [],

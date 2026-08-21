@@ -17,8 +17,8 @@ class MarketingCampaign(Document):
         pass
 
     def _check_segment_match(self):
-        seg_restaurant = frappe.db.get_value("Marketing Segment", self.target_segment, "restaurant")
-        if seg_restaurant != self.restaurant:
+        seg_restaurant = frappe.db.get_value("Marketing Segment", self.target_segment, "outlet")
+        if seg_restaurant != self.outlet:
             frappe.throw(_("The selected segment does not belong to this outlet."))
 
     def _check_coin_balance(self):
@@ -29,7 +29,7 @@ class MarketingCampaign(Document):
             seg_doc = frappe.get_doc("Marketing Segment", self.target_segment)
             reach = seg_doc.estimated_reach or 0
             estimated_cost = reach * coins_per_msg
-            balance = float(frappe.db.get_value("Outlet", self.restaurant, "coins_balance") or 0)
+            balance = float(frappe.db.get_value("Outlet", self.outlet, "coins_balance") or 0)
             if balance < estimated_cost:
                 frappe.msgprint(
                     _(f"⚠️ Low Balance: Estimated cost is {estimated_cost:.2f} Coins for ~{reach} recipients, "

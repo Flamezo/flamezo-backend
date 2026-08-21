@@ -20,7 +20,7 @@ export default function AIGalleryPage() {
 
   const { data: generations, isLoading } = useFrappeGetDocList('AI Image Generation', {
     fields: ['name', 'creation', 'owner_name', 'original_image_url', 'enhanced_image_url'],
-    filters: [['restaurant', '=', selectedOutlet || ''], ['status', '=', 'Completed']],
+    filters: [['outlet', '=', selectedOutlet || ''], ['status', '=', 'Completed']],
     orderBy: { field: 'creation', order: 'desc' },
     limit: 50
   }, selectedOutlet ? undefined : null)

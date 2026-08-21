@@ -70,7 +70,7 @@ def _format_order(order, include_items=False):
 	result = {
 		"id": order.name,
 		"order_number": order.order_number or order.order_id or order.name,
-		"outlet_id": order.restaurant,
+		"outlet_id": order.outlet,
 		"status": order.status or "",
 		"payment_status": order.payment_status or "",
 		"payment_method": order.payment_method or "",
@@ -139,13 +139,13 @@ def get_my_orders(phone=None, page=1, limit=20, status=None, outlet_id=None):
 		if status:
 			filters["status"] = status
 		if outlet_id:
-			filters["restaurant"] = outlet_id
+			filters["outlet"] = outlet_id
 
 		orders = frappe.get_all(
 			"Order",
 			filters=filters,
 			fields=[
-				"name", "order_id", "order_number", "restaurant",
+				"name", "order_id", "order_number", "outlet",
 				"status", "payment_status", "payment_method", "order_type",
 				"subtotal", "discount", "loyalty_discount", "packaging_fee",
 				"delivery_fee", "tax", "total", "coupon",
@@ -159,21 +159,21 @@ def get_my_orders(phone=None, page=1, limit=20, status=None, outlet_id=None):
 		total = frappe.db.count("Order", filters=filters)
 
 		# Batch-fetch restaurant names
-		rest_ids = list({o.restaurant for o in orders if o.restaurant})
+		rest_ids = list({o.outlet for o in orders if o.outlet})
 		rest_meta = {}
 		if rest_ids:
 			for r in frappe.get_all(
 				"Outlet",
 				filters={"name": ["in", rest_ids]},
-				fields=["name", "restaurant_name", "logo"],
+				fields=["name", "outlet_name", "logo"],
 			):
 				rest_meta[r.name] = r
 
 		result = []
 		for o in orders:
 			fmt = _format_order(o, include_items=False)
-			rm = rest_meta.get(o.restaurant, {})
-			fmt["outlet_name"] = rm.get("restaurant_name") or o.restaurant
+			rm = rest_meta.get(o.outlet, {})
+			fmt["outlet_name"] = rm.get("outlet_name") or o.outlet
 			fmt["outlet_logo"] = rm.get("logo") or ""
 			result.append(fmt)
 
@@ -228,12 +228,12 @@ def get_order_detail(order_id=None, phone=None):
 		fmt = _format_order(doc, include_items=True)
 
 		# Enrich with restaurant info
-		if doc.restaurant:
+		if doc.outlet:
 			rm = frappe.db.get_value(
-				"Outlet", doc.restaurant,
-				["restaurant_name", "logo", "city"], as_dict=True,
+				"Outlet", doc.outlet,
+				["outlet_name", "logo", "city"], as_dict=True,
 			) or {}
-			fmt["outlet_name"] = rm.get("restaurant_name") or doc.restaurant
+			fmt["outlet_name"] = rm.get("outlet_name") or doc.outlet
 			fmt["outlet_logo"] = rm.get("logo") or ""
 			fmt["outlet_city"] = rm.get("city") or ""
 

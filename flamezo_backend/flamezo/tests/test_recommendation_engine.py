@@ -481,7 +481,7 @@ class TestLogCoOrderEvents(unittest.TestCase):
 
     def _make_order(self, status="confirmed", n_items=2):
         order = MagicMock()
-        order.restaurant = "REST-001"
+        order.outlet = "REST-001"
         order.name = "ORD-001"
         order.status = status
         items = []
@@ -543,7 +543,7 @@ class TestLogCoOrderEvents(unittest.TestCase):
         events, _ = self._run(order)
         for ev in events:
             self.assertEqual(ev["doctype"], "Co Order Event")
-            self.assertEqual(ev["restaurant"], "REST-001")
+            self.assertEqual(ev["outlet"], "REST-001")
             self.assertIn("product_a_id", ev)
             self.assertIn("product_b_id", ev)
 

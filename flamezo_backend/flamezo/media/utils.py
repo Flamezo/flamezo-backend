@@ -423,49 +423,49 @@ def get_media_assets_batch(owner_doctype, owner_names, media_roles):
 def get_restaurant_from_owner(owner_doctype, owner_name):
 	"""Get restaurant from owner document"""
 	if owner_doctype == "Menu Product":
-		return frappe.db.get_value("Menu Product", owner_name, "restaurant")
+		return frappe.db.get_value("Menu Product", owner_name, "outlet")
 	elif owner_doctype == "Menu Category":
-		return frappe.db.get_value("Menu Category", owner_name, "restaurant")
+		return frappe.db.get_value("Menu Category", owner_name, "outlet")
 	elif owner_doctype == "Home Feature":
-		return frappe.db.get_value("Home Feature", owner_name, "restaurant")
+		return frappe.db.get_value("Home Feature", owner_name, "outlet")
 	elif owner_doctype == "Outlet":
 		return owner_name
 	elif owner_doctype == "Outlet Config":
-		return frappe.db.get_value("Outlet Config", owner_name, "restaurant")
+		return frappe.db.get_value("Outlet Config", owner_name, "outlet")
 	elif owner_doctype == "Menu Image Extractor":
-		return frappe.db.get_value("Menu Image Extractor", owner_name, "restaurant")
+		return frappe.db.get_value("Menu Image Extractor", owner_name, "outlet")
 	elif owner_doctype == "Event":
-		return frappe.db.get_value("Event", owner_name, "restaurant")
+		return frappe.db.get_value("Event", owner_name, "outlet")
 	elif owner_doctype == "Offer":
-		return frappe.db.get_value("Offer", owner_name, "restaurant")
+		return frappe.db.get_value("Offer", owner_name, "outlet")
 	elif owner_doctype == "Legacy Content":
-		return frappe.db.get_value("Legacy Content", owner_name, "restaurant")
+		return frappe.db.get_value("Legacy Content", owner_name, "outlet")
 	elif owner_doctype == "Legacy Member":
 		# Legacy Member is a child table, get restaurant from parent
 		parent = frappe.db.get_value("Legacy Member", owner_name, "parent")
 		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
+			return frappe.db.get_value("Legacy Content", parent, "outlet")
 	elif owner_doctype == "Legacy Testimonial":
 		# Legacy Testimonial is a child table, get restaurant from parent
 		parent = frappe.db.get_value("Legacy Testimonial", owner_name, "parent")
 		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
+			return frappe.db.get_value("Legacy Content", parent, "outlet")
 	elif owner_doctype == "Legacy Gallery Image":
 		# Legacy Gallery Image is a child table, get restaurant from parent
 		parent = frappe.db.get_value("Legacy Gallery Image", owner_name, "parent")
 		if parent:
-			return frappe.db.get_value("Legacy Content", parent, "restaurant")
+			return frappe.db.get_value("Legacy Content", parent, "outlet")
 	elif owner_doctype == "Legacy Testimonial Image":
 		# Legacy Testimonial Image is a child table, get restaurant from parent
 		parent = frappe.db.get_value("Legacy Testimonial Image", owner_name, "parent")
 		if parent:
 			parent_testimonial = frappe.db.get_value("Legacy Testimonial", parent, "parent")
 			if parent_testimonial:
-				return frappe.db.get_value("Legacy Content", parent_testimonial, "restaurant")
+				return frappe.db.get_value("Legacy Content", parent_testimonial, "outlet")
 	elif owner_doctype == "UGC Story Submission":
-		return frappe.db.get_value("UGC Story Submission", owner_name, "restaurant")
+		return frappe.db.get_value("UGC Story Submission", owner_name, "outlet")
 	elif owner_doctype == "UGC Cashback Config":
-		return frappe.db.get_value("UGC Cashback Config", owner_name, "restaurant")
+		return frappe.db.get_value("UGC Cashback Config", owner_name, "outlet")
 	else:
 		from frappe import _
 		frappe.throw(_(f"Unsupported owner doctype: {owner_doctype}"))

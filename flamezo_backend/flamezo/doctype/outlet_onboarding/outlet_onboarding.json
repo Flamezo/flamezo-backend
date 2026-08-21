@@ -396,7 +396,7 @@
  "module": "Flamezo",
  "name": "Outlet Onboarding",
  "naming_rule": "By fieldname",
- "autoname": "field:restaurant_name",
+ "autoname": "field:outlet_name",
  "owner": "Administrator",
  "permissions": [
   {

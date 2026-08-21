@@ -160,16 +160,16 @@ def _get_offers_count_map(outlet_ids):
     placeholders = ",".join(["%s"] * len(outlet_ids))
     rows = frappe.db.sql(
         f"""
-        SELECT restaurant, COUNT(*) AS cnt
+        SELECT outlet, COUNT(*) AS cnt
         FROM `tabCoupon`
-        WHERE restaurant IN ({placeholders})
+        WHERE outlet IN ({placeholders})
           AND is_active = 1
-        GROUP BY restaurant
+        GROUP BY outlet
         """,
         list(outlet_ids),
         as_dict=True,
     )
-    return {r.restaurant: r.cnt for r in rows}
+    return {r.outlet: r.cnt for r in rows}
 
 
 def _get_outlet_ratings_map(outlet_ids):
@@ -736,7 +736,7 @@ def get_outlet_active_coupons(outlet_id):
         SELECT name, code, discount_value, min_order_amount,
                discount_type, offer_type, description, valid_until
         FROM `tabCoupon`
-        WHERE restaurant = %s AND is_active = 1
+        WHERE outlet = %s AND is_active = 1
         ORDER BY discount_value DESC
         LIMIT 20
         """,
@@ -824,7 +824,7 @@ def _assert_outlet_access(outlet, phone=None):
     if user == "Administrator" or any(r in GLOBAL_ADMIN for r in roles) or "Outlet Admin" in roles:
         return
     rec_role = frappe.db.get_value(
-        "Outlet User", {"user": user, "restaurant": outlet, "is_active": 1}, "role"
+        "Outlet User", {"user": user, "outlet": outlet, "is_active": 1}, "role"
     )
     if rec_role not in ("Outlet Admin", "Outlet Staff"):
         frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -1004,9 +1004,9 @@ def suggest_chills_tags(outlet_id, caption, phone=None):
         frappe.throw(_("caption is required"))
 
     outlet_row = frappe.db.get_value(
-        "Outlet", outlet, ["restaurant_name", "outlet_type"], as_dict=True
+        "Outlet", outlet, ["outlet_name", "outlet_type"], as_dict=True
     )
-    outlet_name = (outlet_row.get("restaurant_name") or outlet) if outlet_row else outlet
+    outlet_name = (outlet_row.get("outlet_name") or outlet) if outlet_row else outlet
     outlet_type = (outlet_row.get("outlet_type") or "Business") if outlet_row else "Business"
 
     tax_block = taxonomy_prompt_block()
@@ -1398,7 +1398,7 @@ def get_merchant_outlet_location(phone):
 
     row = frappe.db.sql(
         """
-        SELECT name, restaurant_name, latitude, longitude
+        SELECT name, outlet_name, latitude, longitude
         FROM `tabOutlet`
         WHERE (owner_phone = %s OR contact_phone = %s)
           AND is_active = 1
@@ -1419,7 +1419,7 @@ def get_merchant_outlet_location(phone):
         "success": True,
         "data": {
             "outlet_id": r.name,
-            "outlet_name": r.restaurant_name or r.name,
+            "outlet_name": r.outlet_name or r.name,
             "lat": lat,
             "lng": lng,
             "has_coords": bool(lat and lng),

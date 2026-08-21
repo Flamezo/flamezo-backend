@@ -44,8 +44,8 @@ def get_outlet_id(outlet_name):
 		# Try to find outlet by outlet_name (exact match first)
 		outlet = frappe.db.get_value(
 			"Outlet",
-			{"restaurant_name": outlet_name},
-			["name", "restaurant_id", "restaurant_name", "is_active"],
+			{"outlet_name": outlet_name},
+			["name", "outlet_id", "outlet_name", "is_active"],
 			as_dict=True
 		)
 
@@ -53,8 +53,8 @@ def get_outlet_id(outlet_name):
 		if not outlet:
 			outlets = frappe.get_all(
 				"Outlet",
-				filters={"restaurant_name": ["like", f"%{outlet_name}%"]},
-				fields=["name", "restaurant_id", "restaurant_name", "is_active"],
+				filters={"outlet_name": ["like", f"%{outlet_name}%"]},
+				fields=["name", "outlet_id", "outlet_name", "is_active"],
 				limit=1
 			)
 			if outlets:
@@ -72,8 +72,8 @@ def get_outlet_id(outlet_name):
 		return {
 			"success": True,
 			"data": {
-				"outlet_id": outlet.restaurant_id,
-				"outlet_name": outlet.restaurant_name,
+				"outlet_id": outlet.outlet_id,
+				"outlet_name": outlet.outlet_name,
 				"is_active": bool(outlet.is_active)
 			}
 		}
@@ -238,11 +238,11 @@ def list_restaurants(active_only=True, city=None, limit=50):
 			"Outlet",
 			filters=filters,
 			fields=[
-				"name", "restaurant_id", "restaurant_name", "is_active",
+				"name", "outlet_id", "outlet_name", "is_active",
 				"logo", "city", "address", "latitude", "longitude",
 				"plan_type", "onboarding_date",
 			],
-			order_by="restaurant_name",
+			order_by="outlet_name",
 			limit=int(limit),
 		)
 
@@ -254,36 +254,36 @@ def list_restaurants(active_only=True, city=None, limit=50):
 		# --- Bulk fetch Restaurant Config (tagline, description) ---
 		configs = frappe.get_all(
 			"Outlet Config",
-			filters={"restaurant": ["in", outlet_names]},
-			fields=["restaurant", "tagline", "subtitle", "description"],
+			filters={"outlet": ["in", outlet_names]},
+			fields=["outlet", "tagline", "subtitle", "description"],
 		)
-		config_map = {c["restaurant"]: c for c in configs}
+		config_map = {c["outlet"]: c for c in configs}
 
 		# --- Bulk fetch Gallery photos (up to 6 per outlet) ---
 		gallery_items = frappe.get_all(
 			"Outlet Gallery Item",
-			filters={"restaurant": ["in", outlet_names], "is_selected": 1},
-			fields=["restaurant", "url"],
+			filters={"outlet": ["in", outlet_names], "is_selected": 1},
+			fields=["outlet", "url"],
 			order_by="sort_order asc",
 		)
 		photos_map = {}
 		for item in gallery_items:
-			photos_map.setdefault(item["restaurant"], [])
-			if len(photos_map[item["restaurant"]]) < 6:
-				photos_map[item["restaurant"]].append(item["url"])
+			photos_map.setdefault(item["outlet"], [])
+			if len(photos_map[item["outlet"]]) < 6:
+				photos_map[item["outlet"]].append(item["url"])
 
 		# --- Bulk count active coupons per outlet ---
 		coupon_counts_raw = frappe.db.sql(
 			"""
-			SELECT restaurant, COUNT(*) AS cnt
+			SELECT outlet, COUNT(*) AS cnt
 			FROM `tabCoupon`
-			WHERE restaurant IN ({placeholders}) AND is_active = 1
-			GROUP BY restaurant
+			WHERE outlet IN ({placeholders}) AND is_active = 1
+			GROUP BY outlet
 			""".format(placeholders=", ".join(["%s"] * len(outlet_names))),
 			tuple(outlet_names),
 			as_dict=True,
 		)
-		coupon_map = {row["restaurant"]: row["cnt"] for row in coupon_counts_raw}
+		coupon_map = {row["outlet"]: row["cnt"] for row in coupon_counts_raw}
 
 		# --- Derive isNew: onboarded within last 90 days ---
 		ninety_days_ago = (now_datetime() - datetime.timedelta(days=90)).date()
@@ -306,8 +306,8 @@ def list_restaurants(active_only=True, city=None, limit=50):
 					is_new = False
 
 			result.append({
-				"outlet_id": r["restaurant_id"],
-				"outlet_name": r["restaurant_name"],
+				"outlet_id": r["outlet_id"],
+				"outlet_name": r["outlet_name"],
 				"is_active": bool(r["is_active"]),
 				"logo": r.get("logo") or "",
 				"photos": photos_map.get(doc_name, []),
@@ -355,7 +355,7 @@ def get_outlet_gallery(outlet_id):
 		items = frappe.get_all(
 			"Outlet Gallery Item",
 			filters={
-				"restaurant": outlet,
+				"outlet": outlet,
 				"is_selected": 1
 			},
 			fields=["url", "media_type as type", "title", "sort_order"],
@@ -499,7 +499,7 @@ def get_outlet_detail(outlet_id):
 			return json.loads(cached)
 
 		# Resolve internal name from restaurant_id field OR direct name
-		rest_name = frappe.db.get_value("Outlet", {"restaurant_id": outlet_id}, "name")
+		rest_name = frappe.db.get_value("Outlet", {"outlet_id": outlet_id}, "name")
 		if not rest_name:
 			rest_name = frappe.db.get_value("Outlet", outlet_id, "name")
 		if not rest_name:
@@ -510,7 +510,7 @@ def get_outlet_detail(outlet_id):
 			"Outlet",
 			rest_name,
 			[
-				"name", "restaurant_name", "logo", "outlet_type",
+				"name", "outlet_name", "logo", "outlet_type",
 				"address", "city", "state", "zip_code",
 				"latitude", "longitude",
 				"contact_phone", "whatsapp_number", "instagram_url",
@@ -527,7 +527,7 @@ def get_outlet_detail(outlet_id):
 		# Fetch social links + table booking flag from Restaurant Config (single query)
 		cfg = frappe.db.get_value(
 			"Outlet Config",
-			{"restaurant": rest_name},
+			{"outlet": rest_name},
 			["google_review_link", "enable_table_booking", "tagline"],
 			as_dict=True,
 		) or {}
@@ -549,7 +549,7 @@ def get_outlet_detail(outlet_id):
 		offers_row = frappe.db.sql(
 			"""
 			SELECT COUNT(*) FROM `tabCoupon`
-			WHERE restaurant = %s AND is_active = 1
+			WHERE outlet = %s AND is_active = 1
 			  AND (valid_from IS NULL OR valid_from <= %s)
 			  AND (valid_until IS NULL OR valid_until >= %s)
 			""",
@@ -598,7 +598,7 @@ def get_outlet_detail(outlet_id):
 		data = {
 			"id": r["name"],
 			"outlet_id": outlet_id,
-			"outlet_name": r["restaurant_name"],
+			"outlet_name": r["outlet_name"],
 			"logo": r.get("logo") or "",
 			"outlet_type": r.get("outlet_type") or "dining",
 			"address": r.get("address") or "",
@@ -715,7 +715,7 @@ def get_outlet_media_pool(outlet_id):
 			FROM `tabProduct Media` pm
 			JOIN `tabMenu Product` p ON pm.parent = p.name
 			{_sec_join}
-			WHERE p.restaurant = %s
+			WHERE p.outlet = %s
 		""", (outlet,), as_dict=1)
 
 		# Dish photos are deliberately listed in TWO folders, not moved between
@@ -737,7 +737,7 @@ def get_outlet_media_pool(outlet_id):
 		#     photo so the merchant can pick which go into the active showcase.
 		ai_generated = frappe.get_all(
 			"AI Image Generation",
-			filters={"restaurant": outlet, "enhanced_image_url": ["is", "set"]},
+			filters={"outlet": outlet, "enhanced_image_url": ["is", "set"]},
 			fields=["enhanced_image_url as url", "owner_name as source_title"],
 			order_by="creation desc",
 		)
@@ -760,7 +760,7 @@ def get_outlet_media_pool(outlet_id):
 			FROM `tabCatalogue Item Media` cim
 			JOIN `tabCatalogue Item` ci ON cim.parent = ci.name
 			LEFT JOIN `tabCatalogue Category` cc ON ci.category = cc.name
-			WHERE ci.restaurant = %s
+			WHERE ci.outlet = %s
 		""", (outlet,), as_dict=1)
 		for c in catalogue_media:
 			if c.url and c.url not in seen_urls:
@@ -777,7 +777,7 @@ def get_outlet_media_pool(outlet_id):
 		# 2. Events
 		events = frappe.get_all(
 			"Event",
-			filters={"restaurant": outlet, "image_src": ["is", "set"]},
+			filters={"outlet": outlet, "image_src": ["is", "set"]},
 			fields=["image_src as url", "title as source_title"]
 		)
 
@@ -795,7 +795,7 @@ def get_outlet_media_pool(outlet_id):
 		# 3. Existing Gallery Items (both selected and unselected)
 		gallery_items = frappe.get_all(
 			"Outlet Gallery Item",
-			filters={"restaurant": outlet},
+			filters={"outlet": outlet},
 			fields=["name", "url", "media_type as type", "title as source_title", "is_selected"]
 		)
 
@@ -827,7 +827,7 @@ def get_outlet_media_pool(outlet_id):
 			custom_sections = [
 				r.section_name for r in frappe.get_all(
 					"Outlet Media Section",
-					filters={"restaurant": outlet, "section_kind": "menu"},
+					filters={"outlet": outlet, "section_kind": "menu"},
 					fields=["section_name"],
 					order_by="creation asc",
 				)
@@ -860,10 +860,10 @@ def add_menu_section(outlet_id, section_name):
 	name = (section_name or "").strip()
 	if not name:
 		return {"success": False, "error": {"code": "BAD_NAME", "message": "Section name required"}}
-	if not frappe.db.exists("Outlet Media Section", {"restaurant": outlet, "section_name": name, "section_kind": "menu"}):
+	if not frappe.db.exists("Outlet Media Section", {"outlet": outlet, "section_name": name, "section_kind": "menu"}):
 		frappe.get_doc({
 			"doctype": "Outlet Media Section",
-			"restaurant": outlet,
+			"outlet": outlet,
 			"section_name": name,
 			"section_kind": "menu",
 		}).insert(ignore_permissions=True)
@@ -875,9 +875,9 @@ def add_menu_section(outlet_id, section_name):
 def delete_menu_section(outlet_id, section_name):
 	"""Remove a custom section; images assigned to it fall back to auto-sort."""
 	outlet = validate_restaurant_for_api(outlet_id)
-	for r in frappe.get_all("Outlet Media Section", filters={"restaurant": outlet, "section_name": section_name, "section_kind": "menu"}):
+	for r in frappe.get_all("Outlet Media Section", filters={"outlet": outlet, "section_name": section_name, "section_kind": "menu"}):
 		frappe.delete_doc("Outlet Media Section", r.name, ignore_permissions=True)
-	for r in frappe.get_all("Media Asset", filters={"restaurant": outlet, "menu_section": section_name}):
+	for r in frappe.get_all("Media Asset", filters={"outlet": outlet, "menu_section": section_name}):
 		frappe.db.set_value("Media Asset", r.name, "menu_section", None)
 	frappe.db.commit()
 	return {"success": True}
@@ -887,7 +887,7 @@ def delete_menu_section(outlet_id, section_name):
 def move_media_to_section(outlet_id, media_asset_id, section_name):
 	"""Assign a menu image to a section (override the auto-sort). Empty = back to auto."""
 	outlet = validate_restaurant_for_api(outlet_id)
-	asset_restaurant = frappe.db.get_value("Media Asset", media_asset_id, "restaurant")
+	asset_restaurant = frappe.db.get_value("Media Asset", media_asset_id, "outlet")
 	if not asset_restaurant:
 		return {"success": False, "error": {"code": "NOT_FOUND", "message": "Image not found"}}
 	# The asset must actually belong to the outlet the caller is authorized

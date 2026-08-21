@@ -12,13 +12,13 @@ class TestEvent(unittest.TestCase):
 
 	@classmethod
 	def tearDownClass(cls):
-		frappe.db.delete("Event", {"restaurant": cls.restaurant})
+		frappe.db.delete("Event", {"outlet": cls.restaurant})
 		cleanup_restaurant(cls.restaurant)
 
 	def test_create_event(self):
 		doc = frappe.get_doc({
 			"doctype": "Event",
-			"restaurant": self.restaurant,
+			"outlet": self.restaurant,
 			"title": "Test Event",
 			"date": "2026-05-01",
 			"time": "19:00:00",
@@ -36,7 +36,7 @@ class TestEvent(unittest.TestCase):
 		# Insert a test event
 		doc = frappe.get_doc({
 			"doctype": "Event",
-			"restaurant": self.restaurant,
+			"outlet": self.restaurant,
 			"title": "Filter Test Event",
 			"date": "2026-05-01",
 			"time": "19:00:00",
@@ -45,7 +45,7 @@ class TestEvent(unittest.TestCase):
 		}).insert()
 
 		# Test with proper filters (as expected by execute)
-		filters = [["Event", "restaurant", "=", self.restaurant]]
+		filters = [["Event", "outlet", "=", self.restaurant]]
 		results = execute("Event", filters=filters, fields=["name", "title"])
 		self.assertTrue(len(results) >= 1)
 		
@@ -90,7 +90,7 @@ class TestEvent(unittest.TestCase):
 		# This tests the fix for custom category validation
 		event = frappe.get_doc({
 			"doctype": "Event",
-			"restaurant": self.restaurant,
+			"outlet": self.restaurant,
 			"title": "Custom Category Event",
 			"image_src": "https://example.com/test.jpg",
 			"date": "2026-05-10",

@@ -12,11 +12,11 @@ def run_migration():
 	charge_gst = settings.charge_gst
 
 	# Backfill ledgers
-	rows = frappe.get_all("Monthly Revenue Ledger", fields=["name", "restaurant", "month", "total_platform_fee", "total_gmv", "minimum_due"]) or []
+	rows = frappe.get_all("Monthly Revenue Ledger", fields=["name", "outlet", "month", "total_platform_fee", "total_gmv", "minimum_due"]) or []
 	created = 0
 	for r in rows:
 		billing_month = r.get("month")
-		restaurant = r.get("restaurant")
+		restaurant = r.get("outlet")
 		total_gmv = int(r.get("total_gmv") or 0)
 		total_commissions = int(r.get("total_platform_fee") or 0)
 		
@@ -27,14 +27,14 @@ def run_migration():
 			final_amount = max(0, floor_amt - total_commissions)
 
 		# create ledger if not exists
-		if not frappe.db.exists("Monthly Billing Ledger", {"restaurant": restaurant, "billing_month": billing_month}):
+		if not frappe.db.exists("Monthly Billing Ledger", {"outlet": restaurant, "billing_month": billing_month}):
 			gst_amount = 0
 			if charge_gst and final_amount > 0:
 				gst_amount = int(math.floor(final_amount * (gst_percent / 100.0)))
 
 			doc = frappe.get_doc({
 				"doctype": "Monthly Billing Ledger",
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"billing_month": billing_month,
 				"total_gmv": total_gmv,
 				"calculated_fee": total_commissions,

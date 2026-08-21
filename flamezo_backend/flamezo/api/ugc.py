@@ -210,7 +210,7 @@ def _get_active_config(restaurant):
 	per-restaurant on/off switch. The offer simply surfaces to diners once the
 	restaurant has uploaded at least one story template (enforced in eligibility).
 	"""
-	name = frappe.db.get_value("UGC Cashback Config", {"restaurant": restaurant}, "name")
+	name = frappe.db.get_value("UGC Cashback Config", {"outlet": restaurant}, "name")
 	if not name:
 		return None
 	return frappe.get_doc("UGC Cashback Config", name)
@@ -241,7 +241,7 @@ def _claims_last_30d(customer, restaurant):
 		"UGC Story Submission",
 		filters={
 			"customer": customer,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"status": ["in", _ACTIVE_SUBMISSION_STATUSES],
 			"submission_date": [">=", since],
 		},
@@ -366,7 +366,7 @@ def _generate_config_preview(config_name):
 		) else "image"
 
 		coupon = _inline_coupon_brief(config)
-		outlet_name = frappe.db.get_value("Outlet", config.restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Outlet", config.outlet, "outlet_name") or ""
 
 		from flamezo_backend.flamezo.api.story_generator import _run_job, _get_cache
 		import uuid
@@ -388,7 +388,7 @@ def _generate_config_preview(config_name):
 			frappe.db.commit()
 			# Bust the Frappe Redis cache for get_restaurant_config so the next
 			# consumer request reflects ugcActive=true without waiting for TTL.
-			outlet_id = frappe.db.get_value("UGC Cashback Config", config_name, "restaurant")
+			outlet_id = frappe.db.get_value("UGC Cashback Config", config_name, "outlet")
 			if outlet_id:
 				frappe.cache().delete_key(f"outlet_config:{outlet_id}")
 		else:
@@ -431,7 +431,7 @@ def _load_owned_order(restaurant, order_id, customer):
 	if not frappe.db.exists("Order", order_id):
 		return None
 	order = frappe.get_doc("Order", order_id)
-	if order.restaurant != restaurant:
+	if order.outlet != restaurant:
 		return None
 	if order.platform_customer and order.platform_customer != customer:
 		return None
@@ -570,7 +570,7 @@ def start_ugc_offer(outlet_id, order_id):
 
 		submission = frappe.get_doc({
 			"doctype": "UGC Story Submission",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"customer": customer,
 			"order": order.name,
 			"order_amount": flt(order.total),
@@ -714,7 +714,7 @@ def request_ugc_video_upload(outlet_id, submission_id, filename, content_type, s
 		frappe.get_doc({
 			"doctype": "Media Upload Session",
 			"upload_id": media_id,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"owner_doctype": PROOF_OWNER_DOCTYPE,
 			"owner_name": submission.name,
 			"media_role": PROOF_MEDIA_ROLE,
@@ -798,7 +798,7 @@ def upload_ugc_video_proxy(outlet_id, submission_id):
 		frappe.get_doc({
 			"doctype": "Media Upload Session",
 			"upload_id": media_id,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"owner_doctype": PROOF_OWNER_DOCTYPE,
 			"owner_name": submission.name,
 			"media_role": PROOF_MEDIA_ROLE,
@@ -859,7 +859,7 @@ def submit_ugc_proof(outlet_id, submission_id, upload_id):
 			asset = frappe.get_doc({
 				"doctype": "Media Asset",
 				"media_id": upload_id,
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"owner_doctype": PROOF_OWNER_DOCTYPE,
 				"owner_name": submission.name,
 				"media_role": PROOF_MEDIA_ROLE,
@@ -919,7 +919,7 @@ def get_ugc_status(outlet_id, order_id):
 
 		name = frappe.db.get_value(
 			"UGC Story Submission",
-			{"order": order_id, "customer": customer, "restaurant": restaurant},
+			{"order": order_id, "customer": customer, "outlet": restaurant},
 			"name", order_by="creation desc",
 		)
 		if not name:
@@ -997,7 +997,7 @@ def get_claimable_orders(outlet_id, phone):
 
 		# Real outlet name for the claim page (the WhatsApp deep link can't
 		# resolve the brand config, so the page must get the name from the API).
-		outlet_name = frappe.db.get_value("Outlet", restaurant, "restaurant_name") or ""
+		outlet_name = frappe.db.get_value("Outlet", restaurant, "outlet_name") or ""
 
 		config = _get_active_config(restaurant)
 		if not config or not _is_ugc_active(config):
@@ -1010,7 +1010,7 @@ def get_claimable_orders(outlet_id, phone):
 			"""
 			SELECT name, order_number, total, payment_status, status, creation
 			FROM `tabOrder`
-			WHERE restaurant = %s
+			WHERE outlet = %s
 			  AND customer_phone = %s
 			  AND payment_status = 'completed'
 			  AND DATE(creation) >= %s
@@ -1096,7 +1096,7 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 			return _ok({"byOutlet": {}})
 
 		outlet_names = {
-			doc_id: (frappe.db.get_value("Outlet", doc_id, "restaurant_name") or "")
+			doc_id: (frappe.db.get_value("Outlet", doc_id, "outlet_name") or "")
 			for doc_id in set(resolved.values())
 		}
 
@@ -1106,9 +1106,9 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 		placeholders = ", ".join(["%s"] * len(doc_ids))
 		rows = frappe.db.sql(
 			f"""
-			SELECT name, restaurant, order_number, total, payment_status, status, creation
+			SELECT name, outlet, order_number, total, payment_status, status, creation
 			FROM `tabOrder`
-			WHERE restaurant IN ({placeholders})
+			WHERE outlet IN ({placeholders})
 			  AND customer_phone = %s
 			  AND payment_status = 'completed'
 			  AND DATE(creation) >= %s
@@ -1128,7 +1128,7 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 		by_outlet: dict = {}
 		counts: dict = {}
 		for row in rows:
-			doc_id = row["restaurant"]
+			doc_id = row["outlet"]
 			if doc_id not in active_doc_ids:
 				continue
 			if counts.get(doc_id, 0) >= 10:
@@ -1168,7 +1168,7 @@ def _load_owned_submission(submission_id, restaurant, customer):
 	if not frappe.db.exists("UGC Story Submission", submission_id):
 		return None
 	sub = frappe.get_doc("UGC Story Submission", submission_id)
-	if sub.restaurant != restaurant or sub.customer != customer:
+	if sub.outlet != restaurant or sub.customer != customer:
 		return None
 	return sub
 
@@ -1205,7 +1205,7 @@ def _assert_staff_or_admin(restaurant):
 	):
 		return
 	rec_role = frappe.db.get_value(
-		"Outlet User", {"user": user, "restaurant": restaurant, "is_active": 1}, "role"
+		"Outlet User", {"user": user, "outlet": restaurant, "is_active": 1}, "role"
 	)
 	if rec_role not in ("Outlet Admin", "Outlet Staff"):
 		frappe.throw(_("You don't have access to this outlet."), frappe.PermissionError)
@@ -1239,7 +1239,7 @@ def list_pending_story_verifications(outlet_id, page=1, page_size=20):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		page, page_size = cint(page) or 1, cint(page_size) or 20
-		filters = {"restaurant": restaurant, "status": "story_shared"}
+		filters = {"outlet": restaurant, "status": "story_shared"}
 		total = frappe.db.count("UGC Story Submission", filters=filters)
 		rows = frappe.get_all(
 			"UGC Story Submission", filters=filters,
@@ -1265,7 +1265,7 @@ def verify_ugc_story(outlet_id, submission_id, action, notes=None):
 		_assert_staff_or_admin(restaurant)
 
 		sub = frappe.get_doc("UGC Story Submission", submission_id)
-		if sub.restaurant != restaurant:
+		if sub.outlet != restaurant:
 			return _err("NOT_FOUND")
 		if sub.status != "story_shared":
 			return _err("INVALID_STATE", f"Cannot verify from '{sub.status}'.")
@@ -1313,7 +1313,7 @@ def verify_ugc_story_with_pin(outlet_id, submission_id, pin):
 			return _err("INVALID_PIN", "Incorrect PIN — please try again.")
 
 		sub = frappe.get_doc("UGC Story Submission", submission_id)
-		if sub.restaurant != restaurant:
+		if sub.outlet != restaurant:
 			return _err("NOT_FOUND")
 		if sub.status != "story_shared":
 			return _err("INVALID_STATE", f"Cannot verify from '{sub.status}'.")
@@ -1387,7 +1387,7 @@ def claim_ugc_with_pin(outlet_id, order_id, pin):
 		# Create submission directly in story_verified state
 		submission = frappe.get_doc({
 			"doctype": "UGC Story Submission",
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"customer": customer,
 			"order": order.name,
 			"order_amount": flt(order.total),
@@ -1413,7 +1413,7 @@ def list_flagged_ugc(outlet_id, page=1, page_size=20):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 		page, page_size = cint(page) or 1, cint(page_size) or 20
-		filters = {"restaurant": restaurant, "status": "flagged"}
+		filters = {"outlet": restaurant, "status": "flagged"}
 		total = frappe.db.count("UGC Story Submission", filters=filters)
 		rows = frappe.get_all(
 			"UGC Story Submission", filters=filters,
@@ -1439,7 +1439,7 @@ def review_ugc(outlet_id, submission_id, action, view_count=None, notes=None):
 		_assert_staff_or_admin(restaurant)
 
 		sub = frappe.get_doc("UGC Story Submission", submission_id)
-		if sub.restaurant != restaurant:
+		if sub.outlet != restaurant:
 			return _err("NOT_FOUND")
 		if sub.status not in ("flagged", "proof_submitted"):
 			return _err("INVALID_STATE", f"Cannot review from '{sub.status}'.")
@@ -1484,7 +1484,7 @@ def get_ugc_analytics(outlet_id, days=None):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		if days:
 			since = add_to_date(now_datetime(), days=-cint(days))
 			filters["submission_date"] = [">=", since]
@@ -1556,12 +1556,12 @@ _CONFIG_SCALAR_FIELDS = (
 
 
 def _get_or_create_config(restaurant):
-	name = frappe.db.get_value("UGC Cashback Config", {"restaurant": restaurant}, "name")
+	name = frappe.db.get_value("UGC Cashback Config", {"outlet": restaurant}, "name")
 	if name:
 		return frappe.get_doc("UGC Cashback Config", name)
 	doc = frappe.get_doc({
 		"doctype": "UGC Cashback Config",
-		"restaurant": restaurant,
+		"outlet": restaurant,
 		"is_active": 1,  # mandatory, always-on feature
 		"budget_period": _current_period(),
 	})
@@ -1585,7 +1585,7 @@ def _config_to_dict(config):
 	data = {f: config.get(f) for f in _CONFIG_SCALAR_FIELDS}
 	data.update({
 		"name": config.name,
-		"restaurant": config.restaurant,
+		"restaurant": config.outlet,
 		"is_active": cint(config.is_active),
 		"coins_issued_this_month": cint(config.coins_issued_this_month),
 		"templates": templates,
@@ -1671,12 +1671,12 @@ def _purge_template_media(media_asset, restaurant):
 	"""
 	info = frappe.db.get_value(
 		"Media Asset", media_asset,
-		["name", "media_id", "raw_object_key", "restaurant", "owner_doctype", "is_deleted"],
+		["name", "media_id", "raw_object_key", "outlet", "owner_doctype", "is_deleted"],
 		as_dict=True,
 	)
 	if not info:
 		return
-	if info.restaurant != restaurant or info.owner_doctype != TEMPLATE_OWNER_DOCTYPE:
+	if info.outlet != restaurant or info.owner_doctype != TEMPLATE_OWNER_DOCTYPE:
 		return  # never delete an unrelated asset
 	if info.is_deleted:
 		return
@@ -1749,12 +1749,12 @@ def get_my_ugc_vouchers(outlet_id=None):
 				restaurant = validate_restaurant_for_api(outlet_id)
 			except Exception:
 				return _err("OUTLET_NOT_FOUND")
-			filters["restaurant"] = restaurant
+			filters["outlet"] = restaurant
 
 		rows = frappe.get_all(
 			"UGC Voucher",
 			filters=filters,
-			fields=["name", "voucher_code", "restaurant", "original_amount", "balance", "issued_at", "expires_at"],
+			fields=["name", "voucher_code", "outlet", "original_amount", "balance", "issued_at", "expires_at"],
 			order_by="expires_at asc",
 		)
 
@@ -1765,7 +1765,7 @@ def get_my_ugc_vouchers(outlet_id=None):
 		# holds the full balance, so redemption drains all of it.
 		by_outlet = {}
 		for r in rows:
-			by_outlet.setdefault(r["restaurant"], []).append(r)
+			by_outlet.setdefault(r["outlet"], []).append(r)
 		merged_rows = []
 		mutated = False
 		for _rest, grp in by_outlet.items():
@@ -1788,29 +1788,29 @@ def get_my_ugc_vouchers(outlet_id=None):
 		rows = merged_rows
 
 		# Resolve restaurant meta
-		restaurant_names = list({r["restaurant"] for r in rows})
+		restaurant_names = list({r["outlet"] for r in rows})
 		meta = {}
 		if restaurant_names:
 			for m in frappe.get_all(
 				"Outlet",
 				filters={"name": ["in", restaurant_names]},
-				fields=["name", "restaurant_id", "restaurant_name", "city", "logo"],
+				fields=["name", "outlet_id", "outlet_name", "city", "logo"],
 			):
 				meta[m["name"]] = m
 
 		items = []
 		for r in rows:
-			m = meta.get(r["restaurant"], {})
+			m = meta.get(r["outlet"], {})
 			days_left = date_diff(r["expires_at"], today()) if r["expires_at"] else None
 			# What the customer can use on their next visit (33% of a typical bill).
 			# We don't know the next bill here, so we show the balance and the rule.
 			items.append({
 				"voucherCode": r["voucher_code"],
-				"outletId": r["restaurant"],
+				"outletId": r["outlet"],
 				# Public URL slug (the /[outlet_id] route segment). Falls back to the
 				# doc name so navigation still resolves if the slug field is unset.
-				"outletSlug": m.get("restaurant_id") or r["restaurant"],
-				"outletName": m.get("restaurant_name") or r["restaurant"],
+				"outletSlug": m.get("outlet_id") or r["outlet"],
+				"outletName": m.get("outlet_name") or r["outlet"],
 				"city": m.get("city") or "",
 				"logo": get_cdn_url(m.get("logo")) if m.get("logo") else None,
 				"originalAmount": flt(r["original_amount"]),
@@ -1846,7 +1846,7 @@ def get_my_ugc_submissions(outlet_id=None, page=1, page_size=10):
 		if outlet_id:
 			try:
 				restaurant = validate_restaurant_for_api(outlet_id)
-				filters["restaurant"] = restaurant
+				filters["outlet"] = restaurant
 			except Exception:
 				pass
 
@@ -1855,7 +1855,7 @@ def get_my_ugc_submissions(outlet_id=None, page=1, page_size=10):
 			"UGC Story Submission",
 			filters=filters,
 			fields=[
-				"name", "restaurant", "order", "status",
+				"name", "outlet", "order", "status",
 				"order_amount", "cashback_coins",
 				"submission_date", "story_verified_at",
 			],
@@ -1866,8 +1866,8 @@ def get_my_ugc_submissions(outlet_id=None, page=1, page_size=10):
 
 		items = []
 		for r in rows:
-			outlet_name = frappe.db.get_value("Outlet", r.restaurant, "restaurant_name") or r.restaurant
-			outlet_slug = frappe.db.get_value("Outlet", r.restaurant, "restaurant_id") or r.restaurant
+			outlet_name = frappe.db.get_value("Outlet", r.outlet, "outlet_name") or r.outlet
+			outlet_slug = frappe.db.get_value("Outlet", r.outlet, "outlet_id") or r.outlet
 			items.append({
 				"submission_id": r.name,
 				"outlet_id": outlet_slug,
@@ -1914,7 +1914,7 @@ def activate_ugc_with_pin(outlet_id, voucher_code, pin):
 		# Fetch and validate voucher
 		voucher = frappe.db.get_value(
 			"UGC Voucher",
-			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
+			{"voucher_code": voucher_code, "customer": customer, "outlet": restaurant},
 			["name", "balance", "status", "expires_at"],
 			as_dict=True,
 		)
@@ -1932,7 +1932,7 @@ def activate_ugc_with_pin(outlet_id, voucher_code, pin):
 		has_active_claim = frappe.db.exists(
 			"Offer Claim",
 			{
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"customer": customer,
 				"claimed_at": [">=", four_hours_ago],
 				"is_paid": 0,
@@ -1988,7 +1988,7 @@ def get_ugc_redeemable_dishes(outlet_id, voucher_code, bill_amount):
 
 		voucher = frappe.db.get_value(
 			"UGC Voucher",
-			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
+			{"voucher_code": voucher_code, "customer": customer, "outlet": restaurant},
 			["name", "balance", "status", "expires_at", "pin_activated_at", "pin_activated_restaurant"],
 			as_dict=True,
 		)
@@ -2011,7 +2011,7 @@ def get_ugc_redeemable_dishes(outlet_id, voucher_code, bill_amount):
 		dishes = frappe.get_all(
 			"Menu Product",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"is_active": 1,
 				"price": ["<=", max_budget],
 			},
@@ -2074,7 +2074,7 @@ def apply_ugc_dish_redemption(outlet_id, voucher_code, dish_id, bill_amount):
 		# Validate voucher + PIN activation
 		voucher = frappe.db.get_value(
 			"UGC Voucher",
-			{"voucher_code": voucher_code, "customer": customer, "restaurant": restaurant},
+			{"voucher_code": voucher_code, "customer": customer, "outlet": restaurant},
 			["name", "balance", "status", "expires_at", "pin_activated_at", "pin_activated_restaurant"],
 			as_dict=True,
 		)
@@ -2097,7 +2097,7 @@ def apply_ugc_dish_redemption(outlet_id, voucher_code, dish_id, bill_amount):
 		# Validate dish
 		dish = frappe.db.get_value(
 			"Menu Product",
-			{"name": dish_id, "restaurant": restaurant, "is_active": 1},
+			{"name": dish_id, "outlet": restaurant, "is_active": 1},
 			["name", "product_name", "price"],
 			as_dict=True,
 		)
@@ -2137,7 +2137,7 @@ def apply_ugc_dish_redemption(outlet_id, voucher_code, dish_id, bill_amount):
 			"doctype": "UGC Voucher Redemption",
 			"voucher": voucher.name,
 			"customer": customer,
-			"restaurant": restaurant,
+			"outlet": restaurant,
 			"bill_amount": int(bill),
 			"amount_used": dish_price,
 			"balance_before": int(balance_before),
@@ -2174,7 +2174,7 @@ def get_voucher_stats(outlet_id, days=None):
 		restaurant = _resolve_restaurant(outlet_id)
 		_assert_staff_or_admin(restaurant)
 
-		filters = {"restaurant": restaurant}
+		filters = {"outlet": restaurant}
 		if days:
 			since = add_to_date(now_datetime(), days=-cint(days))
 			filters["issued_at"] = [">=", since]
@@ -2192,7 +2192,7 @@ def get_voucher_stats(outlet_id, days=None):
 		total_redeemed_value = total_issued_value - sum(flt(v["balance"]) for v in vouchers)
 
 		# Redemptions for this restaurant in the same window
-		redemption_filters = {"restaurant": restaurant}
+		redemption_filters = {"outlet": restaurant}
 		if days:
 			redemption_filters["redeemed_at"] = [">=", since]
 		redemptions = frappe.get_all(
@@ -2206,7 +2206,7 @@ def get_voucher_stats(outlet_id, days=None):
 		expiring_soon = frappe.db.count(
 			"UGC Voucher",
 			filters={
-				"restaurant": restaurant,
+				"outlet": restaurant,
 				"status": "active",
 				"expires_at": ["between", [now_datetime(), add_to_date(now_datetime(), days=7)]],
 			},
@@ -2241,7 +2241,7 @@ def get_ugc_funnel(outlet_id, days=30):
 		since = add_to_date(now_datetime(), days=-cint(days))
 		submissions = frappe.get_all(
 			"UGC Story Submission",
-			filters={"restaurant": restaurant, "submission_date": [">=", since]},
+			filters={"outlet": restaurant, "submission_date": [">=", since]},
 			fields=["status"],
 		)
 
@@ -2329,7 +2329,7 @@ def credit_ugc_cashback(submission, view_count, reviewed_by=None, source="ai"):
 		"doctype": "UGC Voucher",
 		"voucher_code": voucher_code,
 		"customer": submission.customer,
-		"restaurant": submission.restaurant,
+		"outlet": submission.outlet,
 		"ugc_submission": submission.name,
 		"original_amount": amount,
 		"balance": amount,

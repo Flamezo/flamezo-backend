@@ -20,7 +20,7 @@ def execute():
 	
 	try:
 		# Get all existing restaurants
-		restaurants = frappe.get_all('Outlet', fields=['name', 'restaurant_name'])
+		restaurants = frappe.get_all('Outlet', fields=['name', 'outlet_name'])
 		
 		frappe.logger().info(f"Found {len(restaurants)} restaurants to migrate")
 		
@@ -64,7 +64,7 @@ def execute():
 				try:
 					plan_log = frappe.get_doc({
 						'doctype': 'Plan Change Log',
-						'restaurant': restaurant.name,
+						'outlet': restaurant.name,
 						'previous_plan': '',
 						'new_plan': 'GOLD',
 						'changed_by': 'Administrator',

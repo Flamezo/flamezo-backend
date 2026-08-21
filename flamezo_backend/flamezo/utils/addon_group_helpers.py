@@ -37,7 +37,7 @@ def load_product_addon_groups(product_doc):
         "Addon Group",
         filters={"name": ["in", group_names], "status": "Active"},
         fields=[
-            "name", "group_id", "group_name", "group_type", "restaurant",
+            "name", "group_id", "group_name", "group_type", "outlet",
             "is_required", "min_selections", "max_selections", "display_order",
             "pos_addon_group_id"
         ]

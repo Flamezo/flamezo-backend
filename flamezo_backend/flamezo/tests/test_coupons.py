@@ -73,7 +73,7 @@ def make_coupon(restaurant, code="SAVE10", **kwargs):
     offer_type = kwargs.get("offer_type", "coupon")
     defaults = {
         "doctype": "Coupon",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "code": code,
         "offer_type": "coupon",
         "discount_type": "flat",
@@ -93,8 +93,8 @@ def make_coupon(restaurant, code="SAVE10", **kwargs):
 
 
 def cleanup_coupons(restaurant):
-    frappe.db.delete("Coupon Usage", {"restaurant": restaurant})
-    frappe.db.delete("Coupon", {"restaurant": restaurant})
+    frappe.db.delete("Coupon Usage", {"outlet": restaurant})
+    frappe.db.delete("Coupon", {"outlet": restaurant})
     frappe.db.commit()
 
 
@@ -120,7 +120,7 @@ class TestCouponValidate(unittest.TestCase):
         """valid_days_of_week='' must also be coerced to None."""
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "code": "DAYS1",
             "offer_type": "coupon",
             "discount_type": "flat",
@@ -285,7 +285,7 @@ class TestGetCouponDetails(unittest.TestCase):
         for i in range(2):
             frappe.db.sql(
                 """INSERT INTO `tabCoupon Usage`
-                   (name, coupon, customer, restaurant, `order`, discount_amount, usage_date, docstatus, modified, creation, owner, modified_by)
+                   (name, coupon, customer, outlet, `order`, discount_amount, usage_date, docstatus, modified, creation, owner, modified_by)
                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), 0, NOW(), NOW(), 'Administrator', 'Administrator')""",
                 (f"TEST-CU-{coupon_doc.name}-{i}", coupon_doc.name, customer_id, self.restaurant, f"TEST-ORDER-{i}", 10.0),
             )
@@ -707,7 +707,7 @@ class TestGetApplicableOffersAPI(unittest.TestCase):
         # Exhaust per-customer limit
         frappe.db.sql(
             """INSERT INTO `tabCoupon Usage`
-               (name, coupon, customer, restaurant, `order`, discount_amount, usage_date, docstatus, modified, creation, owner, modified_by)
+               (name, coupon, customer, outlet, `order`, discount_amount, usage_date, docstatus, modified, creation, owner, modified_by)
                VALUES (%s, %s, %s, %s, %s, %s, NOW(), 0, NOW(), NOW(), 'Administrator', 'Administrator')""",
             (f"TEST-GAO10-CU", coupon_doc.name, customer.name, self.restaurant, "TEST-ORDER-GAO10", 20.0),
         )
@@ -897,7 +897,7 @@ class TestCouponSchedulerTasks(unittest.TestCase):
         from flamezo_backend.flamezo.tasks.coupon_tasks import auto_activate_scheduled_coupons
         activated = auto_activate_scheduled_coupons()
         self.assertIn("SCHED1", activated)
-        is_active = frappe.db.get_value("Coupon", {"code": "SCHED1", "restaurant": self.restaurant}, "is_active")
+        is_active = frappe.db.get_value("Coupon", {"code": "SCHED1", "outlet": self.restaurant}, "is_active")
         self.assertEqual(is_active, 1)
 
     def test_auto_activate_skips_already_active(self):
@@ -918,7 +918,7 @@ class TestCouponSchedulerTasks(unittest.TestCase):
         from flamezo_backend.flamezo.tasks.coupon_tasks import auto_deactivate_expired_coupons
         deactivated = auto_deactivate_expired_coupons()
         self.assertIn("SCHED4", deactivated)
-        is_active = frappe.db.get_value("Coupon", {"code": "SCHED4", "restaurant": self.restaurant}, "is_active")
+        is_active = frappe.db.get_value("Coupon", {"code": "SCHED4", "outlet": self.restaurant}, "is_active")
         self.assertEqual(is_active, 0)
 
     def test_auto_deactivate_skips_non_expired(self):
@@ -969,8 +969,8 @@ class TestCouponExportImport(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["data"]["created"], 2)
         self.assertEqual(result["data"]["skipped"], 0)
-        self.assertTrue(frappe.db.exists("Coupon", {"code": "IMPORT1", "restaurant": self.restaurant}))
-        self.assertTrue(frappe.db.exists("Coupon", {"code": "IMPORT2", "restaurant": self.restaurant}))
+        self.assertTrue(frappe.db.exists("Coupon", {"code": "IMPORT1", "outlet": self.restaurant}))
+        self.assertTrue(frappe.db.exists("Coupon", {"code": "IMPORT2", "outlet": self.restaurant}))
 
     def test_import_skips_duplicate_by_default(self):
         make_coupon(self.restaurant, code="DUP_IMPORT", discount_value=10.0)
@@ -987,7 +987,7 @@ class TestCouponExportImport(unittest.TestCase):
         self.assertEqual(result["data"]["skipped"], 1)
         self.assertEqual(result["data"]["created"], 0)
         # Value should NOT have changed
-        val = frappe.db.get_value("Coupon", {"code": "DUP_IMPORT", "restaurant": self.restaurant}, "discount_value")
+        val = frappe.db.get_value("Coupon", {"code": "DUP_IMPORT", "outlet": self.restaurant}, "discount_value")
         self.assertAlmostEqual(flt(val), 10.0)
 
     def test_import_overwrites_when_flag_set(self):
@@ -1003,7 +1003,7 @@ class TestCouponExportImport(unittest.TestCase):
         result = import_coupons(self.restaurant, csv_content, overwrite_existing=True)
         self.assertTrue(result["success"])
         self.assertEqual(result["data"]["updated"], 1)
-        val = frappe.db.get_value("Coupon", {"code": "OVR_IMPORT", "restaurant": self.restaurant}, "discount_value")
+        val = frappe.db.get_value("Coupon", {"code": "OVR_IMPORT", "outlet": self.restaurant}, "discount_value")
         self.assertAlmostEqual(flt(val), 75.0)
 
     def test_import_skips_row_with_missing_code(self):
@@ -1214,7 +1214,7 @@ _WA_PATH = "flamezo_backend.flamezo.utils.whatsapp_utils.send_whatsapp_cloud_mes
 
 
 def cleanup_claims(restaurant):
-    frappe.db.delete("Offer Claim", {"restaurant": restaurant})
+    frappe.db.delete("Offer Claim", {"outlet": restaurant})
     frappe.db.commit()
 
 
@@ -1336,7 +1336,7 @@ class TestClaimOfferWithPin(unittest.TestCase):
         coupon = make_coupon(self.restaurant, code="DEDUP_PIN1")
         frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": self.CUSTOMER_ID,
@@ -1355,7 +1355,7 @@ class TestClaimOfferWithPin(unittest.TestCase):
         coupon = make_coupon(self.restaurant, code="PAIDDED_PIN1")
         frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": self.CUSTOMER_ID,
@@ -1377,7 +1377,7 @@ class TestClaimOfferWithPin(unittest.TestCase):
         self.assertTrue(result["success"])
         claim_id = result["data"]["claimId"]
         claim = frappe.get_doc("Offer Claim", claim_id)
-        self.assertEqual(claim.restaurant, self.restaurant)
+        self.assertEqual(claim.outlet, self.restaurant)
         self.assertEqual(claim.coupon_code, coupon.code)
         self.assertEqual(claim.customer, self.CUSTOMER_ID)
         self.assertEqual(claim.is_paid, 0)
@@ -1472,7 +1472,7 @@ class TestSendOfferClaimNotification(unittest.TestCase):
     def _make_claim(self, coupon, phone="917487871213"):
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": "TEST-NOTIF-CUST",
@@ -1531,7 +1531,7 @@ class TestSendOfferClaimNotification(unittest.TestCase):
         with patch(_WA_PATH, return_value=(True, "wamid-005")) as mock_wa:
             self._call(claim.name)
         body_params = mock_wa.call_args[1]["body_params"]
-        restaurant_name = frappe.db.get_value("Outlet", self.restaurant, "restaurant_name")
+        restaurant_name = frappe.db.get_value("Outlet", self.restaurant, "outlet_name")
         self.assertEqual(body_params[1], restaurant_name)
 
     def test_body_params_third_element_is_coupon_code(self):
@@ -1568,7 +1568,7 @@ class TestSendOfferClaimNotification(unittest.TestCase):
         with patch(_WA_PATH, return_value=(True, "wamid-009")) as mock_wa:
             self._call(claim.name)
         button_param = mock_wa.call_args[1]["button_url_param"]
-        restaurant_slug = frappe.db.get_value("Outlet", self.restaurant, "restaurant_id")
+        restaurant_slug = frappe.db.get_value("Outlet", self.restaurant, "outlet_id")
         self.assertTrue(
             button_param.startswith(restaurant_slug),
             f"Expected button_url_param to start with '{restaurant_slug}', got: '{button_param}'",
@@ -1664,7 +1664,7 @@ class TestGetActiveOfferClaim(unittest.TestCase):
         claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": self.CUSTOMER_ID,
@@ -1746,7 +1746,7 @@ class TestGetActiveOfferClaim(unittest.TestCase):
         # Insert an unpaid claim for the OTHER restaurant
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": r2,
+            "outlet": r2,
             "coupon": coupon_r2.name,
             "coupon_code": coupon_r2.code,
             "customer": self.CUSTOMER_ID,
@@ -1761,8 +1761,8 @@ class TestGetActiveOfferClaim(unittest.TestCase):
             result = self._call()
             self.assertIsNone(result["data"]["claim"])
         finally:
-            frappe.db.delete("Offer Claim", {"restaurant": r2})
-            frappe.db.delete("Coupon", {"restaurant": r2})
+            frappe.db.delete("Offer Claim", {"outlet": r2})
+            frappe.db.delete("Coupon", {"outlet": r2})
             cleanup_restaurant(r2)
 
     # ── Most-recent wins ──────────────────────────────────────────────────────
@@ -1850,7 +1850,7 @@ class TestMarkClaimPaidViaPayment(unittest.TestCase):
         claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": self.CUSTOMER_ID,
@@ -1968,7 +1968,7 @@ class TestMarkClaimPaidViaPayment(unittest.TestCase):
         other_customer = "TEST-MCP-OTHER-CUST"
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": other_customer,
@@ -2168,7 +2168,7 @@ class TestClaimDedupWindow(unittest.TestCase):
         claimed_at = add_to_date(now_datetime(), hours=-hours_ago)
         claim = frappe.get_doc({
             "doctype": "Offer Claim",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "coupon": coupon.name,
             "coupon_code": coupon.code,
             "customer": self.CUSTOMER_ID,
@@ -2240,7 +2240,7 @@ class TestComboImage(unittest.TestCase):
     def _make_combo(self, code, display_on_menu=1, combo_image=None, **kwargs):
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "code": code,
             "offer_type": "combo",
             "combo_type": "fixed_bundle",
@@ -2333,7 +2333,7 @@ class TestComboImage(unittest.TestCase):
     def _make_ai_generation(self, coupon_name, status="Completed", image_url=None):
         doc = frappe.get_doc({
             "doctype": "AI Image Generation",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "owner_doctype": "Coupon",
             "owner_name": coupon_name,
             "original_image_url": "",
@@ -2389,7 +2389,7 @@ class TestComboImage(unittest.TestCase):
         # during the insert — we only care that apply_to_coupon() rejects the wrong owner_doctype.
         gen = frappe.get_doc({
             "doctype": "AI Image Generation",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "owner_doctype": "Menu Product",
             "owner_name": "some-nonexistent-product",
             "original_image_url": "",
@@ -2523,7 +2523,7 @@ class TestBOGOFreeItemValue(unittest.TestCase):
     def _make_bogo(self, code, bogo_value, **kwargs):
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "code": code,
             "offer_type": "combo",
             "combo_type": "bogo",
@@ -2542,7 +2542,7 @@ class TestBOGOFreeItemValue(unittest.TestCase):
     def _make_fixed_bundle(self, code, combo_price, **kwargs):
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "code": code,
             "offer_type": "combo",
             "combo_type": "fixed_bundle",
@@ -2561,7 +2561,7 @@ class TestBOGOFreeItemValue(unittest.TestCase):
     def _make_byo(self, code, combo_price, **kwargs):
         doc = frappe.get_doc({
             "doctype": "Coupon",
-            "restaurant": self.restaurant,
+            "outlet": self.restaurant,
             "code": code,
             "offer_type": "combo",
             "combo_type": "build_your_own",
@@ -2580,7 +2580,7 @@ class TestBOGOFreeItemValue(unittest.TestCase):
     def _apply(self, code, bill):
         """Call validate_offer_eligibility with an empty dine-in cart."""
         from flamezo_backend.flamezo.utils.pricing import validate_offer_eligibility
-        offer = frappe.get_doc("Coupon", {"code": code, "restaurant": self.restaurant})
+        offer = frappe.get_doc("Coupon", {"code": code, "outlet": self.restaurant})
         return validate_offer_eligibility(
             offer=offer,
             cart_total=bill,

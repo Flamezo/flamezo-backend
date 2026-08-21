@@ -45,7 +45,7 @@ class Coupon(Document):
 	def _validate_code_unique_per_restaurant(self):
 		"""Ensure the coupon code is unique within the same restaurant (not globally)."""
 		filters = {
-			"restaurant": self.restaurant,
+			"outlet": self.outlet,
 			"code": self.code,
 		}
 		if not self.is_new():

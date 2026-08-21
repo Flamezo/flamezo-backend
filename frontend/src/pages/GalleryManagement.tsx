@@ -178,7 +178,7 @@ export default function GalleryManagement() {
   const initialFilters = useMemo(() => {
     if (!selectedOutlet) return []
     return [
-        { fieldname: 'restaurant', operator: '=', value: selectedOutlet },
+        { fieldname: 'outlet', operator: '=', value: selectedOutlet },
         { fieldname: 'is_selected', operator: '=', value: 1 }
     ]
   }, [selectedOutlet])
@@ -192,7 +192,7 @@ export default function GalleryManagement() {
     setSearchQuery
   } = useDataTable({
     doctype: 'Outlet Gallery Item',
-    fields: ['name', 'restaurant', 'media_type', 'url', 'title', 'sort_order', 'is_selected'],
+    fields: ['name', 'outlet', 'media_type', 'url', 'title', 'sort_order', 'is_selected'],
     initialFilters,
     searchFields: ['title'],
     orderBy: { field: 'sort_order', order: 'asc' },
@@ -262,7 +262,7 @@ export default function GalleryManagement() {
         await createGalleryItem({
           doc: {
             doctype: 'Outlet Gallery Item',
-            restaurant: selectedOutlet,
+            outlet: selectedOutlet,
             media_type: mediaType === 'video' ? 'Video' : 'Image',
             url: uploadResult.primary_url,
             title: file.name.split('.')[0],
@@ -308,7 +308,7 @@ export default function GalleryManagement() {
             await createGalleryItem({
                 doc: {
                     doctype: 'Outlet Gallery Item',
-                    restaurant: selectedOutlet,
+                    outlet: selectedOutlet,
                     media_type: media.type === 'video' ? 'Video' : 'Image',
                     url: media.url,
                     title: media.source_title || 'Imported Asset',
@@ -344,7 +344,7 @@ export default function GalleryManagement() {
         await createGalleryItem({
             doc: {
                 doctype: 'Outlet Gallery Item',
-                restaurant: selectedOutlet,
+                outlet: selectedOutlet,
                 media_type: editingItem.media_type,
                 url: editingItem.url,
                 title: editingItem.title,

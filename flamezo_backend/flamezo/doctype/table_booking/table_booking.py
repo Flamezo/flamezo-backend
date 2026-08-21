@@ -81,7 +81,7 @@ class TableBooking(Document):
 			return
 
 		table = frappe.get_doc("Outlet Table", assigned_table)
-		if table.restaurant != self.restaurant:
+		if table.outlet != self.outlet:
 			frappe.throw(f"Table {assigned_table} does not belong to this outlet")
 		
 		# Check if table has sufficient capacity
@@ -135,7 +135,7 @@ class TableBooking(Document):
 		tables = frappe.get_all(
 			"Outlet Table",
 			filters={
-				"restaurant": self.restaurant,
+				"outlet": self.outlet,
 				"status": "available"
 			},
 			fields=["name", "table_number", "capacity", "priority", "is_combinable"],

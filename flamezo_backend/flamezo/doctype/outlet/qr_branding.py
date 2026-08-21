@@ -38,7 +38,7 @@ def safe_restaurant_path(value):
 def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	from flamezo_backend.flamezo.media.utils import get_media_asset_data
 
-	config_name = frappe.db.get_value("Outlet Config", {"restaurant": restaurant_doc.name}, "name")
+	config_name = frappe.db.get_value("Outlet Config", {"outlet": restaurant_doc.name}, "name")
 	primary_color = "#B7410E"
 	logo_url = ""
 	background_image_url = override_background_url or ""
@@ -79,7 +79,7 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	# ─────────────────────────────────────────────────────────────────
 
 	return {
-		"restaurant_name": restaurant_doc.restaurant_name or restaurant_doc.name,
+		"restaurant_name": restaurant_doc.outlet_name or restaurant_doc.name,
 		"primary_color": normalize_qr_color(primary_color),
 		"logo_url": logo_url,
 		"background_image_url": background_image_url,
@@ -89,7 +89,7 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 def build_table_qr_url(restaurant_doc, table_number):
 	from flamezo_backend.flamezo.utils.config_helpers import get_app_base_url
 	base_url = get_app_base_url()
-	return f"{base_url.rstrip('/')}/{restaurant_doc.restaurant_id}?table_no={table_number}"
+	return f"{base_url.rstrip('/')}/{restaurant_doc.outlet_id}?table_no={table_number}"
 
 
 def build_table_qr_cache_key(restaurant_doc, table_number, qr_url, branding, force=False):
@@ -98,7 +98,7 @@ def build_table_qr_cache_key(restaurant_doc, table_number, qr_url, branding, for
 	payload = "|".join(
 		[
 			"v9",
-			str(restaurant_doc.restaurant_id or ""),
+			str(restaurant_doc.outlet_id or ""),
 			str(table_number),
 			str(qr_url or ""),
 			str(branding.get("restaurant_name") or ""),
@@ -116,7 +116,7 @@ def build_table_qr_cache_key(restaurant_doc, table_number, qr_url, branding, for
 
 
 def build_table_qr_object_keys(restaurant_doc, table_number, cache_key):
-	restaurant_key = safe_restaurant_path(restaurant_doc.restaurant_id or restaurant_doc.name)
+	restaurant_key = safe_restaurant_path(restaurant_doc.outlet_id or restaurant_doc.name)
 	base_path = f"restaurants/{restaurant_key}/restaurant/{restaurant_key}/table_qr/{table_number}/{cache_key}"
 	return {
 		"svg": f"{base_path}/card.svg",
@@ -749,7 +749,7 @@ def ensure_table_qr_assets(restaurant_doc, table_number, force=False, branding=N
 
 
 def build_table_qr_assets(restaurant_doc, force=False, override_background_url=None):
-	if not restaurant_doc.restaurant_id:
+	if not restaurant_doc.outlet_id:
 		frappe.throw("Outlet ID is required to generate QR codes")
 	if not restaurant_doc.tables or restaurant_doc.tables <= 0:
 		frappe.throw("Number of tables must be greater than 0")
@@ -926,11 +926,11 @@ SPECIAL_QR_CONFIGS = {
 def build_special_qr_url(restaurant_doc, order_type):
 	from flamezo_backend.flamezo.utils.config_helpers import get_app_base_url
 	base_url = get_app_base_url()
-	return f"{base_url.rstrip('/')}/{restaurant_doc.restaurant_id}?order_type={order_type}"
+	return f"{base_url.rstrip('/')}/{restaurant_doc.outlet_id}?order_type={order_type}"
 
 
 def build_special_qr_object_keys(restaurant_doc, order_type, cache_key):
-	restaurant_key = safe_restaurant_path(restaurant_doc.restaurant_id or restaurant_doc.name)
+	restaurant_key = safe_restaurant_path(restaurant_doc.outlet_id or restaurant_doc.name)
 	base_path = f"restaurants/{restaurant_key}/restaurant/{restaurant_key}/special_qr/{order_type}/{cache_key}"
 	return {
 		"svg": f"{base_path}/card.svg",
@@ -1077,7 +1077,7 @@ def ensure_special_qr_asset(restaurant_doc, order_type, force=False):
 
 	payload = "|".join([
 		"special-v1",
-		str(restaurant_doc.restaurant_id or ""),
+		str(restaurant_doc.outlet_id or ""),
 		order_type,
 		qr_url,
 		str(branding.get("restaurant_name") or ""),
@@ -1126,7 +1126,7 @@ def build_special_qr_assets(restaurant_doc, force=False):
 	"""
 	Aggregation helper to build all special QRs (takeaway, delivery) for a restaurant.
 	"""
-	if not restaurant_doc.restaurant_id:
+	if not restaurant_doc.outlet_id:
 		frappe.throw("Outlet ID is required to generate QR codes")
 	
 	assets = []

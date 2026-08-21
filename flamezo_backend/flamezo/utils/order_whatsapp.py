@@ -101,12 +101,12 @@ def dispatch_order_whatsapp(order_name, attempt=1):
             return  # already sent — idempotent
 
         order = frappe.get_doc("Order", order_name)
-        restaurant = frappe.get_doc("Outlet", order.restaurant)
+        restaurant = frappe.get_doc("Outlet", order.outlet)
 
         # Recipient: explicit override → the setup-wizard WhatsApp number → owner phone.
         to_phone = (
             getattr(restaurant, "order_whatsapp_number", None)
-            or frappe.db.get_value("Outlet Config", {"restaurant": restaurant.name}, "whatsapp_phone_number")
+            or frappe.db.get_value("Outlet Config", {"outlet": restaurant.name}, "whatsapp_phone_number")
             or getattr(restaurant, "owner_phone", None)
         )
         if not to_phone:

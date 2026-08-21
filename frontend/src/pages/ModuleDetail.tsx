@@ -97,7 +97,7 @@ export default function ModuleDetail() {
     if (qrCodeUrl) {
       const link = document.createElement('a')
       link.href = qrCodeUrl
-      link.download = `${doc?.restaurant_id || docname}_table_qr_codes.pdf`
+      link.download = `${doc?.outlet_id || docname}_table_qr_codes.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -187,8 +187,8 @@ export default function ModuleDetail() {
         doctype={doctype || ''}
         docname={docname}
         mode={mode}
-        initialData={selectedOutlet ? { restaurant: selectedOutlet } : {}}
-        readOnlyFields={['restaurant']}
+        initialData={selectedOutlet ? { outlet: selectedOutlet } : {}}
+        readOnlyFields={['outlet']}
         onSave={() => {
           setMode('view')
           toast.success(`${doctype} updated successfully`)

@@ -23,7 +23,7 @@ def get_games(outlet_id, featured=None, category=None):
 		restaurant = validate_restaurant_for_api(outlet_id)
 		
 		# Build filters
-		filters = {"restaurant": restaurant, "is_active": 1}
+		filters = {"outlet": restaurant, "is_active": 1}
 		
 		if featured is not None:
 			filters["featured"] = 1 if featured else 0

@@ -30,7 +30,7 @@ def _make_rest(suffix, **kwargs):
 def _make_gallery_item(restaurant, url, sort_order=0, is_selected=1, source=None):
     doc = frappe.get_doc({
         "doctype": "Outlet Gallery Item",
-        "restaurant": restaurant,
+        "outlet": restaurant,
         "media_type": "Image",
         "url": url,
         "title": f"Gallery {sort_order}",
@@ -57,8 +57,8 @@ def _make_product_with_media(restaurant, product_id, media_urls, display_order=0
 
 
 def _cleanup(restaurant):
-    frappe.db.delete("Outlet Gallery Item", {"restaurant": restaurant})
-    for p in frappe.get_all("Menu Product", {"restaurant": restaurant}, pluck="name"):
+    frappe.db.delete("Outlet Gallery Item", {"outlet": restaurant})
+    for p in frappe.get_all("Menu Product", {"outlet": restaurant}, pluck="name"):
         frappe.delete_doc("Menu Product", p, force=True, ignore_permissions=True)
     frappe.db.delete("Outlet", restaurant)
     frappe.db.commit()
@@ -119,7 +119,7 @@ class TestBatchResolveOutletMedia(unittest.TestCase):
         rest = _make_rest("FOOD02")
         try:
             _make_product_with_media(rest, "prod-food02", ["https://cdn.example.com/inactive.jpg"])
-            frappe.db.set_value("Menu Product", {"restaurant": rest}, "is_active", 0)
+            frappe.db.set_value("Menu Product", {"outlet": rest}, "is_active", 0)
             frappe.db.commit()
             result = batch_resolve_outlet_media([rest], limit_per_outlet=4, logos={rest: "https://cdn.example.com/logo.jpg"})
             urls = [m["url"] for m in result[rest]]

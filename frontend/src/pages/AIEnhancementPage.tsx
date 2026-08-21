@@ -42,7 +42,7 @@ export default function AIEnhancementPage() {
   const [selectedProduct, setSelectedProduct] = useState<string>('')
   const { data: products } = useFrappeGetDocList('Menu Product', {
     fields: ['name', 'product_name'],
-    filters: [['restaurant', '=', selectedOutlet]],
+    filters: [['outlet', '=', selectedOutlet]],
     limit: 1000
   }, `ai-products-${selectedOutlet}`)
 

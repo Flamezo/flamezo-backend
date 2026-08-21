@@ -18,9 +18,9 @@ def notify_product_update(doc, method=None):
 				'isActive': doc.is_active,
 				'price': doc.price,
 				'originalPrice': doc.original_price,
-				'restaurantId': doc.restaurant
+				'restaurantId': doc.outlet
 			},
-			room=f"restaurant:{doc.restaurant}"
+			room=f"restaurant:{doc.outlet}"
 		)
 	except Exception as e:
 		frappe.log_error(f"Error in notify_product_update: {str(e)}", "Realtime Update Error")

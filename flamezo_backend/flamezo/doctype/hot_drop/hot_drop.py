@@ -23,7 +23,7 @@ class HotDrop(Document):
 			count = frappe.db.count(
 				"Hot Drop",
 				{
-					"restaurant": self.restaurant,
+					"outlet": self.outlet,
 					"is_active": 1,
 					"ends_at": [">", now_datetime()],
 					"name": ["!=", self.name or ""],
