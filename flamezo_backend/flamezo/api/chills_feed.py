@@ -34,6 +34,7 @@ import time
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, cint
+from flamezo_backend.flamezo.utils import geo
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ WARM_THRESHOLD  = 10        # < 10 watches → blended with trending
 
 # Location scoring
 NEAR_DISTANCE_KM     = 2.0
-MAX_SCORE_DIST_KM    = 50.0
+MAX_SCORE_DIST_KM    = geo.MAX_RADIUS_KM  # 25km — unified cutoff, matches every other feed
 
 
 # ── Redis helpers (fix for Frappe TTL cache bug) ───────────────────────────────
@@ -473,13 +474,8 @@ def _score_freshness(candidate):
 
 
 def _haversine_km(lat1, lng1, lat2, lng2):
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlng = math.radians(lng2 - lng1)
-    a = (math.sin(dlat / 2) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-         math.sin(dlng / 2) ** 2)
-    return R * 2 * math.asin(math.sqrt(max(0.0, min(1.0, a))))
+    """Thin alias — see flamezo_backend.flamezo.utils.geo for the shared impl."""
+    return geo.haversine_km(lat1, lng1, lat2, lng2)
 
 
 def _score_location(candidate, user_lat, user_lng):
@@ -490,7 +486,7 @@ def _score_location(candidate, user_lat, user_lng):
     c_lng = candidate.get("lng", 0)
     if not c_lat or not c_lng:
         return 0.5
-    dist = _haversine_km(user_lat, user_lng, c_lat, c_lng)
+    dist = geo.haversine_km(user_lat, user_lng, c_lat, c_lng)
     if dist <= NEAR_DISTANCE_KM:
         return 1.0
     if dist >= MAX_SCORE_DIST_KM:
