@@ -15,6 +15,12 @@
   "image_url",
   "section_break_content",
   "content",
+  "section_break_location",
+  "latitude",
+  "longitude",
+  "column_break_loc",
+  "location_area",
+  "location_city",
   "section_break_stats",
   "likes_count",
   "comments_count",
@@ -78,6 +84,39 @@
    "fieldname": "content",
    "fieldtype": "Text",
    "label": "Caption / Text Body"
+  },
+  {
+   "fieldname": "section_break_location",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "6",
+   "description": "Where this talk is pinned — defaults to the poster's current location, editable before posting."
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "column_break_loc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "location_area",
+   "fieldtype": "Data",
+   "label": "Area",
+   "description": "Reverse-geocoded display text, e.g. \"Adajan, Surat\"."
+  },
+  {
+   "fieldname": "location_city",
+   "fieldtype": "Data",
+   "label": "City"
   },
   {
    "fieldname": "section_break_stats",

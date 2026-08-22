@@ -2,10 +2,11 @@ import time
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_datetime, add_days
+from frappe.utils import now_datetime, get_datetime, add_days, flt
 
 from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
 from flamezo_backend.flamezo.utils.link_preview import fetch_link_preview
+from flamezo_backend.flamezo.utils import geo
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ def _format_request(r, phone=None, requested_set=None, member_status_map=None):
         "outlet_id": r.outlet or "",
         "outlet_name": r.outlet_restaurant_name or "",
         "venue_name": r.venue_name or "",
+        "distance_km": r.get("distance_km"),
         "date": str(r.date) if r.date else "",
         "time": str(r.time)[:5] if r.time else "",
         "max_members": r.max_members or 4,
@@ -87,11 +89,15 @@ def _get_requested_set(phone, request_ids):
 # ── public listing ────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None, gender_preference=None):
+def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None, gender_preference=None,
+                        latitude=None, longitude=None, radius_km=None):
     phone = _optional_verified_phone(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
+    user_lat = flt(latitude) if latitude else None
+    user_lon = flt(longitude) if longitude else None
+    r_km = flt(radius_km) if radius_km else None
 
     conditions = ["cr.status='open'", "(cr.expires_at IS NULL OR cr.expires_at > %s)"]
     params = [now_datetime()]
@@ -121,6 +127,12 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
         params.append(gender_preference)
 
     where = " AND ".join(conditions)
+    has_geo = bool(user_lat and user_lon)
+    # With location, pull a wider pool (same as every other feed) and
+    # re-rank within each urgency bucket by distance — "closing soon" still
+    # jumps the queue, but among equally-urgent Team Ups the nearest wins.
+    fetch_limit = (limit * 4 if has_geo else limit) + 1
+    fetch_offset = 0 if has_geo else offset
     rows = frappe.db.sql(
         f"""
         SELECT cr.name, cr.creator_phone, cr.creator_name, cr.creator_image,
@@ -128,23 +140,34 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
                cr.date, cr.time, cr.max_members, cr.current_members,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
-               r.outlet_name AS outlet_restaurant_name
+               r.outlet_name AS outlet_restaurant_name,
+               r.latitude AS outlet_lat, r.longitude AS outlet_lng,
+               CASE WHEN cr.expires_at IS NOT NULL AND TIMESTAMPDIFF(MINUTE, NOW(), cr.expires_at) <= 120
+                    THEN 0 ELSE 1 END AS urgency_bucket
         FROM `tabCrowd Request` cr
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE {where}
-        ORDER BY
-          CASE WHEN cr.expires_at IS NOT NULL AND TIMESTAMPDIFF(MINUTE, NOW(), cr.expires_at) <= 120
-               THEN 0 ELSE 1 END ASC,
-          cr.date ASC,
-          cr.creation ASC
+        ORDER BY urgency_bucket ASC, cr.date ASC, cr.creation ASC
         LIMIT %s OFFSET %s
         """,
-        params + [limit + 1, offset],
+        params + [fetch_limit, fetch_offset],
         as_dict=True,
     )
 
-    has_more = len(rows) > limit
-    requests = rows[:limit]
+    for r in rows:
+        r["distance_km"] = None
+        if has_geo and r.outlet_lat and r.outlet_lng:
+            r["distance_km"] = round(geo.haversine_km(user_lat, user_lon, flt(r.outlet_lat), flt(r.outlet_lng)), 1)
+
+    if has_geo:
+        if r_km:
+            rows = [r for r in rows if geo.within_radius(r["distance_km"], r_km)]
+        has_more = len(rows) > offset + limit
+        rows.sort(key=lambda r: (r.urgency_bucket, -geo.location_score(r["distance_km"])))
+        requests = rows[offset:offset + limit]
+    else:
+        has_more = len(rows) > limit
+        requests = rows[:limit]
 
     req_ids = [r.name for r in requests]
     requested_set, status_map = _get_requested_set(phone, req_ids)

@@ -4,8 +4,11 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, today
 
+from frappe.utils import flt
+
 from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
 from flamezo_backend.flamezo.utils import redis_counters as rc
+from flamezo_backend.flamezo.utils import geo
 from flamezo_backend.flamezo.api.flamezo import _format_outlet_card, _batch_active_offers_count, _DISCOVERY_FIELDS
 
 
@@ -71,6 +74,9 @@ def _format_club(c, phone=None, member_set=None):
         "creator_id": c.creator or "",
         "creator_name": c.creator_display_name or "",
         "creator_image": c.creator_profile_image or "",
+        # Only present when the listing call passed viewer lat/lng — nearest
+        # located talk from this club, for a "4km away" hint on the card.
+        "nearest_talk_distance_km": c.get("nearest_talk_distance_km"),
         # True only for the exact phone that owns this club's Flamezo
         # Creator record — gates the post composer / pin / delete controls.
         # Never trust a client-side flag for this; always resolved here.
@@ -96,12 +102,41 @@ def _get_member_set(phone):
 
 # ── club listing ─────────────────────────────────────────────────────────────
 
+def _nearest_post_distance_map(club_ids, user_lat, user_lon, sample_per_club=20):
+    """{club_id: nearest_pinned_post_distance_km} — cheapest signal for "is
+    this club active near me", sampled off each club's most recent located
+    posts rather than scanning every post (a club can have thousands)."""
+    if not club_ids or not user_lat or not user_lon:
+        return {}
+    placeholders = ",".join(["%s"] * len(club_ids))
+    rows = frappe.db.sql(
+        f"""
+        SELECT club, latitude, longitude FROM (
+            SELECT club, latitude, longitude,
+                   ROW_NUMBER() OVER (PARTITION BY club ORDER BY creation DESC) AS rn
+            FROM `tabCreator Club Post`
+            WHERE club IN ({placeholders}) AND latitude IS NOT NULL AND longitude IS NOT NULL
+        ) ranked WHERE rn <= %s
+        """,
+        list(club_ids) + [sample_per_club],
+        as_dict=True,
+    )
+    nearest = {}
+    for r in rows:
+        d = geo.haversine_km(user_lat, user_lon, flt(r.latitude), flt(r.longitude))
+        if r.club not in nearest or d < nearest[r.club]:
+            nearest[r.club] = d
+    return nearest
+
+
 @frappe.whitelist(allow_guest=True)
-def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
+def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20, latitude=None, longitude=None):
     phone = _optional_verified_phone(phone)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
+    user_lat = flt(latitude) if latitude else None
+    user_lon = flt(longitude) if longitude else None
 
     conditions = ["cc.is_active=1"]
     params = []
@@ -116,25 +151,60 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20):
         params += [s, s]
 
     where = " AND ".join(conditions)
-    rows = frappe.db.sql(
-        f"""
-        SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
-               cc.category, cc.followers_count, cc.creator,
-               fc.display_name AS creator_display_name,
-               fc.profile_image AS creator_profile_image,
-               fc.customer_phone AS creator_phone
-        FROM `tabCreator Club` cc
-        LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
-        WHERE {where}
-        ORDER BY cc.followers_count DESC, cc.creation DESC
-        LIMIT %s OFFSET %s
-        """,
-        params + [limit + 1, offset],
-        as_dict=True,
-    )
 
-    has_more = len(rows) > limit
-    clubs = rows[:limit]
+    if user_lat and user_lon:
+        # Location changes ranking, not the result set — pull a wider pool,
+        # re-sort by proximity + weight, then paginate the sorted pool.
+        pool_rows = frappe.db.sql(
+            f"""
+            SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
+                   cc.category, cc.followers_count, cc.creator,
+                   fc.display_name AS creator_display_name,
+                   fc.profile_image AS creator_profile_image,
+                   fc.customer_phone AS creator_phone
+            FROM `tabCreator Club` cc
+            LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
+            WHERE {where}
+            ORDER BY cc.followers_count DESC, cc.creation DESC
+            LIMIT %s
+            """,
+            params + [max(limit * 4, 200)],
+            as_dict=True,
+        )
+        distance_map = _nearest_post_distance_map([r.name for r in pool_rows], user_lat, user_lon)
+        max_followers = max((r.followers_count or 0) for r in pool_rows) or 1
+
+        def _rank(r):
+            dist = distance_map.get(r.name)  # None = club has no located talks yet
+            pop = min((r.followers_count or 0) / max_followers, 1.0)
+            return geo.blended_score(dist, preference_score=pop, engagement_score=pop)
+
+        pool_rows.sort(key=_rank, reverse=True)
+        has_more = len(pool_rows) > offset + limit
+        clubs = pool_rows[offset:offset + limit]
+        for c in clubs:
+            d = distance_map.get(c.name)
+            c["nearest_talk_distance_km"] = round(d, 1) if d is not None else None
+    else:
+        rows = frappe.db.sql(
+            f"""
+            SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
+                   cc.category, cc.followers_count, cc.creator,
+                   fc.display_name AS creator_display_name,
+                   fc.profile_image AS creator_profile_image,
+                   fc.customer_phone AS creator_phone
+            FROM `tabCreator Club` cc
+            LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
+            WHERE {where}
+            ORDER BY cc.followers_count DESC, cc.creation DESC
+            LIMIT %s OFFSET %s
+            """,
+            params + [limit + 1, offset],
+            as_dict=True,
+        )
+        has_more = len(rows) > limit
+        clubs = rows[:limit]
+
     member_set = _get_member_set(phone)
 
     return {"success": True, "data": {
@@ -236,8 +306,13 @@ def follow_club(club_id, phone):
 
 # ── club posts ────────────────────────────────────────────────────────────────
 
-def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=None):
+def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=None, user_lat=None, user_lon=None):
     liked_set = liked_set or set()
+    p_lat = flt(p.get("latitude")) if p.get("latitude") else None
+    p_lon = flt(p.get("longitude")) if p.get("longitude") else None
+    distance_km = None
+    if user_lat and user_lon and p_lat and p_lon:
+        distance_km = round(geo.haversine_km(user_lat, user_lon, p_lat, p_lon), 1)
     post = {
         "id": p.name,
         "club_id": p.club,
@@ -249,6 +324,11 @@ def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=
         "is_liked": p.name in liked_set,
         "tagged_outlets": (tagged_map or {}).get(p.name, []),
         "created_at": str(p.creation) if p.creation else "",
+        "latitude": p_lat,
+        "longitude": p_lon,
+        "location_area": p.get("location_area") or "",
+        "location_city": p.get("location_city") or "",
+        "distance_km": distance_km,
     }
     if p.post_type == "image":
         post["image_url"] = p.image_url or ""
@@ -330,7 +410,7 @@ def _require_club_admin(club_id, phone):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
+def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None, latitude=None, longitude=None):
     phone = _optional_verified_phone(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
@@ -338,6 +418,8 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
+    user_lat = flt(latitude) if latitude else None
+    user_lon = flt(longitude) if longitude else None
 
     if not frappe.db.exists("Creator Club", {"name": club_id, "is_active": 1}):
         frappe.throw(_("Club not found"), frappe.DoesNotExistError)
@@ -351,7 +433,8 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
 
     rows = frappe.db.sql(
         f"""
-        SELECT name, club, post_type, reel, image_url, content, likes_count, comments_count, views_count, creation
+        SELECT name, club, post_type, reel, image_url, content, likes_count, comments_count,
+               views_count, creation, latitude, longitude, location_area, location_city
         FROM `tabCreator Club Post`
         WHERE {where}
         ORDER BY creation DESC
@@ -388,7 +471,7 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
     tagged_map = _get_tagged_outlets_map([p.name for p in posts])
 
     return {"success": True, "data": {
-        "posts": [_format_post(p, chills_map, liked_set, views_map, tagged_map) for p in posts],
+        "posts": [_format_post(p, chills_map, liked_set, views_map, tagged_map, user_lat, user_lon) for p in posts],
         "page": page,
         "has_more": has_more,
         "is_admin": bool(phone) and normalize_phone(phone) == _club_creator_phone(club_id),
@@ -396,16 +479,25 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_creator_feed(phone=None, limit=20, cursor=None):
+def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude=None):
     """"Latest from Creators" home feed — real posts aggregated across
     clubs, not the single-club view get_club_posts gives. Personalized to
     clubs the caller follows; falls back to recent posts across all active
     clubs when they follow none (new user) or aren't logged in, so the feed
     is never empty. Keyset-paginated on (creation, name) — page/offset
     would skip/duplicate rows as new posts land across many clubs at once,
-    same reasoning as get_club_post_comments' cursor."""
+    same reasoning as get_club_post_comments' cursor.
+
+    When latitude/longitude are given, each fetched window is re-ranked by
+    the shared location score before being returned (same "wider pool, sort,
+    cut" pattern as flamezo.get_all_outlets) — nearby talks surface first
+    without breaking the underlying keyset cursor, since the cursor still
+    walks the raw creation-ordered rows underneath."""
     phone = _optional_verified_phone(phone)
     limit = min(int(limit), 50)
+    user_lat = flt(latitude) if latitude else None
+    user_lon = flt(longitude) if longitude else None
+    fetch_limit = (limit * 4 if (user_lat and user_lon) else limit) + 1
 
     conditions = ["cc.is_active=1"]
     params = []
@@ -427,6 +519,7 @@ def get_creator_feed(phone=None, limit=20, cursor=None):
         f"""
         SELECT cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.content,
                cp.likes_count, cp.comments_count, cp.views_count, cp.creation,
+               cp.latitude, cp.longitude, cp.location_area, cp.location_city,
                cc.club_name, cc.cover_image AS club_cover_image, cc.followers_count,
                fc.display_name AS creator_display_name, fc.profile_image AS creator_profile_image
         FROM `tabCreator Club Post` cp
@@ -436,12 +529,38 @@ def get_creator_feed(phone=None, limit=20, cursor=None):
         ORDER BY cp.creation DESC, cp.name DESC
         LIMIT %s
         """,
-        params + [limit + 1],
+        params + [fetch_limit],
         as_dict=True,
     )
 
-    has_more = len(rows) > limit
-    posts = rows[:limit]
+    if user_lat and user_lon:
+        # Re-rank this window by location + engagement; the cursor for the
+        # *next* page is still taken from the raw (unsorted) tail below, so
+        # pagination keeps walking forward through real time correctly.
+        raw_has_more = len(rows) > fetch_limit - 1
+        window = rows[: fetch_limit - 1]
+        next_cursor_row = window[-1] if window else None
+
+        max_engagement = max((r.likes_count or 0) + (r.comments_count or 0) for r in window) or 1
+
+        def _rank(r):
+            dist = None
+            if r.latitude and r.longitude:
+                dist = geo.haversine_km(user_lat, user_lon, flt(r.latitude), flt(r.longitude))
+            eng = min(((r.likes_count or 0) + (r.comments_count or 0)) / max_engagement, 1.0)
+            return geo.blended_score(dist, engagement_score=eng)
+
+        window.sort(key=_rank, reverse=True)
+        posts = window[:limit]
+        has_more = raw_has_more or len(window) > limit
+        # Cursor must stay tied to real creation order, not the re-ranked
+        # order, or a later page could re-show/re-skip rows.
+        next_cursor_name = next_cursor_row.name if next_cursor_row else None
+    else:
+        has_more = len(rows) > limit
+        posts = rows[:limit]
+        next_cursor_name = posts[-1].name if posts else None
+
     post_ids = [p.name for p in posts]
 
     chills_ids = [p.reel for p in posts if p.post_type == "chills" and p.reel]
@@ -466,7 +585,7 @@ def get_creator_feed(phone=None, limit=20, cursor=None):
 
     formatted = []
     for p in posts:
-        item = _format_post(p, chills_map, liked_set, views_map, tagged_map)
+        item = _format_post(p, chills_map, liked_set, views_map, tagged_map, user_lat, user_lon)
         item.update({
             "club_name": p.club_name or "",
             "club_cover_image": p.club_cover_image or "",
@@ -479,7 +598,7 @@ def get_creator_feed(phone=None, limit=20, cursor=None):
     return {"success": True, "data": {
         "posts": formatted,
         "has_more": has_more,
-        "next_cursor": posts[-1].name if posts else None,
+        "next_cursor": next_cursor_name,
         "is_personalized": bool(member_clubs),
     }}
 
@@ -507,13 +626,21 @@ def record_club_post_view(post_id, phone=None):
 # ── club post mutations ──────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def create_club_post(club_id, phone, post_type, content=None, image_key=None, reel_id=None, tagged_outlet_ids=None):
+def create_club_post(club_id, phone, post_type, content=None, image_key=None, reel_id=None,
+                      tagged_outlet_ids=None, latitude=None, longitude=None,
+                      location_area=None, location_city=None):
     phone = _require_phone(phone)
     _require_session(phone)
     if not club_id:
         frappe.throw(_("club_id is required"))
     if post_type not in ("chills", "image", "text"):
         frappe.throw(_("Invalid post_type"))
+
+    post_lat = post_lon = None
+    if latitude is not None and longitude is not None:
+        post_lat, post_lon = flt(latitude), flt(longitude)
+        if not (-90 <= post_lat <= 90 and -180 <= post_lon <= 180):
+            frappe.throw(_("Invalid location"))
 
     club = frappe.db.get_value("Creator Club", {"name": club_id, "is_active": 1}, ["name", "creator"], as_dict=True)
     if not club:
@@ -583,6 +710,10 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
         "content": (content or "").strip(),
         "image_url": image_url,
         "reel": reel_id if post_type == "chills" else None,
+        "latitude": post_lat,
+        "longitude": post_lon,
+        "location_area": (location_area or "").strip()[:140] or None,
+        "location_city": (location_city or "").strip()[:80] or None,
     })
     doc.insert(ignore_permissions=True)
 
