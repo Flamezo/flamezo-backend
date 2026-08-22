@@ -657,7 +657,12 @@ def get_outlets_for_map(
 			return json.loads(cached)
 
 		# ── SQL ───────────────────────────────────────────────────────────────────
-		sql_filters = ["is_active = 1", "latitude IS NOT NULL", "longitude IS NOT NULL"]
+		# latitude/longitude are NOT NULL DEFAULT 0 (Frappe Float columns can't
+		# store real NULL) — "unset" is 0 here, not NULL, so exclude on value
+		# instead. Pre-existing "IS NOT NULL" here never actually excluded
+		# anything; found while auditing the same pitfall in the new Club
+		# Talk location code.
+		sql_filters = ["is_active = 1", "latitude != 0", "longitude != 0"]
 		params = []
 
 		if city:
