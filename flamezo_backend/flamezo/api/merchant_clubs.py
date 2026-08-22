@@ -50,14 +50,14 @@ def _resolve_merchant_club(outlet_id, create=True):
     outlet = validate_restaurant_for_api(outlet_id, user=user)
     o = frappe.db.get_value(
         "Outlet", outlet,
-        ["restaurant_name", "owner_phone", "logo", "outlet_type"],
+        ["outlet_name", "owner_phone", "logo", "outlet_type"],
         as_dict=True,
     )
     phone = normalize_phone(o.owner_phone) if o and o.owner_phone else None
     if not phone:
         frappe.throw(_("Add an owner phone number to this outlet to use Club Talks."))
 
-    outlet_name = o.restaurant_name or outlet
+    outlet_name = o.outlet_name or outlet
     logo = o.logo or ""
 
     creator = frappe.db.get_value("Flamezo Creator", {"customer_phone": phone}, "name")
@@ -221,16 +221,16 @@ def merchant_search_outlets(outlet_id, q=None, limit=10):
         conditions.append("name != %s")
         params.append(self_outlet)
     if q:
-        conditions.append("(restaurant_name LIKE %s OR restaurant_id LIKE %s)")
+        conditions.append("(outlet_name LIKE %s OR outlet_id LIKE %s)")
         params += [f"%{q}%", f"%{q}%"]
     where = " AND ".join(conditions)
 
     rows = frappe.db.sql(
         f"""
-        SELECT name, restaurant_id AS outlet_id, restaurant_name AS outlet_name, logo
+        SELECT name, outlet_id, outlet_name, logo
         FROM `tabOutlet`
         WHERE {where}
-        ORDER BY restaurant_name ASC
+        ORDER BY outlet_name ASC
         LIMIT %s
         """,
         params + [limit],
