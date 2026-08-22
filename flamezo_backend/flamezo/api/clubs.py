@@ -115,7 +115,10 @@ def _nearest_post_distance_map(club_ids, user_lat, user_lon, sample_per_club=20)
             SELECT club, latitude, longitude,
                    ROW_NUMBER() OVER (PARTITION BY club ORDER BY creation DESC) AS rn
             FROM `tabCreator Club Post`
-            WHERE club IN ({placeholders}) AND latitude IS NOT NULL AND longitude IS NOT NULL
+            -- Float fields default to NOT NULL 0, never actual NULL — "unset"
+            -- is 0 here, same convention as Outlet.latitude/longitude
+            -- elsewhere in this codebase.
+            WHERE club IN ({placeholders}) AND latitude != 0 AND longitude != 0
         ) ranked WHERE rn <= %s
         """,
         list(club_ids) + [sample_per_club],
