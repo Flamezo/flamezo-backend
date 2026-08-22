@@ -731,7 +731,7 @@ export default function Layout({ children }: LayoutProps) {
                 if (item.type === 'link') {
                   const Icon = item.icon
                   const isActive = location.pathname === item.href ||
-                    (item.href !== '/dashboard' && location.pathname.startsWith(item.href))
+                    (!item.exactMatch && item.href !== '/dashboard' && location.pathname.startsWith(item.href + '/'))
                   const badgeCount = item.badgeHref === '/orders'
                     ? pendingOrders
                     : item.badgeHref === '/accept-orders'
@@ -884,7 +884,8 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
-                            const isChildActive = location.pathname === child.href || (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
+                            const isChildActive = location.pathname === child.href || 
+                              (!child.exactMatch && child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
 
                             // Unified child locking logic
                             const childStatus = getFeatureStatus(child.feature)
@@ -1007,7 +1008,7 @@ export default function Layout({ children }: LayoutProps) {
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
                             const isChildActive = location.pathname === child.href ||
-                              (child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
+                              (!child.exactMatch && child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
                             const childBadgeCount = child.badgeHref === '/orders'
                               ? pendingOrders
                               : child.badgeHref === '/accept-orders'

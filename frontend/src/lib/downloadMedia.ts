@@ -31,12 +31,24 @@ export async function downloadMedia(url: string, filename?: string): Promise<voi
   if (!url) throw new Error('No file URL')
 
   const name = filename || mediaFilename(url)
-  const proxyUrl = `${PROXY}?file_url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}`
 
-  const res = await fetch(proxyUrl)
-  if (!res.ok) throw new Error(`Download failed (${res.status})`)
+  // Fast path: absolute CDN url — fetch straight from the CDN (no backend hop).
+  // Falls back to the proxy if CORS blocks it or it's a relative /files path.
+  let blob: Blob | null = null
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const direct = await fetch(url)
+      if (direct.ok) blob = await direct.blob()
+    } catch { /* CORS/network — fall through to proxy */ }
+  }
+  if (!blob) {
+    const proxyUrl = `${PROXY}?file_url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}`
+    const res = await fetch(proxyUrl)
+    if (!res.ok) throw new Error(`Download failed (${res.status})`)
+    blob = await res.blob()
+  }
 
-  const objectUrl = URL.createObjectURL(await res.blob())
+  const objectUrl = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = objectUrl
   a.download = name

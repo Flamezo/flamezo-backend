@@ -390,7 +390,7 @@ useEffect(() => {
               <div className="relative rounded-xl border overflow-hidden w-[210px] aspect-[9/16] bg-muted">
                 {tpl.url ? (
                   isVideo(tpl)
-                    ? <video src={tpl.url} muted playsInline className="w-full h-full object-cover" />
+                    ? <video src={tpl.url} muted playsInline autoPlay loop preload="metadata" className="w-full h-full object-cover" />
                     : <img src={tpl.url} alt={tpl.label} className="w-full h-full object-cover" />
                 ) : <div className="flex items-center justify-center h-full text-xs text-muted-foreground">processing…</div>}
                 {isVideo(tpl) && <Film className="absolute bottom-2 left-2 w-4 h-4 text-white drop-shadow" />}

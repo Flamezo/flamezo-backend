@@ -184,7 +184,7 @@
    "description": "Short name for links and URLs (use lowercase letters and hyphens)"
   },
   {
-   "default": "1",
+   "default": "0",
    "fieldname": "is_active",
    "fieldtype": "Check",
    "in_list_view": 1,
