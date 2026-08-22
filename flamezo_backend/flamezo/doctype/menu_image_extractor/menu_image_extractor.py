@@ -1291,20 +1291,24 @@ def process_extracted_data(data, extractor_doc):
 			continue
 		
 		product_id = dish_data.get('id') or generate_product_id_from_name(product_name, restaurant=restaurant)
-		
-		# Check if product exists for THIS restaurant
-		existing_product_name = frappe.db.get_value(
-			"Menu Product", 
-			{"product_id": product_id, "outlet": restaurant}, 
-			"name"
-		)
-		
+
+		# A dish with the same name in a DIFFERENT category is a distinct product
+		# (menus legitimately repeat e.g. "Matcha Latte" across Hot / Iced / Non
+		# Coffee at different prices). Scope the existing-product lookup by
+		# category_name so those are BOTH stored instead of the second one
+		# overwriting the first. Uncategorised dishes fall back to name-only.
+		dish_category = (dish_data.get('category') or '').strip()
+		pid_filter = {"product_id": product_id, "outlet": restaurant}
+		name_filter = {"product_name": product_name, "outlet": restaurant}
+		if dish_category:
+			pid_filter["category_name"] = dish_category
+			name_filter["category_name"] = dish_category
+
+		# Check if product exists for THIS restaurant (and category)
+		existing_product_name = frappe.db.get_value("Menu Product", pid_filter, "name")
+
 		if not existing_product_name:
-			existing_product_name = frappe.db.get_value(
-				"Menu Product", 
-				{"product_name": product_name, "outlet": restaurant}, 
-				"name"
-			)
+			existing_product_name = frappe.db.get_value("Menu Product", name_filter, "name")
 		
 		if existing_product_name:
 			# Update existing product

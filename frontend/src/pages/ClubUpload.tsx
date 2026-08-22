@@ -2,14 +2,14 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappePostCall } from '@/lib/frappe'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import {
   Megaphone, ChevronRight, Loader2,
-  Image as ImageIcon, Film, X, CheckCircle2, AlertCircle,
+  Image as ImageIcon, X, CheckCircle2, AlertCircle,
   Upload, AlignLeft
 } from 'lucide-react'
 import { uploadClubMedia, clubMediaKind } from '@/lib/clubUpload'
@@ -230,61 +230,23 @@ export default function ClubUpload() {
         </div>
 
         {/* ── Right: form ── */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Caption */}
-          <Card className="p-4 space-y-3">
-            <CardHeader className="p-0">
-              <CardTitle className="text-sm font-medium">Post Caption</CardTitle>
-            </CardHeader>
-            <div className="space-y-2">
-              <Label htmlFor="content" className="sr-only">Caption</Label>
-              <Textarea
-                id="content"
-                placeholder="What's happening at your outlet? (Optional if media is attached)"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                maxLength={1000}
-                rows={5}
-                className="resize-none text-base"
-                disabled={isUploading}
-              />
-              <p className="text-xs text-muted-foreground text-right">{content.length}/1000</p>
-            </div>
-            {/* Collaborators — tag other outlets, right below the caption */}
-            <div className="border-t pt-3">
-              <ClubCollaboratorPicker
-                outletId={selectedOutlet}
-                selected={collaborators}
-                onChange={setCollaborators}
-                disabled={isUploading}
-              />
-            </div>
-
-            {/* Media — inline (optional), so the whole post lives in one card */}
-            <div className="border-t pt-3 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Media <span className="font-normal">(optional)</span>
-              </p>
+          <Card className="p-4 space-y-2">
+            <p className="text-sm font-medium">Post Caption</p>
+            {/* Media — a small button at the top (optional). The phone preview shows the file. */}
+            <div onDragOver={(e) => e.preventDefault()} onDrop={handleMediaDrop}>
               {!mediaFile ? (
-                <div
-                  className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 text-center cursor-pointer transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleMediaDrop}
-                >
-                  <div className="flex justify-center gap-3 mb-1.5">
-                    <ImageIcon className="h-5 w-5 text-muted-foreground opacity-50" />
-                    <Film className="h-5 w-5 text-muted-foreground opacity-50" />
-                  </div>
-                  <p className="font-medium text-sm">Click or drag media here</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Image or Video (up to 500 MB)</p>
-                </div>
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="w-full gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Add Media
+                </Button>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    <div className="h-10 w-16 rounded-md bg-black flex items-center justify-center shrink-0 overflow-hidden">
                       {isVideo ? (
-                        <Film className="h-5 w-5 text-muted-foreground" />
+                        <video src={mediaPreviewUrl!} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                       ) : (
                         <img src={mediaPreviewUrl!} alt="Thumb" className="w-full h-full object-cover" />
                       )}
@@ -300,6 +262,32 @@ export default function ClubUpload() {
                 </div>
               )}
               <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMediaSelected(f); if(fileInputRef.current) fileInputRef.current.value='' }} />
+            </div>
+
+            {/* Caption */}
+            <div className="space-y-2">
+              <Label htmlFor="content" className="sr-only">Caption</Label>
+              <Textarea
+                id="content"
+                placeholder="What's happening at your outlet? (Optional if media is attached)"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                maxLength={1000}
+                rows={5}
+                className="resize-none text-base"
+                disabled={isUploading}
+              />
+              <p className="text-xs text-muted-foreground text-right">{content.length}/1000</p>
+            </div>
+
+            {/* Collaborators — tag other outlets */}
+            <div className="border-t pt-2.5">
+              <ClubCollaboratorPicker
+                outletId={selectedOutlet}
+                selected={collaborators}
+                onChange={setCollaborators}
+                disabled={isUploading}
+              />
             </div>
           </Card>
 
