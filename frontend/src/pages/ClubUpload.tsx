@@ -259,49 +259,48 @@ export default function ClubUpload() {
                 disabled={isUploading}
               />
             </div>
-          </Card>
 
-          {/* Media Attachment */}
-          <Card className="p-4 space-y-3">
-            <CardHeader className="p-0">
-              <CardTitle className="text-sm font-medium">Media (Optional)</CardTitle>
-            </CardHeader>
-            
-            {!mediaFile ? (
-              <div 
-                className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-5 text-center cursor-pointer transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleMediaDrop}
-              >
-                <div className="flex justify-center gap-3 mb-2">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground opacity-50" />
-                  <Film className="h-6 w-6 text-muted-foreground opacity-50" />
-                </div>
-                <p className="font-medium text-sm">Click or drag media here</p>
-                <p className="text-xs text-muted-foreground mt-1">Image or Video (up to 500 MB)</p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                    {isVideo ? (
-                      <Film className="h-5 w-5 text-muted-foreground" />
-                    ) : (
-                      <img src={mediaPreviewUrl!} alt="Thumb" className="w-full h-full object-cover" />
-                    )}
+            {/* Media — inline (optional), so the whole post lives in one card */}
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Media <span className="font-normal">(optional)</span>
+              </p>
+              {!mediaFile ? (
+                <div
+                  className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 text-center cursor-pointer transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleMediaDrop}
+                >
+                  <div className="flex justify-center gap-3 mb-1.5">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground opacity-50" />
+                    <Film className="h-5 w-5 text-muted-foreground opacity-50" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{mediaFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{(mediaFile.size / 1024 / 1024).toFixed(1)} MB</p>
-                  </div>
+                  <p className="font-medium text-sm">Click or drag media here</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Image or Video (up to 500 MB)</p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => { setMediaFile(null); setMediaPreviewUrl(null) }} disabled={isUploading} className="text-muted-foreground hover:text-destructive shrink-0">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMediaSelected(f); if(fileInputRef.current) fileInputRef.current.value='' }} />
+              ) : (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                      {isVideo ? (
+                        <Film className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <img src={mediaPreviewUrl!} alt="Thumb" className="w-full h-full object-cover" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{mediaFile.name}</p>
+                      <p className="text-xs text-muted-foreground">{(mediaFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => { setMediaFile(null); setMediaPreviewUrl(null) }} disabled={isUploading} className="text-muted-foreground hover:text-destructive shrink-0">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMediaSelected(f); if(fileInputRef.current) fileInputRef.current.value='' }} />
+            </div>
           </Card>
 
           {/* Niche tags */}

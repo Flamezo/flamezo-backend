@@ -16,6 +16,7 @@ import {
   Play, Share2, MapPin
 } from 'lucide-react'
 import { ClubPost } from '@/components/clubtalks/ClubPostCard'
+import StatTiles from '@/components/StatTiles'
 import ClubPostDetail from '@/components/clubtalks/ClubPostDetail'
 
 // ── MOCK engagement (placeholder until real app data flows) ──────────────────
@@ -316,21 +317,14 @@ export default function ClubTalks() {
 
       {/* Quick stats (from loaded page, not full analytics but useful overview) */}
       {posts.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {[
+        <StatTiles
+          stats={[
             { label: 'Total Views', value: formatCount(totalViews), icon: Eye },
             { label: 'Total Likes', value: formatCount(totalLikes), icon: Heart },
             { label: 'Total Comments', value: formatCount(totalComments), icon: MessageCircle },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card key={label} className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Icon className="h-4 w-4" />
-                <span className="text-xs">{label}</span>
-              </div>
-              <p className="text-2xl font-semibold tabular-nums">{value}</p>
-            </Card>
-          ))}
-        </div>
+            { label: 'Total Posts', value: formatCount(posts.length), icon: Megaphone },
+          ]}
+        />
       )}
 
       {/* Empty state */}
