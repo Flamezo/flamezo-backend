@@ -18,6 +18,7 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 )
 from flamezo_backend.flamezo.utils.loyalty import get_loyalty_balance, get_loyalty_tier
 from flamezo_backend.flamezo.utils.outlet_media import batch_resolve_outlet_media
+from flamezo_backend.flamezo.utils import geo
 import json
 import math
 import hashlib
@@ -26,12 +27,9 @@ import hashlib
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _haversine_km(lat1, lon1, lat2, lon2):
-	"""Distance in km between two lat/lon points."""
-	R = 6371.0
-	d_lat = math.radians(lat2 - lat1)
-	d_lon = math.radians(lon2 - lon1)
-	a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
-	return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+	"""Distance in km between two lat/lon points. Kept as a thin alias — see
+	flamezo_backend.flamezo.utils.geo for the shared implementation."""
+	return geo.haversine_km(lat1, lon1, lat2, lon2)
 
 
 def _get_outlet_primary_color(outlet_name):
@@ -659,7 +657,12 @@ def get_outlets_for_map(
 			return json.loads(cached)
 
 		# ── SQL ───────────────────────────────────────────────────────────────────
-		sql_filters = ["is_active = 1", "latitude IS NOT NULL", "longitude IS NOT NULL"]
+		# latitude/longitude are NOT NULL DEFAULT 0 (Frappe Float columns can't
+		# store real NULL) — "unset" is 0 here, not NULL, so exclude on value
+		# instead. Pre-existing "IS NOT NULL" here never actually excluded
+		# anything; found while auditing the same pitfall in the new Club
+		# Talk location code.
+		sql_filters = ["is_active = 1", "latitude != 0", "longitude != 0"]
 		params = []
 
 		if city:
