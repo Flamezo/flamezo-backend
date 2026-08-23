@@ -266,9 +266,22 @@ class TestGetCreatorClubs(unittest.TestCase):
         club_data = next(c for c in result["clubs"] if c["id"] == self.club.name)
         self.assertTrue(club_data["is_following"])
 
-    def test_is_admin_true_for_real_creator(self):
+    def test_own_club_excluded_from_discover(self):
+        # A creator's own club never appears in this listing — it belongs
+        # in the dedicated get_my_creator_club "Your Club" slot instead, not
+        # mixed into "clubs you might follow". Guests/other users still see
+        # it (test_pagination etc. above run with no phone at all).
         with _verified_session():
             result = clubs.get_creator_clubs(phone=_PHONE_A)["data"]
+        ids = [c["id"] for c in result["clubs"]]
+        self.assertNotIn(self.club.name, ids)
+
+    def test_is_admin_true_for_real_creator(self):
+        # is_admin now lives on get_my_creator_club, not get_creator_clubs —
+        # the creator's own club is excluded from the latter entirely
+        # (see test_own_club_excluded_from_discover).
+        with _verified_session():
+            result = clubs.get_my_creator_club(phone=_PHONE_A)["data"]
         club_data = next(c for c in result["clubs"] if c["id"] == self.club.name)
         self.assertTrue(club_data["is_admin"])
 
@@ -328,9 +341,15 @@ class TestAdminPhoneNormalization(unittest.TestCase):
             frappe.delete_doc("Flamezo Creator", existing, force=True, ignore_permissions=True)
             frappe.db.commit()
 
-    def test_is_admin_true_despite_prefix_mismatch(self):
+    def test_own_club_excluded_from_discover_despite_prefix_mismatch(self):
         with _verified_session():
             result = clubs.get_creator_clubs(phone=self._BARE_PHONE)["data"]
+        ids = [c["id"] for c in result["clubs"]]
+        self.assertNotIn(self.club.name, ids)
+
+    def test_is_admin_true_despite_prefix_mismatch(self):
+        with _verified_session():
+            result = clubs.get_my_creator_club(phone=self._BARE_PHONE)["data"]
         club_data = next(c for c in result["clubs"] if c["id"] == self.club.name)
         self.assertTrue(club_data["is_admin"])
 
