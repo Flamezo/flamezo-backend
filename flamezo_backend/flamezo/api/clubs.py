@@ -100,6 +100,23 @@ def _get_member_set(phone):
     return {r.club for r in rows}
 
 
+def _creator_id_for_phone(phone):
+    """Resolves the Flamezo Creator record owned by this phone, if any —
+    the reverse of `_club_creator_phone`. `customer_phone` isn't always
+    stored bare (some rows carry a +91 prefix), so match on either form
+    rather than assuming the caller's phone matches exactly."""
+    if not phone:
+        return None
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return None
+    return frappe.db.get_value(
+        "Flamezo Creator",
+        {"customer_phone": ["in", [normalized, f"+91{normalized}", f"91{normalized}"]]},
+        "name",
+    )
+
+
 # ── club listing ─────────────────────────────────────────────────────────────
 
 def _nearest_post_distance_map(club_ids, user_lat, user_lon, sample_per_club=20):
@@ -152,6 +169,15 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20, 
         conditions.append("(cc.club_name LIKE %s OR cc.niche LIKE %s)")
         s = f"%{search}%"
         params += [s, s]
+
+    # A creator never needs to "discover" their own club — it belongs in
+    # the dedicated "Your Club" slot (get_my_creator_club), not mixed into
+    # suggestions/search/all-clubs where it reads as someone else's club
+    # you could follow.
+    my_creator_id = _creator_id_for_phone(phone) if phone else None
+    if my_creator_id:
+        conditions.append("cc.creator != %s")
+        params.append(my_creator_id)
 
     where = " AND ".join(conditions)
 
@@ -1025,6 +1051,42 @@ def get_my_clubs(phone):
     )
 
     member_set = {r.name for r in rows}
+    return {"success": True, "data": {
+        "clubs": [_format_club(c, phone, member_set) for c in rows]
+    }}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_my_creator_club(phone):
+    """The club(s) the caller themselves created (as creator/admin) — the
+    "Your Club" quick-access slot on Club Talks, kept separate from
+    get_my_clubs (membership/follows) and always excluded from
+    get_creator_clubs' discover listing (see that function's own-club
+    filter). A creator only ever owns one club today, but this returns a
+    list rather than assuming that stays true forever."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+
+    my_creator_id = _creator_id_for_phone(phone)
+    if not my_creator_id:
+        return {"success": True, "data": {"clubs": []}}
+
+    rows = frappe.db.sql(
+        """
+        SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
+               cc.category, cc.followers_count, cc.creator,
+               fc.display_name AS creator_display_name,
+               fc.profile_image AS creator_profile_image,
+               fc.customer_phone AS creator_phone
+        FROM `tabCreator Club` cc
+        LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
+        WHERE cc.creator=%s AND cc.is_active=1
+        ORDER BY cc.creation ASC
+        """,
+        my_creator_id,
+        as_dict=True,
+    )
+    member_set = _get_member_set(phone)
     return {"success": True, "data": {
         "clubs": [_format_club(c, phone, member_set) for c in rows]
     }}
