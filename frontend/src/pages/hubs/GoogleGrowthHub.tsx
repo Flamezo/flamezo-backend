@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 const GoogleGrowth = lazy(() => import('../GoogleGrowth'))
 const GoogleGrowthReviews = lazy(() => import('../GoogleGrowthReviews'))
@@ -16,16 +16,16 @@ export default function GoogleGrowthHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Google Growth</h1>
-        <p className="text-sm text-muted-foreground">Discovery Loop & AI-assisted review replies</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="discovery">Discovery Loop</TabsTrigger>
-          <TabsTrigger value="reviews">Reviews & AI Reply</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="Google Growth"
+        subtitle="Discovery Loop & AI-assisted review replies"
+        tabs={[
+          { value: 'discovery', label: 'Discovery Loop' },
+          { value: 'reviews', label: 'Reviews & AI Reply' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'discovery' && <GoogleGrowth />}
         {activeTab === 'reviews' && <GoogleGrowthReviews />}

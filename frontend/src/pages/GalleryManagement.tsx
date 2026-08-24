@@ -69,6 +69,19 @@ export default function GalleryManagement() {
   // Second level inside "Menu Images" → Food / Beverages / Combos.
   const [selectedSubFolder, setSelectedSubFolder] = useState<string | null>(null)
   const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null)
+  // Bulk-select mode: tick multiple tiles and delete them in one go, instead of
+  // opening each item's edit box to delete it individually.
+  const [selectMode, setSelectMode] = useState(false)
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  const toggleBulk = (url: string) => setBulkSelected((prev) => {
+    const next = new Set(prev)
+    next.has(url) ? next.delete(url) : next.add(url)
+    return next
+  })
+  const exitSelectMode = () => { setSelectMode(false); setBulkSelected(new Set()) }
 
   const handleDownload = async (media: any) => {
     setDownloadingUrl(media.url)
@@ -416,6 +429,34 @@ export default function GalleryManagement() {
     }
   }
 
+  const deleteOneMedia = async (media: any) => {
+    const src = media.source_type || 'Gallery'
+    if (src === 'Gallery' && media.gallery_item_name) {
+      await deleteGalleryItem('Outlet Gallery Item', media.gallery_item_name)
+    } else {
+      await deleteOutletMedia({ outlet_id: selectedOutlet, source_type: src, url: media.url })
+    }
+  }
+
+  // Delete every ticked tile in one go (best-effort — one failure doesn't stop
+  // the rest; we report how many actually went).
+  const handleBulkDelete = async () => {
+    const items = mediaPool.filter((m: any) => bulkSelected.has(m.url))
+    if (!items.length) return
+    setBulkDeleting(true)
+    let ok = 0
+    for (const media of items) {
+      try { await deleteOneMedia(media); ok++ } catch { /* keep going */ }
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+    exitSelectMode()
+    mutateSelected()
+    mutatePool()
+    if (ok === items.length) toast.success(`Deleted ${ok} item${ok !== 1 ? 's' : ''}`)
+    else toast.error(`Deleted ${ok} of ${items.length} — some couldn't be removed`)
+  }
+
   if (!selectedOutlet) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
@@ -655,6 +696,7 @@ export default function GalleryManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
+                              exitSelectMode()
                               if (selectedFolder === 'Menu Images' && selectedSubFolder) setSelectedSubFolder(null)
                               else setSelectedFolder(null)
                             }}
@@ -663,9 +705,26 @@ export default function GalleryManagement() {
                             <ArrowLeft className="h-3.5 w-3.5 mr-2" />
                             {(selectedFolder === 'Menu Images' && selectedSubFolder) ? 'Back to Menu Images' : 'Back to Library'}
                         </Button>
-                        <div className="flex items-center gap-2">
-                            <FolderOpen className="h-4 w-4 text-primary" />
-                            <span className="font-bold text-sm text-foreground">{selectedFolder}{selectedSubFolder ? ` / ${selectedSubFolder}` : ''}</span>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <FolderOpen className="h-4 w-4 text-primary" />
+                                <span className="font-bold text-sm text-foreground">{selectedFolder}{selectedSubFolder ? ` / ${selectedSubFolder}` : ''}</span>
+                            </div>
+                            {SECTIONS.some(([, items]) => items.length > 0) && (
+                              selectMode ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-muted-foreground tabular-nums">{bulkSelected.size} selected</span>
+                                    <Button size="sm" variant="destructive" className="h-8" disabled={bulkSelected.size === 0} onClick={() => setBulkDeleteOpen(true)}>
+                                        <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-8" onClick={exitSelectMode}>Cancel</Button>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="outline" className="h-8" onClick={() => setSelectMode(true)}>
+                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Select
+                                </Button>
+                              )
+                            )}
                         </div>
                     </div>
 
@@ -748,30 +807,45 @@ export default function GalleryManagement() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {sectionItems.map((media: any) => {
                                 const isSelected = !!media.is_selected && !!media.is_in_gallery;
+                                const isChecked = bulkSelected.has(media.url);
                                 return (
-                                    <div 
-                                        key={media.url} 
+                                    <div
+                                        key={media.url}
                                         className={cn(
                                             "group relative aspect-square rounded-xl overflow-hidden border transition-all cursor-pointer shadow-sm hover:shadow-md",
-                                            isSelected 
-                                                ? "border-primary ring-4 ring-primary/10 shadow-sm" 
+                                            isChecked
+                                                ? "border-destructive ring-4 ring-destructive/20"
+                                                : isSelected
+                                                ? "border-primary ring-4 ring-primary/10 shadow-sm"
                                                 : "border-border hover:border-primary/40"
                                         )}
-                                        onClick={() => setEditingItem({ 
-                                            ...media, 
+                                        onClick={() => selectMode
+                                            ? toggleBulk(media.url)
+                                            : setEditingItem({
+                                            ...media,
                                             name: media.gallery_item_name,
-                                            title: media.source_title || '', 
+                                            title: media.source_title || '',
                                             sort_order: media.sort_order || 0,
                                             media_type: (media.type || 'image').charAt(0).toUpperCase() + (media.type || 'image').slice(1)
                                         })}
                                     >
+                                        {selectMode && (
+                                            <div className="absolute top-3 left-3 z-20">
+                                                <div className={cn(
+                                                    "h-6 w-6 rounded-md border-2 flex items-center justify-center shadow-lg transition-colors",
+                                                    isChecked ? "bg-destructive border-destructive text-white" : "bg-white/85 border-white"
+                                                )}>
+                                                    {isChecked && <CheckCircle2 className="h-4 w-4" />}
+                                                </div>
+                                            </div>
+                                        )}
                                         {media.type === 'video' ? (
                                             <video src={encodeURI(media.url)} className="w-full h-full object-cover" muted />
                                         ) : (
                                             <img src={encodeURI(media.url)} className="w-full h-full object-cover" alt="" />
                                         )}
                                         
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end gap-3">
+                                        <div className={cn("absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end gap-3", selectMode && "hidden")}>
                                             <div className="space-y-0.5 text-left">
                                                 <p className="text-[10px] font-bold text-white/60 uppercase">{media.source_type}</p>
                                                 <p className="text-xs font-bold text-white truncate">{media.source_title}</p>
@@ -803,30 +877,48 @@ export default function GalleryManagement() {
                                             </div>
                                         </div>
 
+                                        {!selectMode && (
                                         <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 items-end">
                                             {isSelected && (
                                                 <div className="bg-primary text-white p-1 rounded-full shadow-lg">
                                                     <CheckCircle2 className="h-3 w-3" />
                                                 </div>
                                             )}
-                                            <Button 
-                                                size="icon" 
-                                                variant="secondary" 
-                                                className="h-8 w-8 rounded-full bg-white/90 hover:bg-white shadow-lg text-black border-none opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
-                                                onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    setEditingItem({ 
-                                                        ...media, 
-                                                        name: media.gallery_item_name,
-                                                        title: media.source_title || '', 
-                                                        sort_order: media.sort_order || 0,
-                                                        media_type: (media.type || 'image').charAt(0).toUpperCase() + (media.type || 'image').slice(1)
-                                                    });
-                                                }}
-                                            >
-                                                <Edit className="h-3.5 w-3.5" />
-                                            </Button>
+                                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100">
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    title="Edit"
+                                                    className="h-8 w-8 rounded-full bg-white/90 hover:bg-white shadow-lg text-black border-none"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingItem({
+                                                            ...media,
+                                                            name: media.gallery_item_name,
+                                                            title: media.source_title || '',
+                                                            sort_order: media.sort_order || 0,
+                                                            media_type: (media.type || 'image').charAt(0).toUpperCase() + (media.type || 'image').slice(1)
+                                                        });
+                                                    }}
+                                                >
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    title="Delete"
+                                                    className="h-8 w-8 rounded-full bg-white/90 hover:bg-white shadow-lg text-destructive hover:text-destructive border-none"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setItemToDelete({ ...media, name: media.gallery_item_name });
+                                                        setDeleteDialogOpen(true);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
                                         </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -1059,14 +1151,6 @@ export default function GalleryManagement() {
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => { setItemToDelete(editingItem); setEditingItem(null); setDeleteDialogOpen(true); }}
-                        className="font-bold text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive gap-2"
-                    >
-                        <Trash2 className="h-4 w-4" /> Delete
-                    </Button>
                     <Button type="button" variant="ghost" onClick={() => setEditingItem(null)} className="flex-1 font-bold">Cancel</Button>
                     <Button type="submit" className="flex-[2] font-bold shadow-sm">Save Changes</Button>
                 </div>
@@ -1092,6 +1176,28 @@ export default function GalleryManagement() {
               className="rounded-lg font-bold text-sm bg-destructive text-white hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirm */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={(o) => !bulkDeleting && setBulkDeleteOpen(o)}>
+        <AlertDialogContent className="rounded-2xl border border-border shadow-2xl p-6">
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle className="text-lg font-bold">Delete {bulkSelected.size} item{bulkSelected.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm font-medium">
+              The selected media will be permanently removed. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-6">
+            <AlertDialogCancel disabled={bulkDeleting} className="rounded-lg font-bold text-sm">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={bulkDeleting}
+              className="rounded-lg font-bold text-sm bg-destructive text-white hover:bg-destructive/90"
+            >
+              {bulkDeleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting…</> : `Delete ${bulkSelected.size}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -93,7 +93,7 @@ export default function ClubAnalytics() {
   const [allPosts, setAllPosts] = useState<PostRow[]>([])
 
   // Aggregate analytics
-  const { data: analyticsRes, isLoading: analyticsLoading } = useFrappeGetCall(
+  const { data: analyticsRes, isLoading: analyticsLoading, error: analyticsError, mutate: retryAnalytics } = useFrappeGetCall(
     `${PAGE}.merchant_get_club_analytics`,
     selectedOutlet ? { outlet_id: selectedOutlet } : undefined,
     selectedOutlet ? `club-analytics-${selectedOutlet}` : undefined,
@@ -117,6 +117,19 @@ export default function ClubAnalytics() {
   }, [postsRes])
 
   if (outletLoading || analyticsLoading || postsLoading) return <div className="p-10 text-center"><TrendingUp className="animate-pulse mx-auto opacity-50" /></div>
+
+  // Real fetch failure — surface it with a retry instead of masking as "no data".
+  if (analyticsError && !analytics) {
+    return (
+      <div className="p-6">
+        <div className="max-w-md mx-auto text-center rounded-xl border p-8 space-y-3">
+          <p className="font-semibold">Couldn't load analytics</p>
+          <p className="text-sm text-muted-foreground">Something went wrong fetching your Club Talks performance. Please try again.</p>
+          <Button size="sm" onClick={() => retryAnalytics()}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
 
   const noData = !analytics || analytics.total_posts === 0
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, X, Loader2, Store } from 'lucide-react'
+import { Search, X, Loader2, Store, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useFrappePostCall } from '@/lib/frappe'
 
 /**
@@ -53,8 +54,10 @@ export function BranchOfPicker({
       try {
         const res: any = await search({ query, limit: 20 })
         const data = res?.message ?? res
+        // Keep already-selected outlets in the list too (shown checked) so the
+        // admin can tick/untick several at once, checkbox-style.
         const list: Branch[] = (data?.branches || []).filter(
-          (b: Branch) => b.id !== undefined && !excludeIds.includes(b.id) && !selectedIds.has(b.id),
+          (b: Branch) => b.id !== undefined && !excludeIds.includes(b.id),
         )
         setResults(list)
       } catch {
@@ -67,10 +70,11 @@ export function BranchOfPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, open])
 
-  const add = (b: Branch) => {
-    onChange([...value, { id: b.id, name: b.restaurant_name || b.id }])
-    setQuery('')
-    // keep the box open for quick multi-add
+  // Checkbox-style toggle: tick to add, tick again to remove. Query/box stay so
+  // multiple outlets can be selected in one go.
+  const toggle = (b: Branch) => {
+    if (selectedIds.has(b.id)) onChange(value.filter((v) => v.id !== b.id))
+    else onChange([...value, { id: b.id, name: b.restaurant_name || b.id }])
   }
   const remove = (id: string) => onChange(value.filter((v) => v.id !== id))
 
@@ -110,20 +114,27 @@ export function BranchOfPicker({
           {results.length === 0 && !loading ? (
             <div className="px-3 py-3 text-sm text-muted-foreground">No matching outlets.</div>
           ) : (
-            results.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/60"
-                onMouseDown={(e) => { e.preventDefault(); add(b) }}
-              >
-                <Store className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{b.restaurant_name || b.id}</span>
-                  {b.city && <span className="block truncate text-xs text-muted-foreground">{b.city}</span>}
-                </span>
-              </button>
-            ))
+            results.map((b) => {
+              const sel = selectedIds.has(b.id)
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={cn('flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60', sel && 'bg-primary/5')}
+                  onMouseDown={(e) => { e.preventDefault(); toggle(b) }}
+                >
+                  <span className={cn('flex h-4 w-4 items-center justify-center rounded border shrink-0 transition-colors',
+                    sel ? 'bg-primary border-primary text-primary-foreground' : 'border-border')}>
+                    {sel && <Check className="h-3 w-3" />}
+                  </span>
+                  <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{b.restaurant_name || b.id}</span>
+                    {b.city && <span className="block truncate text-xs text-muted-foreground">{b.city}</span>}
+                  </span>
+                </button>
+              )
+            })
           )}
         </div>
       )}

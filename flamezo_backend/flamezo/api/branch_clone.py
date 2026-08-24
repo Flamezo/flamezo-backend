@@ -142,6 +142,66 @@ def remove_from_group(outlet_id):
 	return {"success": True}
 
 
+@frappe.whitelist()
+def rename_group(group_id, group_name):
+	"""Rename an existing Merchant Group."""
+	_assert_admin()
+	if not frappe.db.exists("Merchant Group", group_id):
+		return {"success": False, "error": "Group not found"}
+	name = (group_name or "").strip()
+	if not name:
+		return {"success": False, "error": "Group name is required"}
+	# Block a name collision with a DIFFERENT group.
+	clash = frappe.db.get_value("Merchant Group", {"group_name": name}, "name")
+	if clash and clash != group_id:
+		return {"success": False, "error": f"A group named '{name}' already exists"}
+	frappe.db.set_value("Merchant Group", group_id, "group_name", name)
+	return {"success": True, "group": group_id, "group_name": name}
+
+
+@frappe.whitelist()
+def delete_group(group_id):
+	"""Delete a Merchant Group. Any branches in it are detached (made standalone),
+	never deleted — only the grouping is removed."""
+	_assert_admin()
+	if not frappe.db.exists("Merchant Group", group_id):
+		return {"success": False, "error": "Group not found"}
+	detached = 0
+	for r in frappe.get_all("Outlet", filters={"branch_group": group_id}, pluck="name"):
+		frappe.db.set_value("Outlet", r, "branch_group", None)
+		detached += 1
+	frappe.delete_doc("Merchant Group", group_id, ignore_permissions=True, force=True)
+	return {"success": True, "detached": detached}
+
+
+@frappe.whitelist()
+def assign_outlet_group(outlet_id, group_id=None, group_name=None):
+	"""Assign ONE outlet to a group — the "add merchant to a group" action used by
+	the add-merchant popup and the group manager. If group_id is given, use it; else
+	if group_name is given, reuse an existing group of that name or CREATE a new one.
+	Pass neither to detach the outlet (make it standalone)."""
+	_assert_admin()
+	if not frappe.db.exists("Outlet", outlet_id):
+		return {"success": False, "error": "Outlet not found"}
+
+	target = None
+	if group_id:
+		if not frappe.db.exists("Merchant Group", group_id):
+			return {"success": False, "error": "Group not found"}
+		target = group_id
+	elif group_name and group_name.strip():
+		name = group_name.strip()
+		existing = frappe.db.get_value("Merchant Group", {"group_name": name}, "name")
+		if existing:
+			target = existing
+		else:
+			target = frappe.get_doc({"doctype": "Merchant Group", "group_name": name}).insert(ignore_permissions=True).name
+
+	frappe.db.set_value("Outlet", outlet_id, "branch_group", target)  # None = detach
+	return {"success": True, "outlet": outlet_id, "group": target,
+	        "group_name": frappe.db.get_value("Merchant Group", target, "group_name") if target else None}
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Cloning helpers — each returns a mapping of source docname -> target docname so
 # foreign keys (category, parent_category, addon_group) can be re-pointed.
