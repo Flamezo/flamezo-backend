@@ -804,7 +804,7 @@ export default function AdminCustomerDetail() {
         {/* LOYALTY */}
         {activeTab === 'loyalty' && (
           <div className="space-y-5 max-w-5xl">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <StatCard icon={Wallet}        label="Spendable Balance" value={fmtR(loyalty.balance)}          accent="border-primary/30 bg-primary/5" />
               <StatCard icon={ArrowUpRight}  label="Lifetime Earned"   value={fmtR(loyalty.lifetime_earned)} />
               <StatCard icon={ArrowDownLeft} label="Total Redeemed"    value={fmtR(stats.total_redeemed)} />

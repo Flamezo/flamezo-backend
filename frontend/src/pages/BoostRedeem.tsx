@@ -128,7 +128,7 @@ export default function BoostRedeem() {
 
       {/* Quick Stats */}
       {!loading && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Card className="border-none bg-card shadow-sm"><CardContent className="pt-3 pb-2 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Today</p>
             <p className="text-2xl font-bold text-orange-600">{stats.today}</p>

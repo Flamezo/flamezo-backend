@@ -19,8 +19,8 @@ export default function ModuleDetail() {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
   const { selectedOutlet } = useOutlet()
-  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
-  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf')
+  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.get_qr_codes_pdf_url')
+  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.generate_qr_codes_pdf')
 
   // Load QR code URL for Restaurant doctype
   useEffect(() => {

@@ -352,6 +352,44 @@ function LockedInsight({ title, description, children, isUnlocked }: { title: st
   )
 }
 
+// New-merchant setup checklist — only rendered while genuinely useful (few/no
+// products or zero scans yet), never shown once a merchant is up and running.
+function SetupChecklist({ items }: { items: { label: string, done: boolean, href: string }[] }) {
+  const remaining = items.filter(i => !i.done).length
+  if (remaining === 0) return null
+  return (
+    <Card className="border-none bg-card shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            Get set up
+          </CardTitle>
+          <span className="text-[11px] font-medium text-muted-foreground">{items.length - remaining}/{items.length} done</span>
+        </div>
+        <CardDescription className="text-xs">A few quick steps to get the most out of Flamezo</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            to={item.href}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors",
+              item.done
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-400"
+                : "border-border bg-muted/30 text-foreground hover:bg-muted/60"
+            )}
+          >
+            {item.done ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 flex-shrink-0" />}
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
 // Main Dashboard Component
 export default function Dashboard() {
   const { selectedOutlet, setSelectedOutlet, referralCode, outlets: allRestaurants, outletConfig, outletType } = useOutlet()
@@ -429,11 +467,22 @@ export default function Dashboard() {
 
   // QR Scan Analytics
   const { data: qrAnalyticsRaw } = useFrappeGetCall(
-    'flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics',
+    'flamezo_backend.flamezo.doctype.outlet.outlet.get_qr_scan_analytics',
     { restaurant: selectedOutlet, days: 30 },
     selectedOutlet ? `qr-analytics-${selectedOutlet}` : null
   )
   const qrAnalyticsData = qrAnalyticsRaw?.message?.success ? qrAnalyticsRaw.message.data : null
+
+  // Setup checklist — shown only while the outlet still looks "new"
+  const hasProducts = (products?.length || 0) > 0
+  const hasScans = (qrAnalyticsData?.totalScans || 0) > 0 || (analyticsData?.traffic?.totalViews || 0) > 0
+  const isNewOutlet = !hasProducts || !hasScans
+  const checklistItems = [
+    { label: 'Add your menu items', done: hasProducts, href: '/menu' },
+    { label: 'Get your first QR scan', done: hasScans, href: '/dashboard' },
+    { label: 'Set up loyalty rewards', done: false, href: '/loyalty-settings' },
+    { label: 'Create your first offer', done: false, href: '/coupons' },
+  ]
 
   // Pseudo-random generator for realistic restaurant-specific data
   const seedStr = selectedOutlet || 'default';
@@ -608,6 +657,8 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {isNewOutlet && <SetupChecklist items={checklistItems} />}
 
       {/* --- PRODUCTION ANALYTICS GRID --- */}
       <div className="space-y-8">

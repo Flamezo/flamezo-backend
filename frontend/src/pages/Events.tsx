@@ -869,7 +869,7 @@ export function EventDialog({ open, onClose, event, onSave, aiGenerated, lockMer
             <div className="space-y-2 col-span-2">
               <Label>Event Image / Video</Label>
               {media.length > 0 && (
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {media.map((m, i) => (
                     <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border bg-muted">
                       {m.type === 'video'
