@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import {
   Eye, MessageCircle, Heart, Trash2, Upload, BarChart3,
   Loader2, ChevronDown, Megaphone,
-  Play, Share2, MapPin
+  Play, Share2, MapPin, Phone
 } from 'lucide-react'
 import { ClubPost } from '@/components/clubtalks/ClubPostCard'
 import StatTiles from '@/components/StatTiles'
@@ -235,6 +235,7 @@ export default function ClubTalks() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [detailPost, setDetailPost] = useState<ClubPost | null>(null)
+  const [needsPhone, setNeedsPhone] = useState(false)
 
   const { call: getMyPosts } = useFrappePostCall(`${PAGE}.merchant_get_my_posts`)
   const { call: deletePostCall } = useFrappePostCall(`${PAGE}.merchant_delete_post`)
@@ -248,6 +249,7 @@ export default function ClubTalks() {
       const fresh: ClubPost[] = (data?.posts || []).map(withMockCounts)  // MOCK: placeholder counts
       setPosts(prev => (overwrite ? fresh : [...prev, ...fresh]))
       setHasMore(!!data?.has_more)
+      setNeedsPhone(!!data?.needs_phone)
       setPage(p)
     } catch (e: any) {
       toast.error(e.message || 'Could not load your posts')
@@ -308,12 +310,25 @@ export default function ClubTalks() {
             <BarChart3 className="h-4 w-4 mr-2" />
             Analytics
           </Button>
-          <Button size="sm" onClick={() => navigate('/club-talks/upload')}>
+          <Button size="sm" onClick={() => navigate('/club-talks/upload')} disabled={needsPhone}>
             <Upload className="h-4 w-4 mr-2" />
             New Post
           </Button>
         </div>
       </div>
+
+      {/* Needs owner phone before posting */}
+      {needsPhone && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+          <Phone className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800 dark:text-amber-300">Add your outlet's phone number first</p>
+            <p className="text-amber-700/80 dark:text-amber-400/80">
+              Club Talks needs your outlet's owner phone number before you can post. Add it in your outlet settings, then come back.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Quick stats (from loaded page, not full analytics but useful overview) */}
       {posts.length > 0 && (

@@ -55,6 +55,11 @@ def _resolve_merchant_club(outlet_id, create=True):
     )
     phone = normalize_phone(o.owner_phone) if o and o.owner_phone else None
     if not phone:
+        # Reads (create=False) must never crash — an outlet without an owner
+        # phone simply has no club yet, so return None and let the caller show
+        # an empty state. Only the write path (create=True) needs the phone.
+        if not create:
+            return None
         frappe.throw(_("Add an owner phone number to this outlet to use Club Talks."))
 
     outlet_name = o.outlet_name or outlet
@@ -107,14 +112,16 @@ def merchant_get_feed(outlet_id, page=1, limit=20, exclude_own=0):
     """Club Talks "Discover" feed — posts across all active clubs, hot-ranked.
     Pass exclude_own=1 to hide the merchant's own club (the dashboard's
     Discover tab, which shows only OTHER creators' posts)."""
-    ctx = _resolve_merchant_club(outlet_id)
+    # Read: the Discover feed shows every creator's posts, so a merchant with no
+    # owner phone / no club of their own can still browse — don't provision/throw.
+    ctx = _resolve_merchant_club(outlet_id, create=False)
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
 
     extra = ""
     params = []
-    if int(exclude_own or 0):
+    if ctx and int(exclude_own or 0):
         extra = "AND cp.club != %s"
         params.append(ctx["club"])
 
@@ -142,9 +149,10 @@ def merchant_get_feed(outlet_id, page=1, limit=20, exclude_own=0):
     post_ids = [p.name for p in posts]
 
     chills_map = _clubs_chills_map(posts)
-    liked_set = _clubs._get_post_like_set(ctx["phone"], post_ids)
+    liked_set = _clubs._get_post_like_set(ctx["phone"], post_ids) if ctx else set()
     views_map = rc.get_counts("club_post_views", post_ids, {p.name: p.views_count or 0 for p in posts})
     tagged_map = _clubs._get_tagged_outlets_map(post_ids)
+    my_club = ctx["club"] if ctx else None
 
     out = []
     for p in posts:
@@ -152,19 +160,29 @@ def merchant_get_feed(outlet_id, page=1, limit=20, exclude_own=0):
         item["club_name"] = p.club_name or ""
         item["creator_name"] = p.creator_display_name or p.club_name or ""
         item["creator_image"] = p.creator_profile_image or p.club_cover_image or ""
-        item["is_mine"] = p.club == ctx["club"]
+        item["is_mine"] = p.club == my_club
         out.append(item)
 
     return {"success": True, "data": {
         "posts": out, "page": page, "has_more": has_more,
-        "my_club_id": ctx["club"],
+        "my_club_id": my_club,
     }}
 
 
 @frappe.whitelist()
 def merchant_get_my_posts(outlet_id, page=1, limit=20):
     """The merchant's OWN club posts (newest first) — the dashboard's My Club tab."""
-    ctx = _resolve_merchant_club(outlet_id)
+    # Reads never provision/throw: no owner phone or no club yet → just no posts.
+    ctx = _resolve_merchant_club(outlet_id, create=False)
+    if not ctx:
+        # Tell the UI whether the block is a missing owner phone (must be added
+        # before posting) vs simply not having posted yet.
+        outlet = validate_restaurant_for_api(outlet_id, frappe.session.user)
+        needs_phone = not frappe.db.get_value("Outlet", outlet, "owner_phone")
+        return {"success": True, "data": {
+            "posts": [], "page": 1, "has_more": False, "my_club_id": None,
+            "needs_phone": bool(needs_phone),
+        }}
     page = max(1, int(page))
     limit = min(int(limit), 50)
     offset = (page - 1) * limit
@@ -202,6 +220,7 @@ def merchant_get_my_posts(outlet_id, page=1, limit=20):
 
     return {"success": True, "data": {
         "posts": out, "page": page, "has_more": has_more, "my_club_id": ctx["club"],
+        "needs_phone": False,
     }}
 
 

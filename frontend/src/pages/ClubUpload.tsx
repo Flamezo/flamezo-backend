@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import {
   Megaphone, ChevronRight, Loader2,
   Image as ImageIcon, X, CheckCircle2, AlertCircle,
-  Upload, AlignLeft
+  Upload, AlignLeft, Phone
 } from 'lucide-react'
 import { uploadClubMedia, clubMediaKind } from '@/lib/clubUpload'
 import ChillsTagPicker from '@/components/ChillsTagPicker'
@@ -42,6 +42,16 @@ export default function ClubUpload() {
 
   const { call: requestUpload } = useFrappePostCall(`${PAGE}.merchant_request_upload`)
   const { call: createPost } = useFrappePostCall(`${PAGE}.merchant_create_post`)
+  const { call: getGate } = useFrappePostCall(`${PAGE}.merchant_get_my_posts`)
+
+  // Whether this outlet still needs an owner phone before it can post.
+  const [needsPhone, setNeedsPhone] = useState(false)
+  useEffect(() => {
+    if (!selectedOutlet) return
+    getGate({ outlet_id: selectedOutlet, limit: 1 })
+      .then((r: any) => setNeedsPhone(!!(r?.message || r)?.data?.needs_phone))
+      .catch(() => {})
+  }, [selectedOutlet, getGate])
 
   const outletLat = outletConfig?.restaurant?.latitude as number | undefined
   const outletLng = outletConfig?.restaurant?.longitude as number | undefined
@@ -133,7 +143,7 @@ export default function ClubUpload() {
   }, [mediaPreviewUrl, seedOutletLocation])
 
   const isUploading = stage === 'uploading' || stage === 'publishing'
-  const canPublish = !isUploading && (content.trim().length > 0 || mediaFile !== null)
+  const canPublish = !isUploading && !needsPhone && (content.trim().length > 0 || mediaFile !== null)
   const isVideo = mediaFile ? clubMediaKind(mediaFile) === 'video' : false
 
   if (!selectedOutlet) {
@@ -184,6 +194,18 @@ export default function ClubUpload() {
           )}
         </Button>
       </div>
+
+      {needsPhone && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+          <Phone className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800 dark:text-amber-300">Add your outlet's phone number first</p>
+            <p className="text-amber-700/80 dark:text-amber-400/80">
+              Club Talks needs your outlet's owner phone number before you can post. Add it in your outlet settings, then come back to publish.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-start pt-4">
         {/* ── Left: Phone preview ── */}
