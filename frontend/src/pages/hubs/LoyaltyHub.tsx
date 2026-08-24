@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 const LoyaltySettings = lazy(() => import('../LoyaltySettings'))
 const LoyaltyAnalytics = lazy(() => import('../LoyaltyAnalytics'))
@@ -16,16 +16,16 @@ export default function LoyaltyHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Loyalty</h1>
-        <p className="text-sm text-muted-foreground">Reward rules & how they're performing</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="Loyalty"
+        subtitle="Reward rules & how they're performing"
+        tabs={[
+          { value: 'settings', label: 'Settings' },
+          { value: 'analytics', label: 'Analytics' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'settings' && <LoyaltySettings />}
         {activeTab === 'analytics' && <LoyaltyAnalytics />}

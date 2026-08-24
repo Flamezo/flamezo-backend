@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 const ChillsVideos = lazy(() => import('../ChillsVideos'))
 const ChillsUpload = lazy(() => import('../ChillsUpload'))
@@ -18,17 +18,17 @@ export default function ChillsHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Chills</h1>
-        <p className="text-sm text-muted-foreground">Short videos, uploads & analytics</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="videos">My Videos</TabsTrigger>
-          <TabsTrigger value="upload">Upload Video</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="Chills"
+        subtitle="Short videos, uploads & analytics"
+        tabs={[
+          { value: 'videos', label: 'My Videos' },
+          { value: 'upload', label: 'Upload Video' },
+          { value: 'analytics', label: 'Analytics' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'videos' && <ChillsVideos />}
         {activeTab === 'upload' && <ChillsUpload />}

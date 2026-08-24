@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 const BoostOverview = lazy(() => import('../BoostOverview'))
 const BoostNewCampaign = lazy(() => import('../BoostNewCampaign'))
@@ -18,17 +18,17 @@ export default function BoostHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Boost</h1>
-        <p className="text-sm text-muted-foreground">Run ads, launch new campaigns & redeem coupons</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="new">New Campaign</TabsTrigger>
-          <TabsTrigger value="redeem">Redeem Coupon</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="Boost"
+        subtitle="Run ads, launch new campaigns & redeem coupons"
+        tabs={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'new', label: 'New Campaign' },
+          { value: 'redeem', label: 'Redeem Coupon' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'overview' && <BoostOverview />}
         {activeTab === 'new' && <BoostNewCampaign />}

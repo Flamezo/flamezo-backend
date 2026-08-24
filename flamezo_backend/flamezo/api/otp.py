@@ -648,17 +648,27 @@ def generate_whatsapp_auth_token(phone: str, customer_id: str) -> str:
 			customer_id = cust.name if cust else ""
 		if not customer_id:
 			return ""
-		import time
+		import time, json
 		token = secrets.token_urlsafe(32)
-		# NOTE: set_value(..., expires_in_sec=...) is unreliable on this Frappe
-		# build (it silently drops the key in some contexts — same class of bug
-		# as the RQ set_value nx= issue). Store WITHOUT a TTL and enforce expiry
-		# via an embedded timestamp that verify_whatsapp_token checks.
-		frappe.cache().set_value(
-			f"wa_auth:{token}",
-			{"phone": normalized, "customer_id": customer_id,
-			 "exp": int(time.time()) + _WA_AUTH_TOKEN_TTL},
-		)
+		payload = json.dumps({
+			"phone": normalized,
+			"customer_id": customer_id,
+			"exp": int(time.time()) + _WA_AUTH_TOKEN_TTL,
+		})
+		# Use raw Redis SETEX so the key has a real server-enforced TTL.
+		# frappe.cache().set_value(..., expires_in_sec=...) is unreliable on
+		# this Frappe build and silently drops the TTL in some contexts.
+		try:
+			frappe.cache().redis_server.setex(
+				f"wa_auth:{token}", _WA_AUTH_TOKEN_TTL, payload
+			)
+		except Exception:
+			# Fallback: Frappe wrapper without TTL + embedded exp for expiry check
+			frappe.cache().set_value(
+				f"wa_auth:{token}",
+				{"phone": normalized, "customer_id": customer_id,
+				 "exp": int(time.time()) + _WA_AUTH_TOKEN_TTL},
+			)
 		return token
 	except Exception as e:
 		frappe.log_error(f"generate_whatsapp_auth_token: {e}", "WA_Auth")
@@ -683,16 +693,32 @@ def verify_whatsapp_token(token):
 		if not token or not isinstance(token, str) or len(token) > 200:
 			return {"success": False, "error": "INVALID_TOKEN"}
 
-		payload = frappe.cache().get_value(f"wa_auth:{token}")
+		# Try raw Redis first (SETEX path), then Frappe wrapper fallback
+		import time, json as _json
+		raw = None
+		try:
+			raw = frappe.cache().redis_server.get(f"wa_auth:{token}")
+		except Exception:
+			pass
+
+		if raw is not None:
+			try:
+				payload = _json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+			except Exception:
+				payload = None
+		else:
+			payload = frappe.cache().get_value(f"wa_auth:{token}")
+
 		if not payload:
 			return {"success": False, "error": "TOKEN_EXPIRED"}
 
 		# Delete immediately — one-time use
-		frappe.cache().delete_value(f"wa_auth:{token}")
+		try:
+			frappe.cache().redis_server.delete(f"wa_auth:{token}")
+		except Exception:
+			frappe.cache().delete_value(f"wa_auth:{token}")
 
-		# Expiry is enforced in-value (see generate_whatsapp_auth_token — the TTL
-		# is embedded because set_value's expires_in_sec is unreliable here).
-		import time
+		# Embedded exp guards against any path where server TTL was not set
 		if int(payload.get("exp", 0) or 0) < int(time.time()):
 			return {"success": False, "error": "TOKEN_EXPIRED"}
 

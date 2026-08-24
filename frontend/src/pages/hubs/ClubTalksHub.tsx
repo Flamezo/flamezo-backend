@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 // Reuses the exact same page components the old separate sidebar rows
 // pointed at — nothing about how each tab works has changed, only how
@@ -22,17 +22,17 @@ export default function ClubTalksHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Club Talks</h1>
-        <p className="text-sm text-muted-foreground">Posts, uploads & analytics for your Club Talks feed</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="posts">My Posts</TabsTrigger>
-          <TabsTrigger value="upload">Upload Post</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="Club Talks"
+        subtitle="Posts, uploads & analytics for your Club Talks feed"
+        tabs={[
+          { value: 'posts', label: 'My Posts' },
+          { value: 'upload', label: 'Upload Post' },
+          { value: 'analytics', label: 'Analytics' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'posts' && <ClubTalks />}
         {activeTab === 'upload' && <ClubUpload />}

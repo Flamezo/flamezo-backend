@@ -63,6 +63,57 @@ def _batch_active_offers_count(outlet_ids):
 	return {r.outlet: r.cnt for r in rows}
 
 
+def _coupon_display_text(row):
+	"""Short, single-line badge text for a coupon — real merchant copy when set,
+	else a generated fallback from the discount itself (never blank)."""
+	desc = (row.get("description") or "").strip()
+	if desc:
+		return desc
+	name = (row.get("combo_name") or "").strip()
+	if row.get("discount_type") == "percentage" and flt(row.get("discount_value")):
+		text = f"Flat {cint(row['discount_value'])}% OFF"
+	elif flt(row.get("discount_value")):
+		text = f"₹{cint(row['discount_value'])} OFF"
+	elif row.get("offer_type") == "combo" and name:
+		text = name
+	else:
+		text = name or "Special offer available"
+	return f"{text} — {name}" if name and name not in text else text
+
+
+def _batch_offer_texts(outlet_ids, per_outlet_limit=4):
+	"""
+	Single SQL query — returns {outlet_id: [display_text, ...]} for all given
+	outlets, same active/date-gated filter as _batch_active_offers_count.
+	Real merchant coupon copy (never mock/generated-only text), capped at
+	`per_outlet_limit` per outlet so the carousel payload stays small.
+	"""
+	if not outlet_ids:
+		return {}
+	today_str = today()
+	placeholders = ",".join(["%s"] * len(outlet_ids))
+	rows = frappe.db.sql(
+		f"""
+		SELECT outlet, description, combo_name, discount_type, discount_value, offer_type
+		FROM `tabCoupon`
+		WHERE is_active = 1
+		  AND outlet IN ({placeholders})
+		  AND (valid_from IS NULL OR valid_from <= %s)
+		  AND (valid_until IS NULL OR valid_until >= %s)
+		ORDER BY modified DESC
+		""",
+		outlet_ids + [today_str, today_str],
+		as_dict=True,
+	)
+	out = {}
+	for r in rows:
+		bucket = out.setdefault(r.outlet, [])
+		if len(bucket) >= per_outlet_limit:
+			continue
+		bucket.append(_coupon_display_text(r))
+	return out
+
+
 def _batch_engagement_count(outlet_ids, days=30):
 	"""
 	Single SQL query — {outlet_id: count} of recent `Analytics Event` rows
@@ -207,7 +258,7 @@ def derive_area_label(address, city):
 	return ", ".join(_normalize_segment_case(s) for s in selected)
 
 
-def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
+def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None, offers_text_map=None):
 	"""Format a single outlet record for the discovery feed."""
 	distance_km = None
 	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
@@ -265,6 +316,9 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 		"is_open_now": _is_open_now(hours_raw),
 		"distance_km": distance_km,
 		"active_offers_count": offers_map.get(r["name"], 0),
+		# Real merchant coupon copy, same source as the outlet-detail Offers tab
+		# (coupons.get_coupons) — no mock/generated text on the client anymore.
+		"offers": (offers_text_map or {}).get(r["name"], []),
 	}
 
 
@@ -416,6 +470,7 @@ def get_all_outlets(
 		# ── Batch offers count + cover media (fixed query count, zero N+1) ────────
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
+		offers_text_map = _batch_offer_texts(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
 		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 
@@ -424,7 +479,7 @@ def get_all_outlets(
 			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
 		# ── Format cards ──────────────────────────────────────────────────────────
-		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in restaurants]
+		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in restaurants]
 
 		# ── open_now filter (post-format, uses is_open_now computed per card) ────
 		if cint(open_now):
@@ -590,9 +645,10 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
+		offers_text_map = _batch_offer_texts(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
 		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
-		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
+		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
 
@@ -1252,12 +1308,18 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 			update_fields["email"] = email.strip().lower()
 		if date_of_birth:
 			try:
-				from datetime import datetime
-				datetime.strptime(date_of_birth, "%Y-%m-%d")
+				from datetime import datetime, date as _date
+				dob = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+				if dob >= _date.today():
+					return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date of birth"}}
+				# DPDP Act 2023 — users must be at least 18
+				age_years = (_date.today() - dob).days // 365
+				if age_years < 18:
+					return {"success": False, "error": {"code": "AGE_RESTRICTION", "message": "You must be at least 18 years old to use Flamezo."}}
 				if frappe.db.has_column("Customer", "date_of_birth"):
 					update_fields["date_of_birth"] = date_of_birth
 			except ValueError:
-				pass
+				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
 		if interests is not None:
 			if frappe.db.has_column("Customer", "interests"):
 				update_fields["interests"] = interests.strip()[:500]
@@ -1516,10 +1578,13 @@ def update_profile(phone=None, full_name=None, email=None, date_of_birth=None, i
 		if date_of_birth is not None:
 			try:
 				from frappe.utils import getdate as _gd
-				dob = _gd(date_of_birth)
 				from datetime import date as _date
-				if dob > _date.today():
+				dob = _gd(date_of_birth)
+				if dob >= _date.today():
 					return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Date of birth cannot be in the future"}}
+				age_years = (_date.today() - dob).days // 365
+				if age_years < 18:
+					return {"success": False, "error": {"code": "AGE_RESTRICTION", "message": "You must be at least 18 years old to use Flamezo."}}
 				updates["date_of_birth"] = str(dob)
 			except Exception:
 				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
