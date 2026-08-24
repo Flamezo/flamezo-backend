@@ -212,12 +212,26 @@ export default function ChillsLocationPicker({ value, onChange, outletName, outl
 
   if (value) {
     return (
-      <div className="rounded-xl border border-border bg-muted/30 p-3 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
+      <div className="rounded-xl border border-border bg-muted/30 p-3 flex items-center gap-3 group">
+        <a 
+          href={`https://www.google.com/maps/search/?api=1&query=${value.lat},${value.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center shrink-0 hover:bg-primary/90 transition-colors"
+          title="View on Google Maps"
+        >
           <MapPin className="h-4 w-4 text-primary-foreground" />
-        </div>
+        </a>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{value.name}</p>
+          <a 
+            href={`https://www.google.com/maps/search/?api=1&query=${value.lat},${value.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium truncate hover:underline"
+            title="View on Google Maps"
+          >
+            {value.name}
+          </a>
           <p className="text-xs text-muted-foreground mt-0.5">
             {formatRadius(value.radius)} · {radiusLabel(value.radius)}
           </p>

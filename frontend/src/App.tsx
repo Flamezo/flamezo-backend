@@ -73,6 +73,9 @@ const UGCConfig = lazy(() => import('./pages/UGCConfig'))
 const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
 const UGCAnalytics = lazy(() => import('./pages/UGCAnalytics'))
 
+const ClubTalks = lazy(() => import('./pages/ClubTalks'))
+const ClubUpload = lazy(() => import('./pages/ClubUpload'))
+const ClubAnalytics = lazy(() => import('./pages/ClubAnalytics'))
 const ChillsUpload = lazy(() => import('./pages/ChillsUpload'))
 const ChillsVideos = lazy(() => import('./pages/ChillsVideos'))
 const ChillsAnalytics = lazy(() => import('./pages/ChillsAnalytics'))
@@ -136,6 +139,12 @@ function AppContent() {
 								<Route path="/ugc-cashback/config" element={<UGCConfig />} />
 								<Route path="/ugc-cashback/approvals" element={<UGCApprovals />} />
 								<Route path="/ugc-cashback/analytics" element={<UGCAnalytics />} />
+
+								{/* Club Talks — merchant broadcast feed (Chills-style: posts / upload / analytics) */}
+								<Route path="/club-talks" element={<Navigate to="/club-talks/posts" replace />} />
+								<Route path="/club-talks/posts" element={<ClubTalks />} />
+								<Route path="/club-talks/upload" element={<ClubUpload />} />
+								<Route path="/club-talks/analytics" element={<ClubAnalytics />} />
 
 								{/* Chills — short-video upload and analytics */}
 								<Route path="/chills/upload" element={<ChillsUpload />} />

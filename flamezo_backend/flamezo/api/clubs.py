@@ -335,6 +335,18 @@ def follow_club(club_id, phone):
 
 # ── club posts ────────────────────────────────────────────────────────────────
 
+def _clubs_parse_list(val):
+    """Parse a JSON-encoded list (niche/custom tags) or pass a list through; [] on failure."""
+    if not val:
+        return []
+    try:
+        import json as _j
+        parsed = _j.loads(val) if isinstance(val, str) else val
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
 def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=None, user_lat=None, user_lon=None):
     liked_set = liked_set or set()
     p_lat = flt(p.get("latitude")) if p.get("latitude") else None
@@ -358,9 +370,35 @@ def _format_post(p, chills_map=None, liked_set=None, views_map=None, tagged_map=
         "location_area": p.get("location_area") or "",
         "location_city": p.get("location_city") or "",
         "distance_km": distance_km,
+        # Niche/custom tags + location, mirroring Chills' shape (safe getattr —
+        # these columns are only selected by the merchant endpoints).
+        "nicheTags": _clubs_parse_list(getattr(p, "niche_tags", None)),
+        "customTags": _clubs_parse_list(getattr(p, "custom_tags", None)),
+        "location": {
+            "name": getattr(p, "location_name", None) or "",
+            "lat": float(getattr(p, "location_lat", None) or 0),
+            "lng": float(getattr(p, "location_lng", None) or 0),
+            "radius": int(getattr(p, "location_radius", None) or 0),
+        } if getattr(p, "location_name", None) else None,
     }
     if p.post_type == "image":
         post["image_url"] = p.image_url or ""
+    if p.post_type == "video":
+        # Merchant-uploaded video (no Chills reel). Expose video_url directly for
+        # the dashboard, AND mirror it into a synthetic `chills` object so the
+        # existing app post card (which only renders video when `chills` is set)
+        # plays it too. Like/comment/view all key off the post id, not the reel,
+        # so a poster-less synthetic reel is safe.
+        # ponytail: reuses the app's chills-render path instead of a new client
+        # branch; drop the mirror once the app renders post_type=='video' natively.
+        vurl = getattr(p, "video_url", None) or ""
+        post["video_url"] = vurl
+        if vurl:
+            post["chills"] = {
+                "id": p.name, "videoUrl": vurl, "thumbnail": "",
+                "description": p.content or "", "likes": p.likes_count or 0,
+                "views": (views_map or {}).get(p.name, getattr(p, "views_count", 0) or 0),
+            }
     if p.post_type == "chills" and p.reel:
         chills = (chills_map or {}).get(p.reel)
         if chills:
@@ -462,7 +500,7 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None, latitu
 
     rows = frappe.db.sql(
         f"""
-        SELECT name, club, post_type, reel, image_url, content, likes_count, comments_count,
+        SELECT name, club, post_type, reel, image_url, video_url, content, likes_count, comments_count,
                views_count, creation, latitude, longitude, location_area, location_city
         FROM `tabCreator Club Post`
         WHERE {where}
@@ -546,7 +584,7 @@ def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude
     where = " AND ".join(conditions)
     rows = frappe.db.sql(
         f"""
-        SELECT cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.content,
+        SELECT cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.video_url, cp.content,
                cp.likes_count, cp.comments_count, cp.views_count, cp.creation,
                cp.latitude, cp.longitude, cp.location_area, cp.location_city,
                cc.club_name, cc.cover_image AS club_cover_image, cc.followers_count,

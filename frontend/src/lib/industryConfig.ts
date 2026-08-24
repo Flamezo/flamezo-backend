@@ -56,6 +56,7 @@ export interface NavLink {
   feature?: string
   adminOnly?: boolean
   badgeHref?: string
+  exactMatch?: boolean
 }
 
 export interface NavGroup {
@@ -130,12 +131,23 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
     },
     {
       type: 'group',
+      id: 'club-talks',
+      name: 'Club Talks',
+      icon: Megaphone,
+      children: [
+        { name: 'Upload Post', href: '/club-talks/upload', icon: Upload },
+        { name: 'My Posts', href: '/club-talks/posts', icon: Megaphone, exactMatch: true },
+        { name: 'Analytics', href: '/club-talks/analytics', icon: BarChart3 },
+      ],
+    },
+    {
+      type: 'group',
       id: 'chills',
       name: 'Chills',
       icon: Film,
       children: [
         { name: 'Upload Video', href: '/chills/upload', icon: Upload },
-        { name: 'My Videos', href: '/chills/videos', icon: Play },
+        { name: 'My Videos', href: '/chills/videos', icon: Play, exactMatch: true },
         { name: 'Analytics', href: '/chills/analytics', icon: BarChart3 },
       ],
     },
