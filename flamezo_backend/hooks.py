@@ -409,9 +409,11 @@ scheduler_events = {
 		# UGC Cashback — daily 04:00: purge proof videos older than the retention
 		# window (privacy + storage), keeping the submission record for audit.
 		# Crowd — delete chat messages for completed/cancelled requests > 30 days old.
+		# DPDP Act 2023 — purge OTP Verification Logs older than 90 days.
 		"0 4 * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.purge_old_proof_videos",
 			"flamezo_backend.flamezo.api.crowd.expire_old_chat_messages",
+			"flamezo_backend.flamezo.tasks.privacy_tasks.purge_old_otp_logs",
 		],
 	}
 }

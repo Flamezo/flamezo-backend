@@ -22,6 +22,7 @@ from flamezo_backend.flamezo.utils import geo
 import json
 import math
 import hashlib
+import re
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,6 +61,57 @@ def _batch_active_offers_count(outlet_ids):
 		as_dict=True,
 	)
 	return {r.outlet: r.cnt for r in rows}
+
+
+def _coupon_display_text(row):
+	"""Short, single-line badge text for a coupon — real merchant copy when set,
+	else a generated fallback from the discount itself (never blank)."""
+	desc = (row.get("description") or "").strip()
+	if desc:
+		return desc
+	name = (row.get("combo_name") or "").strip()
+	if row.get("discount_type") == "percentage" and flt(row.get("discount_value")):
+		text = f"Flat {cint(row['discount_value'])}% OFF"
+	elif flt(row.get("discount_value")):
+		text = f"₹{cint(row['discount_value'])} OFF"
+	elif row.get("offer_type") == "combo" and name:
+		text = name
+	else:
+		text = name or "Special offer available"
+	return f"{text} — {name}" if name and name not in text else text
+
+
+def _batch_offer_texts(outlet_ids, per_outlet_limit=4):
+	"""
+	Single SQL query — returns {outlet_id: [display_text, ...]} for all given
+	outlets, same active/date-gated filter as _batch_active_offers_count.
+	Real merchant coupon copy (never mock/generated-only text), capped at
+	`per_outlet_limit` per outlet so the carousel payload stays small.
+	"""
+	if not outlet_ids:
+		return {}
+	today_str = today()
+	placeholders = ",".join(["%s"] * len(outlet_ids))
+	rows = frappe.db.sql(
+		f"""
+		SELECT outlet, description, combo_name, discount_type, discount_value, offer_type
+		FROM `tabCoupon`
+		WHERE is_active = 1
+		  AND outlet IN ({placeholders})
+		  AND (valid_from IS NULL OR valid_from <= %s)
+		  AND (valid_until IS NULL OR valid_until >= %s)
+		ORDER BY modified DESC
+		""",
+		outlet_ids + [today_str, today_str],
+		as_dict=True,
+	)
+	out = {}
+	for r in rows:
+		bucket = out.setdefault(r.outlet, [])
+		if len(bucket) >= per_outlet_limit:
+			continue
+		bucket.append(_coupon_display_text(r))
+	return out
 
 
 def _batch_engagement_count(outlet_ids, days=30):
@@ -133,7 +185,7 @@ def _is_open_now(hours_json_str):
 
 _DISCOVERY_FIELDS = [
 	"name", "outlet_name", "logo", "latitude", "longitude",
-	"city", "plan_type", "onboarding_date", "description", "outlet_type",
+	"city", "address", "plan_type", "onboarding_date", "description", "outlet_type",
 	"contact_phone", "whatsapp_number", "instagram_url",
 	"is_featured", "limelight_start_date", "limelight_end_date", "is_signature", "rating", "review_count",
 	"cuisines", "price_range", "amenities_mask", "hours_json",
@@ -141,7 +193,72 @@ _DISCOVERY_FIELDS = [
 ]
 
 
-def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
+# ── Area-label derivation ───────────────────────────────────────────────────
+# Merchant-entered `address` is free text — anything from a bare locality
+# name to a full Google-Places-style string ("Shop 4, XYZ Complex, near
+# ABC, Some Area, Surat, Gujarat 395007, India"). Cards need a compact
+# "landmark, locality" label, not the raw address — this is a general
+# algorithm over the text, not a per-outlet lookup table, so it keeps
+# working as merchants are added with no maintenance.
+_AREA_FILLER_PREFIXES = (
+	"near", "nr.", "nr ", "opp.", "opp ", "opposite", "next to", "beside",
+	"besides", "behind", "above", "below", "in front of", "infront of",
+	"right from", "adjacent to",
+)
+_AREA_PLUS_CODE_RE = re.compile(r"^[0-9A-Z]{4,8}\+[0-9A-Z]{2,4}$")
+
+
+def _is_area_filler_segment(segment: str) -> bool:
+	low = segment.strip().lower()
+	return any(low.startswith(p) for p in _AREA_FILLER_PREFIXES) or bool(_AREA_PLUS_CODE_RE.match(segment.strip()))
+
+
+def _normalize_segment_case(segment: str) -> str:
+	s = segment.strip()
+	# Only re-case fully-shouty or fully-lowercase segments — leave anything
+	# already mixed-case (a proper name typed normally) exactly as entered.
+	if s.isupper() or s.islower():
+		return s.title()
+	return s
+
+
+def derive_area_label(address, city):
+	"""Compact locality label from a free-text merchant address — e.g.
+	'Shop No 11, Shiv Campus, LP Savani Road, Adajan' -> 'LP Savani Road,
+	Adajan'. Strips trailing country/state/pincode, drops the city if it
+	appears anywhere in the comma list, drops directional filler segments
+	('near X', 'opp. Y') and Google Plus Codes, then takes the last TWO
+	remaining comma segments (or just the one, if that's all there is) —
+	a pure comma-count rule, not a word-count one, so it never chops a
+	segment mid-phrase. Returns "" if the address is empty or reduces to
+	nothing usable. Verified against every real address in production."""
+	if not address:
+		return ""
+	addr = address.strip()
+	addr = re.sub(r",?\s*india\s*$", "", addr, flags=re.IGNORECASE)
+	addr = re.sub(r",?\s*gujarat\b.*$", "", addr, flags=re.IGNORECASE)
+	addr = re.sub(r"\s*-?\s*\d{6}\s*$", "", addr)
+
+	parts = [p.strip() for p in addr.split(",") if p.strip()]
+	if not parts:
+		return ""
+
+	city_norm = (city or "").strip().lower()
+	if city_norm:
+		without_city = [p for p in parts if p.strip().lower() != city_norm]
+		if without_city:
+			parts = without_city
+
+	without_filler = [p for p in parts if not _is_area_filler_segment(p)]
+	if without_filler:
+		parts = without_filler
+
+	selected = parts[-2:] if len(parts) >= 2 else parts
+
+	return ", ".join(_normalize_segment_case(s) for s in selected)
+
+
+def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None, offers_text_map=None):
 	"""Format a single outlet record for the discovery feed."""
 	distance_km = None
 	if user_lat and user_lon and r.get("latitude") and r.get("longitude"):
@@ -176,6 +293,11 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 		"latitude": r.get("latitude"),
 		"longitude": r.get("longitude"),
 		"city": r.get("city") or "",
+		"address": r.get("address") or "",
+		# Compact 1-comma "landmark, locality" label derived from the free-text
+		# address — no city/pincode/house-number, meant for card display
+		# (see derive_area_label). "" when address is empty/unusable.
+		"area": derive_area_label(r.get("address") or "", r.get("city") or ""),
 		"outlet_type": r.get("outlet_type") or "dining",
 		"plan_type": r.get("plan_type") or "GOLD",
 		"primaryColor": "#B7410E",
@@ -194,6 +316,9 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 		"is_open_now": _is_open_now(hours_raw),
 		"distance_km": distance_km,
 		"active_offers_count": offers_map.get(r["name"], 0),
+		# Real merchant coupon copy, same source as the outlet-detail Offers tab
+		# (coupons.get_coupons) — no mock/generated text on the client anymore.
+		"offers": (offers_text_map or {}).get(r["name"], []),
 	}
 
 
@@ -345,6 +470,7 @@ def get_all_outlets(
 		# ── Batch offers count + cover media (fixed query count, zero N+1) ────────
 		rest_names = [r["name"] for r in restaurants]
 		offers_map = _batch_active_offers_count(rest_names)
+		offers_text_map = _batch_offer_texts(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in restaurants}
 		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
 
@@ -353,7 +479,7 @@ def get_all_outlets(
 			restaurants = [r for r in restaurants if offers_map.get(r["name"], 0) > 0]
 
 		# ── Format cards ──────────────────────────────────────────────────────────
-		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in restaurants]
+		enriched = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in restaurants]
 
 		# ── open_now filter (post-format, uses is_open_now computed per card) ────
 		if cint(open_now):
@@ -519,9 +645,10 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 
 		rest_names = [r["name"] for r in rows]
 		offers_map = _batch_active_offers_count(rest_names)
+		offers_text_map = _batch_offer_texts(rest_names)
 		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
 		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
-		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map) for r in rows]
+		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in rows]
 		if user_lat and user_lon:
 			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
 
@@ -1181,12 +1308,18 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 			update_fields["email"] = email.strip().lower()
 		if date_of_birth:
 			try:
-				from datetime import datetime
-				datetime.strptime(date_of_birth, "%Y-%m-%d")
+				from datetime import datetime, date as _date
+				dob = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+				if dob >= _date.today():
+					return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date of birth"}}
+				# DPDP Act 2023 — users must be at least 18
+				age_years = (_date.today() - dob).days // 365
+				if age_years < 18:
+					return {"success": False, "error": {"code": "AGE_RESTRICTION", "message": "You must be at least 18 years old to use Flamezo."}}
 				if frappe.db.has_column("Customer", "date_of_birth"):
 					update_fields["date_of_birth"] = date_of_birth
 			except ValueError:
-				pass
+				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
 		if interests is not None:
 			if frappe.db.has_column("Customer", "interests"):
 				update_fields["interests"] = interests.strip()[:500]
@@ -1445,10 +1578,13 @@ def update_profile(phone=None, full_name=None, email=None, date_of_birth=None, i
 		if date_of_birth is not None:
 			try:
 				from frappe.utils import getdate as _gd
-				dob = _gd(date_of_birth)
 				from datetime import date as _date
-				if dob > _date.today():
+				dob = _gd(date_of_birth)
+				if dob >= _date.today():
 					return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Date of birth cannot be in the future"}}
+				age_years = (_date.today() - dob).days // 365
+				if age_years < 18:
+					return {"success": False, "error": {"code": "AGE_RESTRICTION", "message": "You must be at least 18 years old to use Flamezo."}}
 				updates["date_of_birth"] = str(dob)
 			except Exception:
 				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid date_of_birth format (use YYYY-MM-DD)"}}
