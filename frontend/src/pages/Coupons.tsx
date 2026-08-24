@@ -1815,8 +1815,8 @@ function ClaimsAnalyticsCard({ outletId, noCard }: { outletId: string; noCard?: 
                 {recentClaims.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Recent Claims</p>
-                    <div className="rounded-lg border overflow-hidden">
-                      <table className="w-full text-xs">
+                    <div className="rounded-lg border overflow-x-auto">
+                      <table className="w-full text-xs min-w-[420px]">
                         <thead>
                           <tr className="bg-muted/50">
                             <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Coupon</th>

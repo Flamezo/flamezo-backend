@@ -12,7 +12,6 @@ import { PageSkeleton } from './components/PageSkeleton'
 
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import('./pages/Dashboard'))
-const GrowthDashboard = lazy(() => import('./pages/GrowthDashboard'))
 const Login = lazy(() => import('./pages/Login'))
 
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
@@ -39,46 +38,38 @@ const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManageme
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AdminEventDetail = lazy(() => import('./pages/AdminEventDetail'))
 const MyOutletEvent = lazy(() => import('./pages/MyOutletEvent'))
-const AIEnhancementPage = lazy(() => import('./pages/AIEnhancementPage'))
-const AIGalleryPage = lazy(() => import('./pages/AIGalleryPage'))
+// AI Enhancements / AI Gallery — hidden for now (not ready to offer yet).
+// Commented out, not deleted: uncomment these two lines + the matching
+// <Route> entries below to bring both pages straight back.
+// const AIEnhancementPage = lazy(() => import('./pages/AIEnhancementPage'))
+// const AIGalleryPage = lazy(() => import('./pages/AIGalleryPage'))
 const AIMenuThemeBackgroundPage = lazy(() => import('./pages/AIMenuThemeBackgroundPage'))
 const AIMenuThemeHistoryPage = lazy(() => import('./pages/AIMenuThemeHistoryPage'))
 const AutopaySetupPage = lazy(() => import('./pages/AutopaySetupPage'))
 const RouteKycPage = lazy(() => import('./pages/RouteKycPage'))
-const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
-const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
+const LoyaltyHub = lazy(() => import('./pages/hubs/LoyaltyHub'))
 
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
-const MarketingOverview = lazy(() => import('./pages/MarketingOverview'))
+const MarketingHub = lazy(() => import('./pages/hubs/MarketingHub'))
+// Standalone campaign-detail view (a specific campaign's own page, not one
+// of MarketingHub's tabs) still uses the plain page component directly.
 const MarketingCampaigns = lazy(() => import('./pages/MarketingCampaigns'))
-const MarketingAutomation = lazy(() => import('./pages/MarketingAutomation'))
-const MarketingSegments = lazy(() => import('./pages/MarketingSegments'))
-const MarketingAnalytics = lazy(() => import('./pages/MarketingAnalytics'))
 const Events = lazy(() => import('./pages/Events'))
 
-const GoogleGrowth = lazy(() => import('./pages/GoogleGrowth'))
+const GoogleGrowthHub = lazy(() => import('./pages/hubs/GoogleGrowthHub'))
 const GoogleGrowthSync = lazy(() => import('./pages/GoogleGrowthSync'))
-const GoogleGrowthReviews = lazy(() => import('./pages/GoogleGrowthReviews'))
 const TeamManagement = lazy(() => import('./pages/TeamManagement'))
-const BoostOverview = lazy(() => import('./pages/BoostOverview'))
-const BoostNewCampaign = lazy(() => import('./pages/BoostNewCampaign'))
+const BoostHub = lazy(() => import('./pages/hubs/BoostHub'))
 const BoostCampaignDetail = lazy(() => import('./pages/BoostCampaignDetail'))
-const BoostRedeem = lazy(() => import('./pages/BoostRedeem'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
 const MenuCosting = lazy(() => import('./pages/MenuCosting'))
 const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
 
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
-const UGCConfig = lazy(() => import('./pages/UGCConfig'))
-const UGCApprovals = lazy(() => import('./pages/UGCApprovals'))
-const UGCAnalytics = lazy(() => import('./pages/UGCAnalytics'))
+const UGCCashbackHub = lazy(() => import('./pages/hubs/UGCCashbackHub'))
 
-const ClubTalks = lazy(() => import('./pages/ClubTalks'))
-const ClubUpload = lazy(() => import('./pages/ClubUpload'))
-const ClubAnalytics = lazy(() => import('./pages/ClubAnalytics'))
-const ChillsUpload = lazy(() => import('./pages/ChillsUpload'))
-const ChillsVideos = lazy(() => import('./pages/ChillsVideos'))
-const ChillsAnalytics = lazy(() => import('./pages/ChillsAnalytics'))
+const ClubTalksHub = lazy(() => import('./pages/hubs/ClubTalksHub'))
+const ChillsHub = lazy(() => import('./pages/hubs/ChillsHub'))
 
 // Non-dining industry pages
 const CatalogueManagementPage = lazy(() => import('./pages/CatalogueManagement'))
@@ -109,8 +100,7 @@ function AppContent() {
 							{/* Routes using the shared Layout */}
 							<Route element={<Layout />}>
 								<Route path="/dashboard" element={<Dashboard />} />
-								<Route path="/growth-dashboard" element={<GrowthDashboard />} />
-								<Route path="/account" element={<MyAccount />} />
+									<Route path="/account" element={<MyAccount />} />
 								<Route path="/setup" element={<TieredSetupWizard />} />
 								<Route path="/setup/:stepId" element={<TieredSetupWizard />} />
 
@@ -130,26 +120,26 @@ function AppContent() {
 
 
 								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
-									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
-									<Route path="/loyalty-analytics" element={<LoyaltyAnalytics />} />
+									<Route path="/loyalty-settings" element={<LoyaltyHub />} />
+									<Route path="/loyalty-analytics" element={<LoyaltyHub />} />
 								</Route>
 								<Route path="/loyalty-insights" element={<Navigate to="/loyalty-analytics" replace />} />
 
 								{/* UGC Cashback — story-for-cashback growth loop */}
-								<Route path="/ugc-cashback/config" element={<UGCConfig />} />
-								<Route path="/ugc-cashback/approvals" element={<UGCApprovals />} />
-								<Route path="/ugc-cashback/analytics" element={<UGCAnalytics />} />
+								<Route path="/ugc-cashback/config" element={<UGCCashbackHub />} />
+								<Route path="/ugc-cashback/approvals" element={<UGCCashbackHub />} />
+								<Route path="/ugc-cashback/analytics" element={<UGCCashbackHub />} />
 
 								{/* Club Talks — merchant broadcast feed (Chills-style: posts / upload / analytics) */}
 								<Route path="/club-talks" element={<Navigate to="/club-talks/posts" replace />} />
-								<Route path="/club-talks/posts" element={<ClubTalks />} />
-								<Route path="/club-talks/upload" element={<ClubUpload />} />
-								<Route path="/club-talks/analytics" element={<ClubAnalytics />} />
+								<Route path="/club-talks/posts" element={<ClubTalksHub />} />
+								<Route path="/club-talks/upload" element={<ClubTalksHub />} />
+								<Route path="/club-talks/analytics" element={<ClubTalksHub />} />
 
 								{/* Chills — short-video upload and analytics */}
-								<Route path="/chills/upload" element={<ChillsUpload />} />
-								<Route path="/chills/videos" element={<ChillsVideos />} />
-								<Route path="/chills/analytics" element={<ChillsAnalytics />} />
+								<Route path="/chills/upload" element={<ChillsHub />} />
+								<Route path="/chills/videos" element={<ChillsHub />} />
+								<Route path="/chills/analytics" element={<ChillsHub />} />
 
 								<Route element={<FeatureProtectedRoute feature="tableBooking" />}>
 									<Route path="/bookings" element={<Bookings />} />
@@ -171,26 +161,27 @@ function AppContent() {
 
 								{/* Marketing Studio (GOLD only) */}
 								<Route element={<FeatureProtectedRoute feature="marketing_studio" />}>
-									<Route path="/marketing" element={<MarketingOverview />} />
-									<Route path="/marketing/campaigns" element={<MarketingCampaigns />} />
+									<Route path="/marketing" element={<MarketingHub />} />
+									<Route path="/marketing/campaigns" element={<MarketingHub />} />
+									{/* Single-campaign detail — not one of the hub's tabs */}
 									<Route path="/marketing/campaigns/:id" element={<MarketingCampaigns />} />
-									<Route path="/marketing/automation" element={<MarketingAutomation />} />
-									<Route path="/marketing/segments" element={<MarketingSegments />} />
-									<Route path="/marketing/analytics" element={<MarketingAnalytics />} />
+									<Route path="/marketing/automation" element={<MarketingHub />} />
+									<Route path="/marketing/segments" element={<MarketingHub />} />
+									<Route path="/marketing/analytics" element={<MarketingHub />} />
 								</Route>
-								
+
 								{/* Google Growth (GOLD only) */}
 								<Route element={<FeatureProtectedRoute feature="google_growth" />}>
-									<Route path="/google-growth" element={<GoogleGrowth />} />
+									<Route path="/google-growth" element={<GoogleGrowthHub />} />
 									<Route path="/google-growth/sync" element={<GoogleGrowthSync />} />
-									<Route path="/google-growth/reviews" element={<GoogleGrowthReviews />} />
+									<Route path="/google-growth/reviews" element={<GoogleGrowthHub />} />
 								</Route>
 
 								{/* Boost — Ad campaign management */}
-								<Route path="/boost" element={<BoostOverview />} />
-								<Route path="/boost/new" element={<BoostNewCampaign />} />
+								<Route path="/boost" element={<BoostHub />} />
+								<Route path="/boost/new" element={<BoostHub />} />
 								<Route path="/boost/campaign" element={<BoostCampaignDetail />} />
-								<Route path="/boost/redeem" element={<BoostRedeem />} />
+								<Route path="/boost/redeem" element={<BoostHub />} />
 
 								<Route path="/billing" element={<PaymentSettings />} />
 								<Route path="/ledger" element={<LedgerPage />} />
@@ -210,8 +201,9 @@ function AppContent() {
 								<Route path="/qr-codes" element={<QRCodes />} />
 								<Route path="/gallery-management" element={<GalleryManagement />} />
 
-								<Route path="/ai-enhancements" element={<AIEnhancementPage />} />
-								<Route path="/ai-gallery" element={<AIGalleryPage />} />
+								{/* AI Enhancements / AI Gallery — hidden for now, see commented lazy imports above */}
+								{/* <Route path="/ai-enhancements" element={<AIEnhancementPage />} /> */}
+								{/* <Route path="/ai-gallery" element={<AIGalleryPage />} /> */}
 								<Route path="/ai-menu-theme-background" element={<AIMenuThemeBackgroundPage />} />
 								<Route path="/ai-menu-theme-history" element={<AIMenuThemeHistoryPage />} />
 
