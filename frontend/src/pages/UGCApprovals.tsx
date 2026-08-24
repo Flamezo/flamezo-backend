@@ -608,7 +608,7 @@ function AnalyticsTab({ funnelRes }: { funnelRes: any }) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <AlertTriangle className="w-4 h-4 text-amber-500 mb-2" />

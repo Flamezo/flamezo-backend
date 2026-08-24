@@ -103,7 +103,7 @@ export default function BoostCampaignDetail() {
     <div className="space-y-6">
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-20 rounded-xl" />
-      <div className="grid grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
       <Skeleton className="h-64 rounded-xl" />
     </div>
   )

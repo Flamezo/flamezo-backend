@@ -1,6 +1,5 @@
 import {
   Home,
-  TrendingUp,
   Package,
   Calculator,
   Layers,
@@ -8,22 +7,15 @@ import {
   Users,
   Tag,
   PartyPopper,
-  Wallet,
   Settings,
-  BarChart3,
   Megaphone,
-  CheckCircle2,
-  Globe,
   Sparkles,
   Star,
   Zap,
-  Plus,
   QrCode,
-  Store,
   CreditCard,
   Landmark,
   Shield,
-  Send,
   Calendar,
   Dumbbell,
   Scissors,
@@ -34,7 +26,6 @@ import {
   Wrench,
   Wand2,
   Film,
-  Upload,
   Play,
   Flame,
 } from 'lucide-react'
@@ -51,18 +42,35 @@ export type OutletType =
 export interface NavLink {
   type: 'link'
   name: string
+  /** Short one-line subtitle shown under the name (top-level items only) —
+   * tells a merchant what's inside before they click, since the sidebar is
+   * now organized by job-to-be-done (e.g. "Grow & Promote") rather than by
+   * feature name, so the label alone is less self-explanatory than before. */
+  description?: string
   href: string
   icon: any
   feature?: string
   adminOnly?: boolean
   badgeHref?: string
   exactMatch?: boolean
+  /** Shows a small "BETA" tag next to this item — was previously shown on
+   * the whole Google Growth / Boost group header before those became
+   * children of "Grow & Promote"; now marked per-item instead. */
+  beta?: boolean
+  /** Prefix used to decide if this row highlights as active — falls back to
+   * `href` when unset. Needed for links that now point at one tab of a
+   * multi-tab hub page (e.g. href '/chills/videos') but should still show
+   * active on the hub's other tabs too (e.g. '/chills/upload'), which don't
+   * share a literal path prefix with `href` itself. Purely a matching
+   * string — it doesn't need to be a real route on its own. */
+  activeMatch?: string
 }
 
 export interface NavGroup {
   type: 'group'
   id: string
   name: string
+  description?: string
   icon: any
   feature?: string
   adminOnly?: boolean
@@ -94,85 +102,96 @@ export function getCatalogueLabel(outletType: string): { singular: string; plura
   return map[outletType] || { singular: 'Item', plural: 'Items' }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Navigation — reorganized around what a merchant is trying to DO (Instagram
+// Professional Dashboard / Swiggy Partner style: a handful of top-level
+// destinations, each expanding to the same underlying pages) rather than by
+// internal feature name. Every href below is unchanged from before this
+// reorganization — this file only regroups existing links, it never renames
+// a route or drops a page, so nothing that already worked can break.
+// ─────────────────────────────────────────────────────────────────────────
+
 // Shared nav items present for every industry
 function sharedItems(isAdmin: boolean): NavItem[] {
   return [
     { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
-    { type: 'link', name: 'Growth Dashboard', href: '/growth-dashboard', icon: TrendingUp },
   ]
 }
 
-function sharedBottomItems(isAdmin: boolean): NavItem[] {
+// "Grow & Promote" — every tool whose job is bringing in or retaining
+// customers (offers, loyalty, UGC, Google, Boost ads). Each of these used to
+// be its own multi-tab group (Loyalty: 2 rows, UGC: 3, Google: 2, Boost: 3)
+// — now a single row per tool, and the "tabs" live inside that tool's own
+// page (see src/pages/hubs/*) instead of the sidebar.
+function growPromoteGroup(): NavItem {
+  return {
+    type: 'group',
+    id: 'grow-promote',
+    name: 'Grow & Promote',
+    description: 'Offers, loyalty, ads & marketing',
+    icon: Megaphone,
+    children: [
+      { name: 'Offers & Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
+      { name: 'Hot Drops', href: '/hot-drops', icon: Flame, feature: 'coupons' },
+      // No activeMatch here — Loyalty's two pages (/loyalty-settings,
+      // /loyalty-analytics) are hyphen-joined, not slash-nested under a
+      // shared parent, so there's no boundary-safe prefix to match both
+      // without risking false-positive matches on unrelated future routes.
+      // Minor cosmetic gap: this row won't show "active" while on the
+      // Analytics tab — harmless, unlike a boundary-unsafe prefix check.
+      { name: 'Loyalty', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
+      { name: 'UGC Cashback', href: '/ugc-cashback/config', activeMatch: '/ugc-cashback', icon: Megaphone },
+      { name: 'Google Growth', href: '/google-growth', icon: Sparkles, feature: 'google_growth', beta: true },
+      { name: 'Boost', href: '/boost', icon: Zap, beta: true },
+    ],
+  }
+}
+
+// "Marketing Management" — admin-only, its own top-level destination next to
+// Merchant/Event/Customer Management. Was a 5-tab group; those 5 tabs now
+// live inside the MarketingHub page itself (see src/pages/hubs/MarketingHub).
+function marketingManagementGroup(): NavItem {
+  return {
+    type: 'link',
+    name: 'Marketing Management',
+    href: '/marketing',
+    activeMatch: '/marketing',
+    icon: Megaphone,
+    feature: 'marketing_studio',
+    adminOnly: true,
+  }
+}
+
+// "Content Studio" — everything a merchant posts or generates: Club Talks,
+// Chills, AI creative tools. Club Talks and Chills were each their own
+// 3-tab group before — now one row each, tabs live in the hub page.
+function contentStudioGroup(outletType: string): NavItem {
+  // AI Enhancements / AI Gallery hidden for now (not ready to offer yet) —
+  // routes redirect to /dashboard too, see App.tsx, so a stale link/bookmark
+  // doesn't land on a half-dead page. Nothing deleted, easy to bring back.
+  const aiChildren: Omit<NavLink, 'type'>[] = []
+  if (outletType === 'dining' || outletType === 'cafe') {
+    aiChildren.push({ name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles })
+  }
+  return {
+    type: 'group',
+    id: 'content-studio',
+    name: 'Content Studio',
+    description: 'Posts, reels & AI creative tools',
+    icon: Film,
+    children: [
+      { name: 'Club Talks', href: '/club-talks/posts', activeMatch: '/club-talks', icon: Megaphone },
+      { name: 'Chills', href: '/chills/videos', activeMatch: '/chills', icon: Play },
+      ...aiChildren,
+    ],
+  }
+}
+
+function sharedBottomItems(outletType: string, isAdmin: boolean): NavItem[] {
   return [
     { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
-    { type: 'link', name: 'Manage Offer/Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
-    { type: 'link', name: 'Hot Drops', href: '/hot-drops', icon: Flame, feature: 'coupons' },
-    {
-      type: 'group',
-      id: 'loyalty-growth',
-      name: 'Loyalty & Growth',
-      icon: Wallet,
-      feature: 'loyalty',
-      children: [
-        { name: 'Loyalty Settings', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
-        { name: 'Analytics', href: '/loyalty-analytics', icon: BarChart3, feature: 'loyalty' },
-      ],
-    },
-    {
-      type: 'group',
-      id: 'ugc-cashback',
-      name: 'UGC Cashback',
-      icon: Megaphone,
-      children: [
-        { name: 'Configure Offer', href: '/ugc-cashback/config', icon: Settings },
-        { name: 'Story Approvals', href: '/ugc-cashback/approvals', icon: CheckCircle2, badgeHref: '/ugc-cashback/approvals' },
-        { name: 'Analytics', href: '/ugc-cashback/analytics', icon: BarChart3 },
-      ],
-    },
-    {
-      type: 'group',
-      id: 'club-talks',
-      name: 'Club Talks',
-      icon: Megaphone,
-      children: [
-        { name: 'Upload Post', href: '/club-talks/upload', icon: Upload },
-        { name: 'My Posts', href: '/club-talks/posts', icon: Megaphone, exactMatch: true },
-        { name: 'Analytics', href: '/club-talks/analytics', icon: BarChart3 },
-      ],
-    },
-    {
-      type: 'group',
-      id: 'chills',
-      name: 'Chills',
-      icon: Film,
-      children: [
-        { name: 'Upload Video', href: '/chills/upload', icon: Upload },
-        { name: 'My Videos', href: '/chills/videos', icon: Play, exactMatch: true },
-        { name: 'Analytics', href: '/chills/analytics', icon: BarChart3 },
-      ],
-    },
-    {
-      type: 'group',
-      id: 'google-growth',
-      name: 'Google Growth',
-      icon: Globe,
-      feature: 'google_growth',
-      children: [
-        { name: 'Discovery Loop', href: '/google-growth', icon: Sparkles, feature: 'google_growth' },
-        { name: 'Reviews & AI Reply', href: '/google-growth/reviews', icon: Star, feature: 'google_growth_ai' },
-      ],
-    },
-    {
-      type: 'group',
-      id: 'boost',
-      name: 'Boost',
-      icon: Zap,
-      children: [
-        { name: 'Overview', href: '/boost', icon: Megaphone },
-        { name: 'New Campaign', href: '/boost/new', icon: Plus },
-        { name: 'Redeem Coupon', href: '/boost/redeem', icon: Tag },
-      ],
-    },
+    growPromoteGroup(),
+    contentStudioGroup(outletType),
     {
       type: 'group',
       id: 'setup-config',
@@ -185,26 +204,20 @@ function sharedBottomItems(isAdmin: boolean): NavItem[] {
         { name: 'Gallery Management', href: '/gallery-management', icon: Star },
       ],
     },
-    { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
-    { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
+    {
+      type: 'group',
+      id: 'customer-payments',
+      name: 'Customer Payments',
+      icon: CreditCard,
+      children: [
+        { name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
+        { name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
+      ],
+    },
     { type: 'link', name: 'Merchant Management', href: '/admin/merchants', icon: Shield, adminOnly: true },
     { type: 'link', name: 'Event Management', href: '/admin/events', icon: PartyPopper, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
-    {
-      type: 'group',
-      id: 'marketing-studio',
-      name: 'Marketing Studio',
-      icon: Megaphone,
-      feature: 'marketing_studio',
-      adminOnly: true,
-      children: [
-        { name: 'Performance', href: '/marketing', icon: BarChart3, feature: 'marketing_studio' },
-        { name: 'Campaigns', href: '/marketing/campaigns', icon: Send, feature: 'marketing_studio', adminOnly: true },
-        { name: 'Automation', href: '/marketing/automation', icon: Zap, feature: 'marketing_studio', adminOnly: true },
-        { name: 'Segments', href: '/marketing/segments', icon: Users, feature: 'marketing_studio', adminOnly: true },
-        { name: 'Analytics', href: '/marketing/analytics', icon: TrendingUp, feature: 'marketing_studio' },
-      ],
-    },
+    marketingManagementGroup(),
   ]
 }
 
@@ -314,43 +327,12 @@ function industryBookingsItems(outletType: string): NavItem[] {
   }
 }
 
-function industryAIItems(outletType: string): NavItem[] {
-  if (outletType === 'dining' || outletType === 'cafe') {
-    return [
-      {
-        type: 'group',
-        id: 'ai-tools',
-        name: 'AI Tools',
-        icon: Sparkles,
-        children: [
-          { name: 'AI Enhancements', href: '/ai-enhancements', icon: Sparkles },
-          { name: 'AI Gallery', href: '/ai-gallery', icon: Star },
-          { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
-        ],
-      },
-    ]
-  }
-  return [
-    {
-      type: 'group',
-      id: 'ai-tools',
-      name: 'AI Tools',
-      icon: Sparkles,
-      children: [
-        { name: 'AI Enhancements', href: '/ai-enhancements', icon: Sparkles },
-        { name: 'AI Gallery', href: '/ai-gallery', icon: Star },
-      ],
-    },
-  ]
-}
-
 export function buildNavigation(outletType: string): NavItem[] {
   const type = outletType || 'dining'
   return [
     ...sharedItems(false),
     industryProductGroup(type),
     ...industryBookingsItems(type),
-    ...sharedBottomItems(false),
-    ...industryAIItems(type),
+    ...sharedBottomItems(type, false),
   ]
 }

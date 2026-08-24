@@ -1687,7 +1687,7 @@ export default function AdminMerchantManagement() {
             </div>
           </div>
 
-          <div className="p-0 max-h-[50vh] overflow-y-auto overflow-x-hidden">
+          <div className="p-0 max-h-[50vh] overflow-y-auto overflow-x-auto">
             {!visibleOnboarding.length ? (
               <div className="py-20 text-center">
                 <div className="mx-auto w-12 h-12 bg-muted/20 rounded-full flex items-center justify-center mb-4">
@@ -1698,7 +1698,7 @@ export default function AdminMerchantManagement() {
                 </p>
               </div>
             ) : (
-              <table className="w-full table-fixed">
+              <table className="w-full table-fixed min-w-[640px]">
                 <colgroup>
                   <col className="w-10" />
                   <col className="w-[28%]" />
