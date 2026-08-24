@@ -1715,6 +1715,64 @@ class TestEditCrowdRequest(unittest.TestCase):
         with self.assertRaises(Exception):
             crowd.edit_crowd_request(self.req.name, None, title="Test")
 
+    # ── full-config edit (venue, date/time, category, gender, tags, tier) ──
+
+    def test_creator_can_edit_full_config(self):
+        outlet_id = frappe.db.get_value("Outlet", {}, "name")
+        crowd.edit_crowd_request(
+            self.req.name, _PHONE_A,
+            title="Full Config New Title",
+            description="A real description",
+            category="cafe",
+            outlet_id=outlet_id,
+            venue_name="Some Venue",
+            date="2026-09-01",
+            time="19:30:00",
+            max_members=9,
+            gender_preference="women_only",
+            interests="Chill,Foodie",
+            tier="premium",
+        )
+        stored = frappe.db.get_value(
+            "Crowd Request", self.req.name,
+            ["title", "description", "category", "outlet", "venue_name", "date",
+             "max_members", "gender_preference", "interests", "tier"],
+            as_dict=True,
+        )
+        self.assertEqual(stored.title, "Full Config New Title")
+        self.assertEqual(stored.description, "A real description")
+        self.assertEqual(stored.category, "cafe")
+        self.assertEqual(stored.outlet, outlet_id)
+        self.assertEqual(stored.venue_name, "Some Venue")
+        self.assertEqual(str(stored.date), "2026-09-01")
+        self.assertEqual(stored.max_members, 9)
+        self.assertEqual(stored.gender_preference, "women_only")
+        self.assertEqual(stored.interests, "Chill,Foodie")
+        self.assertEqual(stored.tier, "premium")
+
+    def test_edit_with_nonexistent_outlet_throws(self):
+        with self.assertRaises(frappe.exceptions.DoesNotExistError):
+            crowd.edit_crowd_request(self.req.name, _PHONE_A, outlet_id="RESTAURANT-FAKE-999")
+
+    def test_edit_clears_venue_with_empty_outlet_id(self):
+        outlet_id = frappe.db.get_value("Outlet", {}, "name")
+        frappe.db.set_value("Crowd Request", self.req.name, "outlet", outlet_id)
+        crowd.edit_crowd_request(self.req.name, _PHONE_A, outlet_id="")
+        self.assertIsNone(frappe.db.get_value("Crowd Request", self.req.name, "outlet"))
+
+    def test_edit_title_too_short_throws(self):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            crowd.edit_crowd_request(self.req.name, _PHONE_A, title="Hi")
+
+    def test_edit_does_not_touch_unspecified_fields(self):
+        # Only title passed — description/category/etc must survive untouched.
+        crowd.edit_crowd_request(self.req.name, _PHONE_A, title="Only Title Changed")
+        stored = frappe.db.get_value(
+            "Crowd Request", self.req.name, ["description", "category"], as_dict=True,
+        )
+        self.assertEqual(stored.description, "Test crowd description")
+        self.assertEqual(stored.category, "dining")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TestLeaveCrowdRequest — member leaves, count decremented

@@ -1068,8 +1068,17 @@ def _check_join_eligibility(phone, customer_name=None):
 # ── Edit crowd request ─────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def edit_crowd_request(request_id, phone, title=None, description=None, max_members=None):
-    """Creator can edit a Team Up only if no external members have joined (current_members == 1)."""
+def edit_crowd_request(request_id, phone, title=None, description=None, max_members=None,
+                        category=None, outlet_id=None, venue_name=None, date=None, time=None,
+                        gender_preference=None, interests=None, tier=None):
+    """Creator can edit a Team Up only if no external members have joined (current_members == 1).
+
+    Deliberately NOT editable here, even for the creator: creator identity
+    (creator_phone/name/image), status/current_members (system-managed), and
+    expires_at (recomputing a spontaneous invite's expiry after the fact is a
+    distinct "extend" feature, not a config edit — the app's edit screen
+    doesn't offer a spontaneous↔venue toggle either, for the same reason).
+    """
     phone = _require_phone(phone)
     _require_session(phone)
     if not request_id:
@@ -1092,14 +1101,42 @@ def edit_crowd_request(request_id, phone, title=None, description=None, max_memb
 
     updates = {}
     if title is not None:
-        updates["title"] = title.strip()
+        title = title.strip()
+        if len(title) < 5:
+            frappe.throw(_("Title must be at least 5 characters"))
+        updates["title"] = title
     if description is not None:
         updates["description"] = description.strip()
+    if category is not None:
+        updates["category"] = category.strip()
+    if outlet_id is not None:
+        outlet_id = outlet_id.strip()
+        if outlet_id:
+            if not frappe.db.exists("Outlet", outlet_id):
+                frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
+            updates["outlet"] = outlet_id
+        else:
+            # Empty string explicitly clears the linked venue (spontaneous-
+            # style invite) — the app only sends this when the creator
+            # actually removed their venue selection, never as a default.
+            updates["outlet"] = None
+    if venue_name is not None:
+        updates["venue_name"] = venue_name.strip()
+    if date is not None:
+        updates["date"] = date
+    if time is not None:
+        updates["time"] = time or None
     if max_members is not None:
         max_members = int(max_members)
         if max_members < 2 or max_members > 20:
             frappe.throw(_("max_members must be between 2 and 20"))
         updates["max_members"] = max_members
+    if gender_preference is not None:
+        updates["gender_preference"] = gender_preference or "any"
+    if interests is not None:
+        updates["interests"] = interests
+    if tier is not None:
+        updates["tier"] = tier
 
     if updates:
         frappe.db.set_value("Crowd Request", request_id, updates)
