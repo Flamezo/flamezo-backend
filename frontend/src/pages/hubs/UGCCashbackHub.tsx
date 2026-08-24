@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
 import { useHubTab } from '@/lib/useHubTab'
+import HubHeader from '@/components/HubHeader'
 
 const UGCConfig = lazy(() => import('../UGCConfig'))
 const UGCApprovals = lazy(() => import('../UGCApprovals'))
@@ -18,17 +18,17 @@ export default function UGCCashbackHub() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">UGC Cashback</h1>
-        <p className="text-sm text-muted-foreground">Configure the offer, approve story proofs & see results</p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-max max-w-full overflow-x-auto">
-          <TabsTrigger value="config">Configure</TabsTrigger>
-          <TabsTrigger value="approvals">Story Approvals</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <HubHeader
+        title="UGC Cashback"
+        subtitle="Configure the offer, approve story proofs & see results"
+        tabs={[
+          { value: 'config', label: 'Configure' },
+          { value: 'approvals', label: 'Story Approvals' },
+          { value: 'analytics', label: 'Analytics' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setTab}
+      />
       <Suspense fallback={<GenericPageSkeleton />}>
         {activeTab === 'config' && <UGCConfig />}
         {activeTab === 'approvals' && <UGCApprovals />}
