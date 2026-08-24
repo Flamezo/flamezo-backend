@@ -133,6 +133,10 @@ function UserProfileDropdown() {
 }
 
 const SIDEBAR_GROUPS_KEY = 'flamezo_backend_sidebar_groups_open'
+const SIDEBAR_WIDTH_KEY = 'flamezo_backend_sidebar_width'
+const SIDEBAR_MIN_WIDTH = 220
+const SIDEBAR_MAX_WIDTH = 420
+const SIDEBAR_DEFAULT_WIDTH = 256
 
 // Navigation is built dynamically per outlet_type via buildNavigation() in Layout component body
 
@@ -171,6 +175,52 @@ export default function Layout({ children }: LayoutProps) {
   const [outletDropdownOpen, setOutletDropdownOpen] = useState(false)
   const [outletDropdownSearch, setOutletDropdownSearch] = useState('')
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // User-resizable sidebar width — drag the right edge, persisted across sessions
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
+    const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+    return saved >= SIDEBAR_MIN_WIDTH && saved <= SIDEBAR_MAX_WIDTH ? saved : SIDEBAR_DEFAULT_WIDTH
+  })
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeStartRef.current = { x: e.clientX, width: sidebarWidth }
+    setIsResizingSidebar(true)
+  }
+
+  useEffect(() => {
+    if (!isResizingSidebar) return
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeStartRef.current) return
+      const delta = e.clientX - resizeStartRef.current.x
+      const next = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, resizeStartRef.current.width + delta)
+      )
+      setSidebarWidth(next)
+    }
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false)
+      resizeStartRef.current = null
+      setSidebarWidth((w) => {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w))
+        return w
+      })
+    }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizingSidebar])
   const [lockAnimating, setLockAnimating] = useState(false) // Track lock animation state
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
@@ -231,9 +281,10 @@ export default function Layout({ children }: LayoutProps) {
     const path = location.pathname
     navigation.forEach((item) => {
       if (item.type === 'group') {
-        const hasActiveChild = item.children.some(
-          (c) => path === c.href || (c.href !== '/dashboard' && path.startsWith(c.href))
-        )
+        const hasActiveChild = item.children.some((c) => {
+          const base = c.activeMatch ?? c.href
+          return path === c.href || (base !== '/dashboard' && path.startsWith(base))
+        })
         if (hasActiveChild) {
           setExpandedGroups((prev) => {
             if (prev.has(item.id)) return prev
@@ -520,18 +571,26 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+    >
       {/* Sidebar - Toggleable with Hover */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border transform transition-all duration-200 ease-in-out shadow-sm",
+          "fixed inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border shadow-sm",
+          // No transition while actively dragging — width should track the
+          // cursor 1:1, not lag behind an eased animation.
+          isResizingSidebar ? "transform" : "transform transition-all duration-200 ease-in-out",
           // Mobile/tablet drawer: fixed 16rem width (a fixed element with no
           // width shrinks to content and renders "out of range" — this pins it).
           "w-64 max-w-[85vw]",
           // Mobile: slide in/out
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-          // Desktop: width based on expanded state or hover
-          showExpanded ? "lg:w-64" : "lg:w-16"
+          // Desktop: width based on expanded state or hover — expanded width
+          // is user-adjustable (--sidebar-width, set below), collapsed stays
+          // a fixed icon-only rail.
+          showExpanded ? "lg:w-[var(--sidebar-width)]" : "lg:w-16"
         )}
         onMouseEnter={() => {
           if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
@@ -730,8 +789,9 @@ export default function Layout({ children }: LayoutProps) {
               .map((item) => {
                 if (item.type === 'link') {
                   const Icon = item.icon
+                  const activeBase = item.activeMatch ?? item.href
                   const isActive = location.pathname === item.href ||
-                    (!item.exactMatch && item.href !== '/dashboard' && location.pathname.startsWith(item.href + '/'))
+                    (!item.exactMatch && activeBase !== '/dashboard' && location.pathname.startsWith(activeBase + '/'))
                   const badgeCount = item.badgeHref === '/orders'
                     ? pendingOrders
                     : item.badgeHref === '/accept-orders'
@@ -791,7 +851,14 @@ export default function Layout({ children }: LayoutProps) {
                       )} />
                       {showExpanded && (
                         <>
-                          <span className="flex-1 truncate">{item.name}</span>
+                          <span className="flex-1 min-w-0 text-left">
+                            <span className="block truncate">{item.name}</span>
+                            {item.description && (
+                              <span className="block truncate text-[11px] font-normal text-muted-foreground/80 leading-tight">
+                                {item.description}
+                              </span>
+                            )}
+                          </span>
                           {item.adminOnly && (
                             <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
                               <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
@@ -823,9 +890,10 @@ export default function Layout({ children }: LayoutProps) {
                 const Icon = group.icon
                 const isExpanded = expandedGroups.has(group.id)
                 const filteredChildren = group.children.filter(child => !child.adminOnly || isSystemAdmin)
-                const hasActiveChild = filteredChildren.some(
-                  (c) => location.pathname === c.href || (c.href !== '/dashboard' && location.pathname.startsWith(c.href))
-                )
+                const hasActiveChild = filteredChildren.some((c) => {
+                  const base = c.activeMatch ?? c.href
+                  return location.pathname === c.href || (base !== '/dashboard' && location.pathname.startsWith(base))
+                })
                 const groupBadgeCount = filteredChildren.reduce((sum, child) => {
                   if (child.badgeHref === '/orders') return sum + pendingOrders
                   if (child.badgeHref === '/accept-orders') return sum + acceptPendingOrders
@@ -866,7 +934,7 @@ export default function Layout({ children }: LayoutProps) {
                             hasActiveChild ? "text-primary" : "text-muted-foreground hover:text-sidebar-foreground",
                             isGroupFullyLocked && "opacity-60"
                           )}
-                          title={`${group.name}${(group.id === 'google-growth' || group.id === 'boost') ? ' (Beta)' : ''}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
+                          title={`${group.name}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
                         >
                           <Icon className="h-4 w-4" />
                           {isGroupFullyLocked && (
@@ -884,8 +952,13 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
-                            const isChildActive = location.pathname === child.href || 
-                              (!child.exactMatch && child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
+                            // Base for prefix-matching sub-paths as "active" too — e.g. Boost's
+                            // child row (href '/boost') should stay highlighted on '/boost/new'
+                            // and '/boost/redeem' now that those are tabs of the same hub page,
+                            // not separate sidebar rows.
+                            const childActiveBase = child.activeMatch ?? child.href
+                            const isChildActive = location.pathname === child.href ||
+                              (!child.exactMatch && childActiveBase !== '/' && childActiveBase !== '/dashboard' && location.pathname.startsWith(childActiveBase + '/'))
 
                             // Unified child locking logic
                             const childStatus = getFeatureStatus(child.feature)
@@ -914,6 +987,11 @@ export default function Layout({ children }: LayoutProps) {
                                 >
                                   <ChildIcon className="h-4 w-4" />
                                   {child.name}
+                                  {child.beta && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20 shrink-0">
+                                      BETA
+                                    </span>
+                                  )}
                                   {child.adminOnly && (
                                     <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0 ml-auto" title="Admin only">
                                       <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
@@ -969,14 +1047,21 @@ export default function Layout({ children }: LayoutProps) {
                       )} />
                       {showExpanded && (
                         <>
-                          <span className="flex-1 text-left flex items-center gap-1.5 min-w-0">
-                            <span className="truncate shrink min-w-0">{group.name}</span>
-                            {(group.id === 'google-growth' || group.id === 'boost') && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20 shrink-0">
-                                BETA
+                          <span className="flex-1 text-left min-w-0">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span className="truncate shrink min-w-0">{group.name}</span>
+                            </span>
+                            {group.description && (
+                              <span className="block truncate text-[11px] font-normal text-muted-foreground/80 leading-tight">
+                                {group.description}
                               </span>
                             )}
                           </span>
+                          {group.adminOnly && (
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
+                              <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
+                            </span>
+                          )}
                           {isGroupFullyLocked && (
                             GroupLockIcon
                           )}
@@ -995,7 +1080,6 @@ export default function Layout({ children }: LayoutProps) {
                       {!showExpanded && (
                         <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-foreground text-background text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 shadow-lg">
                           {group.name}
-                           {(group.id === 'google-growth' || group.id === 'boost') && ' (Beta)'}
                           {isGroupFullyLocked && ' 🔒'}
                           {showBadge && ` (${groupBadgeCount} pending)`}
                         </span>
@@ -1007,8 +1091,9 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
+                            const childActiveBase = child.activeMatch ?? child.href
                             const isChildActive = location.pathname === child.href ||
-                              (!child.exactMatch && child.href !== '/' && child.href !== '/dashboard' && child.href !== '/marketing' && child.href !== '/google-growth' && child.href !== '/boost' && location.pathname.startsWith(child.href + '/'))
+                              (!child.exactMatch && childActiveBase !== '/' && childActiveBase !== '/dashboard' && location.pathname.startsWith(childActiveBase + '/'))
                             const childBadgeCount = child.badgeHref === '/orders'
                               ? pendingOrders
                               : child.badgeHref === '/accept-orders'
@@ -1057,6 +1142,11 @@ export default function Layout({ children }: LayoutProps) {
                               >
                                 <ChildIcon className="h-4 w-4 flex-shrink-0" />
                                 <span className="flex-1 truncate">{child.name}</span>
+                                {child.beta && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20 shrink-0">
+                                    BETA
+                                  </span>
+                                )}
                                 {child.adminOnly && (
                                   <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-indigo-100 dark:bg-indigo-900/50 flex-shrink-0" title="Admin only">
                                     <Shield className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" />
@@ -1214,6 +1304,21 @@ export default function Layout({ children }: LayoutProps) {
             )}
           </div>
         </div>
+        {/* Drag-to-resize handle — desktop only, only while expanded (a
+            locked/collapsed icon rail has nothing to resize). */}
+        {showExpanded && (
+          <div
+            onMouseDown={handleResizeStart}
+            className={cn(
+              "hidden lg:block absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-10 group/resize",
+              "hover:bg-primary/30",
+              isResizingSidebar && "bg-primary/40"
+            )}
+            title="Drag to resize sidebar"
+          >
+            <div className="absolute inset-y-0 right-0 w-px bg-transparent group-hover/resize:bg-primary/50" />
+          </div>
+        )}
       </aside>
 
       {/* Mobile overlay */}
@@ -1226,8 +1331,8 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <div className={cn(
-        "transition-all duration-200",
-        showExpanded ? "lg:pl-64" : "lg:pl-16"
+        isResizingSidebar ? "" : "transition-all duration-200",
+        showExpanded ? "lg:pl-[var(--sidebar-width)]" : "lg:pl-16"
       )}>
         {/* Top Header - Analytics Magic Panel - Unified with Sidebar */}
         <header className="sticky top-0 z-30 bg-card border-b border-border shadow-sm">
@@ -1314,10 +1419,45 @@ export default function Layout({ children }: LayoutProps) {
                     {traffic.uniqueVisitors} guests
                   </span>
                 </div>
+
+                {/* Conv — Mobile (was desktop-only before) */}
+                {enhanced.conversionRate !== undefined && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap">
+                    <Zap className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                    <span className="text-[10px] font-bold text-foreground">
+                      {enhanced.conversionRate}% conv
+                    </span>
+                  </div>
+                )}
+
+                {/* Revenue (7D) — Mobile (was desktop-only before) */}
+                {enhanced.revenue !== undefined && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap">
+                    <Activity className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    <span className="text-[10px] font-bold text-foreground">
+                      {formatAmountNoDecimals(enhanced.revenue)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Wallet Balance — Mobile (was desktop-only before, zero mobile visibility) */}
+                {coinsBalance !== null && selectedOutlet && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTopBarRecharge(true)}
+                    title={`Wallet Balance: ₹${coinsBalance.toLocaleString()} — tap to top-up`}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted whitespace-nowrap"
+                  >
+                    <Wallet className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                    <span className="text-[10px] font-bold text-foreground">
+                      ₹{coinsBalance.toLocaleString()}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Wallet Balance Chip — always visible beside user avatar */}
+            {/* Wallet Balance Chip — desktop version, always visible beside user avatar */}
             {coinsBalance !== null && selectedOutlet && (
               <button
                 type="button"
