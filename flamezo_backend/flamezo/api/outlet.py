@@ -898,3 +898,45 @@ def move_media_to_section(outlet_id, media_asset_id, section_name):
 	frappe.db.set_value("Media Asset", media_asset_id, "menu_section", (section_name or "").strip() or None)
 	frappe.db.commit()
 	return {"success": True}
+
+
+@frappe.whitelist()
+def delete_outlet_media(outlet_id, source_type, url):
+	"""Delete one media item from the gallery pool. Routed by its source_type so
+	it is removed at the record it actually lives on (gallery upload, product /
+	catalogue image, event cover, AI image, or the outlet logo)."""
+	outlet = validate_restaurant_for_api(outlet_id)
+	url = (url or "").strip()
+	if not url:
+		return {"success": False, "error": {"code": "BAD_URL", "message": "url required"}}
+
+	if source_type == "Gallery":
+		for r in frappe.get_all("Outlet Gallery Item", filters={"outlet": outlet, "url": url}):
+			frappe.delete_doc("Outlet Gallery Item", r.name, ignore_permissions=True, force=True)
+
+	elif source_type in ("Menu Product", "Catalogue"):
+		child_dt = "Product Media" if source_type == "Menu Product" else "Catalogue Item Media"
+		parent_dt = "Menu Product" if source_type == "Menu Product" else "Catalogue Item"
+		parent_names = [p.name for p in frappe.get_all(parent_dt, filters={"outlet": outlet}, fields=["name"])]
+		if parent_names:
+			for r in frappe.get_all(child_dt, filters={"media_url": url, "parent": ["in", parent_names]}):
+				frappe.delete_doc(child_dt, r.name, ignore_permissions=True, force=True)
+
+	elif source_type == "Event":
+		for r in frappe.get_all("Event", filters={"outlet": outlet, "image_src": url}):
+			frappe.db.set_value("Event", r.name, "image_src", "")
+
+	elif source_type == "AI Generated":
+		for r in frappe.get_all("AI Image Generation", filters={"outlet": outlet, "enhanced_image_url": url}):
+			frappe.db.set_value("AI Image Generation", r.name, "enhanced_image_url", "")
+
+	elif source_type == "Branding":
+		# Outlet.logo is the single source of truth for the outlet's logo.
+		if frappe.db.get_value("Outlet", outlet, "logo") == url:
+			frappe.db.set_value("Outlet", outlet, "logo", "")
+
+	else:
+		return {"success": False, "error": {"code": "UNSUPPORTED", "message": f"Cannot delete {source_type} media"}}
+
+	frappe.db.commit()
+	return {"success": True}
