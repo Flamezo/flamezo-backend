@@ -623,6 +623,14 @@ _DETAILS_FIELD_MASK = ",".join([
     "servesVegetarianFood", "servesCoffee", "servesCocktails", "servesDessert",
     "liveMusic", "goodForChildren", "goodForGroups", "goodForWatchingSports",
     "restroom", "paymentOptions", "parkingOptions",
+    # "reviews" is an Atmosphere-tier field on the Places API (New) SKU
+    # ladder — same tier the attribute fields above (dineIn, goodForChildren,
+    # etc.) already put this call in, so folding it into this existing
+    # one-time/idempotent sync costs nothing extra. A *separate* live call
+    # requesting reviews on its own would NOT share that tier and bills at
+    # the top "Enterprise + Atmosphere" rate per request — exactly why this
+    # is fetched once here and cached to the DB, never called live per page view.
+    "reviews",
 ])
 
 
@@ -650,6 +658,29 @@ def _build_hours_json(regular_opening_hours):
     return hours
 
 
+def _build_reviews_json(place):
+    """Places API (New) `reviews[]` -> the shape Review.fromJson on the
+    Flutter side already parses (it was built for the Business Profile API's
+    {reviewer, comment, createTime, starRating} shape, and this reuses it
+    rather than adding a second parser client-side). Up to 5 reviews — the
+    field's own cap, Google doesn't return more via Place Details."""
+    out = []
+    for rv in (place.get("reviews") or [])[:5]:
+        author = rv.get("authorAttribution") or {}
+        text_obj = rv.get("text") or {}
+        out.append({
+            "reviewId": rv.get("name", ""),
+            "reviewer": {
+                "displayName": author.get("displayName", ""),
+                "profilePhotoUrl": author.get("photoUri", ""),
+            },
+            "starRating": rv.get("rating"),
+            "comment": text_obj.get("text", "") if isinstance(text_obj, dict) else "",
+            "createTime": rv.get("publishTime", ""),
+        })
+    return out
+
+
 def _build_amenities_bits(place):
     bits = 0
     for attr, flag in _ATTRIBUTE_TO_FLAG.items():
@@ -669,19 +700,24 @@ def _build_amenities_bits(place):
 @frappe.whitelist()
 def sync_outlet_details_from_google(outlet_id):
     """
-    Fetch rating, review count, price level, hours, and facility attributes
-    from Google Places and store them straight onto the Restaurant record —
-    no new doctype fields, all six (rating, review_count, price_range,
-    hours_json, amenities_mask, google_review_url) already exist and are
-    simply empty until a merchant fills them in by hand.
+    Fetch rating, review count, price level, hours, facility attributes, and
+    up to 5 reviews from Google Places and store them straight onto the
+    Restaurant record — one Places Details call, no downloads/uploads.
 
     Facility bits (amenities_mask) are only ever OR'd in when Google
     explicitly reports true — never overwrites/clears a bit a merchant
     already set, since an absent Google field means "no data", not "no".
 
+    Reviews are fetched here — a one-time/manually-re-run sync — and never
+    live per page view: the `reviews` field bills at the Places API's top
+    "Enterprise + Atmosphere" SKU tier if requested on its own, but this
+    call already requests other Atmosphere-tier fields (dineIn,
+    goodForChildren, etc.), so folding reviews into the same request adds
+    no extra cost. Stored to google_reviews_json + google_reviews_synced_at;
+    get_outlet_reviews_public() just reads that back, zero API calls per request.
+
     Idempotent to call repeatedly (safe on the same on_update/backfill
-    triggers as sync_outlet_photos_from_google); cheap — one Details call,
-    no downloads/uploads.
+    triggers as sync_outlet_photos_from_google).
     """
     if not is_supervisor():
         frappe.throw(_("Permission denied"), frappe.PermissionError)
@@ -732,6 +768,9 @@ def sync_outlet_details_from_google(outlet_id):
     hours = _build_hours_json(place.get("regularOpeningHours"))
     if hours:
         updates["hours_json"] = json.dumps(hours)
+    if "reviews" in place:
+        updates["google_reviews_json"] = json.dumps(_build_reviews_json(place))
+        updates["google_reviews_synced_at"] = now_datetime()
 
     frappe.db.set_value("Outlet", outlet_id, updates, update_modified=False)
     frappe.db.commit()
@@ -791,3 +830,34 @@ def auto_sync_google_details_on_activation(doc, method=None):
         now=False,
         enqueue_after_commit=True,
     )
+
+
+@frappe.whitelist(allow_guest=True)
+def get_outlet_reviews_public(outlet_id):
+    """
+    Customer-facing Google reviews for the outlet detail page's Rate &
+    Reviews tab (Flutter app's EP.getGoogleReviews).
+
+    Deliberately separate from google_business.get_google_reviews — that one
+    only returns data once a merchant has OAuth-connected their Google
+    Business Profile (google_refresh_token set), which almost none have
+    done, so it silently returns [] for nearly every outlet even when that
+    same outlet already has a real public rating/review_count synced via
+    sync_outlet_details_from_google above. The merchant dashboard's reply
+    flow (GoogleGrowthReviews.tsx) stays on that OAuth endpoint untouched —
+    Places API reviews aren't reply-able, so mixing them in there would
+    break "Post Reply".
+
+    Pure DB read — zero Places API calls per request. Reviews are fetched
+    ONCE (as part of sync_outlet_details_from_google, on outlet activation
+    or a manual re-run) and stored to google_reviews_json; this just reads
+    that back, already in the exact shape Review.fromJson on the Flutter
+    side parses.
+    """
+    raw = frappe.db.get_value("Outlet", outlet_id, "google_reviews_json")
+    if not raw:
+        return []
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return []

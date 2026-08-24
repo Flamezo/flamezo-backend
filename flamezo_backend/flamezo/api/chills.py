@@ -413,6 +413,69 @@ def get_chills_feed(phone=None, cursor=None, limit=10):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_outlet_chills(outlet_id, phone=None, cursor=None, limit=12):
+    """Published Chills posted by one outlet, for that outlet's public
+    detail-page tab — NOT the merchant-portal `get_merchant_chills` (that
+    one is auth-gated, includes drafts/pending, and returns a different
+    shape). Reuses the exact same `_format_chills` pipeline the main feed
+    uses so cards render identically wherever they show up."""
+    if not outlet_id:
+        frappe.throw(_("outlet_id is required"))
+    limit = min(int(limit), 30)
+
+    conditions = ["c.status='published'", "c.outlet=%s"]
+    params = [outlet_id]
+
+    if cursor:
+        try:
+            cur_ts, cur_name = cursor.split("|", 1)
+            conditions.append(
+                "(c.published_at < %s OR (c.published_at = %s AND c.name < %s))"
+            )
+            params += [cur_ts, cur_ts, cur_name]
+        except ValueError:
+            pass
+
+    where = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT {_CHILLS_FEED_COLUMNS}
+        FROM `tabChills` c
+        WHERE {where}
+        ORDER BY c.published_at DESC, c.name DESC
+        LIMIT %s
+        """,
+        params + [limit + 1],
+        as_dict=True,
+    )
+
+    has_more = len(rows) > limit
+    items = rows[:limit]
+
+    chills_ids = [c.name for c in items]
+    liked_set, saved_set = _fetch_interaction_sets(phone, chills_ids)
+    follow_set = _get_outlet_follow_set(phone) if phone else set()
+    offers_map = _get_offers_count_map([outlet_id])
+    rating_map = _get_outlet_ratings_map([outlet_id])
+    followers_map = _get_outlet_followers_map([outlet_id])
+    counts_map = _fetch_counts_map(items)
+
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = f"{last.published_at}|{last.name}"
+
+    return {
+        "success": True,
+        "data": {
+            "reels": [_format_chills(c, liked_set, saved_set, follow_set, offers_map, rating_map, followers_map, counts_map) for c in items],
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+        },
+    }
+
+
+@frappe.whitelist(allow_guest=True)
 def get_chills_detail(chills_id, phone=None):
     if not chills_id:
         frappe.throw(_("chills_id is required"))
