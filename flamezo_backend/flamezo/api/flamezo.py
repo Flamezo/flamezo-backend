@@ -22,6 +22,7 @@ from flamezo_backend.flamezo.utils import geo
 import json
 import math
 import hashlib
+import re
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -133,12 +134,77 @@ def _is_open_now(hours_json_str):
 
 _DISCOVERY_FIELDS = [
 	"name", "outlet_name", "logo", "latitude", "longitude",
-	"city", "plan_type", "onboarding_date", "description", "outlet_type",
+	"city", "address", "plan_type", "onboarding_date", "description", "outlet_type",
 	"contact_phone", "whatsapp_number", "instagram_url",
 	"is_featured", "limelight_start_date", "limelight_end_date", "is_signature", "rating", "review_count",
 	"cuisines", "price_range", "amenities_mask", "hours_json",
 	"total_orders",
 ]
+
+
+# ── Area-label derivation ───────────────────────────────────────────────────
+# Merchant-entered `address` is free text — anything from a bare locality
+# name to a full Google-Places-style string ("Shop 4, XYZ Complex, near
+# ABC, Some Area, Surat, Gujarat 395007, India"). Cards need a compact
+# "landmark, locality" label, not the raw address — this is a general
+# algorithm over the text, not a per-outlet lookup table, so it keeps
+# working as merchants are added with no maintenance.
+_AREA_FILLER_PREFIXES = (
+	"near", "nr.", "nr ", "opp.", "opp ", "opposite", "next to", "beside",
+	"besides", "behind", "above", "below", "in front of", "infront of",
+	"right from", "adjacent to",
+)
+_AREA_PLUS_CODE_RE = re.compile(r"^[0-9A-Z]{4,8}\+[0-9A-Z]{2,4}$")
+
+
+def _is_area_filler_segment(segment: str) -> bool:
+	low = segment.strip().lower()
+	return any(low.startswith(p) for p in _AREA_FILLER_PREFIXES) or bool(_AREA_PLUS_CODE_RE.match(segment.strip()))
+
+
+def _normalize_segment_case(segment: str) -> str:
+	s = segment.strip()
+	# Only re-case fully-shouty or fully-lowercase segments — leave anything
+	# already mixed-case (a proper name typed normally) exactly as entered.
+	if s.isupper() or s.islower():
+		return s.title()
+	return s
+
+
+def derive_area_label(address, city):
+	"""Compact locality label from a free-text merchant address — e.g.
+	'Shop No 11, Shiv Campus, LP Savani Road, Adajan' -> 'LP Savani Road,
+	Adajan'. Strips trailing country/state/pincode, drops the city if it
+	appears anywhere in the comma list, drops directional filler segments
+	('near X', 'opp. Y') and Google Plus Codes, then takes the last TWO
+	remaining comma segments (or just the one, if that's all there is) —
+	a pure comma-count rule, not a word-count one, so it never chops a
+	segment mid-phrase. Returns "" if the address is empty or reduces to
+	nothing usable. Verified against every real address in production."""
+	if not address:
+		return ""
+	addr = address.strip()
+	addr = re.sub(r",?\s*india\s*$", "", addr, flags=re.IGNORECASE)
+	addr = re.sub(r",?\s*gujarat\b.*$", "", addr, flags=re.IGNORECASE)
+	addr = re.sub(r"\s*-?\s*\d{6}\s*$", "", addr)
+
+	parts = [p.strip() for p in addr.split(",") if p.strip()]
+	if not parts:
+		return ""
+
+	city_norm = (city or "").strip().lower()
+	if city_norm:
+		without_city = [p for p in parts if p.strip().lower() != city_norm]
+		if without_city:
+			parts = without_city
+
+	without_filler = [p for p in parts if not _is_area_filler_segment(p)]
+	if without_filler:
+		parts = without_filler
+
+	selected = parts[-2:] if len(parts) >= 2 else parts
+
+	return ", ".join(_normalize_segment_case(s) for s in selected)
 
 
 def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
@@ -176,6 +242,11 @@ def _format_outlet_card(r, user_lat, user_lon, offers_map, media_map=None):
 		"latitude": r.get("latitude"),
 		"longitude": r.get("longitude"),
 		"city": r.get("city") or "",
+		"address": r.get("address") or "",
+		# Compact 1-comma "landmark, locality" label derived from the free-text
+		# address — no city/pincode/house-number, meant for card display
+		# (see derive_area_label). "" when address is empty/unusable.
+		"area": derive_area_label(r.get("address") or "", r.get("city") or ""),
 		"outlet_type": r.get("outlet_type") or "dining",
 		"plan_type": r.get("plan_type") or "GOLD",
 		"primaryColor": "#B7410E",
