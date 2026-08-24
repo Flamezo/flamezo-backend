@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent } from '@/components/ui/card'
+import StatTiles from '@/components/StatTiles'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -420,22 +421,14 @@ export default function ChillsVideos() {
 
       {/* Quick stats */}
       {videos.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
+        <StatTiles
+          stats={[
             { label: 'Total Views', value: formatCount(totalViews), icon: Eye },
             { label: 'Total Likes', value: formatCount(totalLikes), icon: Heart },
             { label: 'Total Saves', value: formatCount(totalSaves), icon: Bookmark },
             { label: 'Total Shares', value: formatCount(totalShares), icon: Share2 },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card key={label} className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Icon className="h-4 w-4" />
-                <span className="text-xs">{label}</span>
-              </div>
-              <p className="text-2xl font-semibold tabular-nums">{value}</p>
-            </Card>
-          ))}
-        </div>
+          ]}
+        />
       )}
 
       {/* Empty state */}

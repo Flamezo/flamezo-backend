@@ -87,7 +87,7 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
                     # chips. Synthetic filters `success_share_tier` and
                     # `throttled` are handled below.
                     allowed_eq_fields = (
-                        'is_active',
+                        'is_active', 'outlet_type',
                         'mandate_status', 'razorpay_kyc_status', 'route_mode',
                         'branch_group',
                     )

@@ -341,17 +341,24 @@ def download_proxy(file_url, filename=None):
     if not file_url:
         frappe.throw("File URL is required")
         
-    import requests
-    response = requests.get(file_url, stream=True)
-    response.raise_for_status()
-    
     if not filename:
         filename = file_url.split("/")[-1].split("?")[0] or "download.png"
         if "." not in filename:
             filename += ".png"
 
+    # Relative Frappe file (/files, /private/files): read straight off disk — no
+    # fragile loopback HTTP (breaks on spaces in names / nginx / SSL).
+    if file_url.startswith("/"):
+        from frappe.utils.file_manager import get_file
+        content = get_file(file_url)[1]
+    else:
+        import requests
+        response = requests.get(file_url, stream=True, timeout=30)
+        response.raise_for_status()
+        content = response.content
+
     frappe.response.filename = filename
-    frappe.response.filecontent = response.content
+    frappe.response.filecontent = content
     frappe.response.type = "download"
 
 

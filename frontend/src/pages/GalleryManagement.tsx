@@ -82,6 +82,8 @@ export default function GalleryManagement() {
     }
   }
   const [uploadCategory, setUploadCategory] = useState<string>('Gallery Uploads')
+  // When Target Folder = Menu Images, which section the uploads land in.
+  const [uploadSection, setUploadSection] = useState<string>('Food')
 
   // Persist tab selection
   useEffect(() => {
@@ -160,19 +162,23 @@ export default function GalleryManagement() {
     const key = isFoodOutlet ? 'menu_section' : 'subcategory'
     const def = isFoodOutlet ? 'Food' : 'Uncategorised'
     const val = (m: any) => m[key] || def
+    // Food outlets always show Food + Beverages (even empty) so a merchant can
+    // upload menu-card images into them. Anything else (Combos, packages…) is
+    // created manually via + Add Section when needed.
+    const BASE = isFoodOutlet ? ['Food', 'Beverages'] : []
     let names: string[]
     if (isFoodOutlet) {
-      const ORDER = ['Food', 'Beverages', 'Combos']
-      const extras = Array.from(new Set(items.map(val).filter((s: string) => s && !ORDER.includes(s)))) as string[]
-      names = [...ORDER, ...extras]
+      const extras = Array.from(new Set(items.map(val).filter((s: string) => s && !BASE.includes(s)))) as string[]
+      names = [...BASE, ...extras]
     } else {
       names = (Array.from(new Set(items.map(val).filter(Boolean))) as string[]).sort()
     }
-    // Merchant-created sections always show (even empty) so they can be filled.
+    // Base + merchant-created sections always show (even empty) so they can be filled.
     names = Array.from(new Set([...names, ...customMenuSections]))
+    const alwaysShow = new Set([...BASE, ...customMenuSections])
     return names
       .map((name) => ({ name, count: items.filter((m: any) => val(m) === name).length }))
-      .filter((f) => f.count > 0 || customMenuSections.includes(f.name))
+      .filter((f) => f.count > 0 || alwaysShow.has(f.name))
   }, [mediaPool, isFoodOutlet, customMenuSections])
 
   const initialFilters = useMemo(() => {
@@ -203,6 +209,7 @@ export default function GalleryManagement() {
   const { call: createGalleryItem } = useFrappePostCall('frappe.client.insert')
   const { call: addMenuSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.add_menu_section')
   const { call: deleteMenuSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.delete_menu_section')
+  const { call: deleteOutletMedia } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.delete_outlet_media')
   const { call: moveMediaToSection } = useFrappePostCall('flamezo_backend.flamezo.api.outlet.move_media_to_section')
 
   const [addSectionOpen, setAddSectionOpen] = useState(false)
@@ -227,6 +234,16 @@ export default function GalleryManagement() {
     finally { setAddingSection(false) }
   }
 
+  const handleDeleteSection = async (name: string) => {
+    if (!selectedOutlet) return
+    try {
+      await deleteMenuSection({ outlet_id: selectedOutlet, section_name: name })
+      toast.success(`Section "${name}" removed`)
+      if (selectedSubFolder === name) setSelectedSubFolder(null)
+      mutatePool()
+    } catch (e: any) { toast.error(getFrappeError(e)) }
+  }
+
   const handleMoveSection = async (media: any, section: string) => {
     if (!media?.media_asset) { toast.error('This image cannot be moved (no media record)'); return }
     if (!selectedOutlet) return
@@ -247,10 +264,16 @@ export default function GalleryManagement() {
         return
     }
 
+    // Strict: while a Menu Images section is open, uploads ALWAYS land in that
+    // section — the folder you're standing in wins over the dialog's chips.
+    const inMenuSection = selectedFolder === 'Menu Images' && !!selectedSubFolder
+    const effectiveCategory = inMenuSection ? 'Menu Images' : uploadCategory
+    const targetSection = inMenuSection ? selectedSubFolder! : uploadSection
+
     try {
       for (const file of files) {
         const mediaType = getMediaType(file)
-        const activeRole = uploadCategory === 'Events' ? 'event_image' : 'restaurant_gallery_image'
+        const activeRole = effectiveCategory === 'Events' ? 'event_image' : 'restaurant_gallery_image'
 
         const uploadResult = await uploadToR2({
           ownerDoctype: 'Outlet',
@@ -268,12 +291,22 @@ export default function GalleryManagement() {
             title: file.name.split('.')[0],
             sort_order: selectedCount + 1,
             is_selected: 1,
-            source: uploadCategory // Use the selected upload category as source/category
+            // Encode the section into source so the pool routes it deterministically
+            // (e.g. "Menu Images::Beverages"). Non-menu uploads keep the plain folder.
+            source: effectiveCategory === 'Menu Images' && targetSection
+              ? `Menu Images::${targetSection}`
+              : effectiveCategory
           }
         })
+
+        // Also set the Media Asset override so a later "move to section" and the
+        // encoded source stay in sync.
+        if (effectiveCategory === 'Menu Images' && targetSection && uploadResult.media_id) {
+          await moveMediaToSection({ outlet_id: selectedOutlet, media_asset_id: uploadResult.media_id, section_name: targetSection })
+        }
       }
-      
-      toast.success(`${files.length} items added to ${uploadCategory}`)
+
+      toast.success(`${files.length} items added to ${effectiveCategory}`)
       mutateSelected()
       mutatePool()
       setIsUploadDialogOpen(false)
@@ -367,7 +400,12 @@ export default function GalleryManagement() {
   const handleDeleteItem = async () => {
     if (!itemToDelete) return
     try {
-      await deleteGalleryItem('Outlet Gallery Item', itemToDelete.name)
+      const src = itemToDelete.source_type || 'Gallery'
+      if (src === 'Gallery' && itemToDelete.name) {
+        await deleteGalleryItem('Outlet Gallery Item', itemToDelete.name)
+      } else {
+        await deleteOutletMedia({ outlet_id: selectedOutlet, source_type: src, url: itemToDelete.url })
+      }
       toast.success('Permanently removed')
       mutateSelected()
       mutatePool()
@@ -636,11 +674,14 @@ export default function GalleryManagement() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {MENU_SUBFOLDERS.map((f) => {
                           const Icon = f.name === 'Beverages' ? Utensils : f.name === 'Combos' ? Layers : ShoppingBag
+                          const isCustom = customMenuSections.includes(f.name)
                           return (
-                            <button
+                            <div
                               key={f.name}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setSelectedSubFolder(f.name)}
-                              className="group flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-primary/[0.02] hover:shadow-sm transition-all text-left"
+                              className="group relative flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-primary/[0.02] hover:shadow-sm transition-all text-left cursor-pointer"
                             >
                               <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 text-rose-500 bg-rose-500/10">
                                 <Icon className="h-6 w-6" strokeWidth={2} />
@@ -649,8 +690,19 @@ export default function GalleryManagement() {
                                 <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{f.name}</p>
                                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{f.count} Assets</p>
                               </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
-                            </button>
+                              {isCustom ? (
+                                <button
+                                  type="button"
+                                  title="Delete section"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSection(f.name); }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
+                              )}
+                            </div>
                           )
                         })}
                         {/* + Add Section */}
@@ -663,6 +715,20 @@ export default function GalleryManagement() {
                           </div>
                           <p className="text-sm font-bold text-muted-foreground group-hover:text-primary transition-colors">Add Section</p>
                         </button>
+                      </div>
+                    )}
+
+                    {/* Manually add a menu-card image straight into the open section. */}
+                    {selectedFolder === 'Menu Images' && selectedSubFolder && (
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setUploadCategory('Menu Images'); setIsUploadDialogOpen(true); }}
+                        >
+                          <UploadIcon className="h-3.5 w-3.5 mr-2" />
+                          Upload to {selectedSubFolder}
+                        </Button>
                       </div>
                     )}
 
@@ -715,7 +781,7 @@ export default function GalleryManagement() {
                                                     size="sm" 
                                                     variant={isSelected ? "secondary" : "default"} 
                                                     className={cn(
-                                                        "w-full h-8 text-[10px] font-bold uppercase rounded-md shadow-lg px-2", 
+                                                        "flex-1 min-w-0 h-8 text-[10px] font-bold uppercase rounded-md shadow-lg px-2",
                                                         isSelected ? "bg-white text-black hover:bg-white" : "bg-primary text-white"
                                                     )}
                                                     onClick={(e) => { e.stopPropagation(); handleToggleSelection(media); }}
@@ -786,15 +852,24 @@ export default function GalleryManagement() {
 
                 <div className="space-y-3">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Folder</Label>
+
+                  {/* Locked: standing inside a Menu Images section — uploads must
+                      stay here, so the target can't be switched. */}
+                  {selectedFolder === 'Menu Images' && selectedSubFolder ? (
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold bg-primary text-white border border-primary">
+                      <ScrollText className="h-3.5 w-3.5 text-white" />
+                      Menu Images / {selectedSubFolder}
+                    </div>
+                  ) : (
+                  <>
                   <div className="flex flex-col gap-1.5">
-                    {/* Menu Images is derived from the live menu — images go on the
-                        product itself, not uploaded loose into this folder */}
-                    {CATEGORIES.filter((cat) => cat !== 'Menu Images').map((cat) => {
+                    {CATEGORIES.map((cat) => {
                       let Icon = Folder;
                       if (cat === productLabel) Icon = isFoodOutlet ? Utensils : ShoppingBag;
                       if (cat === 'Events') Icon = Calendar;
                       if (cat === 'Branding') Icon = Zap;
                       if (cat === 'Gallery Uploads') Icon = ImageIcon;
+                      if (cat === 'Menu Images') Icon = ScrollText;
 
                       return (
                         <button
@@ -802,8 +877,8 @@ export default function GalleryManagement() {
                           onClick={() => setUploadCategory(cat)}
                           className={cn(
                             "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left border",
-                            uploadCategory === cat 
-                              ? "bg-primary text-white border-primary shadow-sm" 
+                            uploadCategory === cat
+                              ? "bg-primary text-white border-primary shadow-sm"
                               : "text-muted-foreground bg-transparent border-transparent hover:bg-muted hover:text-foreground"
                           )}
                         >
@@ -813,6 +888,24 @@ export default function GalleryManagement() {
                       );
                     })}
                   </div>
+
+                  {/* Menu Images needs a section — pick which one the cards land in. */}
+                  {uploadCategory === 'Menu Images' && (
+                    <div className="space-y-1.5 pt-1">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Section</Label>
+                      <select
+                        value={selectedSubFolder || uploadSection}
+                        onChange={(e) => setUploadSection(e.target.value)}
+                        className="w-full text-xs font-bold rounded-lg border border-border bg-background px-2.5 py-2"
+                      >
+                        {Array.from(new Set([...MENU_SUBFOLDERS.map((f) => f.name), 'Food', 'Beverages'])).map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  </>
+                  )}
                 </div>
               </div>
 
@@ -966,6 +1059,14 @@ export default function GalleryManagement() {
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => { setItemToDelete(editingItem); setEditingItem(null); setDeleteDialogOpen(true); }}
+                        className="font-bold text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive gap-2"
+                    >
+                        <Trash2 className="h-4 w-4" /> Delete
+                    </Button>
                     <Button type="button" variant="ghost" onClick={() => setEditingItem(null)} className="flex-1 font-bold">Cancel</Button>
                     <Button type="submit" className="flex-[2] font-bold shadow-sm">Save Changes</Button>
                 </div>
@@ -990,7 +1091,7 @@ export default function GalleryManagement() {
               onClick={handleDeleteItem}
               className="rounded-lg font-bold text-sm bg-destructive text-white hover:bg-destructive/90"
             >
-              Delete Forever
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
