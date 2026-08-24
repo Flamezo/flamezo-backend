@@ -136,7 +136,9 @@
   "cuisines",
   "price_range",
   "amenities_mask",
-  "hours_json"
+  "hours_json",
+  "google_reviews_json",
+  "google_reviews_synced_at"
  ],
  "fields": [
   {
@@ -957,6 +959,19 @@
    "fieldtype": "JSON",
    "label": "Opening Hours (JSON)",
    "description": "e.g. {\"mon\":\"12 PM – 11 PM\",\"tue\":\"12 PM – 11 PM\",...}"
+  },
+  {
+   "fieldname": "google_reviews_json",
+   "fieldtype": "JSON",
+   "label": "Google Reviews (JSON)",
+   "read_only": 1,
+   "description": "Fetched once via the Places API (New) reviews field — billed at the Enterprise+Atmosphere SKU, so this is a one-time/manually-re-run sync (sync_outlet_details_from_google), not a live per-request call. Up to 5 reviews, reshaped to match Review.fromJson on the Flutter side."
+  },
+  {
+   "fieldname": "google_reviews_synced_at",
+   "fieldtype": "Datetime",
+   "label": "Google Reviews Last Synced",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
