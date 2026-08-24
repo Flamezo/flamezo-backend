@@ -429,7 +429,7 @@ export default function Dashboard() {
 
   // QR Scan Analytics
   const { data: qrAnalyticsRaw } = useFrappeGetCall(
-    'flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics',
+    'flamezo_backend.flamezo.doctype.outlet.outlet.get_qr_scan_analytics',
     { restaurant: selectedOutlet, days: 30 },
     selectedOutlet ? `qr-analytics-${selectedOutlet}` : null
   )
