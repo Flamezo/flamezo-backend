@@ -38,6 +38,7 @@ const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManageme
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AdminEventDetail = lazy(() => import('./pages/AdminEventDetail'))
 const MyOutletEvent = lazy(() => import('./pages/MyOutletEvent'))
+const MyOutletEventDetail = lazy(() => import('./pages/MyOutletEventDetail'))
 // AI Enhancements / AI Gallery — hidden for now (not ready to offer yet).
 // Commented out, not deleted: uncomment these two lines + the matching
 // <Route> entries below to bring both pages straight back.
@@ -149,6 +150,8 @@ function AppContent() {
 								<Route path="/events" element={<Navigate to="/admin/events" replace />} />
 								{/* Outlet's own live-event tab (appears while an event is on). */}
 								<Route path="/my-event" element={<MyOutletEvent />} />
+								{/* View-only event detail (event info + joined customers). */}
+								<Route path="/my-event/:id" element={<MyOutletEventDetail />} />
 
 								<Route element={<FeatureProtectedRoute feature="customer" />}>
 									<Route path="/customers" element={<Customers />} />

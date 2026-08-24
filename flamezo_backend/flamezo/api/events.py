@@ -6,6 +6,7 @@ API endpoints for Events
 outlet_id is optional — omit for consumer-level discovery (returns all active outlets' events).
 """
 
+import json
 import frappe
 from frappe import _
 from frappe.utils import today, get_url, formatdate, format_time
@@ -277,6 +278,81 @@ def get_event_detail(event_id):
 	except Exception as e:
 		frappe.log_error(f"Error in get_event_detail: {str(e)}")
 		return {"success": False, "error": {"code": "EVENT_FETCH_ERROR", "message": str(e)}}
+
+
+@frappe.whitelist()
+def merchant_get_event_detail(outlet_id, event_id):
+    """View-only event detail for the merchant who owns the outlet: full event
+    info + the list of joined customers (attendees). Scoped to the caller's own
+    outlet — a merchant can only view their own events, and cannot edit anything
+    from here (read-only). Mirrors admin.admin_get_event_detail's shape."""
+    from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
+
+    outlet = validate_restaurant_for_api(outlet_id, frappe.session.user)
+    if not event_id or not frappe.db.exists("Event", event_id):
+        return {"success": False, "error": "Event not found"}
+
+    e = frappe.get_doc("Event", event_id)
+    if (e.outlet or "") != outlet:
+        frappe.throw(_("You can only view your own outlet's events."), frappe.PermissionError)
+
+    outlet_name = frappe.db.get_value("Outlet", outlet, "outlet_name") or ""
+    days = [d for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") if e.get(d)]
+    try:
+        media = json.loads(e.get("media_gallery") or "[]")
+        if not isinstance(media, list):
+            media = []
+    except Exception:
+        media = []
+
+    attendee_rows = frappe.get_all(
+        "Event Registration",
+        filters={"event": event_id},
+        fields=["customer", "customer_name", "customer_phone", "joined_at"],
+        order_by="joined_at desc",
+    )
+    attendees = [
+        {
+            "id": a.customer or "",
+            "name": a.customer_name or a.customer_phone or "Guest",
+            "phone": a.customer_phone or "",
+            "joined_at": str(a.joined_at) if a.joined_at else "",
+        }
+        for a in attendee_rows
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "event": {
+                "id": e.name,
+                "title": e.title or e.name,
+                "description": e.description or "",
+                "category": e.category or "",
+                "status": e.status or "",
+                "is_active": int(e.is_active or 0),
+                "featured": int(e.featured or 0),
+                "date": str(e.date) if e.date else None,
+                "time": str(e.time) if e.time else None,
+                "end_time": str(e.end_time) if e.end_time else None,
+                "location": e.location or "",
+                "google_maps_link": e.get("google_maps_link") or "",
+                "registration_link": e.get("registration_link") or "",
+                "image_src": e.image_src or "",
+                "image_alt": e.get("image_alt") or "",
+                "media": media,
+                "repeat_this_event": int(e.get("repeat_this_event") or 0),
+                "repeat_on": e.get("repeat_on") or "",
+                "repeat_till": str(e.repeat_till) if e.get("repeat_till") else None,
+                "repeat_days": days,
+            },
+            "outlet": outlet,
+            "outlet_name": outlet_name or outlet,
+            "attendees": attendees,
+            "attendees_count": len(attendees),
+            "attendees_available": True,
+        },
+    }
 
 
 @frappe.whitelist()
