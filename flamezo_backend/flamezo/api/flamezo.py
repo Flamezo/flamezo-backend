@@ -205,7 +205,7 @@ def get_all_outlets(
 	search=None, city=None,
 	outlet_type=None, section=None,
 	has_offer=None, open_now=None, is_featured=None, is_signature=None,
-	page=1, limit=30,
+	page=1, limit=30, deprioritize_ids=None,
 ):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_all_outlets
@@ -227,6 +227,12 @@ def get_all_outlets(
 	  open_now (bool/int)         — filter to currently open outlets (requires hours_json)
 	  is_featured (bool/int)      — filter to featured outlets
 	  page, limit                 — pagination (max 100/page)
+	  deprioritize_ids (str)      — comma-separated outlet ids to push toward the end of
+	                                the ordering, NOT exclude — e.g. the app's infinite-
+	                                scroll "All Outlets" list passes every id already shown
+	                                in curated rows above it, so it doesn't just repeat the
+	                                same handful at the very top. Every outlet still gets a
+	                                fair shot at appearing; this only affects order.
 	"""
 	try:
 		page = max(cint(page) or 1, 1)
@@ -236,13 +242,20 @@ def get_all_outlets(
 		user_lat = flt(latitude) if latitude else None
 		user_lon = flt(longitude) if longitude else None
 		r_km = flt(radius_km) if radius_km else None
+		deprioritize_set = {
+			d.strip() for d in str(deprioritize_ids or "").split(",") if d.strip()
+		}
 
 		# ── Cache key ────────────────────────────────────────────────────────────
+		# Includes deprioritize_ids — it changes the effective ordering, so two
+		# callers with different curated-rows-shown-above sets must never share
+		# a cached response.
 		lat_b = round(user_lat, 2) if user_lat else None
 		lon_b = round(user_lon, 2) if user_lon else None
+		deprioritize_key = ",".join(sorted(deprioritize_set))
 		cache_key = (
 			f"flamezo:disco:{lat_b}:{lon_b}:{r_km}:{search or ''}:{city or ''}:"
-			f"{outlet_type or ''}:{section or ''}:{has_offer}:{open_now}:{is_featured}:{is_signature}:{page}:{limit}"
+			f"{outlet_type or ''}:{section or ''}:{has_offer}:{open_now}:{is_featured}:{is_signature}:{page}:{limit}:{deprioritize_key}"
 		)
 		if frappe.session.user == "Guest":
 			cached = frappe.cache().get_value(cache_key)
@@ -303,6 +316,15 @@ def get_all_outlets(
 
 		where_clause = " AND ".join(sql_filters)
 
+		# Deprioritize (push to end, never exclude) — only meaningful for the
+		# non-geo SQL-ordered path; the geo path re-sorts in Python below since
+		# SQL order there is just a fetch-window hint, not the real ordering.
+		order_params = []
+		if deprioritize_set and not (user_lat and user_lon):
+			phs = ",".join(["%s"] * len(deprioritize_set))
+			order_by = f"(r.name IN ({phs})) ASC, {order_by}"
+			order_params = list(deprioritize_set)
+
 		# Fetch slightly more rows when doing geo sort so paginating by distance works
 		fetch_limit = limit * 4 if (user_lat and user_lon) else limit
 		fetch_offset = 0 if (user_lat and user_lon) else offset
@@ -315,7 +337,10 @@ def get_all_outlets(
 			ORDER BY {order_by}
 			LIMIT {fetch_limit} OFFSET {fetch_offset}
 		"""
-		restaurants = frappe.db.sql(sql, params, as_dict=True)
+		# order_params come after the WHERE params — ORDER BY sits textually
+		# after WHERE in the query above, and count_sql below (WHERE-only)
+		# must keep using the original `params` list, unmodified.
+		restaurants = frappe.db.sql(sql, params + order_params, as_dict=True)
 
 		# ── Batch offers count + cover media (fixed query count, zero N+1) ────────
 		rest_names = [r["name"] for r in restaurants]
@@ -337,6 +362,12 @@ def get_all_outlets(
 		# ── Distance sort + hard radius + pagination ──────────────────────────────
 		if user_lat and user_lon:
 			enriched.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
+			if deprioritize_set:
+				# Second, stable pass — groups deprioritized outlets after the
+				# rest while preserving each group's own distance order (sort()
+				# is guaranteed stable, so re-sorting by a bool key never
+				# reshuffles ties from the pass above).
+				enriched.sort(key=lambda x: x["id"] in deprioritize_set)
 			if r_km:
 				enriched = [x for x in enriched if x["distance_km"] is not None and x["distance_km"] <= r_km]
 			total = len(enriched)
