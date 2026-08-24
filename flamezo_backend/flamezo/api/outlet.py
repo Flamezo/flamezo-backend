@@ -10,6 +10,7 @@ from frappe import _
 from frappe.utils import get_url, cint
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api, get_restaurant_context
 from flamezo_backend.flamezo.utils.outlet_media import batch_resolve_outlet_media
+from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session
 
 
 @frappe.whitelist(allow_guest=True)
@@ -898,3 +899,147 @@ def move_media_to_section(outlet_id, media_asset_id, section_name):
 	frappe.db.set_value("Media Asset", media_asset_id, "menu_section", (section_name or "").strip() or None)
 	frappe.db.commit()
 	return {"success": True}
+
+
+# ── Outlet Wishlist (save-for-later) ────────────────────────────────────────
+# Mirrors "Chills Save" (chills.py) in shape, but a straightforward
+# synchronous DB toggle instead of the Redis-buffered pattern — outlet saves
+# are a low-frequency personal-list action (nothing like the swipe-feed
+# volume Chills likes/saves see), so there's no hot-path reason to defer the
+# write. Structurally follows follow_outlet/is_following_outlet's
+# session-gating + cache-busting conventions (same file's Chills precedent).
+
+def _outlet_save_redis_key(phone):
+	return f"outlet:saves:{phone}"
+
+
+@frappe.whitelist(allow_guest=True)
+def save_outlet(outlet_id, phone):
+	"""Toggle save/unsave on an outlet ("wishlist" heart icon)."""
+	if not phone:
+		frappe.throw(_("phone is required"), frappe.AuthenticationError)
+	phone = phone.strip()
+	if not has_active_customer_session(phone):
+		frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+	if not outlet_id:
+		frappe.throw(_("outlet_id is required"))
+	if not frappe.db.exists("Outlet", outlet_id):
+		frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
+
+	existing = frappe.db.exists("Outlet Save", {"outlet": outlet_id, "customer_phone": phone})
+	if existing:
+		frappe.delete_doc("Outlet Save", existing, ignore_permissions=True)
+		frappe.db.commit()
+		frappe.cache().delete_value(_outlet_save_redis_key(phone))
+		saves_count = frappe.db.count("Outlet Save", {"outlet": outlet_id})
+		return {"success": True, "data": {"saved": False, "outlet_id": outlet_id, "saves_count": saves_count}}
+	else:
+		doc = frappe.get_doc({
+			"doctype": "Outlet Save",
+			"outlet": outlet_id,
+			"customer_phone": phone,
+		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		frappe.cache().delete_value(_outlet_save_redis_key(phone))
+		saves_count = frappe.db.count("Outlet Save", {"outlet": outlet_id})
+		return {"success": True, "data": {"saved": True, "outlet_id": outlet_id, "saves_count": saves_count}}
+
+
+@frappe.whitelist(allow_guest=True)
+def is_outlet_saved(outlet_id, phone=None):
+	"""Single-outlet saved-status — seeds the heart icon on the outlet detail
+	screen. Guests/unverified callers always see saved: false rather than
+	erroring (mirrors is_following_outlet)."""
+	if not outlet_id:
+		return {"success": True, "data": {"saved": False}}
+	saved = bool(
+		phone and has_active_customer_session(phone)
+		and frappe.db.exists("Outlet Save", {"outlet": outlet_id, "customer_phone": phone})
+	)
+	return {"success": True, "data": {"saved": saved}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_my_saved_outlet_ids(phone):
+	"""Lightweight id-only list of every outlet this phone has saved — cheap
+	enough to fetch once on app start / after any toggle and keep client-side,
+	so discovery/outlet-card lists (which stay guest-cacheable) can resolve
+	the heart state locally instead of every listing endpoint needing to be
+	threaded with per-user state and lose its shared cache."""
+	if not phone:
+		frappe.throw(_("phone is required"), frappe.AuthenticationError)
+	phone = phone.strip()
+	if not has_active_customer_session(phone):
+		frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+	ids = frappe.get_all("Outlet Save", filters={"customer_phone": phone}, pluck="outlet")
+	return {"success": True, "data": {"outlet_ids": ids}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_saved_outlets(phone, cursor=None, limit=20):
+	"""Paginated list of a customer's saved outlets, most-recently-saved
+	first — the "My Outlets" wishlist screen. Session-gated (private data),
+	same cursor-pagination shape as chills.get_saved_chills."""
+	from flamezo_backend.flamezo.api.flamezo import _format_outlet_card, _batch_active_offers_count, _DISCOVERY_FIELDS
+
+	if not phone:
+		frappe.throw(_("phone is required"), frappe.AuthenticationError)
+	phone = phone.strip()
+	if not has_active_customer_session(phone):
+		frappe.throw(_("Please verify your phone to continue."), frappe.AuthenticationError)
+	limit = min(cint(limit) or 20, 30)
+
+	conditions = ["s.customer_phone=%s", "r.is_active=1"]
+	params = [phone]
+
+	if cursor:
+		try:
+			cur_ts, cur_name = cursor.split("|", 1)
+			conditions.append("(s.creation < %s OR (s.creation = %s AND s.name < %s))")
+			params += [cur_ts, cur_ts, cur_name]
+		except ValueError:
+			pass
+
+	where = " AND ".join(conditions)
+	fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT {fields_csv}, s.creation AS saved_at, s.name AS save_name
+		FROM `tabOutlet Save` s
+		INNER JOIN `tabOutlet` r ON r.name = s.outlet
+		WHERE {where}
+		ORDER BY s.creation DESC, s.name DESC
+		LIMIT %s
+		""",
+		params + [limit + 1],
+		as_dict=True,
+	)
+
+	has_more = len(rows) > limit
+	items = rows[:limit]
+
+	rest_names = [r["name"] for r in items]
+	offers_map = _batch_active_offers_count(rest_names)
+	logos_map = {r["name"]: r.get("logo") or "" for r in items}
+	media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
+
+	outlets = [
+		{**_format_outlet_card(r, None, None, offers_map, media_map), "isSaved": True}
+		for r in items
+	]
+
+	next_cursor = None
+	if has_more and items:
+		last = items[-1]
+		next_cursor = f"{last.saved_at}|{last.save_name}"
+
+	return {
+		"success": True,
+		"data": {
+			"outlets": outlets,
+			"next_cursor": next_cursor,
+			"has_more": has_more,
+		},
+	}
