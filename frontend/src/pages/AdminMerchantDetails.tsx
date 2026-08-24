@@ -228,10 +228,10 @@ function AdminMerchantDetailsPage() {
   }>('flamezo_backend.flamezo.api.admin.admin_create_manual_recharge_link')
 
   const { call: suspendLinkedAccount } = useFrappePostCall<{ success: boolean, error?: string }>(
-    'flamezo_backend.flamezo.doctype.merchant.merchant.suspend_linked_account'
+    'flamezo_backend.flamezo.doctype.outlet.outlet.suspend_linked_account'
   )
   const { call: reactivateLinkedAccount } = useFrappePostCall<{ success: boolean, status?: string, error?: string }>(
-    'flamezo_backend.flamezo.doctype.merchant.merchant.reactivate_linked_account'
+    'flamezo_backend.flamezo.doctype.outlet.outlet.reactivate_linked_account'
   )
   
   const { data: platformSettingsData } = useFrappeGetCall(

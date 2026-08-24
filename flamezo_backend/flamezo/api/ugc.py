@@ -77,7 +77,7 @@ PLATFORM_STEPS = [
 	},
 	{
 		"title": "Share the story",
-		"detail": "Post the outlet's story frame to your Instagram, Facebook, or WhatsApp Story.",
+		"detail": "Post the outlet's story frame to your Instagram or Facebook Story.",
 	},
 	{
 		"title": "Show staff to verify",

@@ -235,11 +235,11 @@ export default function QRCodes() {
   })
 
   // API calls
-  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.generate_qr_codes_pdf')
-  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_codes_pdf_url')
-  const { call: deleteQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.delete_qr_codes_pdf')
-  const { call: getTableAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_table_qr_assets')
-  const { call: getAnalytics } = useFrappePostCall('flamezo_backend.flamezo.doctype.restaurant.restaurant.get_qr_scan_analytics')
+  const { call: generateQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.generate_qr_codes_pdf')
+  const { call: getQrCodeUrl } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.get_qr_codes_pdf_url')
+  const { call: deleteQrCodes } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.delete_qr_codes_pdf')
+  const { call: getTableAssets } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.get_table_qr_assets')
+  const { call: getAnalytics } = useFrappePostCall('flamezo_backend.flamezo.doctype.outlet.outlet.get_qr_scan_analytics')
   const { call: getAppSettings } = useFrappePostCall('flamezo_backend.flamezo.utils.config_helpers.get_app_settings')
   const { updateDoc: updateRestaurant } = useFrappeUpdateDoc()
 
