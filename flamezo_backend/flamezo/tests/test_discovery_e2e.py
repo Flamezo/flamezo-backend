@@ -314,6 +314,46 @@ class TestGetAllRestaurants(unittest.TestCase):
                 self.assertLessEqual(r["distance_km"], 5.0)
                 break
 
+    def test_deprioritize_ids_pushes_to_end_not_excluded(self):
+        # Non-geo path (SQL ORDER BY CASE branch). Scoped tightly via `search`
+        # to just this test's own fixtures (_PREFIX) — this dev DB carries a
+        # lot of leftover data from other test modules, so an unscoped
+        # outlet_type filter alone can put 50+ dining outlets ahead of these
+        # two, which would make a fixed `limit` assertion flaky through no
+        # fault of the deprioritization logic itself.
+        result = flamezo_api.get_all_outlets(
+            search=_PREFIX, outlet_type="dining", deprioritize_ids=self.featured, limit=50,
+        )
+        self.assertTrue(result["success"])
+        names = [r["id"] for r in result["data"]["outlets"]]
+        self.assertIn(self.featured, names, "deprioritized outlet must still appear")
+        self.assertIn(self.dining, names)
+        self.assertLess(
+            names.index(self.dining), names.index(self.featured),
+            "non-deprioritized outlet must sort before the deprioritized one",
+        )
+
+    def test_deprioritize_ids_geo_path_still_includes_and_pushes_back(self):
+        # Geo path (Python secondary-sort branch) — dining and featured are
+        # both real Surat coordinates a few hundred meters apart; without
+        # deprioritization either could come first depending on exact distance.
+        result = flamezo_api.get_all_outlets(
+            latitude=21.1702, longitude=72.8311, search=_PREFIX, outlet_type="dining",
+            deprioritize_ids=self.featured, limit=50,
+        )
+        self.assertTrue(result["success"])
+        names = [r["id"] for r in result["data"]["outlets"]]
+        self.assertIn(self.featured, names)
+        self.assertIn(self.dining, names)
+        self.assertLess(names.index(self.dining), names.index(self.featured))
+
+    def test_deprioritize_ids_empty_is_a_no_op(self):
+        # No ids passed -> ordinary behavior, no crash on the empty-set branch.
+        result = flamezo_api.get_all_outlets(deprioritize_ids="", limit=50)
+        self.assertTrue(result["success"])
+        names = [r["id"] for r in result["data"]["outlets"]]
+        self.assertIn(self.dining, names)
+
 
 # ── get_outlets_for_map ───────────────────────────────────────────────────
 
