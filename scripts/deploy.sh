@@ -85,6 +85,12 @@ fi
 NODE_VERSION=$(node -v)
 echo "Using Node version: $NODE_VERSION"
 
+# Cap Node's heap during the build so a memory spike fails the build loudly
+# (deploy step errors out, previous deploy stays live) instead of taking the
+# whole server down — this box has 4GB RAM. Server-wide OOM incident on
+# 2026-08-24 traced to this build with no cap and no swap; see incident notes.
+export NODE_OPTIONS="--max-old-space-size=2048"
+
 # Use yarn if available, fallback to npm
 if [ -f "yarn.lock" ]; then
     yarn install --frozen-lockfile --quiet
@@ -93,6 +99,8 @@ else
     npm install --quiet
     npm run build
 fi
+
+unset NODE_OPTIONS
 
 # ─── 5. Production Assets & Cache ───────────────────────────────────────────
 echo "Finalizing production assets..."
