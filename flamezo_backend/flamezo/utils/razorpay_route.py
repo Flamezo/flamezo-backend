@@ -394,6 +394,17 @@ def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Option
     }
     internal = mapping.get((new_status or "").lower(), "under_review")
 
+    # Monotonic guard: Razorpay's account.* webhooks can arrive OUT OF ORDER, and
+    # account.updated re-emits the current entity.status on unrelated changes. Once
+    # an account is `activated`, never let a stale/out-of-order pending status
+    # (under_review / needs_clarification / activated_kyc_pending) downgrade it
+    # back — that's the recurring "activated in Razorpay but our dashboard still
+    # says Under Review" bug. Only the genuine terminal states may move it off
+    # activated.
+    current = (frappe.db.get_value("Outlet", res_name, "razorpay_kyc_status") or "").lower()
+    if current == "activated" and internal not in ("activated", "rejected", "suspended"):
+        return
+
     update = {"razorpay_kyc_status": internal}
     # Flip route_mode automatically — admins can override any time.
     if internal == "activated":

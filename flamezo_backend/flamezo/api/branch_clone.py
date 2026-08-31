@@ -313,9 +313,17 @@ def _clone_coupons(source, target):
 
 def _clone_gallery(source, target):
 	"""Copy gallery items. Additive: skip an item whose url already exists.
-	Media urls are reused — no re-upload."""
+	Media urls are reused — no re-upload.
+
+	Google Places photos (source="Google Places") are NOT copied — every branch
+	pulls its own Google photos from its own Google Business listing, so leaking
+	the source branch's Google images into a sibling's showcase would be wrong.
+	Only the merchant's own uploaded gallery is shared across the group."""
 	copied = skipped = 0
-	for g in frappe.get_all("Outlet Gallery Item", filters={"outlet": source}, fields=["name", "url"]):
+	for g in frappe.get_all("Outlet Gallery Item", filters={"outlet": source}, fields=["name", "url", "source"]):
+		if (g.source or "") == "Google Places":
+			skipped += 1
+			continue
 		if g.url and frappe.db.exists("Outlet Gallery Item", {"outlet": target, "url": g.url}):
 			skipped += 1
 			continue
@@ -329,20 +337,20 @@ def _clone_gallery(source, target):
 
 # Presentation-only fields. Identity / social / security / per-branch state are
 # deliberately excluded (restaurant_name, *_link, whatsapp, pins, tokens, paid/status/history).
+# The AI menu-theme background / wallpapers ("Vibes for you") are ALSO excluded on
+# purpose — each branch keeps its own AI menu background, never the source's.
 _BRANDING_FIELDS = [
 	"tagline", "subtitle", "description", "default_theme", "logo_size",
 	"hero_video", "apple_touch_icon", "menu_layout", "qr_background",
-	"menu_theme_background_enabled", "menu_theme_background_active",
-	"menu_theme_wallpapers", "menu_theme_main_index", "menu_theme_selected_items",
-	"menu_theme_color_theme", "menu_theme_background_preview",
 ]
 
 
 def _clone_branding(source, target):
-	"""Copy the brand look (logo, theme, colours, AI menu-theme wallpapers) so all
-	branches of a brand match. Unlike menu/offers, branding is OVERWRITTEN — a
-	brand's branches are meant to look identical. Image/wallpaper URLs are reused
-	(the AI backgrounds are not regenerated). Returns True if anything changed."""
+	"""Copy the brand look (logo, theme, colours, layout) so all branches of a
+	brand match. Unlike menu/offers, branding is OVERWRITTEN — a brand's branches
+	are meant to look identical. The AI menu-theme background / wallpapers
+	("Vibes for you") are NOT copied — each branch keeps its own. Returns True if
+	anything changed."""
 	changed = False
 
 	# Logo lives on Restaurant (single source of truth), cloned separately.

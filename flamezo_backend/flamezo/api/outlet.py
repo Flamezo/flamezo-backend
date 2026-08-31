@@ -731,7 +731,8 @@ def get_outlet_media_pool(outlet_id):
 				m['menu_section'] = m.get('section_override') or _menu_section(m.get('subcategory'), m.get('source_title'))
 				m['category'] = product_label
 				media_pool.append(m)
-				media_pool.append({**m, "category": "Menu Images"})
+				# "Menu Images" is now a MANUAL section — menu-product photos are no
+				# longer auto-mirrored into it; merchants upload menu-card images there.
 				seen_urls.add(m.url)
 
 		# 1b. AI-generated images (enhanced_image_url) — surface every generated
