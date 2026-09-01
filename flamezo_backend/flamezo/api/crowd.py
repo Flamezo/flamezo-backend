@@ -1020,24 +1020,12 @@ def _send_crowd_chat_push_expo_legacy(request_id, sender_phone, title, body):
 def _check_join_eligibility(phone, customer_name=None):
     """
     Gate before allowing a user to join a Team Up:
-    1. Account age >= 7 days
-    2. Name not a system-generated placeholder
-    3. Reliability score >= 30% (enforced only after 5+ past joins)
+    1. Name not a system-generated placeholder
+    2. Reliability score >= 30% (enforced only after 5+ past joins)
     """
     import re
 
-    # 1. Account age — look up the Customer record by phone
-    try:
-        member_creation = frappe.db.get_value("Customer", {"phone": phone}, "creation")
-    except Exception:
-        member_creation = None
-    if member_creation:
-        from frappe.utils import date_diff
-        age_days = date_diff(now_datetime(), str(member_creation))
-        if age_days < 7:
-            frappe.throw(_("Your account must be at least 7 days old to join a Crowd."))
-
-    # 2. Name validation
+    # Name validation
     if customer_name:
         name = customer_name.strip()
         if len(name) < 2 or not re.search(r'[A-Za-z]', name):
@@ -1045,7 +1033,7 @@ def _check_join_eligibility(phone, customer_name=None):
         if re.match(r'^(user|guest|anon|test)\d+$', name.lower()):
             frappe.throw(_("Please update your profile name before joining a Crowd."))
 
-    # 3. Reliability gate (only if 5+ past joins)
+    # 2. Reliability gate (only if 5+ past joins)
     stats = frappe.db.sql(
         """
         SELECT COUNT(*) AS total, COALESCE(SUM(attended), 0) AS attended_count
