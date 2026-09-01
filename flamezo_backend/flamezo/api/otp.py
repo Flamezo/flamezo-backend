@@ -11,6 +11,7 @@ import string
 import frappe
 from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
+	is_valid_indian_mobile,
 	get_or_create_customer,
 	is_phone_verified,
 	create_customer_session,
@@ -37,8 +38,8 @@ def send_otp(outlet_id, phone, purpose="verification", outlet_name=None, channel
 	"""
 	try:
 		normalized = normalize_phone(phone)
-		if not normalized or len(normalized) != 10:
-			return {"success": False, "error": "INVALID_PHONE", "message": "Invalid phone number"}
+		if not is_valid_indian_mobile(normalized):
+			return {"success": False, "error": "INVALID_PHONE", "message": "Enter a valid mobile number"}
 
 		# Rate limit
 		rate_key = f"otp_rate:{normalized}"
@@ -183,8 +184,8 @@ def send_flamezo_otp(phone, purpose="verification", channel=None):
 	"""
 	try:
 		normalized = normalize_phone(phone)
-		if not normalized or len(normalized) != 10:
-			return {"success": False, "error": "INVALID_PHONE", "message": "Invalid phone number"}
+		if not is_valid_indian_mobile(normalized):
+			return {"success": False, "error": "INVALID_PHONE", "message": "Enter a valid mobile number"}
 
 		# Rate limit
 		rate_key = f"otp_rate:{normalized}"

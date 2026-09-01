@@ -13,7 +13,7 @@ import { useFrappePostCall } from '@/lib/frappe'
  *   • Copy to Branches — pick a group, copy FROM one branch TO many
  */
 
-interface Branch { id: string; restaurant_name?: string; city?: string }
+interface Branch { id: string; restaurant_name?: string; outlet_name?: string; city?: string }
 interface GroupRow { id: string; group_name: string; branch_count?: number }
 
 interface CloneResult {
@@ -179,7 +179,7 @@ export function BranchGroupTools({ onGroupsChanged }: { onGroupsChanged?: () => 
 
   const resetCopy = () => { setCopyOpen(false); setGroup(null); setGroupLabel(''); setCopyFrom(null); setCopyTo(new Set()); setResults(null) }
 
-  const branchOptions = branches.map((b) => ({ value: b.id, label: b.restaurant_name || b.id }))
+  const branchOptions = branches.map((b) => ({ value: b.id, label: b.outlet_name || b.restaurant_name || b.id }))
   const targetOptions = branchOptions.filter((o) => o.value !== copyFrom)
 
   return (

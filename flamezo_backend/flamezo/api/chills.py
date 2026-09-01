@@ -1059,7 +1059,6 @@ def suggest_chills_tags(outlet_id, caption, phone=None):
     """
     import json as _json
     import re as _re
-    from flamezo_backend.flamezo.services.ai.base import get_gemini_client, handle_ai_error
     from flamezo_backend.flamezo.utils.niche_taxonomy import TAXONOMY_IDS, taxonomy_prompt_block
 
     outlet = _resolve_outlet(outlet_id)
@@ -1094,15 +1093,31 @@ Taxonomy (id: breadcrumb):
 {tax_block}"""
 
     try:
-        model = get_gemini_client()
-        gen_config = {
-            "temperature": 0.1,
-            "top_p": 0.95,
-            "max_output_tokens": 8192,
-            "response_mime_type": "application/json",
+        import requests
+        gemini_key = frappe.conf.get("gemini_api_key")
+        if not gemini_key:
+            # No key configured — degrade gracefully instead of a hard error toast.
+            return {"success": True, "data": {"tags": []}}
+        # REST call (same path as the working Boost/ad-media features) rather
+        # than the google.generativeai SDK, which may not be installed on the
+        # server — that mismatch is what made this endpoint fail while ads worked.
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.5-flash:generateContent?key={gemini_key}"
+        )
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+                "responseMimeType": "application/json",
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
         }
-        response = model.generate_content(prompt, generation_config=gen_config)
-        raw = response.text.strip()
+        resp = requests.post(url, json=payload, timeout=15)
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         raw = _re.sub(r"^```(?:json)?\s*", "", raw, flags=_re.MULTILINE)
         raw = _re.sub(r"\s*```\s*$", "", raw, flags=_re.MULTILINE).strip()
         ids = _json.loads(raw)

@@ -293,6 +293,57 @@ def toggle_club_notifications(club_id, phone):
     return {"success": True, "data": {"notify_new_posts": bool(new_value)}}
 
 
+# ── mute / block a channel ──────────────────────────────────────────────────────
+
+def _set_club_preference(club_id, phone, **flags):
+    """Upsert the caller's (phone, club) preference row and set the given
+    flags (muted / blocked). Works for members and non-members alike."""
+    if not club_id:
+        frappe.throw(_("club_id is required"))
+    name = frappe.db.get_value(
+        "Creator Club Preference", {"club": club_id, "customer_phone": phone}, "name"
+    )
+    if name:
+        for k, v in flags.items():
+            frappe.db.set_value("Creator Club Preference", name, k, 1 if v else 0)
+    else:
+        frappe.get_doc({
+            "doctype": "Creator Club Preference",
+            "club": club_id,
+            "customer_phone": phone,
+            **{k: (1 if v else 0) for k, v in flags.items()},
+        }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+
+@frappe.whitelist(allow_guest=True)
+def mute_club(club_id, phone, muted=1):
+    """Stop new-post notifications from this channel — for members and
+    non-members alike (blocked channels are muted implicitly too)."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    muted = 1 if str(muted) not in ("0", "false", "False", "") else 0
+    _set_club_preference(club_id, phone, muted=muted)
+    # Keep the member bell flag in sync when they actually follow the club.
+    member = frappe.db.get_value(
+        "Creator Club Member", {"club": club_id, "customer_phone": phone}, "name"
+    )
+    if member:
+        frappe.db.set_value("Creator Club Member", member, "notify_new_posts", 0 if muted else 1)
+        frappe.db.commit()
+    return {"success": True, "data": {"muted": bool(muted)}}
+
+
+@frappe.whitelist(allow_guest=True)
+def block_club(club_id, phone, blocked=1):
+    """Hide this channel's posts from the feed AND stop its notifications."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    blocked = 1 if str(blocked) not in ("0", "false", "False", "") else 0
+    _set_club_preference(club_id, phone, blocked=blocked)
+    return {"success": True, "data": {"blocked": bool(blocked)}}
+
+
 # ── follow / unfollow ────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
@@ -575,6 +626,17 @@ def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude
         conditions.append(f"cp.club IN ({placeholders})")
         params += list(member_clubs)
 
+    # Hide posts from channels this user has blocked.
+    if phone:
+        blocked = frappe.db.sql_list(
+            "SELECT club FROM `tabCreator Club Preference` WHERE customer_phone=%s AND blocked=1",
+            phone,
+        )
+        if blocked:
+            placeholders = ",".join(["%s"] * len(blocked))
+            conditions.append(f"cp.club NOT IN ({placeholders})")
+            params += list(blocked)
+
     if cursor:
         cursor_row = frappe.db.get_value("Creator Club Post", cursor, "creation")
         if cursor_row:
@@ -822,8 +884,15 @@ def _notify_club_members_new_post(post_id, club_id):
     preview = content[:80] if content else "Tap to view the new post"
 
     members = frappe.db.sql_list(
-        "SELECT customer_phone FROM `tabCreator Club Member` WHERE club=%s AND notify_new_posts=1",
-        club_id,
+        """
+        SELECT customer_phone FROM `tabCreator Club Member`
+        WHERE club=%s AND notify_new_posts=1
+          AND customer_phone NOT IN (
+            SELECT customer_phone FROM `tabCreator Club Preference`
+            WHERE club=%s AND (muted=1 OR blocked=1)
+          )
+        """,
+        (club_id, club_id),
     )
     for phone in members:
         create_notification(
@@ -972,6 +1041,9 @@ def create_club_post_comment(post_id, phone, content):
         frappe.throw(_("content is required"))
     if len(content) > 1000:
         frappe.throw(_("Comment is too long"))
+    # Scrub abusive words before storing/broadcasting the comment.
+    from flamezo_backend.flamezo.utils.text_moderation import sanitize_text
+    content = sanitize_text(content)
 
     post_club = frappe.db.get_value("Creator Club Post", post_id, "club")
     if not post_club:

@@ -25,7 +25,9 @@ def get_allowed_roles():
 		"Menu Category": ["category_image"],
 		"Home Feature": ["home_feature_image"],
 		"Outlet": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
-		"Outlet Config": ["restaurant_config_hero_video", "apple_touch_icon"],
+		# outlet_config_hero_video is the current (renamed) role; restaurant_config_hero_video
+		# is kept so assets uploaded before the rename still validate/read.
+		"Outlet Config": ["outlet_config_hero_video", "restaurant_config_hero_video", "apple_touch_icon"],
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],
 		"Offer": ["offer_image"],
@@ -41,12 +43,12 @@ def get_allowed_roles():
 
 def get_actual_media_role(owner_doctype, media_role):
 	"""
-	Map prefixed media roles (e.g. "menu_category_category_image") 
+	Map prefixed media roles (e.g. "menu_category_category_image")
 	to base roles (e.g. "category_image").
 	"""
 	if not owner_doctype or not media_role:
 		return media_role
-		
+
 	# Check if it's already a base role
 	allowed_roles = get_allowed_roles()
 	if owner_doctype in allowed_roles and media_role in allowed_roles[owner_doctype]:

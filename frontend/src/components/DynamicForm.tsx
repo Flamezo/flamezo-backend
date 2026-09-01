@@ -564,7 +564,14 @@ export default function DynamicForm({
 
       if (mode !== 'create') {
         try {
-          await refreshDoc();
+          // Prime the SWR cache with the freshly-saved doc so that navigating
+          // Prev/Next back to this step re-hydrates from the SAVED values
+          // immediately — instead of a stale pre-save doc that the deduping
+          // window / a revalidation race could otherwise serve (that was the
+          // wizard "fields disappear on going back" bug). Then revalidate in
+          // the background to reconcile with the server.
+          await refreshDoc(savedDoc, { revalidate: false })
+          refreshDoc()
         } catch (e) { }
       }
 

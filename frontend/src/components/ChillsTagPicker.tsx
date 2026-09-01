@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { X, Search, Plus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { X, Search, Plus, ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFrappePostCall } from '@/lib/frappe'
 import { NICHE_TAXONOMY, findNode, getIndustryForNode } from '@/lib/niche-taxonomy'
@@ -67,15 +67,47 @@ export default function ChillsTagPicker({
   className,
 }: ChillsTagPickerProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestError, setSuggestError] = useState('')
   const [resolvePending, setResolvePending] = useState<ResolveSuggestion | null>(null)
   const [isResolving, setIsResolving] = useState(false)
   const [showBrowse, setShowBrowse] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  const { call: callSuggest } = useFrappePostCall<{ message: { success: boolean; data: { tags: string[] } } }>(
+    'flamezo_backend.flamezo.api.chills.suggest_chills_tags'
+  )
   const { call: callResolve } = useFrappePostCall<{
     message: { success: boolean; data: { matched: boolean; tag_id?: string; tag_label?: string; partial?: boolean } }
   }>('flamezo_backend.flamezo.api.chills.resolve_custom_tag')
+
+  // ── AI suggest ────────────────────────────────────────────────────────────────
+
+  const handleSuggest = useCallback(async () => {
+    if (!caption.trim() || !outletId || isSuggesting) return
+    setIsSuggesting(true)
+    setSuggestError('')
+    try {
+      const res = await callSuggest({ outlet_id: outletId, caption })
+      const body = (res as any)?.message ?? res
+      const suggested: string[] = body?.data?.tags ?? []
+      if (suggested.length === 0) {
+        setSuggestError('No tags found for this caption. Try adding more detail.')
+        return
+      }
+      // Merge with existing, deduplicate
+      const merged = Array.from(new Set([...nicheTags, ...suggested]))
+      const capped = merged.slice(0, MAX_NICHE)
+      if (merged.length > MAX_NICHE) {
+        setSuggestError(`Showing top ${MAX_NICHE} tags — some suggestions were trimmed to stay within the limit.`)
+      }
+      onNicheChange(capped)
+    } catch {
+      setSuggestError('AI suggestion failed. Try again.')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }, [caption, outletId, isSuggesting, nicheTags, onNicheChange, callSuggest])
 
   // ── Custom tag resolve ────────────────────────────────────────────────────────
 
@@ -217,6 +249,25 @@ export default function ChillsTagPicker({
             Tag your video so it reaches the right audience
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleSuggest}
+          disabled={!hasCaption || isSuggesting || disabled}
+          title={hasCaption ? 'Auto-suggest tags from your caption' : 'Write a caption first to use AI suggestions'}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 shrink-0',
+            hasCaption && !isSuggesting && !disabled
+              ? 'border-primary/40 bg-primary/8 text-primary hover:bg-primary/15'
+              : 'border-border text-muted-foreground opacity-50 cursor-not-allowed',
+          )}
+        >
+          {isSuggesting ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Sparkles className="h-3 w-3" />
+          )}
+          {isSuggesting ? 'Suggesting…' : 'AI Suggest'}
+        </button>
       </div>
 
       {/* Suggest error */}

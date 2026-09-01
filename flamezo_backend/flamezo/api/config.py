@@ -114,7 +114,9 @@ def get_outlet_config(outlet_id):
 		
 		# Batch fetch branding Media Assets in one go. Logo lives on Restaurant
 		# now (single source of truth), everything else stays on Restaurant Config.
-		media_roles = ["restaurant_config_hero_video", "apple_touch_icon"]
+		# outlet_config_hero_video is the renamed role; restaurant_config_hero_video
+		# is read too so pre-rename hero videos still resolve.
+		media_roles = ["outlet_config_hero_video", "restaurant_config_hero_video", "apple_touch_icon"]
 		config_name = frappe.db.get_value("Outlet Config", {"outlet": restaurant}, "name")
 		media_batch = get_media_assets_batch("Outlet Config", [config_name], media_roles) if config_name else {}
 		logo_media_batch = get_media_assets_batch("Outlet", [restaurant], ["restaurant_logo"])
@@ -132,7 +134,8 @@ def get_outlet_config(outlet_id):
 		logo_srcset = logo_data.get("srcset")
 		
 		# Get hero video
-		hero_data = media_batch.get((config_name, "restaurant_config_hero_video")) or {
+		hero_data = media_batch.get((config_name, "outlet_config_hero_video")) \
+			or media_batch.get((config_name, "restaurant_config_hero_video")) or {
 			"url": config.get("hero_video") or "",
 			"blur_placeholder": None,
 			"variants": {},

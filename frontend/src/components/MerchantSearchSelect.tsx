@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 
 export interface MerchantRef { id: string; name: string }
 
-interface Branch { id: string; restaurant_name?: string; city?: string }
+interface Branch { id: string; restaurant_name?: string; outlet_name?: string; city?: string }
 
 export function MerchantSearchSelect({
   value,
@@ -68,7 +68,7 @@ export function MerchantSearchSelect({
   }, [])
 
   const pick = (b: Branch) => {
-    onChange({ id: b.id, name: b.restaurant_name || b.id })
+    onChange({ id: b.id, name: b.outlet_name || b.restaurant_name || b.id })
     setOpen(false)
     setQuery('')
   }
@@ -120,7 +120,7 @@ export function MerchantSearchSelect({
                 className={cn('flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60')}
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium">{b.restaurant_name || b.id}</span>
+                  <span className="block truncate font-medium">{b.outlet_name || b.restaurant_name || b.id}</span>
                   {b.city && <span className="block truncate text-xs text-muted-foreground">{b.city}</span>}
                 </span>
                 {value && (value as MerchantRef).id === b.id && <Check className="h-4 w-4 text-primary shrink-0" />}

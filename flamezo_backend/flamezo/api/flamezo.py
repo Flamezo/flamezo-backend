@@ -1126,7 +1126,10 @@ def get_flamezo_member(phone=None):
 			frappe.db.get_value("Customer", customer.name, "referral_code")
 			if frappe.db.has_column("Customer", "referral_code") else None
 		)
-		referral_code = raw_referral or (customer.name or "")[:8].upper()
+		# Fallback must be UNIQUE per user — the old customer.name[:8] resolved to
+		# the shared "CUSTOMER"/"CUST-…" docname prefix, so every user saw the
+		# same code. Phone-derived is unique and stable.
+		referral_code = raw_referral or ("FZ" + normalized_phone[-6:])
 
 		# Next tier thresholds
 		TIER_THRESHOLDS = {"Bronze": 0, "Silver": 500, "Gold": 2000, "Platinum": 5000}
@@ -1335,7 +1338,8 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 			frappe.db.get_value("Customer", customer.name, "referral_code")
 			if frappe.db.has_column("Customer", "referral_code") else None
 		)
-		referral_code = raw_referral or (customer.name or "")[:8].upper()
+		# Unique per user — see note in get_flamezo_member above.
+		referral_code = raw_referral or ("FZ" + normalized_phone[-6:])
 
 		return {
 			"success": True,
@@ -1528,6 +1532,25 @@ def upload_customer_photo():
 		return {"success": False, "error": {"code": "UPLOAD_ERROR", "message": str(e)}}
 
 
+@frappe.whitelist(allow_guest=True)
+def remove_customer_photo():
+	"""Clear the customer's profile photo. Same X-Customer-Token auth as
+	upload_customer_photo — there was no way to remove a photo before."""
+	try:
+		session_token = get_customer_token()
+		if not session_token:
+			return {"success": False, "error": {"code": "UNAUTHORIZED", "message": "Authentication required"}}
+		customer_id = get_customer_from_token(session_token)
+		if not customer_id:
+			return {"success": False, "error": {"code": "SESSION_INVALID", "message": "Invalid or expired session"}}
+		frappe.db.set_value("Customer", customer_id, "image", "")
+		frappe.db.commit()
+		return {"success": True}
+	except Exception as e:
+		frappe.log_error(f"Error in flamezo.remove_customer_photo: {str(e)}")
+		return {"success": False, "error": {"code": "REMOVE_ERROR", "message": str(e)}}
+
+
 # ── 8. Update Customer Profile ────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
@@ -1570,8 +1593,9 @@ def update_profile(phone=None, full_name=None, email=None, date_of_birth=None, i
 			updates["customer_name"] = full_name
 
 		if email is not None:
+			import re
 			email = email.strip().lower()
-			if email and "@" not in email:
+			if email and not re.match(r"^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$", email):
 				return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": "Invalid email address"}}
 			updates["email"] = email
 
