@@ -773,6 +773,7 @@ def get_outlets_for_map(
 	sw_lat=None, sw_lng=None, ne_lat=None, ne_lng=None,
 	outlet_type=None,
 	search=None, has_offer=None,
+	top_rated=None, open_now=None, newly_opened=None,
 	user_lat=None, user_lon=None, radius_km=None,
 ):
 	"""
@@ -808,7 +809,8 @@ def get_outlets_for_map(
 		user_b = f"{round(user_lat_f,2)},{round(user_lon_f,2)},{r_km}" if user_lat_f else "none"
 		cache_key = (
 			f"flamezo:map:{city or 'all'}:{lat_b}:{lon_b}:{outlet_type or 'all'}:"
-			f"{search or ''}:{cint(has_offer)}:{user_b}"
+			f"{search or ''}:{cint(has_offer)}:{cint(top_rated)}:{cint(open_now)}:"
+			f"{cint(newly_opened)}:{user_b}"
 		)
 		cached = frappe.cache().get_value(cache_key)
 		if cached:
@@ -854,11 +856,22 @@ def get_outlets_for_map(
 			like = f"%{search}%"
 			params += [like, like]
 
+		# Top rated — 4.0★ and up.
+		if cint(top_rated):
+			sql_filters.append("rating >= 4")
+
+		# Newly opened — onboarded within the last 30 days.
+		if cint(newly_opened):
+			from frappe.utils import add_days
+			sql_filters.append("onboarding_date >= %s")
+			params.append(add_days(today(), -30))
+
 		where = " AND ".join(sql_filters)
 		rows = frappe.db.sql(
 			f"""
 			SELECT name, outlet_name, logo, latitude, longitude,
-			       outlet_type, is_featured, limelight_start_date, limelight_end_date
+			       outlet_type, is_featured, limelight_start_date, limelight_end_date,
+			       rating, hours_json
 			FROM `tabOutlet`
 			WHERE {where}
 			ORDER BY (is_featured = 1 AND (limelight_start_date IS NULL OR CURDATE() >= limelight_start_date) AND (limelight_end_date IS NULL OR CURDATE() <= limelight_end_date)) DESC, onboarding_date DESC
@@ -881,6 +894,10 @@ def get_outlets_for_map(
 		# zero N+1) — only outlets with >=1 currently-valid active coupon.
 		if cint(has_offer):
 			rows = [r for r in rows if offers_map.get(r["name"], 0) > 0]
+
+		# Open-now filter (post-query — needs per-row hours_json parsing).
+		if cint(open_now):
+			rows = [r for r in rows if _is_open_now(r.get("hours_json"))]
 
 		site_url = frappe.utils.get_url()
 		today_date = getdate(today())
@@ -1048,6 +1065,18 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 # ── 3. FLAMEZO Member Profile ──────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
+def _make_referral_code(name, phone):
+    """Referral code = the user's name + a short stable code (e.g. RAJPA2F1) —
+    name-based, not the phone number. Falls back to a FLAM prefix when there's
+    no real name yet. The phone-hash suffix keeps it unique per user."""
+    letters = re.sub(r"[^A-Za-z]", "", name or "").upper()
+    if letters.startswith("CUSTOMER"):
+        letters = ""
+    prefix = letters[:5] or "FLAM"
+    suffix = hashlib.sha1((phone or "").encode()).hexdigest()[:3].upper()
+    return f"{prefix}{suffix}"
+
+
 def get_flamezo_member(phone=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_flamezo_member
@@ -1126,10 +1155,10 @@ def get_flamezo_member(phone=None):
 			frappe.db.get_value("Customer", customer.name, "referral_code")
 			if frappe.db.has_column("Customer", "referral_code") else None
 		)
-		# Fallback must be UNIQUE per user — the old customer.name[:8] resolved to
-		# the shared "CUSTOMER"/"CUST-…" docname prefix, so every user saw the
-		# same code. Phone-derived is unique and stable.
-		referral_code = raw_referral or ("FZ" + normalized_phone[-6:])
+		# Name-based, unique, stable — see _make_referral_code.
+		referral_code = raw_referral or _make_referral_code(
+			customer.customer_name, normalized_phone
+		)
 
 		# Next tier thresholds
 		TIER_THRESHOLDS = {"Bronze": 0, "Silver": 500, "Gold": 2000, "Platinum": 5000}
@@ -1338,8 +1367,11 @@ def register_flamezo_member(phone, full_name=None, city=None, email=None, date_o
 			frappe.db.get_value("Customer", customer.name, "referral_code")
 			if frappe.db.has_column("Customer", "referral_code") else None
 		)
-		# Unique per user — see note in get_flamezo_member above.
-		referral_code = raw_referral or ("FZ" + normalized_phone[-6:])
+		# Name-based, unique, stable — see _make_referral_code.
+		referral_code = raw_referral or _make_referral_code(
+			frappe.db.get_value("Customer", customer.name, "customer_name"),
+			normalized_phone,
+		)
 
 		return {
 			"success": True,

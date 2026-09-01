@@ -90,6 +90,7 @@ function VideoCard({
   deleting: boolean
 }) {
   const [hovered, setHovered] = useState(false)
+  const [captionExpanded, setCaptionExpanded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const handleMouseEnter = () => {
@@ -152,7 +153,11 @@ function VideoCard({
 
       {/* Meta */}
       <CardContent className="p-3 space-y-2">
-        <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
+        <p
+          className={`text-xs text-muted-foreground min-h-[2rem] ${captionExpanded ? '' : 'line-clamp-2'} ${video.description ? 'cursor-pointer' : ''}`}
+          onClick={() => video.description && setCaptionExpanded((v) => !v)}
+          title={captionExpanded ? 'Show less' : 'Show full caption'}
+        >
           {video.description || <span className="italic opacity-50">No caption</span>}
         </p>
 
