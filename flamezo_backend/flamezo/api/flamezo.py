@@ -1064,7 +1064,6 @@ def get_cross_outlet_offers(city=None, page=1, limit=30):
 
 # ── 3. FLAMEZO Member Profile ──────────────────────────────────────────────────
 
-@frappe.whitelist(allow_guest=True)
 def _make_referral_code(name, phone):
     """Referral code = the user's name + a short stable code (e.g. RAJPA2F1) —
     name-based, not the phone number. Falls back to a FLAM prefix when there's
@@ -1077,6 +1076,7 @@ def _make_referral_code(name, phone):
     return f"{prefix}{suffix}"
 
 
+@frappe.whitelist(allow_guest=True)
 def get_flamezo_member(phone=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_flamezo_member
