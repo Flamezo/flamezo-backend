@@ -416,23 +416,30 @@ def delete_flamezo_account(session_token):
 		if not customer_id:
 			return {"success": False, "error": "INVALID_SESSION"}
 
-		# 1. Anonymise PII fields on the Customer record
-		anon_fields = {}
-		if frappe.db.has_column("Customer", "phone"):
-			anon_fields["phone"] = ""
-		if frappe.db.has_column("Customer", "email"):
-			anon_fields["email"] = ""
-		if frappe.db.has_column("Customer", "image"):
-			anon_fields["image"] = ""
-		if frappe.db.has_column("Customer", "date_of_birth"):
-			anon_fields["date_of_birth"] = None
-		if frappe.db.has_column("Customer", "verified_at"):
-			anon_fields["verified_at"] = None
-
-		anon_fields["customer_name"] = f"Deleted User"
-
-		for field, value in anon_fields.items():
-			frappe.db.set_value("Customer", customer_id, field, value)
+		# 1. Soft-delete: keep the data for 30 days so the user can recover their
+		# account by simply logging back in (see get_or_create_customer). A daily
+		# job (purge_deleted_customers) hard-anonymises rows past the 30-day
+		# window. Falls back to the old immediate scrub on sites that don't yet
+		# have the `deleted_at` field.
+		if frappe.db.has_column("Customer", "deleted_at"):
+			frappe.db.set_value("Customer", customer_id, "deleted_at", frappe.utils.now_datetime())
+			if frappe.db.has_column("Customer", "disabled"):
+				frappe.db.set_value("Customer", customer_id, "disabled", 1)
+		else:
+			anon_fields = {}
+			if frappe.db.has_column("Customer", "phone"):
+				anon_fields["phone"] = ""
+			if frappe.db.has_column("Customer", "email"):
+				anon_fields["email"] = ""
+			if frappe.db.has_column("Customer", "image"):
+				anon_fields["image"] = ""
+			if frappe.db.has_column("Customer", "date_of_birth"):
+				anon_fields["date_of_birth"] = None
+			if frappe.db.has_column("Customer", "verified_at"):
+				anon_fields["verified_at"] = None
+			anon_fields["customer_name"] = "Deleted User"
+			for field, value in anon_fields.items():
+				frappe.db.set_value("Customer", customer_id, field, value)
 
 		# 2. Revoke ALL sessions for this customer (not just the current one)
 		if _session_doctype_exists():
@@ -458,6 +465,33 @@ def delete_flamezo_account(session_token):
 	except Exception as e:
 		frappe.log_error(f"delete_flamezo_account error: {e}", "Account_Deletion_Error")
 		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
+
+
+def purge_deleted_customers():
+	"""Daily scheduled job — hard-anonymise soft-deleted customers past the
+	30-day recovery window. Until then their data is kept so logging back in
+	recovers the account (see get_or_create_customer)."""
+	if not frappe.db.has_column("Customer", "deleted_at"):
+		return
+	from frappe.utils import add_days, now_datetime
+	cutoff = add_days(now_datetime(), -30)
+	rows = frappe.get_all(
+		"Customer",
+		filters={"deleted_at": ["<=", cutoff], "phone": ["!=", ""]},
+		pluck="name",
+	)
+	for cid in rows:
+		anon: dict = {"customer_name": "Deleted User"}
+		for f in ("phone", "email", "image"):
+			if frappe.db.has_column("Customer", f):
+				anon[f] = ""
+		if frappe.db.has_column("Customer", "date_of_birth"):
+			anon["date_of_birth"] = None
+		if frappe.db.has_column("Customer", "verified_at"):
+			anon["verified_at"] = None
+		for f, v in anon.items():
+			frappe.db.set_value("Customer", cid, f, v)
+	frappe.db.commit()
 
 
 @frappe.whitelist(allow_guest=True)
@@ -771,6 +805,8 @@ def get_my_profile():
 		fields = ["customer_name", "email", "phone", "image"]
 		if frappe.db.has_column("Customer", "date_of_birth"):
 			fields.append("date_of_birth")
+		if frappe.db.has_column("Customer", "interests"):
+			fields.append("interests")
 
 		c = frappe.db.get_value("Customer", customer_id, fields, as_dict=True)
 		if not c:
@@ -792,6 +828,7 @@ def get_my_profile():
 			"email": c.get("email") or "",
 			"date_of_birth": str(c.get("date_of_birth")) if c.get("date_of_birth") else None,
 			"profile_photo": c.get("image") or None,
+			"interests": c.get("interests") or "",
 			"saved_addresses": saved_addresses,
 		}
 	except Exception as e:

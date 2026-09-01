@@ -62,18 +62,36 @@ def _optional_verified_phone(phone):
 def _format_club(c, phone=None, member_set=None):
     if member_set is None:
         member_set = set()
+    cover = c.cover_image or ""
+    creator_img = c.creator_profile_image or ""
+    # Fall back to the owning outlet's live logo when the club/creator images
+    # are empty — clubs auto-provisioned before the outlet had a logo (or whose
+    # logo changed later) otherwise show a placeholder even though the outlet
+    # detail page has the real logo.
+    if (not cover or not creator_img) and c.get("creator_phone"):
+        try:
+            logo = frappe.db.get_value(
+                "Outlet", {"owner_phone": normalize_phone(c.creator_phone)}, "logo"
+            ) or ""
+            if logo:
+                if logo.startswith("/"):
+                    logo = frappe.utils.get_url() + logo
+                cover = cover or logo
+                creator_img = creator_img or logo
+        except Exception:
+            pass
     return {
         "id": c.name,
         "club_name": c.club_name or "",
         "niche": c.niche or "",
         "description": c.description or "",
-        "cover_image": c.cover_image or "",
+        "cover_image": cover,
         "category": c.category or "",
         "followers_count": c.followers_count or 0,
         "is_following": c.name in member_set,
         "creator_id": c.creator or "",
         "creator_name": c.creator_display_name or "",
-        "creator_image": c.creator_profile_image or "",
+        "creator_image": creator_img,
         # Only present when the listing call passed viewer lat/lng — nearest
         # located talk from this club, for a "4km away" hint on the card.
         "nearest_talk_distance_km": c.get("nearest_talk_distance_km"),

@@ -784,15 +784,18 @@ class TestCrowdChat(unittest.TestCase):
 
     # ── Send guard-rails ──────────────────────────────────────────────────────
 
-    def test_pending_member_cannot_send(self):
-        # PHONE_C joins but is not yet approved
+    def test_pending_member_can_send(self):
+        # PHONE_C joins but is not yet approved — chat now opens immediately
+        # on request (see _assert_chat_access), pending members included.
         crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Pending C")
-        with self.assertRaises(frappe.exceptions.PermissionError):
+        result = _data(
             crowd.send_message(
                 request_id=self.req.name,
                 phone=_PHONE_C,
                 message="Can I say something?",
             )
+        )
+        self.assertEqual(result["message"], "Can I say something?")
 
     def test_non_member_cannot_send(self):
         with self.assertRaises(frappe.exceptions.PermissionError):
@@ -925,11 +928,13 @@ class TestCrowdChat(unittest.TestCase):
         result = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_B))
         self.assertGreater(len(result["messages"]), 0)
 
-    def test_pending_member_blocked_from_read(self):
+    def test_pending_member_can_read(self):
+        # Chat now opens immediately on request (see _assert_chat_access) —
+        # a pending member can already read, not just an approved one.
         crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Charlie C")
-        # Non-guest authenticated read with phone should be blocked for pending member
-        with self.assertRaises(frappe.exceptions.PermissionError):
-            crowd.get_messages(request_id=self.req.name, phone=_PHONE_C)
+        crowd.send_message(self.req.name, _PHONE_A, message="Hi", sender_name="A")
+        result = _data(crowd.get_messages(request_id=self.req.name, phone=_PHONE_C))
+        self.assertGreater(len(result["messages"]), 0)
 
     def test_get_missing_request_id_throws(self):
         with self.assertRaises(Exception):
@@ -1018,11 +1023,16 @@ class TestGetLinkPreview(unittest.TestCase):
         self.assertIsNone(result["preview"])
 
     @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
-    def test_pending_member_cannot_fetch_preview(self, mock_fetch):
+    def test_pending_member_can_fetch_preview(self, mock_fetch):
+        # Chat now opens immediately on request — a pending member can
+        # already use in-chat features like link previews.
+        mock_fetch.return_value = None
         crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Pending C")
-        with self.assertRaises(frappe.exceptions.PermissionError):
+        result = _data(
             crowd.get_link_preview(request_id=self.req.name, phone=_PHONE_C, url="https://example.com")
-        mock_fetch.assert_not_called()
+        )
+        self.assertIsNone(result["preview"])
+        mock_fetch.assert_called_once_with("https://example.com")
 
     @patch("flamezo_backend.flamezo.api.crowd.fetch_link_preview")
     def test_non_member_cannot_fetch_preview(self, mock_fetch):
@@ -1123,10 +1133,15 @@ class TestPollMessages(unittest.TestCase):
         with self.assertRaises(frappe.exceptions.PermissionError):
             crowd.poll_messages(request_id=self.req.name, phone=_PHONE_C)
 
-    def test_pending_member_rejected(self):
+    def test_pending_member_can_poll(self):
+        # Chat now opens immediately on request — a pending member can poll
+        # too, not just an approved one. (Still costs the full long-poll
+        # wait since there's nothing new — same as every other empty-result
+        # case in this class.)
         crowd.request_to_join(self.req.name, _PHONE_C, customer_name="Pending C")
-        with self.assertRaises(frappe.exceptions.PermissionError):
-            crowd.poll_messages(request_id=self.req.name, phone=_PHONE_C)
+        result = _data(crowd.poll_messages(request_id=self.req.name, phone=_PHONE_C))
+        self.assertTrue(result["timed_out"])
+        self.assertEqual(result["messages"], [])
 
     def test_missing_phone_rejected(self):
         with self.assertRaises(frappe.exceptions.AuthenticationError):

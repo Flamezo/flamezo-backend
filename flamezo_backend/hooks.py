@@ -288,6 +288,9 @@ scheduler_events = {
 			# Events — once a day, deactivate events whose date/time is over
 			# (they drop off the app feed and to the bottom of the list).
 			"flamezo_backend.flamezo.api.events.deactivate_past_events",
+			# Account deletion — hard-anonymise soft-deleted customers past the
+			# 30-day recovery window.
+			"flamezo_backend.flamezo.api.otp.purge_deleted_customers",
 		],
 		# The 23:59 floor-recovery cron was retired when the ₹399 monthly floor
 		# was removed from the model. `process_daily_subscription_floors` and
