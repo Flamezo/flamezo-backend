@@ -46,6 +46,14 @@ def normalize_phone(phone: str) -> str:
 	return digits[-10:] if len(digits) >= 10 else digits
 
 
+def is_valid_indian_mobile(n: str) -> bool:
+	"""Reject obviously-fake numbers before sending an OTP. normalize_phone's
+	regex fallback happily returns any 10 digits (e.g. 0000000000), so the
+	`phonenumbers` validity check gets bypassed — this re-imposes the basics:
+	real Indian mobiles are 10 digits, start 6-9, and aren't all one digit."""
+	return len(n) == 10 and n[0] in "6789" and len(set(n)) > 1
+
+
 def _phone_variants(normalized: str):
 	return [normalized, f"0{normalized}", f"+91{normalized}", f"+91 {normalized}", f"91{normalized}"]
 
