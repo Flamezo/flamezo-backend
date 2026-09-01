@@ -24,9 +24,9 @@ def get_allowed_roles():
 		"Menu Product": ["product_image", "product_video", "product_video_poster"],
 		"Menu Category": ["category_image"],
 		"Home Feature": ["home_feature_image"],
-		"Outlet": ["restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
-		# outlet_config_hero_video is the current (renamed) role; restaurant_config_hero_video
-		# is kept so assets uploaded before the rename still validate/read.
+		# outlet_* are the current (renamed) roles; restaurant_* kept so assets
+		# uploaded before the rename still validate/read.
+		"Outlet": ["outlet_logo", "outlet_hero_video", "outlet_banner", "outlet_gallery_image", "restaurant_logo", "restaurant_hero_video", "restaurant_banner", "restaurant_gallery_image", "event_image", "offer_image"],
 		"Outlet Config": ["outlet_config_hero_video", "restaurant_config_hero_video", "apple_touch_icon"],
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],

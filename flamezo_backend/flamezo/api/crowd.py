@@ -308,10 +308,32 @@ def request_to_join(request_id, phone, customer_name=None, intro_message=None, c
         frappe.throw(_("This crowd request has expired"))
     if crowd.creator_phone == phone:
         frappe.throw(_("You cannot join your own crowd request"))
-    if frappe.db.exists("Crowd Request Member", {"request": request_id, "customer_phone": phone}):
-        frappe.throw(_("You have already requested to join this crowd"))
-
     _check_join_eligibility(phone, customer_name)
+
+    # A prior membership row may already exist. Only block when it's actively
+    # pending or approved — a `left`/`rejected` row must be RESET to a fresh
+    # pending request so the creator sees it again (re-request after leaving).
+    existing = frappe.db.get_value(
+        "Crowd Request Member",
+        {"request": request_id, "customer_phone": phone},
+        ["name", "status"],
+        as_dict=True,
+    )
+    if existing:
+        if existing.status == "pending":
+            frappe.throw(_("You have already requested to join this crowd"))
+        if existing.status == "approved":
+            frappe.throw(_("You are already a member of this crowd"))
+        # left / rejected → revive as a new pending request
+        frappe.db.set_value("Crowd Request Member", existing.name, {
+            "status": "pending",
+            "customer_name": customer_name or "",
+            "customer_image": customer_image or "",
+            "intro_message": intro_message or "",
+            "responded_at": None,
+        })
+        frappe.db.commit()
+        return {"success": True, "data": {"member_id": existing.name, "status": "pending"}}
 
     doc = frappe.get_doc({
         "doctype": "Crowd Request Member",
@@ -562,7 +584,9 @@ def cancel_crowd_request(request_id, phone):
 # ── Crowd Chat ─────────────────────────────────────────────────────────────────
 
 def _assert_chat_access(request_id, phone):
-    """Verify caller is either the creator or an approved member."""
+    """Verify caller is the creator, or has a member row for this crowd.
+    Chat opens immediately on request (pending members allowed) — no waiting
+    for the creator to approve. Only `left`/`rejected` (or no row) are denied."""
     crowd = frappe.db.get_value(
         "Crowd Request", request_id,
         ["name", "creator_phone", "status"], as_dict=True
@@ -576,8 +600,8 @@ def _assert_chat_access(request_id, phone):
         {"request": request_id, "customer_phone": phone},
         "status"
     )
-    if member_status != "approved":
-        frappe.throw(_("Access denied — you must be an approved member"), frappe.PermissionError)
+    if member_status not in ("approved", "pending"):
+        frappe.throw(_("Access denied — request to join this crowd first"), frappe.PermissionError)
     return True
 
 
@@ -1231,6 +1255,29 @@ def report_crowd_message(message_id, phone, reason="other"):
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
     return {"success": True, "data": {"report_id": doc.name}}
+
+
+@frappe.whitelist(allow_guest=True)
+def delete_chat_message(message_id, phone):
+    """Delete a chat message — only the sender can delete their own."""
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not message_id:
+        frappe.throw(_("message_id is required"))
+    msg = frappe.db.get_value(
+        "Crowd Chat Message",
+        message_id,
+        ["name", "request_id", "sender_phone"],
+        as_dict=True,
+    )
+    if not msg:
+        frappe.throw(_("Message not found"), frappe.DoesNotExistError)
+    _assert_chat_access(msg.request_id, phone)
+    if msg.sender_phone != phone:
+        frappe.throw(_("You can only delete your own messages"))
+    frappe.delete_doc("Crowd Chat Message", message_id, ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True}
 
 
 # ── Complete crowd request ─────────────────────────────────────────────────────

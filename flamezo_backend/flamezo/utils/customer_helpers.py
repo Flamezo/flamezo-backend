@@ -76,11 +76,36 @@ def _find_customer_by_normalized_phone(normalized: str):
 	return res[0].name if res else None
 
 
+def _recover_or_orphan(existing: str):
+	"""A soft-deleted account logging back in: within 30 days → recover it
+	(clear the deletion flag). Past 30 days → detach the stale row's phone and
+	return None so a brand-new customer is created instead."""
+	if not frappe.db.has_column("Customer", "deleted_at"):
+		return existing
+	deleted_at = frappe.db.get_value("Customer", existing, "deleted_at")
+	if not deleted_at:
+		return existing
+	from frappe.utils import get_datetime, now_datetime
+	age_days = (now_datetime() - get_datetime(deleted_at)).days
+	if age_days <= 30:
+		frappe.db.set_value("Customer", existing, "deleted_at", None)
+		if frappe.db.has_column("Customer", "disabled"):
+			frappe.db.set_value("Customer", existing, "disabled", 0)
+		frappe.db.commit()
+		return existing
+	# Retention window passed — orphan the phone so the caller creates fresh.
+	frappe.db.set_value("Customer", existing, "phone", "")
+	frappe.db.commit()
+	return None
+
+
 def get_or_create_customer(phone: str, name: str = None, email: str = None):
 	normalized = normalize_phone(phone)
 	if not normalized or len(normalized) != 10:
 		return None
 	existing = _find_customer_by_normalized_phone(normalized)
+	if existing:
+		existing = _recover_or_orphan(existing)
 	if existing:
 		if name:
 			frappe.db.set_value("Customer", existing, "customer_name", name)
