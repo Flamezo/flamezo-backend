@@ -149,6 +149,7 @@ def sync_media_asset_to_owner(asset):
 			"Home Feature": {"home_feature_image": "image_src"},
 			"Outlet": {"restaurant_logo": "logo"},
 			"Outlet Config": {
+				"outlet_config_hero_video": "hero_video",
 				"restaurant_config_hero_video": "hero_video",
 				"apple_touch_icon": "apple_touch_icon",
 			},

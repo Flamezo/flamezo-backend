@@ -62,7 +62,7 @@
   },
   {
    "fieldname": "outlet_logo",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Outlet Logo",
    "fetch_from": "outlet.logo",
    "read_only": 1
@@ -83,13 +83,13 @@
   },
   {
    "fieldname": "video_url",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Video URL",
    "reqd": 1
   },
   {
    "fieldname": "thumbnail_url",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Thumbnail URL"
   },
   {

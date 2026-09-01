@@ -17,6 +17,7 @@ export interface BranchRef { id: string; name: string }
 interface Branch {
   id: string
   restaurant_name?: string
+  outlet_name?: string
   city?: string
   branch_group?: string | null
 }
@@ -74,7 +75,7 @@ export function BranchOfPicker({
   // multiple outlets can be selected in one go.
   const toggle = (b: Branch) => {
     if (selectedIds.has(b.id)) onChange(value.filter((v) => v.id !== b.id))
-    else onChange([...value, { id: b.id, name: b.restaurant_name || b.id }])
+    else onChange([...value, { id: b.id, name: b.outlet_name || b.restaurant_name || b.id }])
   }
   const remove = (id: string) => onChange(value.filter((v) => v.id !== id))
 
@@ -129,7 +130,7 @@ export function BranchOfPicker({
                   </span>
                   <Store className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{b.restaurant_name || b.id}</span>
+                    <span className="block truncate text-sm font-medium">{b.outlet_name || b.restaurant_name || b.id}</span>
                     {b.city && <span className="block truncate text-xs text-muted-foreground">{b.city}</span>}
                   </span>
                 </button>
