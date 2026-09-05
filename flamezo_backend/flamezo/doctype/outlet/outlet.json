@@ -105,6 +105,7 @@
   "contact_phone",
   "whatsapp_number",
   "instagram_url",
+  "facebook_url",
   "logo",
   "hero_video",
   "section_break_metadata",
@@ -888,6 +889,12 @@
    "fieldname": "instagram_url",
    "fieldtype": "Data",
    "label": "Instagram URL"
+  },
+  {
+   "fieldname": "facebook_url",
+   "fieldtype": "Data",
+   "label": "Facebook URL",
+   "description": "Facebook page URL or handle. Powers the Visit tile on the app's outlet detail page."
   },
   {
    "fieldname": "section_break_discovery",

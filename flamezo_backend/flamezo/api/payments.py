@@ -1298,8 +1298,14 @@ def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, ski
 			gross_total = round(final_paid + offer_applied, 2)
 			merchant = (o.get("outlet_transfer_amount") or 0) / 100.0
 			flamezo = (o.get("platform_fee_amount") or 0) / 100.0
+			source = (o.get("payment_source") or "web").lower()
 			estimated = False
-			if merchant <= 0 and flamezo <= 0:
+			if source != "app":
+				# Web payments carry no Flamezo success share — the whole amount
+				# settles to the merchant. Show the split as 0, never an estimate.
+				flamezo = 0.0
+				merchant = final_paid
+			elif merchant <= 0 and flamezo <= 0:
 				# No stored split → estimate from the success-share % so the merchant
 				# still sees a breakdown for existing payments.
 				flamezo = round(final_paid * fee_pct / 100.0, 2)
@@ -1318,7 +1324,7 @@ def get_razorpay_payments(outlet_id, from_date=None, to_date=None, count=10, ski
 				"settlementMode": o.get("settlement_mode"),
 				# "web" | "app" — the dashboard splits earnings by this, and only
 				# app orders carry a success share.
-				"paymentSource": (o.get("payment_source") or "web").lower(),
+				"paymentSource": source,
 				"estimated": estimated,
 			}
 

@@ -4,7 +4,11 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, get_datetime, add_days, flt
 
-from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
+from flamezo_backend.flamezo.utils.customer_helpers import (
+    has_active_customer_session,
+    normalize_phone,
+    public_display_name,
+)
 from flamezo_backend.flamezo.utils.link_preview import fetch_link_preview
 from flamezo_backend.flamezo.utils import geo
 
@@ -47,7 +51,7 @@ def _format_request(r, phone=None, requested_set=None, member_status_map=None):
     return {
         "id": r.name,
         "creator_phone": r.creator_phone,
-        "creator_name": r.creator_name or "",
+        "creator_name": public_display_name(r.creator_name),
         "creator_image": r.creator_image or "",
         "title": r.title or "",
         "description": r.description or "",
@@ -224,7 +228,7 @@ def get_crowd_request_detail(request_id, phone=None):
         {
             "id": m.id,
             "customer_phone": m.customer_phone,
-            "customer_name": m.customer_name or "",
+            "customer_name": public_display_name(m.customer_name),
             "customer_image": m.customer_image or "",
             "intro_message": m.intro_message or "",
             "status": m.status,
@@ -333,6 +337,7 @@ def request_to_join(request_id, phone, customer_name=None, intro_message=None, c
             "responded_at": None,
         })
         frappe.db.commit()
+        _notify_join_request(crowd, phone, customer_name, request_id)
         return {"success": True, "data": {"member_id": existing.name, "status": "pending"}}
 
     doc = frappe.get_doc({
@@ -346,7 +351,26 @@ def request_to_join(request_id, phone, customer_name=None, intro_message=None, c
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
+    _notify_join_request(crowd, phone, customer_name, request_id)
     return {"success": True, "data": {"member_id": doc.name, "status": "pending"}}
+
+
+def _notify_join_request(crowd, phone, customer_name, request_id):
+    """Tell the creator someone asked to join — without this the request sits
+    unseen until they happen to reopen the crowd."""
+    creator = crowd.get("creator_phone") if isinstance(crowd, dict) else getattr(crowd, "creator_phone", None)
+    if not creator or creator == phone:
+        return
+    who = customer_name or "Someone"
+    # `crowd` is fetched without `title` at the call site — read it here.
+    title = frappe.db.get_value("Crowd Request", request_id, "title")
+    _notify(
+        creator,
+        "New join request",
+        f'{who} asked to join "{title or "your crowd"}".',
+        reference_name=request_id,
+        deep_link=f"/crowd/{request_id}",
+    )
 
 
 @frappe.whitelist(allow_guest=True)
@@ -429,13 +453,14 @@ def manage_join_request(request_id, member_id, action, phone):
             )
         frappe.throw(_("This join request has already been processed"))
 
-    if action == "approve" and member.customer_phone:
-        # Notify the approved member via push
+    if member.customer_phone and action in ("approve", "reject"):
+        # Notify the member either way — a silent rejection leaves them waiting.
         frappe.enqueue(
             "flamezo_backend.flamezo.api.crowd._send_approval_push",
             queue="short",
             member_phone=member.customer_phone,
             request_id=request_id,
+            approved=(action == "approve"),
             now=False,
         )
 
@@ -502,7 +527,7 @@ def get_my_crowd_requests(phone, page=1, limit=20):
             {
                 "id": m.id,
                 "customer_phone": m.customer_phone,
-                "customer_name": m.customer_name or "",
+                "customer_name": public_display_name(m.customer_name),
                 "customer_image": m.customer_image or "",
                 "intro_message": m.intro_message or "",
                 "status": m.status,
@@ -578,7 +603,35 @@ def cancel_crowd_request(request_id, phone):
 
     frappe.db.set_value("Crowd Request", request_id, "status", "cancelled")
     frappe.db.commit()
+    # Everyone who joined planned around this — tell them it's off.
+    frappe.enqueue(
+        "flamezo_backend.flamezo.api.crowd._notify_crowd_cancelled",
+        queue="short",
+        request_id=request_id,
+        now=False,
+    )
     return {"success": True, "data": {"status": "cancelled"}}
+
+
+def _notify_crowd_cancelled(request_id):
+    """Notify every approved/pending member that the crowd was cancelled."""
+    try:
+        title = frappe.db.get_value("Crowd Request", request_id, "title") or "the crowd"
+        members = frappe.get_all(
+            "Crowd Request Member",
+            filters={"request": request_id, "status": ["in", ["approved", "pending"]]},
+            fields=["customer_phone"],
+        )
+        for m in members:
+            _notify(
+                m.customer_phone,
+                "Crowd cancelled",
+                f'"{title}" was cancelled by the organiser.',
+                reference_name=request_id,
+                deep_link=f"/crowd/{request_id}",
+            )
+    except Exception as e:
+        frappe.log_error(f"_notify_crowd_cancelled({request_id}): {e}", "Crowd Notification")
 
 
 # ── Crowd Chat ─────────────────────────────────────────────────────────────────
@@ -610,7 +663,7 @@ def _format_message(m):
         "id":                  m.name,
         "request_id":          m.request_id,
         "sender_phone":        m.sender_phone,
-        "sender_name":         m.sender_name or "",
+        "sender_name":         public_display_name(m.sender_name),
         "sender_image":        m.sender_image or "",
         "sender_interests":    [i.strip() for i in (m.sender_interests or "").split(",") if i.strip()],
         "message_type":        m.message_type,
@@ -978,7 +1031,10 @@ def _send_crowd_chat_push(request_id, sender_phone, sender_name, message_preview
             try:
                 create_notification(
                     phone, title, body,
-                    notification_type="crowd",
+                    # "chat", not "crowd": group chatter would drown the Crowd &
+                    # Clubs bell, so it stays out of that inbox and appears only
+                    # in the full notifications list under Settings.
+                    notification_type="chat",
                     reference_doctype="Crowd Request",
                     reference_name=request_id,
                     deep_link=f"/crowd/{request_id}",
@@ -1391,27 +1447,51 @@ def get_crowd_requests_for_venue(outlet_id, phone=None, limit=5):
 
 # ── Approval push ──────────────────────────────────────────────────────────────
 
-def _send_approval_push(member_phone, request_id):
-    """Send push to a member when their join request is approved."""
+def _notify(phone, title, body, reference_name=None, deep_link=None):
+    """Create a crowd notification. Never raises — a missed notification must
+    not roll back the action that triggered it."""
+    if not phone:
+        return
     try:
-        import requests as http_req
-        token = frappe.cache().get_value(f"expo_push:{member_phone}")
-        if not token:
-            return
-        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Crowd"
-        http_req.post(
-            "https://exp.host/--/api/v2/push/send",
-            json={
-                "to":    token,
-                "title": "You're In!",
-                "body":  f"Your request to join \"{req_title}\" has been approved.",
-                "data":  {"request_id": request_id, "screen": "crowdChat"},
-                "sound": "default",
-            },
-            timeout=8,
+        from flamezo_backend.flamezo.api.notifications_consumer import create_notification
+        create_notification(
+            customer_phone=phone,
+            title=title,
+            body=body,
+            notification_type="crowd",
+            reference_doctype="Crowd Request",
+            reference_name=reference_name,
+            deep_link=deep_link,
         )
     except Exception as e:
-        frappe.log_error(f"Approval push failed: {str(e)}", "Crowd Push")
+        frappe.log_error(f"_notify failed ({phone}): {e}", "Crowd Notification")
+
+
+def _send_approval_push(member_phone, request_id, approved=True):
+    """Notify a member when their join request is approved or rejected.
+
+    Previously this posted to Expo using an `expo_push:{phone}` cache key that
+    the Flutter app never writes — so approvals notified nobody. Routed through
+    create_notification, which persists the row for the in-app inbox AND fires
+    FCM.
+    """
+    try:
+        req_title = frappe.db.get_value("Crowd Request", request_id, "title") or "Crowd"
+        if approved:
+            title = "You're in!"
+            body = f'Your request to join "{req_title}" was approved.'
+        else:
+            title = "Request declined"
+            body = f'Your request to join "{req_title}" was declined.'
+        _notify(
+            member_phone,
+            title,
+            body,
+            reference_name=request_id,
+            deep_link=f"/crowd/{request_id}",
+        )
+    except Exception as e:
+        frappe.log_error(f"Approval notification failed: {str(e)}", "Crowd Notification")
 
 
 # ── Scheduled tasks ────────────────────────────────────────────────────────────

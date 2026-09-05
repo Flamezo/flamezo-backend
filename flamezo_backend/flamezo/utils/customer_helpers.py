@@ -448,3 +448,28 @@ def mask_phone(phone):
 	phone_str = str(phone)
 	if len(phone_str) < 2: return "**********"
 	return f"{phone_str[:2]}********"
+
+
+# Names shown to OTHER users (comments, crowd members, club posts). Rows store
+# the name denormalised at write time, so an account anonymised later still has
+# the old value sitting on every row it ever wrote — normalise on the way out.
+_ANON_NAME = "Deleted User"
+PUBLIC_FALLBACK_NAME = "Flamezo user"
+
+
+def public_display_name(raw, fallback=PUBLIC_FALLBACK_NAME):
+    """Safe public name for a customer.
+
+    Collapses three things that must never reach another user's screen:
+      * the "Deleted User" anonymisation sentinel,
+      * an empty/missing name,
+      * the "Customer 9876543210" placeholder, which leaks a phone number.
+    """
+    name = (raw or "").strip()
+    if not name or name == _ANON_NAME:
+        return fallback
+    if name.startswith("Customer "):
+        rest = name[len("Customer "):].strip()
+        if rest.isdigit():
+            return fallback
+    return name
