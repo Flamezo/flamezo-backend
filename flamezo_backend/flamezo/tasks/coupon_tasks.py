@@ -123,14 +123,27 @@ def send_offer_claim_notification(claim_id):
     button_url_suffix = f"{restaurant_slug}/pay-bill?offer={claim.coupon_code}{token_suffix}"
 
     from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_cloud_message
+
+    # Template name is configurable so an approved-template rename on the Meta
+    # side doesn't need a code deploy (the OTP path does the same via
+    # site_config.whatsapp_otp_template). Meta rejects an unknown/unapproved
+    # name with a 400 and the message silently never arrives.
+    template_name = frappe.conf.get("whatsapp_offer_claim_template") or "offer_claim_pay"
     try:
         success, result = send_whatsapp_cloud_message(
             to_phone=phone,
-            template_name="offer_claim_pay",
+            template_name=template_name,
             body_params=[discount_label, restaurant_name, claim.coupon_code],
             button_url_param=button_url_suffix,
         )
         if not success:
-            frappe.log_error(f"send_offer_claim_notification({claim_id}): {result}", "Coupon")
+            frappe.log_error(
+                f"send_offer_claim_notification({claim_id}) template={template_name} "
+                f"phone={phone}: {result}",
+                "Coupon WhatsApp Failed",
+            )
     except Exception as e:
-        frappe.log_error(f"send_offer_claim_notification({claim_id}): {e}", "Coupon")
+        frappe.log_error(
+            f"send_offer_claim_notification({claim_id}) template={template_name}: {e}",
+            "Coupon WhatsApp Failed",
+        )
