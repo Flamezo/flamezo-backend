@@ -76,17 +76,46 @@ def _find_customer_by_normalized_phone(normalized: str):
 	return res[0].name if res else None
 
 
+# A deletion can only have happened after the feature shipped. Anything older is
+# not a deletion — it is MariaDB's zero-date ('0000-00-00 00:00:00'), which is
+# what existing rows get when a datetime column is added without a NULL default.
+# Treating one as a real timestamp made every untouched account look deleted
+# ~2000 years ago, which blanked live users' phones on login and let the nightly
+# purge anonymise them.
+DELETION_EPOCH_FLOOR = "2020-01-01 00:00:00"
+
+
+def deletion_timestamp(raw):
+	"""Parsed deletion time, or None when the value is not a real deletion
+	(NULL, empty, or a zero/garbage date)."""
+	if not raw:
+		return None
+	from frappe.utils import get_datetime
+	try:
+		parsed = get_datetime(raw)
+		floor = get_datetime(DELETION_EPOCH_FLOOR)
+	except Exception:
+		return None
+	if parsed is None or parsed <= floor:
+		return None
+	return parsed
+
+
 def _recover_or_orphan(existing: str):
 	"""A soft-deleted account logging back in: within 30 days → recover it
 	(clear the deletion flag). Past 30 days → detach the stale row's phone and
 	return None so a brand-new customer is created instead."""
 	if not frappe.db.has_column("Customer", "deleted_at"):
 		return existing
-	deleted_at = frappe.db.get_value("Customer", existing, "deleted_at")
+	raw_deleted_at = frappe.db.get_value("Customer", existing, "deleted_at")
+	deleted_at = deletion_timestamp(raw_deleted_at)
 	if not deleted_at:
+		# Never deleted (or a zero-date) — leave the account completely alone.
+		# This branch MUST NOT touch the row: it is the path every normal login
+		# takes.
 		return existing
-	from frappe.utils import get_datetime, now_datetime
-	age_days = (now_datetime() - get_datetime(deleted_at)).days
+	from frappe.utils import now_datetime
+	age_days = (now_datetime() - deleted_at).days
 	if age_days <= 30:
 		frappe.db.set_value("Customer", existing, "deleted_at", None)
 		if frappe.db.has_column("Customer", "disabled"):
