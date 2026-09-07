@@ -467,6 +467,10 @@ def delete_flamezo_account(session_token):
 		return {"success": False, "error": "INTERNAL_ERROR", "message": str(e)}
 
 
+# Above this, a purge run is assumed to be a bug rather than genuine deletions.
+PURGE_BATCH_LIMIT = 25
+
+
 def purge_deleted_customers():
 	"""Daily scheduled job — hard-anonymise soft-deleted customers past the
 	30-day recovery window. Until then their data is kept so logging back in
@@ -474,12 +478,31 @@ def purge_deleted_customers():
 	if not frappe.db.has_column("Customer", "deleted_at"):
 		return
 	from frappe.utils import add_days, now_datetime
+	from flamezo_backend.flamezo.utils.customer_helpers import DELETION_EPOCH_FLOOR
+
 	cutoff = add_days(now_datetime(), -30)
+	# The floor is what stops a mass wipe: rows that predate the feature carry
+	# MariaDB's zero-date, and '0000-00-00' <= cutoff is TRUE, so without it this
+	# job matches EVERY customer that has a phone number.
 	rows = frappe.get_all(
 		"Customer",
-		filters={"deleted_at": ["<=", cutoff], "phone": ["!=", ""]},
+		filters=[
+			["deleted_at", ">", DELETION_EPOCH_FLOOR],
+			["deleted_at", "<=", cutoff],
+			["phone", "!=", ""],
+		],
 		pluck="name",
 	)
+	# Anonymisation is irreversible. A large batch means a query bug, not that
+	# hundreds of people deleted on the same day — refuse and page a human.
+	if len(rows) > PURGE_BATCH_LIMIT:
+		frappe.log_error(
+			f"purge_deleted_customers matched {len(rows)} customers (limit "
+			f"{PURGE_BATCH_LIMIT}); refusing to anonymise. Check deleted_at for "
+			f"zero-dates before re-enabling.",
+			"Customer Purge Aborted",
+		)
+		return
 	for cid in rows:
 		anon: dict = {"customer_name": "Deleted User"}
 		for f in ("phone", "email", "image"):

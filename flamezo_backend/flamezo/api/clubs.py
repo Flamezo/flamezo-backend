@@ -6,7 +6,11 @@ from frappe.utils import now_datetime, today
 
 from frappe.utils import flt
 
-from flamezo_backend.flamezo.utils.customer_helpers import has_active_customer_session, normalize_phone
+from flamezo_backend.flamezo.utils.customer_helpers import (
+    has_active_customer_session,
+    normalize_phone,
+    public_display_name,
+)
 from flamezo_backend.flamezo.utils import redis_counters as rc
 from flamezo_backend.flamezo.utils import geo
 from flamezo_backend.flamezo.api.flamezo import _format_outlet_card, _batch_active_offers_count, _DISCOVERY_FIELDS
@@ -399,6 +403,7 @@ def follow_club(club_id, phone):
             club_id,
         )
         frappe.cache().delete_value(f"chills:creator_follows:{phone}")
+        _notify_new_follower(club_id, phone)
         return {"success": True, "data": {"following": True}}
 
 
@@ -892,6 +897,26 @@ def create_club_post(club_id, phone, post_type, content=None, image_key=None, re
     return {"success": True, "data": _format_post(doc, chills_map, tagged_map=tagged_map)}
 
 
+def _notify_club(phone, title, body, reference_doctype, reference_name, deep_link):
+    """Create a club notification. Never raises — a missed notification must not
+    roll back the like/follow that triggered it."""
+    if not phone:
+        return
+    try:
+        from flamezo_backend.flamezo.api.notifications_consumer import create_notification
+        create_notification(
+            phone,
+            title=title,
+            body=body,
+            notification_type="club",
+            reference_doctype=reference_doctype,
+            reference_name=reference_name,
+            deep_link=deep_link,
+        )
+    except Exception as e:
+        frappe.log_error(f"_notify_club failed ({phone}): {e}", "Club Notification")
+
+
 def _notify_club_members_new_post(post_id, club_id):
     """Background job (see `create_club_post`) — one in-app + push
     notification per member who has `notify_new_posts` enabled."""
@@ -980,6 +1005,7 @@ def like_club_post(post_id, phone):
         frappe.db.commit()
         likes_count = frappe.db.get_value("Creator Club Post", post_id, "likes_count")
         _publish_post_update(post_id, "like", {"likes_count": likes_count})
+        _notify_post_like(post_id, phone, likes_count)
         return {"success": True, "data": {"liked": True, "id": post_id}}
 
 
@@ -990,15 +1016,17 @@ def _format_comment(c):
         "id": c.name,
         "post_id": c.post,
         "author_id": c.customer_phone,
-        "author_name": c.customer_name or "",
+        "author_name": public_display_name(c.customer_name),
         "content": c.content or "",
         "created_at": str(c.creation) if c.creation else "",
     }
 
 
 def _customer_display_name(phone):
+    """Name stored on a new comment. Never falls back to "Customer {phone}" —
+    that put a phone number on a publicly visible comment."""
     name = frappe.db.get_value("Customer", {"phone": phone}, "customer_name")
-    return name or f"Customer {phone}"
+    return public_display_name(name)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1218,3 +1246,41 @@ def get_my_creator_club(phone):
     return {"success": True, "data": {
         "clubs": [_format_club(c, phone, member_set) for c in rows]
     }}
+
+
+def _notify_post_like(post_id, liker_phone, likes_count):
+    """Tell the club owner about a like on their post. Wording batches once it
+    is more than one like, so a popular post doesn't read as spam."""
+    try:
+        club_id = frappe.db.get_value("Creator Club Post", post_id, "club")
+        if not club_id:
+            return
+        owner = _club_creator_phone(club_id)
+        if not owner or owner == normalize_phone(liker_phone):
+            return
+        who = frappe.db.get_value("Customer", {"phone": liker_phone}, "customer_name") or "Someone"
+        others = int(likes_count or 1) - 1
+        body = f"{who} liked your post" if others <= 0 else f"{who} and {others} others liked your post"
+        _notify_club(owner, "New like", body, "Creator Club Post", post_id, f"/club/{club_id}")
+    except Exception as e:
+        frappe.log_error(f"_notify_post_like({post_id}): {e}", "Club Notification")
+
+
+def _notify_new_follower(club_id, follower_phone):
+    """Tell the club owner someone followed."""
+    try:
+        owner = _club_creator_phone(club_id)
+        if not owner or owner == normalize_phone(follower_phone):
+            return
+        club_name = frappe.db.get_value("Creator Club", club_id, "club_name") or "your club"
+        who = frappe.db.get_value("Customer", {"phone": follower_phone}, "customer_name") or "Someone"
+        _notify_club(
+            owner,
+            "New follower",
+            f"{who} started following {club_name}.",
+            "Creator Club",
+            club_id,
+            f"/club/{club_id}",
+        )
+    except Exception as e:
+        frappe.log_error(f"_notify_new_follower({club_id}): {e}", "Club Notification")

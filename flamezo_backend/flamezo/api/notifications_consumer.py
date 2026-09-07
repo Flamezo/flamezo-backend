@@ -18,6 +18,32 @@ from frappe.utils import now_datetime
 
 # ── internal helper (not an HTTP endpoint) ────────────────────────────────────
 
+VALID_NOTIFICATION_TYPES = {
+    "order", "booking", "promotion", "loyalty", "crowd", "club", "chat", "general",
+}
+
+
+def _parse_types(types):
+    """Comma-separated type filter -> validated list. Unknown names are dropped
+    so a bad param can never widen the filter into an unfiltered query."""
+    if not types:
+        return []
+    if isinstance(types, str):
+        raw = types.split(",")
+    else:
+        raw = list(types)
+    return [t for t in (str(x).strip().lower() for x in raw) if t in VALID_NOTIFICATION_TYPES]
+
+
+def _clear_count_cache(phone):
+    """Unread counts are cached per type-set, so drop every variant."""
+    frappe.cache().delete_value(f"notif:count:{phone}")
+    frappe.cache().delete_value(f"notif:count:{phone}:all")
+    for t in VALID_NOTIFICATION_TYPES:
+        frappe.cache().delete_value(f"notif:count:{phone}:{t}")
+    frappe.cache().delete_value(f"notif:count:{phone}:crowd,club")
+
+
 def create_notification(customer_phone, title, body, notification_type="general",
                         reference_doctype=None, reference_name=None,
                         image_url=None, deep_link=None):
@@ -43,7 +69,7 @@ def create_notification(customer_phone, title, body, notification_type="general"
         })
         doc.insert(ignore_permissions=True)
         # Invalidate unread count cache
-        frappe.cache().delete_value(f"notif:count:{customer_phone}")
+        _clear_count_cache(customer_phone)
 
         # Best-effort push — a delivery failure must never affect the
         # notification row itself (already durably created above).
@@ -91,12 +117,15 @@ def _format_notif(n):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_my_notifications(phone, page=1, limit=30, unread_only=False):
+def get_my_notifications(phone, page=1, limit=30, unread_only=False, types=None):
     """
     GET .../notifications_consumer.get_my_notifications
 
     Returns paginated notifications for a phone, newest first.
     unread_only=True filters to unread only.
+    types: optional comma-separated notification_type filter (e.g. "crowd,club")
+    so a section-specific inbox (the Crowd/Clubs bell) shows only its own
+    notifications instead of the whole account feed.
     """
     phone = _require_phone(phone)
     page = max(1, int(page))
@@ -106,6 +135,9 @@ def get_my_notifications(phone, page=1, limit=30, unread_only=False):
     filters = {"customer_phone": phone}
     if str(unread_only).lower() in ("1", "true"):
         filters["is_read"] = 0
+    type_list = _parse_types(types)
+    if type_list:
+        filters["notification_type"] = ["in", type_list]
 
     rows = frappe.get_all(
         "Flamezo Notification",
@@ -134,7 +166,7 @@ def get_my_notifications(phone, page=1, limit=30, unread_only=False):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_notification_count(phone):
+def get_notification_count(phone, types=None):
     """
     GET .../notifications_consumer.get_notification_count
 
@@ -142,12 +174,18 @@ def get_notification_count(phone):
     Cached for 60s per phone.
     """
     phone = _require_phone(phone)
-    cache_key = f"notif:count:{phone}"
+    type_list = _parse_types(types)
+    # Cache per type-set — a filtered badge must not serve the account-wide count.
+    suffix = ",".join(type_list) if type_list else "all"
+    cache_key = f"notif:count:{phone}:{suffix}"
     cached = frappe.cache().get_value(cache_key)
     if cached is not None:
         return {"success": True, "data": {"unread_count": cached}}
 
-    count = frappe.db.count("Flamezo Notification", {"customer_phone": phone, "is_read": 0})
+    filters = {"customer_phone": phone, "is_read": 0}
+    if type_list:
+        filters["notification_type"] = ["in", type_list]
+    count = frappe.db.count("Flamezo Notification", filters)
     frappe.cache().set_value(cache_key, count, expires_in_sec=60)
     return {"success": True, "data": {"unread_count": count}}
 
@@ -183,7 +221,7 @@ def mark_notifications_read(phone, notification_ids=None):
         )
 
     frappe.db.commit()
-    frappe.cache().delete_value(f"notif:count:{phone}")
+    _clear_count_cache(phone)
     return {"success": True}
 
 
@@ -215,5 +253,51 @@ def mark_notification_actioned(phone, notification_id):
         "is_actioned": 1,
     })
     frappe.db.commit()
-    frappe.cache().delete_value(f"notif:count:{phone}")
+    _clear_count_cache(phone)
     return {"success": True}
+
+
+@frappe.whitelist(allow_guest=True)
+def seed_mock_notifications(phone, count=8):
+    """
+    POST .../notifications_consumer.seed_mock_notifications
+
+    DEV/QA ONLY — inserts a spread of sample Crowd & Clubs notifications so the
+    inbox, unread badge and scroll pagination can be exercised without waiting
+    for real joins/likes/comments.
+
+    Refuses to run when developer_mode is off, so it can never be called
+    against a production site.
+    """
+    if not frappe.conf.get("developer_mode"):
+        frappe.throw(_("seed_mock_notifications is only available in developer mode"))
+
+    phone = _require_phone(phone)
+    count = max(1, min(int(count), 50))
+
+    samples = [
+        ("crowd", "New join request", "Aarav asked to join \"Sunday Brunch Crew\".", "/crowd/mock-1"),
+        ("crowd", "You're in!", "Your request to join \"Friday Football\" was approved.", "/crowd/mock-2"),
+        ("crowd", "Request declined", "Your request to join \"Poker Night\" was declined.", "/crowd/mock-3"),
+        ("crowd", "Crowd cancelled", "\"Beach Cleanup\" was cancelled by the organiser.", "/crowd/mock-4"),
+        ("club", "New post in Coffee Lovers", "We just dropped a new single-origin pour-over...", "/club/mock-1"),
+        ("club", "New like", "Neha and 4 others liked your post", "/club/mock-2"),
+        ("club", "New follower", "Rahul started following Coffee Lovers.", "/club/mock-1"),
+        ("club", "New comment", "Priya commented: \"Adding this to my list!\"", "/club/mock-2"),
+    ]
+
+    created = []
+    for i in range(count):
+        ntype, title, body, link = samples[i % len(samples)]
+        # create_notification returns the new row's name (a str), or None.
+        name = create_notification(
+            customer_phone=phone,
+            title=title,
+            body=body,
+            notification_type=ntype,
+            deep_link=link,
+        )
+        if name:
+            created.append(name)
+
+    return {"success": True, "data": {"created": len(created), "ids": created}}

@@ -26,6 +26,8 @@ export interface PaymentBreakdown {
   flamezoGets: number
   settlementMode: string | null
   estimated?: boolean
+  /** "web" | "app" — only app orders carry a Flamezo share; web reads ₹0. */
+  paymentSource?: string
 }
 
 interface Props {
@@ -59,6 +61,8 @@ export default function PaymentBreakdownModal({ open, onClose, paymentId, dateLa
 
   // Proper billing figures (fall back gracefully if the backend hasn't been
   // redeployed with the new fields yet).
+  // Web payments carry no Flamezo success share; app payments do.
+  const isApp = (b?.paymentSource || 'web').toLowerCase() === 'app'
   const finalPaid = b?.finalPaid ?? b?.bill ?? 0
   const offerApplied = b?.offerApplied ?? b?.customerSaved ?? 0
   const grossTotal = b?.grossTotal ?? finalPaid + offerApplied
@@ -95,6 +99,15 @@ export default function PaymentBreakdownModal({ open, onClose, paymentId, dateLa
                 {status && (
                   <Badge className="mb-1 bg-emerald-500 text-white border-none text-[9px] uppercase font-bold tracking-wider">{status}</Badge>
                 )}
+                {/* Where the payment came from — it drives the fee model, so the
+                    merchant can see at a glance why the split reads as it does. */}
+                <Badge
+                  className={`mb-1 border-none text-[9px] uppercase font-bold tracking-wider ${
+                    isApp ? 'bg-orange-500 text-white' : 'bg-white/25 text-white backdrop-blur'
+                  }`}
+                >
+                  {isApp ? 'Via app' : 'Via web'}
+                </Badge>
               </div>
               {hasOffer ? (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur px-2.5 py-0.5 text-[11px] font-semibold">
@@ -144,7 +157,8 @@ export default function PaymentBreakdownModal({ open, onClose, paymentId, dateLa
                 </div>
               </div>
 
-              {/* Split visualisation */}
+              {/* Split visualisation. Web payments carry no Flamezo share, so the
+                  split reads ₹0 to Flamezo and the full amount to the merchant. */}
               <div className="rounded-xl border bg-card p-3 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <PieChart className="h-3.5 w-3.5 text-orange-500" />
@@ -183,7 +197,9 @@ export default function PaymentBreakdownModal({ open, onClose, paymentId, dateLa
                 {/* Settled-to-bank note (compact, single line) */}
                 <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-border/60">
                   <Landmark className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span className="text-[11px] text-muted-foreground flex-1">Settled to your bank directly</span>
+                  <span className="text-[11px] text-muted-foreground flex-1">
+                    {isApp ? 'Settled to your bank directly' : 'Web payment — no Flamezo fee, full amount to you'}
+                  </span>
                   <span className="text-[12.5px] font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{fmt(b.merchantGets)}</span>
                 </div>
               </div>
