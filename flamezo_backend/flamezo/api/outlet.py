@@ -478,7 +478,7 @@ def get_outlet_detail(outlet_id):
 
 	Response:
 	  id, outlet_name, logo, outlet_type, address, city, lat, lng,
-	  phone, whatsapp, instagram_url, description, tagline,
+	  phone, whatsapp, instagram_url, facebook_url, description, tagline,
 	  rating, review_count, cuisines[], price_range, amenities_mask, hours_json,
 	  is_featured, is_open_now, active_offers_count,
 	  photos[] (first 12 gallery items),
@@ -514,7 +514,7 @@ def get_outlet_detail(outlet_id):
 				"name", "outlet_name", "logo", "outlet_type",
 				"address", "city", "state", "zip_code",
 				"latitude", "longitude",
-				"contact_phone", "whatsapp_number", "instagram_url",
+				"contact_phone", "whatsapp_number", "instagram_url", "facebook_url",
 				"description", "google_map_url",
 				"is_featured", "rating", "review_count",
 				"cuisines", "price_range", "amenities_mask", "hours_json",
@@ -613,6 +613,7 @@ def get_outlet_detail(outlet_id):
 			"phone": r.get("contact_phone") or "",
 			"whatsapp": r.get("whatsapp_number") or "",
 			"instagram_url": r.get("instagram_url") or "",
+			"facebook_url": r.get("facebook_url") or "",
 			"description": r.get("description") or "",
 			"tagline": cfg.get("tagline") or "",
 			"is_featured": bool(r.get("is_featured")),
