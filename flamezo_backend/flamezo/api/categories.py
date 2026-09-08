@@ -45,7 +45,6 @@ import frappe
 from frappe import _
 from frappe.utils import get_url, cint
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
-from flamezo_backend.flamezo.media.utils import format_media_field
 
 
 def invalidate_category_cache(doc=None, method=None, outlet_id=None):
@@ -286,61 +285,6 @@ def get_categories(outlet_id, include_inactive=0):
 			children = children_map.get(cat["docname"], [])
 			formatted_categories.append(_format_category(cat, children=children if children else None))
 
-		# ── Virtual categories ──────────────────────────────────────────────
-		top_picks_count = frappe.db.count(
-			"Menu Product",
-			filters={"product_type": "top-picks", "is_active": 1, "outlet": restaurant},
-		)
-		if top_picks_count > 0:
-			top_picks = {
-				"id": "top-picks",
-				"name": "Top Picks",
-				"displayName": "Top Picks",
-				"description": "Our most popular dishes",
-				"isSpecial": True,
-				"productCount": top_picks_count,
-				"isParent": False,
-				"subcategories": [],
-			}
-			first_tp_media = frappe.db.get_value(
-				"Product Media",
-				{
-					"parenttype": "Menu Product",
-					"media_type": "image",
-					"parent": ["in", frappe.get_all(
-						"Menu Product",
-						filters={"product_type": "top-picks", "is_active": 1, "outlet": restaurant},
-						pluck="name",
-					)],
-				},
-				["name", "media_url"],
-				order_by="idx asc",
-				as_dict=True,
-			)
-			if first_tp_media:
-				top_picks["category_image"] = first_tp_media["media_url"]
-				format_media_field(top_picks, "category_image", "Product Media", first_tp_media["name"], "product_image", "image")
-			else:
-				top_picks["image"] = "/images/icons/burger.png"
-			formatted_categories.insert(0, top_picks)
-
-		chef_special_count = frappe.db.count(
-			"Menu Product",
-			filters={"product_type": "chef-special", "is_active": 1, "outlet": restaurant},
-		)
-		if chef_special_count > 0:
-			chef_special = {
-				"id": "chef-special",
-				"name": "Chef Special",
-				"displayName": "Chef Special",
-				"description": "Chef's signature dish",
-				"isSpecial": True,
-				"productCount": chef_special_count,
-				"isParent": False,
-				"subcategories": [],
-				"image": "/animations/Chef.gif",
-			}
-			formatted_categories.insert(1 if top_picks_count > 0 else 0, chef_special)
 
 		result = {
 			"success": True,

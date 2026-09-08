@@ -28,182 +28,10 @@ def invalidate_product_cache(doc, method=None):
 	import time
 	outlet_id = doc.get("outlet") or doc.get("outlet_id")
 	if outlet_id:
-		frappe.cache().delete_key(f"top_picks:{outlet_id}")
-		frappe.cache().delete_key(f"chef_special:{outlet_id}")
 		# Bump version keys so all paginated product + category caches become stale
 		ts = str(int(time.time()))
 		frappe.cache().set_value(f"products_v:{outlet_id}", ts, expires_in_sec=7200)
 		frappe.cache().set_value(f"cats_v:{outlet_id}", ts, expires_in_sec=7200)
-
-
-@frappe.whitelist(allow_guest=True)
-def get_top_picks(outlet_id):
-	"""
-	GET /api/v1/top-picks
-	Optimized Top Picks API with Caching and Priority Selection.
-	Priority:
-	1. Explicit top-picks
-	2. Items with media (has_no_media=0)
-	3. Newest items (creation desc)
-	Stable results (no randomness).
-	"""
-	try:
-		# Validate restaurant
-		restaurant = validate_restaurant_for_api(outlet_id)
-
-		# Use cache for performance
-		cache_key = f"top_picks:{outlet_id}"
-		cached_response = frappe.cache().get_value(cache_key)
-		if cached_response:
-			return json.loads(cached_response)
-
-		# Strict media prioritization: 
-		# Only return non-media products if ABSOLUTELY no media products exist for this restaurant.
-		has_any_media = frappe.db.exists("Menu Product", {"outlet": restaurant, "is_active": 1, "has_no_media": 0})
-		media_filter = " AND has_no_media = 0" if has_any_media else ""
-		
-		# Single prioritized query for all fallback logic
-		# 1. product_type == 'top-picks' gets highest priority (0)
-		# 2. Stable order by display_order and creation date
-		products = frappe.db.sql(f"""
-			SELECT 
-				name as docname, product_id as id, product_name as name, price, original_price,
-				category_name as category, product_type as type, description, is_vegetarian,
-				dietary_attributes,
-				calories, estimated_time as estimatedTime, serving_size as servingSize,
-				has_no_media, main_category as mainCategory, display_order, is_active,
-				recommendations
-			FROM `tabMenu Product`
-			WHERE
-				outlet = %s AND is_active = 1 {media_filter}
-			ORDER BY 
-				(CASE WHEN product_type = 'top-picks' THEN 0 ELSE 1 END) ASC,
-				display_order ASC,
-				creation DESC
-			LIMIT 10
-		""", (restaurant,), as_dict=True)
-
-		# Format products with media only (minimal payload for fast home page)
-		formatted_products = format_products_for_listing_minimal(products)
-		
-		# Get currency info for restaurant
-		currency_info = get_restaurant_currency_info(restaurant)
-		
-		result = {
-			"success": True,
-			"data": {
-				"products": formatted_products,
-				"currency": currency_info.get("currency", "INR"),
-				"currencySymbol": currency_info.get("symbol", "₹"),
-				"currencySymbolOnRight": currency_info.get("symbolOnRight", False)
-			}
-		}
-
-		# Cache results for 1 hour
-		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=3600)
-		
-		return result
-	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
-		return {
-			"success": False,
-			"error": {
-				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
-				"message": str(e)
-			}
-		}
-	except Exception as e:
-		frappe.log_error(f"Error in get_top_picks: {str(e)}")
-		return {
-			"success": False,
-			"error": {
-				"code": "TOP_PICKS_FETCH_ERROR",
-				"message": str(e)
-			}
-		}
-
-
-@frappe.whitelist(allow_guest=True)
-def get_chef_special(outlet_id):
-	"""
-	GET — Chef's Special list. ALWAYS returns a usable list (min 5 when the menu has
-	enough active items): the merchant's explicitly tagged 'chef-special' items first,
-	then premium fallback picks of our own so the section is never empty / too short.
-
-	All of this logic lives here (backend) — the frontend just renders the list.
-	Fallback priority for the "our own" items:
-	  1. tagged chef-special
-	  2. NOT top-picks (so Chef's Special doesn't duplicate Top Picks)
-	  3. premium feel — higher price first, then display_order, then newest
-	Media-prioritized + cached + stable (no randomness).
-	"""
-	try:
-		restaurant = validate_restaurant_for_api(outlet_id)
-
-		cache_key = f"chef_special:{outlet_id}"
-		cached_response = frappe.cache().get_value(cache_key)
-		if cached_response:
-			return json.loads(cached_response)
-
-		# Rank by ACTUAL media (the `has_no_media` flag is unreliable / stale) so the
-		# list isn't collapsed to a handful of items. No hard media filter — we still
-		# reach the min count even if some items lack media (rendered with a fallback).
-		products = frappe.db.sql("""
-			SELECT
-				name as docname, product_id as id, product_name as name, price, original_price,
-				category_name as category, product_type as type, description, is_vegetarian,
-				dietary_attributes,
-				calories, estimated_time as estimatedTime, serving_size as servingSize,
-				has_no_media, main_category as mainCategory, display_order, is_active,
-				recommendations
-			FROM `tabMenu Product`
-			WHERE
-				outlet = %s AND is_active = 1
-			ORDER BY
-				(CASE WHEN product_type = 'chef-special' THEN 0 ELSE 1 END) ASC,
-				(CASE WHEN EXISTS (
-					SELECT 1 FROM `tabProduct Media` pm WHERE pm.parent = `tabMenu Product`.name
-				) THEN 0 ELSE 1 END) ASC,
-				(CASE WHEN product_type = 'top-picks' THEN 1 ELSE 0 END) ASC,
-				price DESC,
-				display_order ASC,
-				creation DESC
-			LIMIT 8
-		""", (restaurant,), as_dict=True)
-
-		formatted_products = format_products_for_listing_minimal(products)
-		currency_info = get_restaurant_currency_info(restaurant)
-
-		result = {
-			"success": True,
-			"data": {
-				"products": formatted_products,
-				"currency": currency_info.get("currency", "INR"),
-				"currencySymbol": currency_info.get("symbol", "₹"),
-				"currencySymbolOnRight": currency_info.get("symbolOnRight", False)
-			}
-		}
-
-		# Cache for 1 hour (same as top picks)
-		frappe.cache().set_value(cache_key, json.dumps(result), expires_in_sec=3600)
-
-		return result
-	except (frappe.DoesNotExistError, frappe.ValidationError) as e:
-		return {
-			"success": False,
-			"error": {
-				"code": "OUTLET_NOT_FOUND" if isinstance(e, frappe.DoesNotExistError) else "VALIDATION_ERROR",
-				"message": str(e)
-			}
-		}
-	except Exception as e:
-		frappe.log_error(f"Error in get_chef_special: {str(e)}")
-		return {
-			"success": False,
-			"error": {
-				"code": "CHEF_SPECIAL_FETCH_ERROR",
-				"message": str(e)
-			}
-		}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -302,7 +130,6 @@ def get_products(outlet_id, category=None, type=None, vegetarian=None, search=No
 				"calories",
 				"estimated_time as estimatedTime",
 				"serving_size as servingSize",
-				"has_no_media",
 				"main_category as mainCategory",
 				"display_order",
 				"is_active",
@@ -694,7 +521,11 @@ def format_product_from_row_minimal(product_row, media_rows=None, has_customizat
 
 	product["media"] = media
 	product["product_media"] = media_rows # Use the original rows for dashboard compatibility
-	if not media and product_row.get("has_no_media"):
+	# Computed live from the actual resolved media list, never a stored flag —
+	# a stored has_no_media column can only ever drift from reality (exactly
+	# what caused 360 real product images across 29 outlets to silently stop
+	# showing despite genuinely existing on the CDN).
+	if not media:
 		product["hasNoMedia"] = True
 
 	return product
@@ -852,7 +683,10 @@ def format_product(product_doc):
 	
 	if media:
 		product["media"] = media
-	elif product_doc.has_no_media:
+	else:
+		# Computed live from the actual resolved media list — see the same
+		# note in format_product_from_row_minimal above.
+		product["media"] = []
 		product["hasNoMedia"] = True
 	
 	# Customization Questions - Optimized bulk loading
@@ -978,13 +812,6 @@ def update_product_order(product_orders):
 			
 		frappe.db.commit()
 		
-		# Invalidate cache since order changed
-		if product_orders:
-			# Get restaurant of first product to invalidate cache
-			restaurant = frappe.db.get_value("Menu Product", product_orders[0]["name"], "outlet")
-			if restaurant:
-				frappe.cache().delete_key(f"top_picks:{restaurant}")
-
 		return {"success": True}
 	except Exception as e:
 		frappe.log_error(f"Error in update_product_order: {str(e)}")
