@@ -362,6 +362,31 @@ def download_proxy(file_url, filename=None):
     frappe.response.type = "download"
 
 
+def _retry_on_deadlock(fn, attempts=3):
+    """Runs fn(), retrying on transient MySQL deadlocks/lock-wait-timeouts.
+
+    Bulk retries (e.g. re-enqueuing a large backlog at once) throw many
+    concurrent workers at the same rows, and a deadlock there previously
+    permanently orphaned the record since the caller's except just logged
+    and moved on. Deadlocks are transient by nature — retrying after a
+    rollback is the correct, standard fix.
+    """
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception as err:
+            if frappe.db.is_deadlocked(err) and attempt < attempts - 1:
+                frappe.db.rollback()
+                continue
+            raise
+
+
+def _apply_if_no_media(generation_name, owner_name):
+    current_media = frappe.get_all("Product Media", filters={"parent": owner_name}, limit=1)
+    if not current_media:
+        apply_to_product(generation_name)
+
+
 @frappe.whitelist(allow_guest=False)
 def apply_to_product(generation_id, replace_index=None):
     """Applies the enhanced image to Menu Product."""
@@ -871,18 +896,12 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         # Appending blindly would create duplicate media entries.
         if mode == "generate" and doc.owner_doctype == "Menu Product":
             try:
-                current_media = frappe.get_all(
-                    "Product Media",
-                    filters={"parent": doc.owner_name},
-                    limit=1,
-                )
-                if not current_media:
-                    apply_to_product(generation_name)
+                _retry_on_deadlock(lambda: _apply_if_no_media(generation_name, doc.owner_name))
             except Exception as apply_err:
                 frappe.log_error("Auto-Apply Failed", str(apply_err))
         elif mode == "generate" and doc.owner_doctype == "Coupon":
             try:
-                apply_to_coupon(generation_name)
+                _retry_on_deadlock(lambda: apply_to_coupon(generation_name))
             except Exception as apply_err:
                 frappe.log_error("Auto-Apply Coupon Failed", str(apply_err))
 
