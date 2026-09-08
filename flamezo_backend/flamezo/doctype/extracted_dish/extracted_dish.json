@@ -16,7 +16,6 @@
   "is_vegetarian",
   "estimated_time",
   "serving_size",
-  "has_no_media",
   "main_category",
   "media_json",
   "customizations_json"
@@ -78,12 +77,6 @@
    "fieldname": "serving_size",
    "fieldtype": "Data",
    "label": "Serving Size"
-  },
-  {
-   "default": "0",
-   "fieldname": "has_no_media",
-   "fieldtype": "Check",
-   "label": "Has No Media"
   },
   {
    "fieldname": "main_category",

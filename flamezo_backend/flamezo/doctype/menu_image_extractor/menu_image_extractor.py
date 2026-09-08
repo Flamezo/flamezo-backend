@@ -855,7 +855,6 @@ def store_extracted_data(data, extractor_doc):
 			'is_vegetarian': 1 if dish_data.get('isVegetarian') else 0,
 			'estimated_time': dish_data.get('estimatedTime'),
 			'serving_size': dish_data.get('servingSize'),
-			'has_no_media': 1 if dish_data.get('hasNoMedia') else 0,
 			'main_category': dish_data.get('mainCategory', ''),
 			'media_json': media_json,
 			'customizations_json': customizations_json
@@ -1336,7 +1335,6 @@ def process_extracted_data(data, extractor_doc):
 			product_doc.description = api_description
 		
 		product_doc.is_vegetarian = 1 if dish_data.get('isVegetarian') else 0
-		product_doc.has_no_media = 1 if dish_data.get('hasNoMedia') else 0
 		
 		# Set category with robust matching
 		category_name = dish_data.get('category')
@@ -1663,7 +1661,6 @@ def approve_extracted_data(docname):
 					'isVegetarian': bool(dish_row.is_vegetarian),
 					'estimatedTime': dish_row.estimated_time,
 					'servingSize': dish_row.serving_size,
-					'hasNoMedia': bool(dish_row.has_no_media),
 					'mainCategory': dish_row.main_category or ''
 				}
 				
@@ -1678,6 +1675,10 @@ def approve_extracted_data(docname):
 					raw_dish = raw_dishes_map.get(dish_row.dish_id) or raw_dishes_map.get(dish_row.dish_name)
 					if raw_dish and isinstance(raw_dish, dict):
 						dish_data['media'] = raw_dish.get('media', [])
+
+				# Computed live from the fully-resolved media list, not a stored
+				# flag — same fix applied to Menu Product's hasNoMedia.
+				dish_data['hasNoMedia'] = not dish_data.get('media')
 				
 				# Parse customizations JSON if exists
 				if dish_row.customizations_json:

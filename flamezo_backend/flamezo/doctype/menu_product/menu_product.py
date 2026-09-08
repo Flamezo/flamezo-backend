@@ -63,19 +63,6 @@ class MenuProduct(Document):
 				counter += 1
 		
 		self.validate_product_media()
-		
-		# Compute has_no_media based on presence of product media
-		self.has_no_media = 1
-		if self.product_media:
-			for media_item in self.product_media:
-				if media_item.media_url:
-					self.has_no_media = 0
-					break
-
-	def after_save(self):
-		"""Clear top picks cache for the restaurant"""
-		if self.get('outlet'):
-			frappe.cache().delete_value(f"top_picks:{self.outlet}")
 
 	def before_delete(self):
 		"""Clean up attached Files and linked Media Assets before deletion verification runs."""
@@ -102,11 +89,7 @@ class MenuProduct(Document):
 
 	def on_trash(self):
 		"""Cleanup associated assets and references on deletion"""
-		# 1. Clear top picks cache
-		if self.get('outlet'):
-			frappe.cache().delete_value(f"top_picks:{self.outlet}")
-		
-		# 2. Delete associated Media Assets
+		# Delete associated Media Assets
 		media_assets = frappe.get_all("Media Asset", filters={"owner_doctype": "Menu Product", "owner_name": self.name}, fields=["name"])
 		for asset in media_assets:
 			frappe.delete_doc("Media Asset", asset.name, ignore_permissions=True)
