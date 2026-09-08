@@ -28,7 +28,7 @@ def execute():
 
 	# 1. Drop the has_no_media column from both doctypes, if present.
 	for doctype, table in (("Menu Product", "tabMenu Product"), ("Extracted Dish", "tabExtracted Dish")):
-		if frappe.db.has_column(table, "has_no_media"):
+		if frappe.db.has_column(doctype, "has_no_media"):
 			frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `has_no_media`")
 			frappe.logger().info(f"[remove_has_no_media_and_backfill_media] dropped has_no_media from {table}")
 
