@@ -210,8 +210,8 @@ def ensure_linked_account(restaurant) -> dict:
         }
     except Exception as e:
         frappe.log_error(
-            f"Linked account creation failed for {res.name}: {e}",
-            "razorpay_route.ensure_linked_account",
+            title="razorpay_route.ensure_linked_account",
+            message=f"Linked account creation failed for {res.name}: {e}",
         )
         return {"success": False, "error": str(e)}
 
@@ -286,14 +286,20 @@ def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
             if r.ok:
                 result["stakeholder_ok"] = True
             else:
-                result["errors"].append(f"stakeholder: HTTP {r.status_code} {r.text[:300]}")
-                frappe.log_error(
-                    f"Stakeholder attach failed for {account_id}: HTTP {r.status_code} {r.text}",
-                    "razorpay_route.stakeholder",
-                )
+                body = r.text or ""
+                # Razorpay locks the activation form for manually-created accounts.
+                # Treat "locked" as the stakeholder already being set by the admin.
+                if r.status_code == 400 and "locked" in body.lower():
+                    result["stakeholder_ok"] = True
+                else:
+                    result["errors"].append(f"stakeholder: HTTP {r.status_code} {body[:200]}")
+                    frappe.log_error(
+                        title="razorpay_route.stakeholder",
+                        message=f"Stakeholder attach failed for {account_id}: HTTP {r.status_code} {body[:500]}",
+                    )
     except Exception as e:
-        result["errors"].append(f"stakeholder: {e}")
-        frappe.log_error(f"Stakeholder attach exception for {account_id}: {e}", "razorpay_route.stakeholder")
+        result["errors"].append(f"stakeholder: {e!s:.200}")
+        frappe.log_error(title="razorpay_route.stakeholder", message=f"Stakeholder attach exception for {account_id}: {e}")
 
     # ── Product + settlements / bank (idempotent) ────────────────────────────
     try:
@@ -336,14 +342,15 @@ def _attach_bank_and_stakeholder(client, account_id: str, res) -> dict:
         if pr.ok:
             result["bank_ok"] = True
         else:
-            result["errors"].append(f"settlements: HTTP {pr.status_code} {pr.text[:300]}")
+            body = pr.text or ""
+            result["errors"].append(f"settlements: HTTP {pr.status_code} {body[:200]}")
             frappe.log_error(
-                f"Bank/settlements attach failed for {account_id}: HTTP {pr.status_code} {pr.text}",
-                "razorpay_route.product",
+                title="razorpay_route.product",
+                message=f"Bank/settlements attach failed for {account_id}: HTTP {pr.status_code} {body[:500]}",
             )
     except Exception as e:
-        result["errors"].append(f"product/bank: {e}")
-        frappe.log_error(f"Product/bank config failed for {account_id}: {e}", "razorpay_route.product")
+        result["errors"].append(f"product/bank: {e!s:.200}")
+        frappe.log_error(title="razorpay_route.product", message=f"Product/bank config failed for {account_id}: {e}")
 
     return result
 
@@ -449,7 +456,7 @@ def reconcile_kyc_status(restaurant) -> dict:
         after = (frappe.db.get_value("Outlet", res.name, "razorpay_kyc_status") or "").lower()
         return {"success": True, "kyc_status": after, "changed": before != after}
     except Exception as e:
-        frappe.log_error(f"reconcile_kyc_status failed for {account_id}: {e}", "razorpay_route.reconcile")
+        frappe.log_error(title="razorpay_route.reconcile", message=f"reconcile_kyc_status failed for {account_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -500,7 +507,7 @@ def suspend_linked_account(restaurant) -> dict:
         frappe.db.commit()
         return {"success": True, "account_id": account_id, "status": "suspended"}
     except Exception as e:
-        frappe.log_error(f"Suspend linked account failed for {account_id}: {e}", "razorpay_route.suspend")
+        frappe.log_error(title="razorpay_route.suspend", message=f"Suspend linked account failed for {account_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -531,7 +538,7 @@ def reactivate_linked_account(restaurant) -> dict:
         frappe.db.commit()
         return {"success": True, "account_id": account_id, "status": new_status}
     except Exception as e:
-        frappe.log_error(f"Reactivate linked account failed for {account_id}: {e}", "razorpay_route.reactivate")
+        frappe.log_error(title="razorpay_route.reactivate", message=f"Reactivate linked account failed for {account_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -558,7 +565,7 @@ def reverse_transfer(order, refund_amount_paise: int) -> dict:
         )
         return {"success": True, "reversal": result}
     except Exception as e:
-        frappe.log_error(f"Reverse transfer failed for {transfer_id}: {e}", "razorpay_route.reverse")
+        frappe.log_error(title="razorpay_route.reverse", message=f"Reverse transfer failed for {transfer_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
