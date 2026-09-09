@@ -381,3 +381,80 @@ def admin_void_ledger(outlet_id, ledger_name, reason):
     order = frappe.db.get_value("Commission Ledger Entry", ledger_name, "order")
     commission_engine.void_for_order(order, reason=reason or "Admin override")
     return {"success": True, "voided": ledger_name}
+
+
+@frappe.whitelist()
+def fetch_razorpay_accounts():
+    """Admin: returns all outlets grouped by their Route link state.
+
+    Razorpay has no public REST endpoint to list linked accounts — use the
+    Razorpay dashboard to see account IDs, then call link_route_account to
+    wire each one up. This endpoint shows you which outlets still need linking.
+    """
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    outlets = frappe.db.get_all(
+        "Outlet",
+        fields=["name", "outlet_name", "owner_email", "razorpay_account_id",
+                "razorpay_kyc_status", "route_mode"],
+        order_by="outlet_name asc",
+    )
+
+    linked, unlinked = [], []
+    for o in outlets:
+        entry = {
+            "outlet_id":    o.name,
+            "outlet_name":  o.outlet_name,
+            "email":        o.owner_email,
+            "account_id":   o.razorpay_account_id or None,
+            "kyc_status":   o.razorpay_kyc_status or None,
+            "route_mode":   o.route_mode or None,
+        }
+        (linked if o.razorpay_account_id else unlinked).append(entry)
+
+    return {
+        "success": True,
+        "linked": linked,
+        "unlinked": unlinked,
+        "note": "Get account IDs from Razorpay dashboard → Route → Accounts, then call link_route_account.",
+    }
+
+
+@frappe.whitelist()
+def link_route_account(outlet_id, account_id):
+    """Admin: link a manually-created Razorpay Route account to an Outlet and
+    pull its live KYC status. Safe to call on an already-linked outlet —
+    it will overwrite the account_id and re-reconcile status."""
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    if not outlet_id or not account_id:
+        return {"success": False, "error": "outlet_id and account_id are required"}
+
+    outlet = frappe.db.get_value(
+        "Outlet", outlet_id,
+        ["name", "razorpay_account_id", "razorpay_kyc_status"],
+        as_dict=True,
+    )
+    if not outlet:
+        return {"success": False, "error": f"Outlet not found: {outlet_id}"}
+
+    # Write the account_id so reconcile_kyc_status can find the outlet.
+    frappe.db.set_value("Outlet", outlet.name, {
+        "razorpay_account_id": account_id.strip(),
+        "razorpay_kyc_status": "under_review",  # reconcile will overwrite
+        "route_mode": "flamezo_hold",
+    })
+    frappe.db.commit()
+
+    # Pull live status from Razorpay immediately.
+    reconcile = route_adapter.reconcile_kyc_status(outlet.name)
+
+    return {
+        "success": True,
+        "outlet": outlet.name,
+        "account_id": account_id.strip(),
+        "kyc_status": reconcile.get("kyc_status"),
+        "reconcile": reconcile,
+    }
