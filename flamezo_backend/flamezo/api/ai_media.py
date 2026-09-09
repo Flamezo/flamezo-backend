@@ -7,7 +7,8 @@ import uuid
 import random
 import time
 from PIL import Image, ImageFilter, ImageOps
-from flamezo_backend.flamezo.media.storage import upload_object, get_cdn_url, generate_object_key
+from flamezo_backend.flamezo.media.storage import upload_object, upload_bytes, get_cdn_url, generate_object_key
+from flamezo_backend.flamezo.media.processors import compress_image_bytes
 
 MENU_THEME_COINS = 30
 MENU_THEME_OUTPUT_SIZE = (1080, 1920)
@@ -871,19 +872,27 @@ def process_ai_image_enhancement(generation_name, mode="enhance", include_brandi
         
         # 4. Upload to R2 (temp_output_path is already set by generator above)
 
-        # 5. Upload to R2
+        # 5. Compress + upload to R2 — the generator's raw output is a full-size
+        # PNG/JPEG (often 1MB+) for what renders as a small product-card photo;
+        # route it through the same resize/re-encode every other upload uses
+        # instead of storing the original untouched.
         uid = frappe.generate_hash(length=8)
-        object_key = generate_object_key(
-            outlet_id=doc.outlet,
-            owner_doctype=doc.owner_doctype,
-            owner_name=doc.owner_name,
-            media_role="product_image",
-            media_id=uid,
-            filename="enhanced.jpg",
-            variant="lg"
-        )
-        
-        r2_cdn_url = upload_object(temp_output_path, object_key, content_type="image/jpeg")
+        with open(temp_output_path, "rb") as f:
+            generated_bytes = f.read()
+        upload_bytes_data, upload_content_type, upload_ext = compress_image_bytes(generated_bytes)
+        if upload_ext is None:
+            # Pillow couldn't decode it — fall back to the original, uncompressed.
+            object_key = generate_object_key(
+                outlet_id=doc.outlet, owner_doctype=doc.owner_doctype, owner_name=doc.owner_name,
+                media_role="product_image", media_id=uid, filename="enhanced.jpg", variant="lg",
+            )
+            r2_cdn_url = upload_object(temp_output_path, object_key, content_type="image/jpeg")
+        else:
+            object_key = generate_object_key(
+                outlet_id=doc.outlet, owner_doctype=doc.owner_doctype, owner_name=doc.owner_name,
+                media_role="product_image", media_id=uid, filename=f"enhanced.{upload_ext}", variant="lg",
+            )
+            r2_cdn_url = upload_bytes(object_key, upload_bytes_data, content_type=upload_content_type)
 
         # 6. Save back to DB
         frappe.db.set_value("AI Image Generation", generation_name, "enhanced_image_url", r2_cdn_url)

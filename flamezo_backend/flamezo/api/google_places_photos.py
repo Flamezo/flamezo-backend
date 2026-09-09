@@ -56,6 +56,7 @@ from frappe import _
 from frappe.utils import now_datetime
 
 from flamezo_backend.flamezo.media.storage import generate_object_key, upload_bytes
+from flamezo_backend.flamezo.media.processors import compress_image_bytes
 from flamezo_backend.flamezo.utils.common import safe_log_error
 from flamezo_backend.flamezo.utils.roles import is_supervisor
 
@@ -361,19 +362,28 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
             errors.append({"photo_index": i, "error": str(e)})
             continue
 
+        # Dedup hash is on the ORIGINAL bytes Google served us, so re-syncing the
+        # same photo is still recognised even though what we store is compressed.
         sha256 = hashlib.sha256(content).hexdigest()
         if sha256 in existing_hashes:
             skipped += 1
             continue
 
         media_id = f"med_gp_{frappe.generate_hash(length=12)}"
-        filename = f"google_places_{i+1:02d}.jpg"
+        # Google Places photos come back as full-resolution JPEGs (often 1-3MB)
+        # for what renders as a small gallery thumbnail — compress the same way
+        # every other upload path does before it ever reaches R2/the CDN.
+        upload_bytes_data, upload_content_type, upload_ext = compress_image_bytes(content)
+        if upload_ext is None:
+            # Pillow couldn't decode it — fall back to the original, uncompressed.
+            upload_bytes_data, upload_content_type, upload_ext = content, "image/jpeg", "jpg"
+        filename = f"google_places_{i+1:02d}.{upload_ext}"
         object_key = generate_object_key(
             outlet_id, "Outlet", outlet_id, "restaurant_gallery_image", media_id, filename,
         )
 
         try:
-            cdn_url = upload_bytes(object_key, content, content_type="image/jpeg")
+            cdn_url = upload_bytes(object_key, upload_bytes_data, content_type=upload_content_type)
         except Exception as e:
             errors.append({"photo_index": i, "error": f"R2 upload failed: {e}"})
             continue
@@ -388,9 +398,9 @@ def sync_outlet_photos_from_google(outlet_id, max_photos=None):
             "media_kind": "image",
             "visibility": "public",
             "source_filename": filename,
-            "source_extension": "jpg",
-            "source_mime_type": "image/jpeg",
-            "source_size_bytes": len(content),
+            "source_extension": upload_ext,
+            "source_mime_type": upload_content_type,
+            "source_size_bytes": len(upload_bytes_data),
             "source_sha256": sha256,
             "storage_provider": "cloudflare_r2",
             "raw_object_key": object_key,

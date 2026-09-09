@@ -15,6 +15,37 @@ import requests
 import hashlib
 from flamezo_backend.flamezo.services.ai.menu_extraction import MenuExtractor, extract_and_generate
 from flamezo_backend.flamezo.services.ai.recommendations import RecommendationEngine
+from flamezo_backend.flamezo.media.storage import upload_bytes, generate_object_key
+from flamezo_backend.flamezo.media.processors import compress_image_bytes
+from flamezo_backend.flamezo.utils.common import safe_log_error
+
+
+def _optimize_extracted_media_url(media_url, outlet, product_id, idx):
+	"""Compress an extracted dish photo before it lands in Product Media.
+
+	Extraction hands back whatever the AI step produced/found — usually a
+	full-resolution crop, often several hundred KB, for what renders as a
+	small menu-card thumbnail. Download it, run it through the same
+	resize/re-encode every other upload path uses, and re-upload — same
+	fix as the legacy CDN backfill, applied at write time instead of after
+	the fact. Never raises: any failure (download, decode, upload) falls
+	back to the original URL untouched so extraction never breaks over an
+	image problem.
+	"""
+	try:
+		resp = requests.get(media_url, timeout=20)
+		resp.raise_for_status()
+		compressed, content_type, ext = compress_image_bytes(resp.content)
+		if ext is None:
+			return media_url  # Pillow couldn't decode it — leave the original
+		media_id = f"med_ext_{frappe.generate_hash(length=10)}"
+		object_key = generate_object_key(
+			outlet, "Menu Product", product_id, "product_image", media_id, f"extracted_{idx}.{ext}",
+		)
+		return upload_bytes(object_key, compressed, content_type=content_type)
+	except Exception as e:
+		safe_log_error("Menu Extraction Media Optimize", f"{product_id} media[{idx}] {media_url}: {e}")
+		return media_url
 
 
 class MenuImageExtractor(Document):
@@ -1385,8 +1416,12 @@ def process_extracted_data(data, extractor_doc):
 					media_url = media_item.get('url') or media_item.get('media_url') or media_item.get('src')
 				
 				if not media_url: continue
-				
+
 				media_type = 'video' if any(ext in media_url.lower() for ext in ['.mp4', '.mov', '.avi', '.webm']) else 'image'
+				# Videos pass through untouched — only stills go through the
+				# compress/re-upload step.
+				if media_type == 'image':
+					media_url = _optimize_extracted_media_url(media_url, restaurant, product_id, idx)
 				media_row = product_doc.append('product_media', {})
 				media_row.media_url = media_url
 				media_row.media_type = media_type
