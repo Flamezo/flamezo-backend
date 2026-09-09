@@ -386,20 +386,18 @@ def update_kyc_status(linked_account_id: str, new_status: str, raw_event: Option
         return
 
     mapping = {
+        # Razorpay Route linked-account statuses (docs: only two values exist)
+        "created": "activated",   # "created" = account live, can receive transfers
+        "suspended": "suspended",
+        # Legacy / webhook-only statuses kept for compatibility
         "activated": "activated",
-        # Razorpay's instant-activation fast path for clean proprietorships /
-        # auto-approved KYC. Treat exactly like a manual `activated`.
         "instantly_activated": "activated",
-        # KYC paperwork accepted but full activation still pending Razorpay
-        # ops review — account cannot yet receive transfers, so we keep
-        # `route_mode = flamezo_hold` (handled below).
         "activated_kyc_pending": "under_review",
         "under_review": "under_review",
         "needs_clarification": "needs_clarification",
         "rejected": "rejected",
-        "suspended": "suspended",
     }
-    internal = mapping.get((new_status or "").lower(), "under_review")
+    internal = mapping.get((new_status or "").lower(), "activated")
 
     # Monotonic guard: Razorpay's account.* webhooks can arrive OUT OF ORDER, and
     # account.updated re-emits the current entity.status on unrelated changes. Once
