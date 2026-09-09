@@ -1313,14 +1313,14 @@ def admin_get_all_customers(search=None, page=1, page_size=20, sort_by='modified
             FROM `tabOutlet Loyalty Entry`
             GROUP BY customer
         ) loyalty_stats ON loyalty_stats.customer = c.name
-        WHERE 1=1 {search_sql}
+        WHERE c.disabled = 0 {search_sql}
         ORDER BY {sort_col} {order_dir}
         LIMIT %s OFFSET %s
     """, params + [page_size, offset], as_dict=True)
 
     total = frappe.db.sql(f"""
         SELECT COUNT(*) AS cnt FROM `tabCustomer` c
-        WHERE 1=1 {search_sql}
+        WHERE c.disabled = 0 {search_sql}
     """, params, as_dict=True)[0].cnt
 
     return {
