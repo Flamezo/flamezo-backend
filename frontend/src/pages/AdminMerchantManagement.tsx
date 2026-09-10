@@ -1039,23 +1039,26 @@ export default function AdminMerchantManagement() {
             {/* Share & Mandate filters hidden per admin request — the stat
                 cards above still drill into owing/mandate/throttle slices. */}
 
-            {/* Route KYC */}
+            {/* Route Mode */}
             <Select
-              value={(filters.find((f: any) => f.fieldname === 'razorpay_kyc_status')?.value as string) || 'all'}
+              value={(filters.find((f: any) => f.fieldname === 'route_mode')?.value as string) || 'all'}
               onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'razorpay_kyc_status')
-                if (v !== 'all') next.push({ fieldname: 'razorpay_kyc_status', operator: '=', value: v })
+                const next = filters.filter(f => f.fieldname !== 'route_mode')
+                if (v === 'not_started') {
+                  next.push({ fieldname: 'route_mode', operator: 'in', value: ['', null] })
+                } else if (v !== 'all') {
+                  next.push({ fieldname: 'route_mode', operator: '=', value: v })
+                }
                 setFilters(next)
               }}
             >
-              <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">KYC: All</SelectItem>
-                <SelectItem value="activated">KYC: Activated</SelectItem>
-                <SelectItem value="under_review">KYC: Review</SelectItem>
-                <SelectItem value="needs_clarification">KYC: Needs Info</SelectItem>
-                <SelectItem value="rejected">KYC: Rejected</SelectItem>
-                <SelectItem value="suspended">KYC: Suspended</SelectItem>
+                <SelectItem value="all">Payouts: All</SelectItem>
+                <SelectItem value="direct_split">✅ Direct Split</SelectItem>
+                <SelectItem value="flamezo_hold">🔄 Flamezo Hold</SelectItem>
+                <SelectItem value="not_started">⚠️ Not Started</SelectItem>
+                <SelectItem value="disabled">🚫 Disabled</SelectItem>
               </SelectContent>
             </Select>
 
