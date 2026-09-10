@@ -109,12 +109,49 @@ bench build --app flamezo_backend
 bench --site "$SITE" clear-cache
 
 # ─── 6. Service Restart ──────────────────────────────────────────────────────
+# Some servers (prod) grant the frappe user passwordless sudo; others (dev)
+# don't, and `sudo` there fails immediately with "a password is required" —
+# supervisorctl still works fine unprefixed in that case since frappe owns
+# the supervisor instance directly. Same fallback for status checks below.
+supervisor_cmd() {
+    sudo -n supervisorctl "$@" 2>/dev/null || supervisorctl "$@"
+}
+
 echo "Restarting services..."
 if command -v supervisorctl &> /dev/null; then
-    sudo supervisorctl restart all || bench restart
+    supervisor_cmd restart all || bench restart || true
 else
-    bench restart
+    bench restart || true
 fi
+
+# The restart command above can report a non-zero exit even on a fully
+# healthy deploy: the long-worker's stop/start transition intermittently logs
+# "abnormal termination" in supervisor (a cosmetic quirk of how RQ workers
+# exit, not a real crash — autorestart=true brings it straight back up), and
+# that single non-zero exit from `supervisorctl restart <group>:` is enough
+# to fail this whole `set -e` script even though every process ends up
+# running fine seconds later. Rather than trust that one command's exit code,
+# poll actual process state and only fail the deploy if something is
+# genuinely still down after a real chance to recover.
+echo "Verifying all services are running..."
+ALL_RUNNING=false
+for attempt in 1 2 3 4 5 6; do
+    sleep 5
+    NOT_RUNNING=$(supervisor_cmd status | grep -v RUNNING || true)
+    if [ -z "$NOT_RUNNING" ]; then
+        ALL_RUNNING=true
+        break
+    fi
+    echo "Attempt $attempt: still waiting on:"
+    echo "$NOT_RUNNING"
+done
+
+if [ "$ALL_RUNNING" = false ]; then
+    echo "ERROR: one or more services never reached RUNNING after restart:"
+    supervisor_cmd status
+    exit 1
+fi
+echo "All services confirmed running."
 
 echo "============================================================"
 echo "DEPLOYMENT COMPLETED SUCCESSFULLY!"
