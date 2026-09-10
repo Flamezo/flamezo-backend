@@ -1042,17 +1042,22 @@ export default function AdminMerchantManagement() {
 
             {/* Route Mode */}
             <Select
-              value={
-                filters.find((f: any) => f.fieldname === 'razorpay_account_id')
-                  ? 'not_started'
-                  : (filters.find((f: any) => f.fieldname === 'route_mode')?.value as string) || 'all'
-              }
+              value={(() => {
+                const accFilter = filters.find((f: any) => f.fieldname === 'razorpay_account_id')
+                if (accFilter?.value === '') return 'not_started'
+                if (accFilter?.value === 'has_account') return 'flamezo_hold'
+                return (filters.find((f: any) => f.fieldname === 'route_mode')?.value as string) || 'all'
+              })()}
               onValueChange={(v) => {
                 const next = filters
                   .filter(f => f.fieldname !== 'route_mode')
                   .filter(f => f.fieldname !== 'razorpay_account_id')
                 if (v === 'not_started') {
-                  next.push({ fieldname: 'razorpay_account_id', operator: 'in', value: ['', null] })
+                  next.push({ fieldname: 'razorpay_account_id', operator: '=', value: '' })
+                } else if (v === 'flamezo_hold') {
+                  // flamezo_hold = account linked but not yet direct_split
+                  next.push({ fieldname: 'route_mode', operator: '=', value: 'flamezo_hold' })
+                  next.push({ fieldname: 'razorpay_account_id', operator: '=', value: 'has_account' })
                 } else if (v !== 'all') {
                   next.push({ fieldname: 'route_mode', operator: '=', value: v })
                 }
