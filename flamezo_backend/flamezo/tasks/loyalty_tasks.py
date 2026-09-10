@@ -5,10 +5,10 @@
 Loyalty Scheduler Tasks
 
   grant_birthday_bonuses — runs daily at 08:00 IST
-    Finds customers whose birthday is today (month+day match), verifies they
-    have bill history at the restaurant, and credits birthday_bonus_coins.
+    Finds verified customers whose birthday is today (month+day match) and
+    credits ONE platform-wide birthday_bonus_coins (spendable at any outlet).
     Idempotent: skips customers who already received a Birthday Bonus entry
-    for the current calendar year at that restaurant.
+    this calendar year (at any outlet).
 
   send_coin_expiry_notifications — runs daily at 10:00 IST
     Finds customers with settled, non-expired Earn coins expiring within 7 days.
@@ -19,95 +19,82 @@ Loyalty Scheduler Tasks
     Resets rewarded_opens_in_cycle = 0 for ALL referral links globally.
 """
 
+import calendar
+
 import frappe
 from frappe.utils import today, getdate
 
 
 def grant_birthday_bonuses():
 	"""
-	Daily scheduler job. Awards birthday bonus coins to all customers whose
-	birthday is today at every restaurant with an active loyalty program.
-	Only grants to customers who have prior bill/loyalty history at the restaurant.
+	Daily scheduler job. Credits ONE platform-wide Birthday Bonus to every
+	verified customer whose birthday is today — no outlet history needed.
+
+	  - Once per customer per calendar year, checked across ALL outlets (so a
+	    legacy per-outlet bonus earlier this year also counts).
+	  - Platform-wide Cash with no outlet: spendable at any outlet.
+	  - 29 Feb birthdays are credited on 28 Feb in non-leap years.
 	"""
 	today_date = getdate(today())
-	today_month = today_date.month
-	today_day = today_date.day
 	current_year = today_date.year
+	leap_day_fallback = (
+		today_date.month == 2 and today_date.day == 28 and not calendar.isleap(current_year)
+	)
 
-	# Find all customers whose birth month+day matches today
-	birthday_customers = frappe.db.sql("""
+	# Only OTP-verified (app) customers — mirrors the verified gate on order cashback.
+	verified_clause = (
+		"AND verified_at IS NOT NULL" if frappe.db.has_column("Customer", "verified_at") else ""
+	)
+	customer_ids = frappe.db.sql_list(f"""
 		SELECT name
 		FROM `tabCustomer`
 		WHERE date_of_birth IS NOT NULL
-		  AND MONTH(date_of_birth) = %s
-		  AND DAY(date_of_birth) = %s
-	""", (today_month, today_day), as_dict=True)
+		  {verified_clause}
+		  AND (
+		    (MONTH(date_of_birth) = %(month)s AND DAY(date_of_birth) = %(day)s)
+		    OR (%(leap_day_fallback)s AND MONTH(date_of_birth) = 2 AND DAY(date_of_birth) = 29)
+		  )
+	""", {
+		"month": today_date.month,
+		"day": today_date.day,
+		"leap_day_fallback": 1 if leap_day_fallback else 0,
+	})
 
-	if not birthday_customers:
+	if not customer_ids:
 		return
 
-	customer_ids = [c.name for c in birthday_customers]
+	already_granted = set(frappe.db.sql_list("""
+		SELECT DISTINCT customer
+		FROM `tabOutlet Loyalty Entry`
+		WHERE reason = 'Birthday Bonus'
+		  AND transaction_type = 'Earn'
+		  AND YEAR(posting_date) = %s
+		  AND customer IN ({placeholders})
+	""".format(placeholders=",".join(["%s"] * len(customer_ids))),
+		tuple([current_year] + customer_ids)
+	))
 
-	# Get all active loyalty programs
-	active_configs = frappe.get_all(
-		"Outlet Loyalty Config",
-		filters={"is_active": 1},
-		fields=["outlet"]
-	)
-
-	from flamezo_backend.flamezo.utils.loyalty import add_loyalty_coins
+	from flamezo_backend.flamezo.utils.loyalty import add_platform_coins
 	from flamezo_backend.flamezo.utils.platform_config import get_birthday_bonus_coins
 
-	for config in active_configs:
-		restaurant = config.outlet
-		plan = frappe.db.get_value("Outlet", restaurant, "plan_type") or "GOLD"
-		bonus_coins = get_birthday_bonus_coins(plan)  # GOLD=100 (sole active tier; SILVER value kept for legacy rows)
+	bonus_coins = get_birthday_bonus_coins()
 
-		if not frappe.db.get_value("Outlet", restaurant, "enable_loyalty"):
+	for customer_id in customer_ids:
+		if customer_id in already_granted:
 			continue
-
-		# Build set of customers who already got a birthday bonus this year at this restaurant
-		already_granted_rows = frappe.db.sql("""
-			SELECT DISTINCT customer
-			FROM `tabOutlet Loyalty Entry`
-			WHERE outlet = %s
-			  AND reason = 'Birthday Bonus'
-			  AND YEAR(posting_date) = %s
-			  AND customer IN ({placeholders})
-		""".format(placeholders=",".join(["%s"] * len(customer_ids))),
-			tuple([restaurant, current_year] + customer_ids),
-			as_dict=True
-		)
-		already_granted = {r.customer for r in already_granted_rows}
-
-		# Build set of customers who have loyalty history at this restaurant
-		has_history_rows = frappe.db.sql("""
-			SELECT DISTINCT customer
-			FROM `tabOutlet Loyalty Entry`
-			WHERE outlet = %s
-			  AND customer IN ({placeholders})
-		""".format(placeholders=",".join(["%s"] * len(customer_ids))),
-			tuple([restaurant] + customer_ids),
-			as_dict=True
-		)
-		has_history = {r.customer for r in has_history_rows}
-
-		eligible = [c for c in customer_ids if c in has_history and c not in already_granted]
-
-		for customer_id in eligible:
-			try:
-				add_loyalty_coins(
-					customer=customer_id,
-					restaurant=restaurant,
-					coins=bonus_coins,
-					reason="Birthday Bonus"
-				)
-				frappe.db.commit()
-			except Exception as e:
-				frappe.log_error(
-					f"Birthday bonus error for customer {customer_id} at {restaurant}: {str(e)}",
-					"Birthday Bonus Task"
-				)
+		try:
+			add_platform_coins(
+				customer=customer_id,
+				coins=bonus_coins,
+				reason="Birthday Bonus"
+			)
+			frappe.db.commit()
+		except Exception as e:
+			frappe.db.rollback()
+			frappe.log_error(
+				f"Birthday bonus error for customer {customer_id}: {str(e)}",
+				"Birthday Bonus Task"
+			)
 
 
 def send_coin_expiry_notifications():

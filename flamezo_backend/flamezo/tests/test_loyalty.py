@@ -1034,9 +1034,10 @@ class TestGetLoyaltyTier(unittest.TestCase):
 class TestBirthdayBonusScheduler(unittest.TestCase):
     """
     Tests for grant_birthday_bonuses() scheduler task.
-    - Only grants to customers with history at the restaurant
-    - Idempotent: does not double-grant in same calendar year
-    - Skips restaurants with loyalty disabled
+    - Grants ONE platform-wide bonus (no outlet) — no outlet history needed
+    - Idempotent: never more than once per calendar year, across all outlets
+    - Skips unverified customers
+    - Spendable at any outlet, but only once in total
     """
 
     @classmethod
@@ -1044,69 +1045,122 @@ class TestBirthdayBonusScheduler(unittest.TestCase):
         frappe.set_user("Administrator")
         cleanup_restaurants_by_prefix(_PREFIX + "-BDY-")
         cls._res = f"{_PREFIX}-BDY-{frappe.generate_hash(length=6)}"
-        make_restaurant(cls._res, plan="GOLD")
-        make_loyalty_config(cls._res, birthday_bonus_coins=50)
-        # Create customer with today's birthday
+        cls._res2 = f"{_PREFIX}-BDY-{frappe.generate_hash(length=6)}"
+        for res in (cls._res, cls._res2):
+            make_restaurant(res, plan="GOLD")
+            make_loyalty_config(res)
+        # Create a verified customer with today's birthday
         import datetime
         today_date = frappe.utils.getdate(today())
         cls._customer = make_customer(phone="9100000010", name="Birthday Test Customer")
-        # Set birthday to today (month+day)
-        bday = datetime.date(1990, today_date.month, today_date.day)
+        # Leap year so a 29 Feb run date is still a valid birthday
+        bday = datetime.date(2000, today_date.month, today_date.day)
         frappe.db.set_value("Customer", cls._customer.name, "date_of_birth", str(bday))
+        cls._has_verified_at = frappe.db.has_column("Customer", "verified_at")
+        if cls._has_verified_at:
+            frappe.db.set_value("Customer", cls._customer.name, "verified_at", frappe.utils.now_datetime())
         frappe.db.commit()
 
     @classmethod
     def tearDownClass(cls):
         cleanup_restaurant(cls._res)
+        cleanup_restaurant(cls._res2)
         frappe.db.delete("Outlet Loyalty Entry", {"customer": cls._customer.name})
         frappe.db.commit()
 
     def setUp(self):
-        frappe.db.delete("Outlet Loyalty Entry", {
-            "customer": self._customer.name, "outlet": self._res
-        })
+        frappe.db.delete("Outlet Loyalty Entry", {"customer": self._customer.name})
         frappe.db.commit()
 
-    def test_no_bonus_without_loyalty_history(self):
-        """Customer must have prior loyalty history to receive birthday bonus."""
+    def _grant(self):
         from flamezo_backend.flamezo.tasks.loyalty_tasks import grant_birthday_bonuses
         grant_birthday_bonuses()
-        count = frappe.db.count("Outlet Loyalty Entry", {
-            "customer": self._customer.name,
-            "outlet": self._res,
-            "reason": "Birthday Bonus"
-        })
-        self.assertEqual(count, 0, "No bonus without prior loyalty history at restaurant")
 
-    def test_bonus_granted_with_loyalty_history(self):
-        """Once customer has order history, birthday bonus must be granted."""
-        # Give the customer some prior loyalty history
+    def _birthday_entries(self):
+        return frappe.get_all(
+            "Outlet Loyalty Entry",
+            filters={"customer": self._customer.name, "reason": "Birthday Bonus"},
+            fields=["coins", "outlet", "platform_wide"],
+        )
+
+    def _settle_redemptions(self):
+        # Redeem rows settle with their order; tests have no order, so settle directly.
+        frappe.db.sql(
+            "UPDATE `tabOutlet Loyalty Entry` SET is_settled = 1 WHERE customer = %s AND transaction_type = 'Redeem'",
+            (self._customer.name,),
+        )
+
+    def test_bonus_granted_without_outlet_history(self):
+        """A verified customer gets the bonus on their birthday even with no outlet history."""
+        from flamezo_backend.flamezo.utils.platform_config import get_birthday_bonus_coins
+        self._grant()
+        entries = self._birthday_entries()
+        self.assertEqual(len(entries), 1, "Birthday bonus must be granted once")
+        self.assertEqual(entries[0].coins, get_birthday_bonus_coins())
+        self.assertFalse(entries[0].outlet, "Birthday bonus must not be tied to an outlet")
+        self.assertEqual(entries[0].platform_wide, 1)
+
+    def test_single_bonus_despite_history_at_multiple_outlets(self):
+        """History at several outlets must still yield ONE bonus, not one per outlet."""
         make_loyalty_entry(self._customer.name, self._res, coins=10, is_settled=1)
-
-        from flamezo_backend.flamezo.tasks.loyalty_tasks import grant_birthday_bonuses
-        grant_birthday_bonuses()
-
-        count = frappe.db.count("Outlet Loyalty Entry", {
-            "customer": self._customer.name,
-            "outlet": self._res,
-            "reason": "Birthday Bonus"
-        })
-        self.assertEqual(count, 1, "Birthday bonus must be granted once to eligible customer")
+        make_loyalty_entry(self._customer.name, self._res2, coins=10, is_settled=1)
+        self._grant()
+        self.assertEqual(len(self._birthday_entries()), 1)
 
     def test_idempotent_no_double_grant(self):
         """Running the scheduler twice must not grant the bonus twice."""
-        make_loyalty_entry(self._customer.name, self._res, coins=10, is_settled=1)
+        self._grant()
+        self._grant()  # second run
+        self.assertEqual(len(self._birthday_entries()), 1,
+                         "Birthday bonus must never be granted more than once per year")
 
-        from flamezo_backend.flamezo.tasks.loyalty_tasks import grant_birthday_bonuses
-        grant_birthday_bonuses()
-        grant_birthday_bonuses()  # second run
+    def test_unverified_customer_skipped(self):
+        if not self._has_verified_at:
+            self.skipTest("Customer.verified_at column not present")
+        frappe.db.set_value("Customer", self._customer.name, "verified_at", None)
+        try:
+            self._grant()
+            self.assertEqual(len(self._birthday_entries()), 0)
+        finally:
+            frappe.db.set_value("Customer", self._customer.name, "verified_at", frappe.utils.now_datetime())
+            frappe.db.commit()
 
-        count = frappe.db.count("Outlet Loyalty Entry", {
-            "customer": self._customer.name,
-            "outlet": self._res,
-            "reason": "Birthday Bonus"
-        })
-        self.assertEqual(count, 1, "Birthday bonus must never be granted more than once per year")
+    @patch("flamezo_backend.flamezo.utils.platform_config.is_cross_restaurant_redemption_enabled", return_value=False)
+    def test_spendable_at_any_outlet_but_only_once(self, _mock):
+        """Platform-wide bonus shows at every outlet; spending it at one uses it up everywhere."""
+        from flamezo_backend.flamezo.utils.loyalty import (
+            get_loyalty_balance, get_platform_wide_balance, redeem_loyalty_coins,
+        )
+        from flamezo_backend.flamezo.utils.platform_config import get_birthday_bonus_coins
+        bonus = get_birthday_bonus_coins()
+        self._grant()
+
+        self.assertEqual(get_loyalty_balance(self._customer.name, restaurant=self._res), bonus)
+        self.assertEqual(get_loyalty_balance(self._customer.name, restaurant=self._res2), bonus)
+
+        self.assertEqual(redeem_loyalty_coins(self._customer.name, self._res, bonus), bonus)
+        self._settle_redemptions()
+
+        self.assertEqual(get_platform_wide_balance(self._customer.name), 0)
+        self.assertEqual(get_loyalty_balance(self._customer.name, restaurant=self._res2), 0,
+                         "Birthday Cash spent at one outlet must not be spendable again at another")
+
+    @patch("flamezo_backend.flamezo.utils.platform_config.is_cross_restaurant_redemption_enabled", return_value=False)
+    def test_redeem_uses_outlet_cash_before_birthday_cash(self, _mock):
+        """Outlet-locked Cash is spent first; only the remainder comes from the platform pool."""
+        from flamezo_backend.flamezo.utils.loyalty import redeem_loyalty_coins
+        make_loyalty_entry(self._customer.name, self._res, coins=50, is_settled=1)
+        self._grant()
+
+        redeem_loyalty_coins(self._customer.name, self._res, 120)
+
+        rows = frappe.get_all(
+            "Outlet Loyalty Entry",
+            filters={"customer": self._customer.name, "transaction_type": "Redeem"},
+            fields=["coins", "platform_wide"],
+        )
+        by_pool = {r.platform_wide: r.coins for r in rows}
+        self.assertEqual(by_pool, {0: 50, 1: 70})
 
 
 # ─── 12. New Feature: FCM push on coin credit ─────────────────────────────────

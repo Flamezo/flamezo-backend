@@ -11,6 +11,7 @@
   "posting_date",
   "expiry_date",
   "is_settled",
+  "platform_wide",
   "column_break_1",
   "transaction_type",
   "coins",
@@ -36,7 +37,7 @@
    "in_list_view": 1,
    "label": "Outlet",
    "options": "Outlet",
-   "reqd": 1
+   "description": "Empty for platform-wide Cash credited by Flamezo itself (e.g. Birthday Bonus)."
   },
   {
    "fieldname": "posting_date",
@@ -53,6 +54,13 @@
    "fieldname": "is_settled",
    "fieldtype": "Check",
    "label": "Is Settled"
+  },
+  {
+   "default": "0",
+   "fieldname": "platform_wide",
+   "fieldtype": "Check",
+   "label": "Platform Wide",
+   "description": "Platform-wide Cash (e.g. Birthday Bonus): spendable at any outlet even when cross-outlet redemption is off. On Redeem rows, marks the part paid from the platform-wide pool."
   },
   {
    "fieldname": "column_break_1",
@@ -111,7 +119,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-20 19:35:00.000000",
+ "modified": "2026-09-10 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
  "name": "Outlet Loyalty Entry",
