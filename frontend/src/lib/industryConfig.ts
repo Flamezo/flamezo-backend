@@ -11,7 +11,6 @@ import {
   Megaphone,
   Sparkles,
   Star,
-  Zap,
   QrCode,
   CreditCard,
   Landmark,
@@ -142,7 +141,9 @@ function growPromoteGroup(): NavItem {
       { name: 'Loyalty', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
       { name: 'UGC Cashback', href: '/ugc-cashback/config', activeMatch: '/ugc-cashback', icon: Megaphone },
       { name: 'Google Growth', href: '/google-growth', icon: Sparkles, feature: 'google_growth', beta: true },
-      { name: 'Boost', href: '/boost', icon: Zap, beta: true },
+      // Boost (Meta ads) hidden from the sidebar — zero campaigns created in
+      // prod since it shipped (May 2026); under review for full removal in
+      // favor of the creator marketplace. Routes/backend left intact.
     ],
   }
 }

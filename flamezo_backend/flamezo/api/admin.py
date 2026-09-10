@@ -131,6 +131,20 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
                                 "AND ABS(COALESCE(r.platform_fee_percent, %s) - %s) >= 0.001"
                             )
                             params.extend([cur_default, cur_default, cur_default])
+                    elif fieldname == 'razorpay_account_id' and operator == '=':
+                        if value in ('', None, 'not_started'):
+                            # Not Started: no Razorpay account linked at all
+                            where_conditions.append(
+                                "(r.razorpay_account_id IS NULL OR r.razorpay_account_id = '')"
+                            )
+                        elif value == 'has_account':
+                            # Has account (used with route_mode filter for Flamezo Hold)
+                            where_conditions.append(
+                                "(r.razorpay_account_id IS NOT NULL AND r.razorpay_account_id != '')"
+                            )
+                        else:
+                            where_conditions.append("r.razorpay_account_id = %s")
+                            params.append(value)
                     elif fieldname == 'throttled' and operator == '=':
                         if value in ('yes', True, 1, '1'):
                             where_conditions.append(
