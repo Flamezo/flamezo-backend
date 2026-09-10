@@ -9,12 +9,15 @@ Two-stage architecture:
     • trending             — National top-30, 5-min TTL
 
   Stage 2 — Per-user (on demand):
-    • filter watched + suppressed outlets
+    • pool = global snapshot + every chill within 25km of the user (any age/engagement)
+    • filter watched + served-but-unwatched + suppressed outlets
     • score via E×0.35 + A×0.30 + F×0.15 + L×0.12 + S×0.08
     • Thompson Sampling exploration — uncertain tag clusters get occasional boosts
-    • outlet diversity pass (max 5 per outlet, no 2-in-a-row cap)
-    • inject new content at reserved slots [6, 16, 26]
-    • exhaustion fallback: 3-tier (180d → all-time → reset)
+    • nearest first: order by distance band, score decides within a band
+    • outlet diversity pass per band (max 5 per outlet, no 2-in-a-row cap)
+    • inject nearby new content at reserved slots [6, 16, 26]
+    • top-up when the pool runs dry: unwatched backfill → rewatches,
+      least-recently-watched first (a watched chill goes to the back of the line)
 
 Algorithm correctness:
   • Bayesian smoothing (prior mean=45%, weight=50) — prevents 2-view noise domination
@@ -47,6 +50,15 @@ EMPTY_BUILD_BACKOFF_TTL = 60         # don't retry a failed personalised build f
 WATCHED_MAX             = 12_000    # sliding window, rotate oldest
 NEW_CONTENT_HOURS       = 48
 NEW_CONTENT_SLOTS       = [6, 16, 26]   # 0-indexed reserved positions
+NEARBY_POOL             = 500       # chills within MAX_SCORE_DIST_KM pulled into every pool
+SERVED_TTL              = 1800      # sent to the app but not watched yet — held back this long
+SERVED_MAX              = 200
+BACKFILL_POOL           = 500
+
+# Nearest-first ordering: every unwatched chill in a nearer band is shown before
+# any chill in a farther one; the personalised score only orders within a band.
+# Chills (or users) without coordinates fall into the last band.
+DISTANCE_BANDS_KM       = [2, 5, 10, 25, 50, 100, 300]
 
 # Outlet diversity caps per 30-item queue
 MAX_PER_OUTLET_IN_QUEUE = 5
@@ -194,21 +206,47 @@ def _set_thompson_state(phone, state, ttl=86400 * 30):
 
 
 def _get_watched_state(phone):
-    """Returns (watched_list, watched_set). List is ordered (oldest first)."""
+    """Returns (watched_list, watched_set). List is least-recently-watched first."""
     raw = _cache_get(_rk("watched", phone))
     lst = raw if isinstance(raw, list) else []
     return lst, set(lst)
 
 
 def _add_to_watched(phone, chills_id):
-    """Append to watched list with WATCHED_MAX sliding window."""
-    lst, watched_set = _get_watched_state(phone)
-    if chills_id in watched_set:
+    """Move chills_id to the back of the watched list (WATCHED_MAX sliding window).
+
+    A rewatch moves it to the back again, so list order is the rewatch order.
+    """
+    lst, _ = _get_watched_state(phone)
+    if lst and lst[-1] == chills_id:
         return
+    lst = [cid for cid in lst if cid != chills_id]
     lst.append(chills_id)
     if len(lst) > WATCHED_MAX:
         lst = lst[len(lst) - WATCHED_MAX:]
     _cache_set(_rk("watched", phone), lst, 86400 * 90)
+
+
+def _get_served(phone):
+    """Chills already sent to the app that the user hasn't watched yet."""
+    raw = _cache_get(_rk("served", phone))
+    return raw if isinstance(raw, list) else []
+
+
+def _mark_served(phone, chills_ids):
+    """Hold a batch back from rebuilds while it's still on the device, so the next
+    batch never repeats one the user is about to see."""
+    if not chills_ids:
+        return
+    new = set(chills_ids)
+    lst = [cid for cid in _get_served(phone) if cid not in new] + list(chills_ids)
+    _cache_set(_rk("served", phone), lst[-SERVED_MAX:], SERVED_TTL)
+
+
+def _unmark_served(phone, chills_id):
+    lst = _get_served(phone)
+    if chills_id in lst:
+        _cache_set(_rk("served", phone), [cid for cid in lst if cid != chills_id], SERVED_TTL)
 
 
 def _get_suppressed_outlets(phone):
@@ -294,6 +332,39 @@ def _update_user_prefs(phone, tags, event_type):
 
 # ── Global candidate + score snapshots ────────────────────────────────────────
 
+_CANDIDATE_COLUMNS = """
+    c.name                                          AS chills_id,
+    c.outlet,
+    c.outlet_lat,
+    c.outlet_lng,
+    c.niche_tags,
+    c.custom_tags,
+    c.views_count,
+    c.likes_count,
+    c.saves_count,
+    c.shares_count,
+    TIMESTAMPDIFF(HOUR, c.published_at, NOW())     AS age_hours
+"""
+
+
+def _candidate_from_row(r):
+    niche = _parse_list(r.niche_tags)
+    custom = _parse_list(r.custom_tags)
+    return {
+        "id":         r.chills_id,
+        "outlet":     r.outlet or "",
+        "lat":        float(r.outlet_lat or 0),
+        "lng":        float(r.outlet_lng or 0),
+        "niche_tags": niche,
+        "tags":       niche + custom,
+        "views":      cint(r.views_count),
+        "likes":      cint(r.likes_count),
+        "saves":      cint(r.saves_count),
+        "shares":     cint(r.shares_count),
+        "age_hours":  float(r.age_hours or 0),
+    }
+
+
 def _get_candidates_snapshot():
     """
     500 published Chills (90-day window) sorted by engagement.
@@ -305,19 +376,8 @@ def _get_candidates_snapshot():
         return cached
 
     rows = frappe.db.sql(
-        """
-        SELECT
-            c.name                                          AS chills_id,
-            c.outlet,
-            c.outlet_lat,
-            c.outlet_lng,
-            c.niche_tags,
-            c.custom_tags,
-            c.views_count,
-            c.likes_count,
-            c.saves_count,
-            c.shares_count,
-            TIMESTAMPDIFF(HOUR, c.published_at, NOW())     AS age_hours
+        f"""
+        SELECT {_CANDIDATE_COLUMNS}
         FROM `tabChills` c
         WHERE c.status = 'published'
           AND c.published_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
@@ -330,24 +390,45 @@ def _get_candidates_snapshot():
         as_dict=True,
     )
 
-    candidates = []
-    for r in rows:
-        niche = _parse_list(r.niche_tags)
-        custom = _parse_list(r.custom_tags)
-        candidates.append({
-            "id":         r.chills_id,
-            "outlet":     r.outlet or "",
-            "lat":        float(r.outlet_lat or 0),
-            "lng":        float(r.outlet_lng or 0),
-            "niche_tags": niche,
-            "tags":       niche + custom,
-            "views":      cint(r.views_count),
-            "likes":      cint(r.likes_count),
-            "saves":      cint(r.saves_count),
-            "shares":     cint(r.shares_count),
-            "age_hours":  float(r.age_hours or 0),
-        })
+    candidates = [_candidate_from_row(r) for r in rows]
+    _cache_set(cache_key, candidates, CANDIDATE_TTL)
+    return candidates
 
+
+def _get_nearby_candidates(lat, lng):
+    """
+    Every published chill within MAX_SCORE_DIST_KM of (lat, lng), any age or
+    engagement. The global snapshot is picked nationally by engagement, so a quiet
+    chill round the corner would otherwise never reach the pool. Cached per
+    ~1km grid cell, 5-min TTL.
+    """
+    if not lat or not lng:
+        return []
+    cache_key = _rk("nearby", round(lat, 2), round(lng, 2))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    lat_delta, lng_delta = geo.bbox_deltas(lat, MAX_SCORE_DIST_KM)
+    rows = frappe.db.sql(
+        f"""
+        SELECT {_CANDIDATE_COLUMNS}
+        FROM `tabChills` c
+        WHERE c.status = 'published'
+          AND c.outlet_lat BETWEEN %s AND %s
+          AND c.outlet_lng BETWEEN %s AND %s
+        ORDER BY c.published_at DESC
+        LIMIT %s
+        """,
+        [lat - lat_delta, lat + lat_delta, lng - lng_delta, lng + lng_delta, NEARBY_POOL],
+        as_dict=True,
+    )
+
+    candidates = []
+    for c in map(_candidate_from_row, rows):
+        dist = _distance_km(c, lat, lng)
+        if dist is not None and dist <= MAX_SCORE_DIST_KM:
+            candidates.append(c)
     _cache_set(cache_key, candidates, CANDIDATE_TTL)
     return candidates
 
@@ -494,6 +575,23 @@ def _score_location(candidate, user_lat, user_lng):
     return round(1.0 - (dist - NEAR_DISTANCE_KM) / (MAX_SCORE_DIST_KM - NEAR_DISTANCE_KM), 4)
 
 
+def _distance_km(candidate, user_lat, user_lng):
+    """km from the user, or None when GPS is unavailable on either side."""
+    if not user_lat or not user_lng or not candidate.get("lat") or not candidate.get("lng"):
+        return None
+    return geo.haversine_km(user_lat, user_lng, candidate["lat"], candidate["lng"])
+
+
+def _distance_band(candidate, user_lat, user_lng):
+    """Index into DISTANCE_BANDS_KM; unknown or beyond the last band → last band."""
+    dist = _distance_km(candidate, user_lat, user_lng)
+    if dist is not None:
+        for i, limit_km in enumerate(DISTANCE_BANDS_KM):
+            if dist <= limit_km:
+                return i
+    return len(DISTANCE_BANDS_KM)
+
+
 def _score_social(candidate, global_scores):
     gs = global_scores.get(candidate["id"])
     return gs["social"] if gs else 0.3  # new content → lower default
@@ -584,6 +682,57 @@ def _diversity_pass(scored_candidates):
     return result
 
 
+def _order_nearest_first(scored_candidates, user_lat, user_lng, tail_outlets=()):
+    """
+    Group score-sorted candidates by distance band, nearest band first, and run
+    the diversity pass inside each band. Items the diversity pass would drop are
+    kept in their band instead — an unwatched chill must never lose its place to
+    a rewatch, and never to a farther chill.
+
+    `tail_outlets` are the outlets of the last chills already sent to the app.
+    Each band's pass is seeded with whatever precedes it (that tail, then the
+    previous band), so the run cap holds across batch and band boundaries too.
+    """
+    bands = {}
+    for item in scored_candidates:
+        bands.setdefault(_distance_band(item, user_lat, user_lng), []).append(item)
+
+    ordered = []
+    preceding = list(tail_outlets)[-CONSECUTIVE_OUTLET_CAP:]
+    for band in sorted(bands):
+        items = bands[band]
+        seed = [{"id": None, "outlet": o, "_seed": True} for o in preceding]
+        kept = _diversity_pass(seed + items)
+        kept_ids = {item["id"] for item in kept}
+        for item in items:
+            if item["id"] not in kept_ids:
+                _insert_within_run_cap(kept, item, start=len(seed))
+        kept = [item for item in kept if not item.get("_seed")]
+        ordered.extend(kept)
+        preceding = (preceding + [item["outlet"] for item in kept])[-CONSECUTIVE_OUTLET_CAP:]
+    return ordered
+
+
+def _insert_within_run_cap(items, item, start=0):
+    """Insert `item` as late as possible in `items[start:]` without creating a run
+    of more than CONSECUTIVE_OUTLET_CAP from its outlet; append if there's no gap."""
+    outlet = item["outlet"]
+    for pos in range(len(items), start - 1, -1):
+        run = 1
+        i = pos - 1
+        while i >= 0 and items[i]["outlet"] == outlet:
+            run += 1
+            i -= 1
+        i = pos
+        while i < len(items) and items[i]["outlet"] == outlet:
+            run += 1
+            i += 1
+        if run <= CONSECUTIVE_OUTLET_CAP:
+            items.insert(pos, item)
+            return
+    items.append(item)
+
+
 # ── Outlet round-robin interleave ────────────────────────────────────────────────
 
 def _interleave_by_outlet(ids, shuffle_outlets=True):
@@ -638,30 +787,32 @@ def _interleave_by_outlet(ids, shuffle_outlets=True):
 
 # ── New content injection ──────────────────────────────────────────────────────
 
-def _get_new_content_ids(watched_set):
-    """Chills < NEW_CONTENT_HOURS old, not yet watched. 60-sec global cache."""
+def _get_new_content():
+    """Candidates < NEW_CONTENT_HOURS old, newest first. 60-sec global cache."""
     cache_key = _rk("new_content")
     cached = _cache_get(cache_key)
-    if cached is not None:
-        return [cid for cid in cached if cid not in watched_set]
+    # Older deploys cached bare ids under this key — treat that as a miss.
+    if cached is not None and all(isinstance(c, dict) for c in cached):
+        return cached
 
     rows = frappe.db.sql(
-        """
-        SELECT name FROM `tabChills`
-        WHERE status = 'published'
-          AND published_at >= DATE_SUB(NOW(), INTERVAL %s HOUR)
-        ORDER BY published_at DESC
+        f"""
+        SELECT {_CANDIDATE_COLUMNS}
+        FROM `tabChills` c
+        WHERE c.status = 'published'
+          AND c.published_at >= DATE_SUB(NOW(), INTERVAL %s HOUR)
+        ORDER BY c.published_at DESC
         LIMIT 60
         """,
         [NEW_CONTENT_HOURS],
         as_dict=True,
     )
-    all_new = [r.name for r in rows]
+    all_new = [_candidate_from_row(r) for r in rows]
     _cache_set(cache_key, all_new, 60)
-    return [cid for cid in all_new if cid not in watched_set]
+    return all_new
 
 
-def _inject_new_content(queue_ids, new_ids, watched_set):
+def _inject_new_content(queue_ids, new_ids):
     """Insert new content at reserved slots, pushing displaced items back."""
     if not new_ids:
         return queue_ids
@@ -686,40 +837,66 @@ def _inject_new_content(queue_ids, new_ids, watched_set):
     return queue[:QUEUE_SIZE]
 
 
-# ── Exhaustion fallback ────────────────────────────────────────────────────────
+# ── Exhaustion top-up ──────────────────────────────────────────────────────────
 
-def _exhaustion_fallback(watched_set):
-    """
-    3-tier fallback when user has seen everything in 90-day pool.
-    Tier 1 → 180-day   Tier 2 → all-time   Tier 3 → reset (allow rewatches)
-    """
-    for interval in [180, None]:
-        where = f"AND published_at >= DATE_SUB(NOW(), INTERVAL {interval} DAY)" if interval else ""
-        rows = frappe.db.sql(
-            f"""
-            SELECT name FROM `tabChills`
-            WHERE status = 'published' {where}
-            ORDER BY (likes_count + saves_count * 2 + shares_count * 3) DESC
-            LIMIT 500
-            """,
-            as_dict=True,
-        )
-        unwatched = [r.name for r in rows if r.name not in watched_set]
-        if unwatched:
-            return _interleave_by_outlet(unwatched[:QUEUE_SIZE])
-
-    # Tier 3: allow rewatches
+def _unwatched_backfill(exclude, suppressed, user_lat, user_lng, limit):
+    """All-time unwatched chills outside the scored pool, nearest band first."""
     rows = frappe.db.sql(
-        """
-        SELECT name FROM `tabChills`
-        WHERE status = 'published'
-        ORDER BY (likes_count + saves_count * 2 + shares_count * 3) DESC
+        f"""
+        SELECT {_CANDIDATE_COLUMNS}
+        FROM `tabChills` c
+        WHERE c.status = 'published'
+        ORDER BY (c.likes_count + c.saves_count * 2 + c.shares_count * 3) DESC
         LIMIT %s
         """,
-        [QUEUE_SIZE],
+        [BACKFILL_POOL],
         as_dict=True,
     )
-    return _interleave_by_outlet([r.name for r in rows])
+    now_ts = time.time()
+    unwatched = [
+        c for c in map(_candidate_from_row, rows)
+        if c["id"] not in exclude and suppressed.get(c["outlet"], 0) < now_ts
+    ]
+    # Stable sort: engagement order survives inside each band.
+    unwatched.sort(key=lambda c: _distance_band(c, user_lat, user_lng))
+    return [c["id"] for c in unwatched[:limit]]
+
+
+def _rewatch_ids(watched_list, exclude, suppressed, limit):
+    """
+    Already-watched chills, least-recently-watched first. Watching a chill moves
+    it to the back of the watched list, so this cycles through the whole catalogue
+    before repeating anything.
+    """
+    ordered = [cid for cid in watched_list if cid not in exclude][: limit * 4]
+    if not ordered:
+        return []
+    rows = frappe.db.sql(
+        "SELECT name, outlet FROM `tabChills` WHERE status = 'published' AND name IN ({})".format(
+            ",".join(["%s"] * len(ordered))
+        ),
+        ordered,
+        as_dict=True,
+    )
+    outlet_of = {r.name: r.outlet or "" for r in rows}
+    now_ts = time.time()
+    return [
+        cid for cid in ordered
+        if cid in outlet_of and suppressed.get(outlet_of[cid], 0) < now_ts
+    ][:limit]
+
+
+def _fill_queue(queue_ids, watched_list, served_set, suppressed, user_lat, user_lng):
+    """Top the queue up to QUEUE_SIZE once the scored pool runs dry: unwatched
+    chills first, then rewatches."""
+    queue = list(queue_ids)
+    if len(queue) < QUEUE_SIZE:
+        exclude = set(queue) | set(watched_list) | served_set
+        queue.extend(_unwatched_backfill(exclude, suppressed, user_lat, user_lng, QUEUE_SIZE - len(queue)))
+    if len(queue) < QUEUE_SIZE:
+        exclude = set(queue) | served_set
+        queue.extend(_rewatch_ids(watched_list, exclude, suppressed, QUEUE_SIZE - len(queue)))
+    return queue
 
 
 # ── Trending (cold start) ──────────────────────────────────────────────────────
@@ -754,25 +931,45 @@ def _build_and_cache_queue(phone, lat, lng):
     Build a QUEUE_SIZE personalised queue for `phone` and cache it.
     Returns list of chills_ids (ordered by relevance, diversified).
 
-    New content (< 48h) is excluded from the scored pool and injected
-    at reserved slots [6, 16, 26] — ensures new content always gets impressions
-    regardless of engagement score.
+    Unwatched chills always come before rewatches, nearest distance band first.
+    Chills already sent to the app but not watched yet are held back, so
+    consecutive batches never overlap.
+
+    New content (< 48h) within MAX_SCORE_DIST_KM (or any new content when the
+    user has no location) is excluded from the scored pool and injected at
+    reserved slots [6, 16, 26] — ensures new content always gets impressions
+    regardless of engagement score. Farther new content is ranked with the rest.
     """
     lat = float(lat) if lat else 0.0
     lng = float(lng) if lng else 0.0
+    has_location = bool(lat and lng)
 
     watched_list, watched_set = _get_watched_state(phone)
     total_watches = len(watched_list)
+    served_set    = set(_get_served(phone))
+    seen          = watched_set | served_set
+    suppressed    = _get_suppressed_outlets(phone)
+    now_ts        = time.time()
 
-    new_ids     = _get_new_content_ids(watched_set)
+    new_content = [
+        c for c in _get_new_content()
+        if c["id"] not in seen and suppressed.get(c["outlet"], 0) < now_ts
+    ]
+    if has_location:
+        nearby_new = [(d, c) for c in new_content
+                      if (d := _distance_km(c, lat, lng)) is not None and d <= MAX_SCORE_DIST_KM]
+        nearby_new.sort(key=lambda pair: pair[0])
+        new_ids = [c["id"] for _, c in nearby_new]
+    else:
+        new_ids = [c["id"] for c in new_content]
     new_ids_set = set(new_ids)
 
-    # ── Cold start: 0 watches → pure trending (still filter suppressed outlets)
-    if total_watches <= COLD_THRESHOLD:
-        suppressed  = _get_suppressed_outlets(phone)
-        now_ts      = time.time()
-        trending_all = _get_trending_ids(QUEUE_SIZE * 3)
-        if suppressed:
+    # ── Cold start without GPS: 0 watches → pure trending (still filter
+    # suppressed outlets). With GPS the scored path handles cold start too —
+    # the warm-start blend lifts trending within each distance band.
+    if total_watches <= COLD_THRESHOLD and not has_location:
+        trending_all = [cid for cid in _get_trending_ids(QUEUE_SIZE * 3) if cid not in served_set]
+        if suppressed and trending_all:
             sup_outlet_ids = {oid for oid, exp in suppressed.items() if exp > now_ts}
             if sup_outlet_ids:
                 cands_for_sup = frappe.db.sql(
@@ -788,30 +985,26 @@ def _build_and_cache_queue(phone, lat, lng):
         # by engagement, so 0-engagement fresh uploads come back grouped by
         # merchant), THEN inject new content at its reserved slots.
         trending = _interleave_by_outlet(trending_all[:QUEUE_SIZE])
-        queue    = _inject_new_content(trending, new_ids, watched_set)
+        queue    = _inject_new_content(trending, new_ids)
+        queue    = _fill_queue(queue, watched_list, served_set, suppressed, lat, lng)
         _cache_set(_rk("queue", phone), queue, QUEUE_TTL)
         return queue
 
-    candidates     = _get_candidates_snapshot()
     global_scores  = _get_global_scores_snapshot()
-    suppressed     = _get_suppressed_outlets(phone)
     prefs          = _get_user_prefs(phone)
     thompson_state = _get_thompson_state(phone)
-    now_ts         = time.time()
 
-    # ── Filter: remove watched + suppressed + new content (injected separately)
+    pool = {}
+    for c in _get_nearby_candidates(lat, lng) + _get_candidates_snapshot() + new_content:
+        pool.setdefault(c["id"], c)
+
+    # ── Filter: remove watched + in-flight + suppressed + new content (injected separately)
     filtered = [
-        c for c in candidates
-        if c["id"] not in watched_set
+        c for c in pool.values()
+        if c["id"] not in seen
         and suppressed.get(c["outlet"], 0) < now_ts
-        and c["id"] not in new_ids_set  # new content enters only via reserved slots
+        and c["id"] not in new_ids_set  # nearby new content enters only via reserved slots
     ]
-
-    # ── Exhaustion check ───────────────────────────────────────────────────────
-    if len(filtered) < 10:
-        fallback = _exhaustion_fallback(watched_set)
-        _cache_set(_rk("queue", phone), fallback, QUEUE_TTL)
-        return fallback
 
     # ── Score ──────────────────────────────────────────────────────────────────
     scored = []
@@ -829,12 +1022,15 @@ def _build_and_cache_queue(phone, lat, lng):
 
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    # ── Diversity pass ─────────────────────────────────────────────────────────
-    diversified = _diversity_pass(scored)
+    # ── Nearest band first, diversity pass within each band ───────────────────
+    served_list  = _get_served(phone)
+    tail_outlets = [pool[cid]["outlet"] for cid in served_list[-CONSECUTIVE_OUTLET_CAP:] if cid in pool]
+    ordered = _order_nearest_first(scored, lat, lng, tail_outlets)
 
-    # ── Build queue + inject new content ──────────────────────────────────────
-    queue_ids = [item["id"] for item in diversified[:QUEUE_SIZE]]
-    queue_ids = _inject_new_content(queue_ids, new_ids, watched_set)
+    # ── Build queue + inject new content + top up ─────────────────────────────
+    queue_ids = [item["id"] for item in ordered[:QUEUE_SIZE]]
+    queue_ids = _inject_new_content(queue_ids, new_ids)
+    queue_ids = _fill_queue(queue_ids, watched_list, served_set, suppressed, lat, lng)
 
     _cache_set(_rk("queue", phone), queue_ids, QUEUE_TTL)
     return queue_ids
@@ -914,11 +1110,15 @@ def _build_general_fallback_queue(phone):
 # ── Public API endpoints ───────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
-def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
+def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10, fresh=None):
     """
     Main Chills feed endpoint.
     Authenticated users get personalised queue; anonymous users get trending.
     Returns next `batch_size` items and triggers async queue rebuild when low.
+
+    `fresh=1` marks the first page of a new feed session: the app has dropped
+    whatever it was holding, so unwatched chills from the last session are
+    eligible again and the queue is rebuilt for the current location.
 
     Falls back to general (still watched-filtered, still paginated through
     the same per-phone queue) content whenever personalisation has nothing to
@@ -931,6 +1131,9 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
         return get_chills_feed(phone=None, limit=batch_size)
 
     phone = phone.strip()
+    if cint(fresh):
+        _cache_del(_rk("served", phone))
+        _cache_del(_rk("queue", phone))
     queue = _cache_get(_rk("queue", phone)) or []
 
     if not queue and not _cache_get(_rk("empty_backoff", phone)):
@@ -948,6 +1151,7 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
     batch     = queue[:batch_size]
     remaining = queue[batch_size:]
     _cache_set(_rk("queue", phone), remaining, QUEUE_TTL)
+    _mark_served(phone, batch)
 
     # Proactively rebuild in background when < 5 items remain
     if len(remaining) < 5:
@@ -971,6 +1175,7 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
         fallback_batch = fallback_queue[:batch_size]
         fallback_remaining = fallback_queue[batch_size:]
         _cache_set(_rk("queue", phone), fallback_remaining, QUEUE_TTL)
+        _mark_served(phone, fallback_batch)
         reels = _hydrate_chills_ids(fallback_batch, phone)
         remaining = fallback_remaining
 
@@ -980,6 +1185,10 @@ def get_personalised_feed(phone=None, lat=None, lng=None, batch_size=10):
             "reels":           reels,
             "queue_remaining": len(remaining),
             "has_more":        len(remaining) > 0,
+            # Contract for the app: this feed may deliberately re-send chills the
+            # user has already watched (back of the queue), but never one it sent
+            # that hasn't been watched yet. Apps only allow repeats when this is set.
+            "rewatch":         True,
         },
     }
 
@@ -1023,8 +1232,9 @@ def record_chills_event(
     all_tags  = meta["niche_tags"] + meta["custom_tags"]
     outlet_id = meta["outlet"]
 
-    # Mark as watched (any event = seen, never repeat)
+    # Mark as watched (any event = seen; it goes to the back of the rewatch line)
     _add_to_watched(phone, chills_id)
+    _unmark_served(phone, chills_id)
 
     # Update preferences + Thompson state
     _update_user_prefs(phone, all_tags, event_type)

@@ -18,19 +18,31 @@ def is_loyalty_enabled(restaurant):
 def get_loyalty_balance(customer, restaurant=None, include_pending=False):
 	"""
 	Calculate current loyalty coin balance for a customer.
-	Now centralized: Sums all entries across all restaurants if restaurant is None.
+	  - restaurant=None → global sum across all outlets (universal wallet).
+	  - restaurant=X    → Cash spendable AT X: Cash locked to X plus platform-wide
+	                      Cash (e.g. Birthday Bonus), which is spendable anywhere.
 	Filters by is_settled=1 and expiry_date >= today for Earn entries.
 	"""
 	if not customer:
 		return 0
-		
-	filters = {"customer": customer}
-	if restaurant:
-		# If restaurant is provided, we can still filter if needed, 
-		# but for the universal wallet, we usually want the global sum.
-		# For now, let's keep the option but default to global if restaurant is None.
-		filters["outlet"] = restaurant
 
+	if not restaurant:
+		return _entries_balance({"customer": customer}, include_pending)
+
+	return (
+		_entries_balance({"customer": customer, "outlet": restaurant, "platform_wide": 0}, include_pending)
+		+ get_platform_wide_balance(customer, include_pending)
+	)
+
+def get_platform_wide_balance(customer, include_pending=False):
+	"""Net platform-wide Cash (credited by Flamezo, e.g. Birthday Bonus) — spendable at any outlet."""
+	if not customer:
+		return 0
+	return _entries_balance({"customer": customer, "platform_wide": 1}, include_pending)
+
+def _entries_balance(filters, include_pending=False):
+	"""Net Cash of the Outlet Loyalty Entry rows matching `filters`, floored at 0."""
+	filters = dict(filters)
 	if not include_pending:
 		filters["is_settled"] = 1
 
@@ -109,20 +121,36 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	if coins <= 0:
 		return 0
 
-	entry = frappe.get_doc({
-		"doctype": "Outlet Loyalty Entry",
-		"customer": customer,
-		"outlet": restaurant,
-		"coins": int(coins),
-		"transaction_type": "Redeem",
-		"reason": reason,
-		"reference_doctype": ref_doctype,
-		"reference_name": ref_name,
-		"posting_date": today()
-	})
-	entry.insert(ignore_permissions=True)
+	# Spend Cash locked to this outlet first, then platform-wide Cash (Birthday
+	# Bonus etc.). Each part is its own Redeem row, tagged with platform_wide, so
+	# the pools stay separate — platform Cash spent here can't be spent elsewhere.
+	coins = int(coins)
+	locked = _entries_balance(
+		{"customer": customer, "outlet": restaurant, "platform_wide": 0}, include_pending
+	)
+	platform_part = min(
+		max(0, coins - int(locked)),
+		int(get_platform_wide_balance(customer, include_pending)),
+	)
+
+	for part, platform_wide in ((coins - platform_part, 0), (platform_part, 1)):
+		if part <= 0:
+			continue
+		entry = frappe.get_doc({
+			"doctype": "Outlet Loyalty Entry",
+			"customer": customer,
+			"outlet": restaurant,
+			"platform_wide": platform_wide,
+			"coins": part,
+			"transaction_type": "Redeem",
+			"reason": reason,
+			"reference_doctype": ref_doctype,
+			"reference_name": ref_name,
+			"posting_date": today()
+		})
+		entry.insert(ignore_permissions=True)
 	# We don't commit here to allow the caller to manage the transaction
-	return int(coins)
+	return coins
 
 def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None,
                        ref_name=None, payment_method=None, settle_immediately=False, description=None):
@@ -337,6 +365,39 @@ def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref
 
 	return int(coins)
 
+def add_platform_coins(customer, coins, reason, ref_doctype=None, ref_name=None):
+	"""
+	Credit platform-wide Cash that isn't tied to any outlet (e.g. Birthday Bonus).
+	Spendable at ANY outlet even when cross-restaurant redemption is disabled
+	(see get_loyalty_balance). Settled immediately, platform-standard expiry.
+	"""
+	if not customer or not coins or coins <= 0:
+		return 0
+
+	entry = frappe.get_doc({
+		"doctype": "Outlet Loyalty Entry",
+		"customer": customer,
+		"outlet": None,
+		"platform_wide": 1,
+		"coins": int(coins),
+		"transaction_type": "Earn",
+		"reason": reason,
+		"reference_doctype": ref_doctype,
+		"reference_name": ref_name,
+		"posting_date": today(),
+		"expiry_date": add_days(today(), get_expiry_days()),
+		"is_settled": 1,
+	})
+	entry.insert(ignore_permissions=True)
+
+	frappe.enqueue(
+		"flamezo_backend.flamezo.utils.loyalty.send_coin_credit_push",
+		customer=customer, restaurant=None, coins=int(coins), reason=reason,
+		queue="short", timeout=30
+	)
+
+	return int(coins)
+
 def settle_loyalty_points(order_name):
 	"""
 	Marks all loyalty entries for a specific order as is_settled=1.
@@ -381,19 +442,39 @@ def handle_order_cancellation(doc, method=None):
 			"reason": "Cancellation Refund"
 		})
 		if not already_refunded:
-			# Create the entry manually to be 100% safe (avoiding add_loyalty_coins side effects on current doc)
-			entry = frappe.get_doc({
-				"doctype": "Outlet Loyalty Entry",
-				"customer": doc.platform_customer,
-				"outlet": doc.outlet,
-				"coins": int(doc.loyalty_coins_redeemed or 0),
-				"transaction_type": "Earn",
-				"reason": "Cancellation Refund",
-				"reference_doctype": "Order",
-				"reference_name": doc.name,
-				"posting_date": today()
-			})
-			entry.insert(ignore_permissions=True)
+			# Platform-wide Cash spent on this order goes back to the platform pool,
+			# the rest back to this outlet.
+			total = int(doc.loyalty_coins_redeemed or 0)
+			platform_redeemed = sum(r.coins for r in frappe.get_all(
+				"Outlet Loyalty Entry",
+				filters={
+					"customer": doc.platform_customer,
+					"reference_doctype": "Order",
+					"reference_name": doc.name,
+					"transaction_type": "Redeem",
+					"platform_wide": 1,
+				},
+				fields=["coins"],
+			))
+			platform_part = min(total, platform_redeemed)
+
+			for part, platform_wide in ((total - platform_part, 0), (platform_part, 1)):
+				if part <= 0:
+					continue
+				# Create the entry manually to be 100% safe (avoiding add_loyalty_coins side effects on current doc)
+				entry = frappe.get_doc({
+					"doctype": "Outlet Loyalty Entry",
+					"customer": doc.platform_customer,
+					"outlet": doc.outlet,
+					"platform_wide": platform_wide,
+					"coins": part,
+					"transaction_type": "Earn",
+					"reason": "Cancellation Refund",
+					"reference_doctype": "Order",
+					"reference_name": doc.name,
+					"posting_date": today()
+				})
+				entry.insert(ignore_permissions=True)
 			# frappe.log_error(f"Loyalty REFUNDED {doc.loyalty_coins_redeemed} for cancelled order {doc.name}", "Loyalty")
 
 	# 2. Revert Earned Coins (full reversal — cancellation/full-refund).
@@ -490,14 +571,18 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 		if not tokens:
 			return
 
-		restaurant_name = frappe.db.get_value("Outlet", restaurant, "outlet_name") or restaurant
+		# restaurant is None for platform-wide Cash (e.g. Birthday Bonus)
+		restaurant_name = (
+			(frappe.db.get_value("Outlet", restaurant, "outlet_name") if restaurant else None)
+			or restaurant or "Flamezo"
+		)
 
 		REASON_MESSAGES = {
 			"Order":            f"You earned {coins} coins on your order at {restaurant_name}!",
 			"Welcome Bonus":    f"Welcome! You've received {coins} bonus coins at {restaurant_name}.",
 			"Referral Share":   f"Someone clicked your invite link — you earned {coins} coins!",
 			"Referral Order":   f"Your friend placed their first order — you earned {coins} coins!",
-			"Birthday Bonus":   f"Happy Birthday! 🎂 We've gifted you {coins} coins at {restaurant_name}.",
+			"Birthday Bonus":   f"Happy Birthday! 🎂 We've gifted you ₹{coins} Flamezo Cash — use it at any outlet.",
 			"UGC Cashback":     f"🎉 Your story cashback is in! {coins} Cash added to your wallet from {restaurant_name}.",
 			"Manual Adjustment": f"You've received {coins} coins at {restaurant_name}.",
 		}
@@ -514,7 +599,7 @@ def send_coin_credit_push(customer, restaurant, coins, reason):
 				fcm_token=token,
 				title=title,
 				body=body,
-				data={"type": "coins_earned", "coins": str(coins), "restaurant_id": restaurant},
+				data={"type": "coins_earned", "coins": str(coins), "restaurant_id": restaurant or ""},
 			)
 			if result == "unregistered":
 				stale.append(token)
