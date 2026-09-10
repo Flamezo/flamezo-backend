@@ -232,8 +232,6 @@ def get_outlet_config(outlet_id):
 				"coinsBalance": float(restaurant_doc.coins_balance or 0),
 				"referral_code": restaurant_doc.referral_code,
 				"isActive": bool(restaurant_doc.is_active),
-				"deferredPlanType": None,
-				"planChangeDate": None,
 				"mandateActive": restaurant_doc.mandate_status == "active",
 				"autoRechargeEnabled": bool(restaurant_doc.auto_recharge_enabled),
 				"autoRechargeThreshold": float(restaurant_doc.auto_recharge_threshold or 0),

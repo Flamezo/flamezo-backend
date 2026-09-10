@@ -27,7 +27,6 @@ import {
 import { toast } from 'sonner'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { SubscriptionComparisonModal } from '@/components/SubscriptionComparisonModal'
-import { format } from 'date-fns'
 
 interface BillingInfo {
   coins_balance: number
@@ -37,8 +36,6 @@ interface BillingInfo {
   mandate_active: boolean
   daily_limit: number
   current_daily_vol: number
-  deferred_plan_type?: 'GOLD' | null
-  plan_change_date?: string | null
   platform_fee_percent: number
   plan_defaults: {
     gold_floor: number      // Retired — monthly floor removed (always 0)
@@ -237,26 +234,6 @@ export default function AutopaySetupPage() {
         </div>
       </div>
 
-      {/* Pending Change Alert */}
-      {billingInfo?.deferred_plan_type && (
-        <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 overflow-hidden animate-in slide-in-from-top-4 duration-500">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <Loader2 className="h-5 w-5 text-primary animate-spin" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
-              <p className="text-xs text-muted-foreground">
-                A plan change is scheduled and will take effect from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
-              </p>
-            </div>
-            <Badge variant="outline" className="border-primary/30 text-primary">
-              Effective {new Date(billingInfo.plan_change_date!).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-            </Badge>
-          </CardContent>
-        </Card>
-      )}
-
       <Card className="border-none shadow-xl bg-card overflow-hidden ring-1 ring-border/50 relative">
         <div className="absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full bg-primary" />
 
@@ -288,7 +265,7 @@ export default function AutopaySetupPage() {
                 Success Share
               </p>
               <p className="text-base font-bold">
-                {billingInfo?.platform_fee_percent ?? billingInfo?.plan_defaults?.gold_commission ?? 3}% per order
+                {billingInfo?.platform_fee_percent ?? billingInfo?.plan_defaults?.gold_commission ?? 3}% per bill
               </p>
             </div>
 
