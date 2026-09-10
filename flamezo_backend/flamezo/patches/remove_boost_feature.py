@@ -19,4 +19,11 @@ def execute():
 			frappe.delete_doc("DocType", doctype, ignore_permissions=True, force=True)
 			frappe.logger().info(f"[remove_boost_feature] deleted DocType {doctype}")
 
+		# delete_doc() removes the DocType meta record but does not itself drop
+		# the underlying table — do that explicitly so no orphaned table lingers.
+		table = f"tab{doctype}"
+		if frappe.db.table_exists(doctype):
+			frappe.db.sql_ddl(f"DROP TABLE IF EXISTS `{table}`")
+			frappe.logger().info(f"[remove_boost_feature] dropped table {table}")
+
 	frappe.db.commit()
