@@ -26,7 +26,6 @@
   "customer_phone",
   "customer_email",
   "platform_customer",
-  "boost_campaign",
   "notes",
   "reminder_sent",
   "is_sent_to_whatsapp",
@@ -170,15 +169,6 @@
    "label": "Platform Customer",
    "options": "Customer",
    "read_only": 1
-  },
-  {
-   "fieldname": "boost_campaign",
-   "fieldtype": "Link",
-   "label": "Boost Campaign",
-   "options": "Boost Campaign",
-   "read_only": 1,
-   "search_index": 1,
-   "description": "Set when this reservation was made from a Boost coupon-claim page — links a guaranteed visit back to the ad campaign that drove it"
   },
   {
    "fieldname": "notes",

@@ -139,9 +139,6 @@ permission_query_conditions = {
 	"Legacy Content": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Menu Image Extractor": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Customer": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Boost Campaign": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Boost Prerequisite Check": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
-	"Boost Coupon Redemption": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Marketing Campaign": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Marketing Trigger": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
 	"Marketing Segment": "flamezo_backend.flamezo.utils.permission_helpers.get_restaurant_permission_query_conditions",
@@ -308,8 +305,6 @@ scheduler_events = {
 			# UGC Cashback — stall recovery: re-enqueue AI verifier for
 			# proof_submitted submissions stuck >30 min (capped at 3 retries).
 			"flamezo_backend.flamezo.tasks.ugc_tasks.retry_stalled_submissions",
-			# Boost — sync Meta campaign performance metrics.
-			"flamezo_backend.flamezo.tasks.boost_tasks.sync_boost_performance",
 			# Crowd — close Team Ups whose expires_at has passed.
 			"flamezo_backend.flamezo.api.crowd.close_expired_crowd_requests",
 		],
@@ -383,31 +378,20 @@ scheduler_events = {
 			# durable MySQL columns in sync for reporting/backups.
 			"flamezo_backend.flamezo.utils.redis_counters.flush_all",
 			"flamezo_backend.flamezo.tasks.ugc_tasks.dispatch_ugc_cashback_nudges",
-			# Boost — self-heal campaigns whose Meta launch job never ran
-			# (worker restart / queue drop), capped at 3 retries then Failed + alert.
-			"flamezo_backend.flamezo.tasks.boost_tasks.recover_stuck_boost_launches",
 		],
 		# Cash commission engine — Tier 2 weekly autopay sweep: Mondays
 		# 03:45 IST charges any leftover balance via mandate.
 		"45 3 * * 1": [
 			"flamezo_backend.flamezo.tasks.commission_tasks.weekly_autopay_sweep",
 		],
-		# Boost — daily health check at 9 AM: alert if guarantee at risk
-		"0 9 * * *": [
-			"flamezo_backend.flamezo.tasks.boost_tasks.check_boost_campaigns_health",
-		],
-		# Midnight: finalize expired boost campaigns + reconcile Razorpay KYC
+		# Midnight: reconcile Razorpay KYC
 		"0 0 * * *": [
-			"flamezo_backend.flamezo.tasks.boost_tasks.finalize_completed_boosts",
 			"flamezo_backend.flamezo.api.commission.reconcile_all_pending_kyc",
 		],
 		# UGC Cashback — hourly: send proof-upload reminders (max 2) and expire
 		# claims whose proof window has elapsed.
-		# Boost — hourly: WhatsApp reminder ~2hrs before a Boost-linked table
-		# reservation, to cut no-shows on guaranteed-visit bookings.
 		"15 * * * *": [
 			"flamezo_backend.flamezo.tasks.ugc_tasks.send_proof_reminders",
-			"flamezo_backend.flamezo.tasks.boost_tasks.send_boost_booking_reminders",
 		],
 		# UGC Cashback — daily 04:00: purge proof videos older than the retention
 		# window (privacy + storage), keeping the submission record for audit.

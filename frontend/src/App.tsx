@@ -60,8 +60,6 @@ const Events = lazy(() => import('./pages/Events'))
 const GoogleGrowthHub = lazy(() => import('./pages/hubs/GoogleGrowthHub'))
 const GoogleGrowthSync = lazy(() => import('./pages/GoogleGrowthSync'))
 const TeamManagement = lazy(() => import('./pages/TeamManagement'))
-const BoostHub = lazy(() => import('./pages/hubs/BoostHub'))
-const BoostCampaignDetail = lazy(() => import('./pages/BoostCampaignDetail'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
 const MenuCosting = lazy(() => import('./pages/MenuCosting'))
 const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
@@ -179,12 +177,6 @@ function AppContent() {
 									<Route path="/google-growth/sync" element={<GoogleGrowthSync />} />
 									<Route path="/google-growth/reviews" element={<GoogleGrowthHub />} />
 								</Route>
-
-								{/* Boost — Ad campaign management */}
-								<Route path="/boost" element={<BoostHub />} />
-								<Route path="/boost/new" element={<BoostHub />} />
-								<Route path="/boost/campaign" element={<BoostCampaignDetail />} />
-								<Route path="/boost/redeem" element={<BoostHub />} />
 
 								<Route path="/billing" element={<PaymentSettings />} />
 								<Route path="/ledger" element={<LedgerPage />} />

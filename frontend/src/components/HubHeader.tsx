@@ -15,7 +15,7 @@ interface HubHeaderProps {
 
 /**
  * Shared header for the Content Studio / feature hubs (Chills, Club Talks, UGC,
- * Boost, Loyalty, Marketing, Google Growth).
+ * Loyalty, Marketing, Google Growth).
  *
  * The title sits on the LEFT and the tab switcher on the SAME line, centered in
  * the row (a balancing spacer on the right keeps it truly centered). Stacks on

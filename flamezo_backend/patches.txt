@@ -23,5 +23,6 @@ flamezo_backend.flamezo.patches.add_crowd_club_membership_unique_indexes
 flamezo_backend.flamezo.patches.set_google_review_min_order_350
 flamezo_backend.flamezo.patches.consolidate_logo_to_restaurant
 flamezo_backend.flamezo.patches.remove_has_no_media_and_backfill_media
+flamezo_backend.flamezo.patches.remove_boost_feature
 
 
