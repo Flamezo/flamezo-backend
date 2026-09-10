@@ -59,8 +59,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'mandate_status',
       'onboarding_date',
       'is_active',
-      'deferred_plan_type',
-      'plan_change_date',
       'plan_change_history',
       'max_images_lite',
 

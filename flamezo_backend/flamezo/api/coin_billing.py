@@ -17,6 +17,8 @@ COINS_PER_ENHANCEMENT = 5   # ₹5
 COINS_PER_GENERATION = 10   # ₹10
 AUTO_RECHARGE_DAILY_LIMIT = 5000.0  # Safety cap per day
 AUTO_RECHARGE_HARD_CAP = 15000.0   # RBI AFA Limit for single transaction
+AUTO_RECHARGE_MIN_THRESHOLD = 300.0  # Below this, top-ups fire too often to be worth the fees
+AUTO_RECHARGE_MIN_AMOUNT = 500.0
 
 # Bonus Thresholds
 BONUS_TIER_1_MIN = 2999.0  # 10% Bonus
@@ -350,8 +352,6 @@ def get_coin_billing_info(restaurant):
         "mandate_active": res.mandate_status == "active",
         "daily_limit": AUTO_RECHARGE_DAILY_LIMIT,
         "current_daily_vol": res.daily_auto_recharge_count or 0,
-        "deferred_plan_type": res.deferred_plan_type,
-        "plan_change_date": res.plan_change_date,
         "billing_status": res.billing_status or "active",
         "onboarding_date": res.onboarding_date,
         "last_auto_recharge_date": res.last_auto_recharge_date,
@@ -376,12 +376,23 @@ def update_subscription_plan(restaurant, plan_type):
 
 @frappe.whitelist(allow_guest=False)
 def update_autopay_settings(restaurant, enabled, threshold, amount):
-    """Update autopay configuration."""
+    """Update autopay configuration.
+
+    Enforces the same minimums the UI shows — previously these were only a
+    client-side restriction, so a direct API call could set an arbitrarily
+    low threshold and trigger a recharge storm.
+    """
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
+    threshold = float(threshold)
+    amount = float(amount)
+    if enabled and threshold < AUTO_RECHARGE_MIN_THRESHOLD:
+        frappe.throw(f"Recharge threshold must be at least ₹{AUTO_RECHARGE_MIN_THRESHOLD:.0f}.")
+    if enabled and amount < AUTO_RECHARGE_MIN_AMOUNT:
+        frappe.throw(f"Top-up amount must be at least ₹{AUTO_RECHARGE_MIN_AMOUNT:.0f}.")
     frappe.db.set_value("Outlet", restaurant, {
         "auto_recharge_enabled": 1 if enabled else 0,
-        "auto_recharge_threshold": float(threshold),
-        "auto_recharge_amount": float(amount)
+        "auto_recharge_threshold": threshold,
+        "auto_recharge_amount": amount
     })
     frappe.db.commit()
     return {"success": True}
