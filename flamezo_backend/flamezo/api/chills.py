@@ -1098,7 +1098,7 @@ Taxonomy (id: breadcrumb):
         if not gemini_key:
             # No key configured — degrade gracefully instead of a hard error toast.
             return {"success": True, "data": {"tags": []}}
-        # REST call (same path as the working Boost/ad-media features) rather
+        # REST call (same path as the working ad-media features) rather
         # than the google.generativeai SDK, which may not be installed on the
         # server — that mismatch is what made this endpoint fail while ads worked.
         url = (

@@ -25,16 +25,10 @@ import json
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('GOLD')
-def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_info=None, session_id=None, boost_campaign=None):
+def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_info=None, session_id=None):
 	"""
 	POST /api/method/flamezo_backend.flamezo.api.bookings.create_table_booking
 	Create a new table reservation
-
-	boost_campaign: optional — set when this booking was made from a Boost
-	coupon-claim page, so a completed booking can be counted as a verified,
-	guaranteed visit for that campaign. Never required — a normal booking
-	(and normal Boost coupon redemption without any reservation) works exactly
-	as before.
 	"""
 	try:
 		# Validate outlet
@@ -72,11 +66,6 @@ def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_
 		if not user and not session_id:
 			session_id = frappe.session.get("session_id")
 
-		# Validate the Boost campaign belongs to this outlet before linking —
-		# never blocks the booking, just silently drops a mismatched/bad reference.
-		if boost_campaign and frappe.db.get_value("Boost Campaign", boost_campaign, "outlet") != restaurant:
-			boost_campaign = None
-
 		# Create table booking
 		booking_doc = frappe.get_doc({
 			"doctype": "Table Booking",
@@ -91,7 +80,6 @@ def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_
 			"customer_phone": customer_info.get("phone"),
 			"customer_email": customer_info.get("email"),
 			"platform_customer": platform_customer,
-			"boost_campaign": boost_campaign,
 			"notes": customer_info.get("notes")
 		})
 		booking_doc.insert(ignore_permissions=True)
@@ -104,7 +92,6 @@ def create_table_booking(outlet_id, number_of_diners, date, time_slot, customer_
 			"date": str(booking_doc.date),
 			"timeSlot": booking_doc.time_slot,
 			"status": booking_doc.status,
-			"boostCampaign": booking_doc.boost_campaign,
 			"createdAt": get_datetime_str(booking_doc.creation)
 		}
 		

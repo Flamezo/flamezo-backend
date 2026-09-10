@@ -34,8 +34,8 @@ WEEKLY_ACCEPT_CAP = 3     # per creator, across all merchants
 
 def _require_outlet_access(outlet_id):
 	"""Merchant-side auth — same `validate_restaurant_for_api` helper every
-	other merchant-portal endpoint in the app uses (commission.py, boost.py,
-	etc.). Resolves the outlet AND verifies `frappe.session.user` actually
+	other merchant-portal endpoint in the app uses (commission.py, etc.).
+	Resolves the outlet AND verifies `frappe.session.user` actually
 	manages it; raises PermissionError otherwise. Returns the resolved
 	restaurant name."""
 	return validate_restaurant_for_api(outlet_id, frappe.session.user)
