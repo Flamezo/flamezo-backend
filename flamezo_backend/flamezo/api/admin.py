@@ -178,6 +178,7 @@ def get_all_outlets(page=1, page_size=20, search=None, filters=None):
             COALESCE(r.cash_sweep_failure_count, 0) as cash_sweep_failure_count,
             COALESCE(r.razorpay_kyc_status, '') as razorpay_kyc_status,
             COALESCE(r.route_mode, '') as route_mode,
+            COALESCE(r.razorpay_account_id, '') as razorpay_account_id,
             COALESCE(r.is_signature, 0) as is_signature,
             COALESCE(r.is_featured, 0) as is_featured,
             r.limelight_start_date,

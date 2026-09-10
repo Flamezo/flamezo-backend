@@ -86,6 +86,7 @@ interface Merchant {
   cash_payments_disabled_until?: string | null
   cash_sweep_failure_count?: number
   razorpay_kyc_status?: '' | 'under_review' | 'needs_clarification' | 'activated' | 'suspended' | 'rejected'
+  razorpay_account_id?: string
   route_mode?: '' | 'flamezo_hold' | 'direct_split' | 'disabled'
 }
 
@@ -1041,11 +1042,17 @@ export default function AdminMerchantManagement() {
 
             {/* Route Mode */}
             <Select
-              value={(filters.find((f: any) => f.fieldname === 'route_mode')?.value as string) || 'all'}
+              value={
+                filters.find((f: any) => f.fieldname === 'razorpay_account_id')
+                  ? 'not_started'
+                  : (filters.find((f: any) => f.fieldname === 'route_mode')?.value as string) || 'all'
+              }
               onValueChange={(v) => {
-                const next = filters.filter(f => f.fieldname !== 'route_mode')
+                const next = filters
+                  .filter(f => f.fieldname !== 'route_mode')
+                  .filter(f => f.fieldname !== 'razorpay_account_id')
                 if (v === 'not_started') {
-                  next.push({ fieldname: 'route_mode', operator: 'in', value: ['', null] })
+                  next.push({ fieldname: 'razorpay_account_id', operator: 'in', value: ['', null] })
                 } else if (v !== 'all') {
                   next.push({ fieldname: 'route_mode', operator: '=', value: v })
                 }
@@ -1055,10 +1062,10 @@ export default function AdminMerchantManagement() {
               <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Payouts: All</SelectItem>
-                <SelectItem value="direct_split">✅ Direct Split</SelectItem>
-                <SelectItem value="flamezo_hold">🔄 Flamezo Hold</SelectItem>
-                <SelectItem value="not_started">⚠️ Not Started</SelectItem>
-                <SelectItem value="disabled">🚫 Disabled</SelectItem>
+                <SelectItem value="direct_split">Direct Split</SelectItem>
+                <SelectItem value="flamezo_hold">Flamezo Hold</SelectItem>
+                <SelectItem value="not_started">Not Started</SelectItem>
+                <SelectItem value="disabled">Disabled</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1371,7 +1378,11 @@ export default function AdminMerchantManagement() {
                           })()}
                         </TableCell>}
                         {isColumnVisible('route_mode') && <TableCell>
-                          <span className="text-xs text-muted-foreground">{merchant.route_mode || '—'}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {!merchant.razorpay_account_id
+                              ? 'not_started'
+                              : merchant.route_mode || 'flamezo_hold'}
+                          </span>
                         </TableCell>}
                         {isColumnVisible('created') && <TableCell>
                           <span className="text-xs text-muted-foreground">
