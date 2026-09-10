@@ -952,10 +952,10 @@ export default function Layout({ children }: LayoutProps) {
                           .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
-                            // Base for prefix-matching sub-paths as "active" too — e.g. Boost's
-                            // child row (href '/boost') should stay highlighted on '/boost/new'
-                            // and '/boost/redeem' now that those are tabs of the same hub page,
-                            // not separate sidebar rows.
+                            // Base for prefix-matching sub-paths as "active" too — e.g. Google
+                            // Growth's child row (href '/google-growth') should stay highlighted
+                            // on '/google-growth/sync' since that's a tab of the same hub page,
+                            // not a separate sidebar row.
                             const childActiveBase = child.activeMatch ?? child.href
                             const isChildActive = location.pathname === child.href ||
                               (!child.exactMatch && childActiveBase !== '/' && childActiveBase !== '/dashboard' && location.pathname.startsWith(childActiveBase + '/'))

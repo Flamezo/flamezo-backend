@@ -53,8 +53,8 @@ export interface NavLink {
   badgeHref?: string
   exactMatch?: boolean
   /** Shows a small "BETA" tag next to this item — was previously shown on
-   * the whole Google Growth / Boost group header before those became
-   * children of "Grow & Promote"; now marked per-item instead. */
+   * the whole Google Growth group header before it became a child of
+   * "Grow & Promote"; now marked per-item instead. */
   beta?: boolean
   /** Prefix used to decide if this row highlights as active — falls back to
    * `href` when unset. Needed for links that now point at one tab of a
@@ -118,10 +118,10 @@ function sharedItems(isAdmin: boolean): NavItem[] {
 }
 
 // "Grow & Promote" — every tool whose job is bringing in or retaining
-// customers (offers, loyalty, UGC, Google, Boost ads). Each of these used to
-// be its own multi-tab group (Loyalty: 2 rows, UGC: 3, Google: 2, Boost: 3)
-// — now a single row per tool, and the "tabs" live inside that tool's own
-// page (see src/pages/hubs/*) instead of the sidebar.
+// customers (offers, loyalty, UGC, Google). Each of these used to be its own
+// multi-tab group (Loyalty: 2 rows, UGC: 3, Google: 2) — now a single row per
+// tool, and the "tabs" live inside that tool's own page (see
+// src/pages/hubs/*) instead of the sidebar.
 function growPromoteGroup(): NavItem {
   return {
     type: 'group',
@@ -141,9 +141,6 @@ function growPromoteGroup(): NavItem {
       { name: 'Loyalty', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
       { name: 'UGC Cashback', href: '/ugc-cashback/config', activeMatch: '/ugc-cashback', icon: Megaphone },
       { name: 'Google Growth', href: '/google-growth', icon: Sparkles, feature: 'google_growth', beta: true },
-      // Boost (Meta ads) hidden from the sidebar — zero campaigns created in
-      // prod since it shipped (May 2026); under review for full removal in
-      // favor of the creator marketplace. Routes/backend left intact.
     ],
   }
 }

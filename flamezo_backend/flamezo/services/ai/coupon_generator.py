@@ -928,9 +928,9 @@ def generate_suggestions(
         require_food_cost: Gate AI generation behind complete menu food-cost data
             (default True, for the merchant-facing Manage Offers/Coupons flow,
             where the AI is inventing the discount amount and needs real margins
-            to keep it profit-safe). Pass False for callers that already supply
-            their own discount amount and only want the naming/copy — e.g. Boost
-            campaigns — where that economics-safety reason doesn't apply.
+            to keep it profit-safe). Pass False for a caller that already supplies
+            its own discount amount and only wants the naming/copy, where that
+            economics-safety reason doesn't apply.
     """
     tone = tone if tone in TONE_DESCRIPTIONS else "attractive"
     count = max(3, min(count, 8))
