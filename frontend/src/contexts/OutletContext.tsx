@@ -328,8 +328,6 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
   const billingInfo = outletConfig?.subscription ? {
     coins_balance: outletConfig.subscription.coinsBalance,
-    deferred_plan_type: outletConfig.subscription.deferredPlanType,
-    plan_change_date: outletConfig.subscription.planChangeDate,
     mandate_active: outletConfig.subscription.mandateActive,
     auto_recharge_enabled: outletConfig.subscription.autoRechargeEnabled,
     auto_recharge_threshold: outletConfig.subscription.autoRechargeThreshold,

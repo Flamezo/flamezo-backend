@@ -24,5 +24,6 @@ flamezo_backend.flamezo.patches.set_google_review_min_order_350
 flamezo_backend.flamezo.patches.consolidate_logo_to_restaurant
 flamezo_backend.flamezo.patches.remove_has_no_media_and_backfill_media
 flamezo_backend.flamezo.patches.remove_boost_feature
+flamezo_backend.flamezo.patches.fix_billing_page_stale_data
 
 

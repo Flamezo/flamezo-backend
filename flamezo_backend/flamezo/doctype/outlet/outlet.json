@@ -81,8 +81,6 @@
   "total_orders",
   "total_revenue",
   "commission_earned",
-  "deferred_plan_type",
-  "plan_change_date",
   "plan_change_history",
   "section_break_coins",
   "coins_balance",
@@ -616,19 +614,6 @@
    "description": "Total Success Share earned by platform (1.5% of revenue)"
   },
   {
-   "fieldname": "deferred_plan_type",
-   "fieldtype": "Select",
-   "label": "Deferred Plan Type",
-   "options": "GOLD",
-   "description": "The plan that will be activated at midnight"
-  },
-  {
-   "fieldname": "plan_change_date",
-   "fieldtype": "Date",
-   "label": "Plan Change Date",
-   "description": "Date when the deferred plan becomes active"
-  },
-  {
    "fieldname": "plan_change_history",
    "fieldtype": "JSON",
    "label": "Plan Change History",
@@ -665,7 +650,7 @@
    "fieldname": "auto_recharge_threshold",
    "fieldtype": "Float",
    "label": "Recharge Threshold (₹)",
-   "default": "200.0",
+   "default": "300.0",
    "description": "Trigger recharge when balance falls below this amount"
   },
   {

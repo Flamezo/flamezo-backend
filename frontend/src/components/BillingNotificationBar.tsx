@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2, X, Landmark } from 'lucide-react'
+import { AlertCircle, ArrowRight, Wallet, ShieldAlert, Loader2, X, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
 import { useOutlet } from '@/contexts/OutletContext'
 
 /**
@@ -19,8 +18,6 @@ const SUSPENSION_COPY =
 interface BillingNotificationBarProps {
   billingInfo: {
     coins_balance: number
-    deferred_plan_type?: 'GOLD' | null
-    plan_change_date?: string | null
     mandate_active: boolean
     auto_recharge_enabled: boolean
     auto_recharge_threshold: number
@@ -123,19 +120,6 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
       message:
         'Payment overdue. Your account will be suspended shortly if the balance is not cleared.',
       action: { label: 'Pay Now', onClick: () => navigate('/autopay-setup?buy=true') },
-    })
-  }
-
-  if (billingInfo.deferred_plan_type) {
-    const formattedDate = billingInfo.plan_change_date
-      ? format(new Date(billingInfo.plan_change_date), 'do MMMM')
-      : 'tomorrow'
-    notifications.push({
-      id: 'plan-change',
-      type: 'info',
-      icon: <Calendar className="h-4 w-4" />,
-      message: `A plan change is scheduled to take effect on ${formattedDate} at 12:00 AM.`,
-      action: { label: 'Manage', onClick: () => navigate('/autopay-setup') },
     })
   }
 
