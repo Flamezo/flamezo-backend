@@ -305,6 +305,13 @@ scheduler_events = {
 			# Creator Marketplace: release escrow for deals past the 48h
 			# objection window with no open dispute.
 			"flamezo_backend.flamezo.api.collab_deals.auto_release_escrow",
+			# Creator Marketplace: dispute SLA sweep — evidence-window expiry,
+			# resolution-SLA breach alerts, appeal-window auto-close.
+			"flamezo_backend.flamezo.api.collab_disputes.sweep_dispute_slas",
+			# Creator Marketplace: poll pending Instagram deliverable claims
+			# against the real Graph API — confirms venue-tag mention +
+			# ASCI disclosure, advances the deal to 'delivered' on a match.
+			"flamezo_backend.flamezo.utils.instagram_verification.poll_pending_instagram_deliveries",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
@@ -363,6 +370,13 @@ scheduler_events = {
 		# algorithm.md and utils/creator_score_engine.py.
 		"0 3 * * 1": [
 			"flamezo_backend.flamezo.utils.creator_score_engine.run_weekly_payout",
+		],
+		# Creator Marketplace — weekly badge-tier reconciliation, Mondays
+		# 03:30 IST (after the score run above, before the 03:45 autopay
+		# sweep). Writes to Creator Badge only on an actual tier change —
+		# see utils/creator_badges.py.
+		"30 3 * * 1": [
+			"flamezo_backend.flamezo.utils.creator_badges.sync_all_creator_badges",
 		],
 		# Creator Program — monthly follower refresh, 1st of month 05:00 IST.
 		# creator-program-fundamentals-v1-locked.md Section 6.

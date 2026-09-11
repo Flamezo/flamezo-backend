@@ -93,7 +93,13 @@ def create_gig(outlet_id, title, deliverables, budget_inr=0, barter_allowed=0, b
 
 
 @frappe.whitelist()
-def list_my_gigs(outlet_id, status=None):
+def list_my_gigs(outlet_id=None, status=None):
+	# useFrappeGetCall fires on component mount regardless of whether
+	# selectedOutlet has resolved yet (see list_applications's identical
+	# note) — degrade cleanly instead of a raw TypeError on the missing
+	# positional arg.
+	if not outlet_id:
+		return {"success": True, "data": {"gigs": []}}
 	outlet = validate_restaurant_for_api(outlet_id, frappe.session.user)
 	filters = {"outlet": outlet}
 	if status:
@@ -102,9 +108,14 @@ def list_my_gigs(outlet_id, status=None):
 	rows = frappe.db.get_all(
 		"Collab Gig",
 		filters=filters,
-		fields=["name", "title", "status", "budget_inr", "barter_allowed", "category", "expires_at", "creation"],
+		fields=[
+			"name", "title", "status", "budget_inr", "barter_allowed", "barter_details", "category",
+			"expires_at", "creation", "deliverables_json", "min_followers", "min_badge_tier", "merchant_covers_tds",
+		],
 		order_by="creation desc",
 	)
+	for r in rows:
+		r["deliverables"] = json.loads(r.pop("deliverables_json") or "[]")
 	gig_names = [r.name for r in rows]
 	app_counts = {}
 	if gig_names:
@@ -122,7 +133,15 @@ def list_my_gigs(outlet_id, status=None):
 
 
 @frappe.whitelist()
-def list_applications(outlet_id, gig_id):
+def list_applications(outlet_id=None, gig_id=None):
+	# `useFrappeGetCall` on the dashboard fires this on component mount
+	# regardless of whether a gig is actually selected yet (it has no real
+	# conditional-fetch support despite the `params ? {...} : undefined`
+	# pattern used at the call site) — so this must degrade cleanly to an
+	# empty list rather than crash with a raw TypeError on the missing
+	# positional args, which is what happened before this guard existed.
+	if not outlet_id or not gig_id:
+		return {"success": True, "data": {"applications": []}}
 	outlet = validate_restaurant_for_api(outlet_id, frappe.session.user)
 	gig_outlet = frappe.db.get_value("Collab Gig", gig_id, "outlet")
 	if gig_outlet != outlet:
@@ -133,7 +152,7 @@ def list_applications(outlet_id, gig_id):
 		SELECT d.name AS deal_id, d.creator AS creator_id, d.deal_type,
 		       d.price_inr AS proposed_price_inr, d.fair_value_inr AS proposed_fair_value_inr,
 		       d.status, d.creation,
-		       c.display_name AS creator_name, c.meta_followers AS follower_count
+		       c.display_name AS creator_name, c.meta_followers AS follower_count, c.profile_image AS creator_profile_image
 		FROM `tabCollab Deal` d
 		LEFT JOIN `tabFlamezo Creator` c ON c.name = d.creator
 		WHERE d.gig = %(gig_id)s

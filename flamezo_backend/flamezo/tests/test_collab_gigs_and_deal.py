@@ -322,6 +322,35 @@ class TestCollabGigs(unittest.TestCase):
 		with self.assertRaises(frappe.exceptions.PermissionError):
 			gigs.list_applications(self.other_outlet, created["data"]["gig_id"])
 
+	def test_list_applications_no_gig_selected_returns_empty(self):
+		"""Regression: the dashboard's useFrappeGetCall fires on component
+		mount even when the gating param is still undefined (no real
+		conditional-fetch support in this SDK, verified against its actual
+		source) — this used to be a raw 500 TypeError on the missing
+		positional args before this endpoint learned to degrade cleanly."""
+		result = gigs.list_applications()
+		self.assertEqual(result["data"]["applications"], [])
+		result2 = gigs.list_applications(outlet_id=self.outlet)  # gig_id still missing
+		self.assertEqual(result2["data"]["applications"], [])
+
+	def test_list_my_gigs_no_outlet_returns_empty(self):
+		result = gigs.list_my_gigs()
+		self.assertEqual(result["data"]["gigs"], [])
+
+	def test_list_my_gigs_includes_requirements_for_detail_view(self):
+		"""Regression for the gig-detail sheet: it needs the parsed
+		deliverables list plus eligibility fields, not just title/budget."""
+		gigs.create_gig(
+			self.outlet, "detail test", self._deliverables(), budget_inr=1500,
+			category="dining", min_followers=5000, min_badge_tier="verified_creator",
+		)
+		result = gigs.list_my_gigs(self.outlet)
+		row = result["data"]["gigs"][0]
+		self.assertEqual(row["deliverables"], [{"type": "native_chills", "count": 2}])
+		self.assertEqual(row["min_followers"], 5000)
+		self.assertEqual(row["min_badge_tier"], "verified_creator")
+		self.assertNotIn("deliverables_json", row)
+
 
 class TestCollabDealStateMachine(unittest.TestCase):
 	"""Direct doctype-level tests — Phase 1 only exposes apply_to_gig

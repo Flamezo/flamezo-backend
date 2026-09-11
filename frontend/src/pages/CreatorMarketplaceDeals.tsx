@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react'
 import { useOutlet } from '@/contexts/OutletContext'
 import { useFrappeGetCall, useFrappePostCall } from '@/lib/frappe'
 import { Card, CardContent } from '@/components/ui/card'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
+import DealDetailSheet from '@/components/DealDetailSheet'
+import CreatorProfileSheet from '@/components/CreatorProfileSheet'
 import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
-import { Handshake, Wallet, CheckCircle2 } from 'lucide-react'
+import { Handshake, Wallet, CheckCircle2, CalendarClock } from 'lucide-react'
+
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?'
+}
 
 declare global {
   interface Window {
@@ -27,13 +33,25 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  offered: 'outline',
-  accepted: 'secondary',
-  funded: 'secondary',
-  delivered: 'default',
-  released: 'default',
-  cancelled: 'outline',
+const STATUS_COLORS: Record<string, string> = {
+  offered: 'bg-muted text-muted-foreground border-border',
+  accepted: 'bg-blue-50 text-blue-700 border-blue-200',
+  funded: 'bg-blue-50 text-blue-700 border-blue-200',
+  delivered: 'bg-amber-50 text-amber-700 border-amber-200',
+  released: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  disputed: 'bg-red-50 text-red-700 border-red-200',
+  refunded: 'bg-muted text-muted-foreground border-border',
+  cancelled: 'bg-muted text-muted-foreground border-border',
+}
+const STATUS_LABELS: Record<string, string> = {
+  offered: 'Offered',
+  accepted: 'Accepted',
+  funded: 'Funded',
+  delivered: 'Delivered',
+  released: 'Released',
+  disputed: 'Disputed',
+  refunded: 'Refunded',
+  cancelled: 'Cancelled',
 }
 
 interface Deal {
@@ -41,6 +59,8 @@ interface Deal {
   status: string
   deal_type: 'cash' | 'barter'
   creator: string
+  creator_name: string | null
+  creator_profile_image: string | null
   price_inr: number
   fair_value_inr: number
   deadline: string
@@ -64,6 +84,8 @@ export default function CreatorMarketplaceDeals() {
   const { selectedOutlet } = useOutlet()
   const [status, setStatus] = useState('all')
   const [busyDeal, setBusyDeal] = useState<string | null>(null)
+  const [viewingDealId, setViewingDealId] = useState<string | null>(null)
+  const [viewingCreatorId, setViewingCreatorId] = useState<string | null>(null)
   const razorpayLoaded = useRazorpayScript()
 
   const { data, mutate, isLoading } = useFrappeGetCall(
@@ -85,11 +107,11 @@ export default function CreatorMarketplaceDeals() {
   const body: any = (data as any)?.message || data
   const deals: Deal[] = body?.data?.deals || []
 
-  const handleAccept = async (deal: Deal) => {
+  const handleAccept = async (dealId: string) => {
     if (!selectedOutlet) return
-    setBusyDeal(deal.name)
+    setBusyDeal(dealId)
     try {
-      await acceptApplication({ outlet_id: selectedOutlet, deal_id: deal.name })
+      await acceptApplication({ outlet_id: selectedOutlet, deal_id: dealId })
       toast.success('Deal accepted')
       mutate()
     } catch (error: any) {
@@ -99,29 +121,29 @@ export default function CreatorMarketplaceDeals() {
     }
   }
 
-  const handleFund = async (deal: Deal) => {
+  const handleFund = async (dealId: string) => {
     if (!selectedOutlet) return
     if (!razorpayLoaded) {
       toast.error('Payment system is still loading — try again in a moment.')
       return
     }
-    setBusyDeal(deal.name)
+    setBusyDeal(dealId)
     try {
-      const res: any = await fundDeal({ outlet_id: selectedOutlet, deal_id: deal.name })
+      const res: any = await fundDeal({ outlet_id: selectedOutlet, deal_id: dealId })
       const funding = res?.message?.data || res?.data
       const rzp = new window.Razorpay({
         key: funding.key_id,
         amount: Math.round(funding.amount_inr * 100),
         currency: 'INR',
         name: 'Flamezo Creator & Collab',
-        description: `Escrow funding for collab ${deal.name}`,
+        description: `Escrow funding for collab ${dealId}`,
         order_id: funding.razorpay_order_id,
         theme: { color: '#B7410E' },
         handler: async (paymentResponse: any) => {
           try {
             await verifyDealPayment({
               outlet_id: selectedOutlet,
-              deal_id: deal.name,
+              deal_id: dealId,
               razorpay_order_id: funding.razorpay_order_id,
               razorpay_payment_id: paymentResponse.razorpay_payment_id,
               razorpay_signature: paymentResponse.razorpay_signature,
@@ -147,11 +169,11 @@ export default function CreatorMarketplaceDeals() {
     }
   }
 
-  const handleApproveRelease = async (deal: Deal) => {
+  const handleApproveRelease = async (dealId: string) => {
     if (!selectedOutlet) return
-    setBusyDeal(deal.name)
+    setBusyDeal(dealId)
     try {
-      await approveRelease({ outlet_id: selectedOutlet, deal_id: deal.name })
+      await approveRelease({ outlet_id: selectedOutlet, deal_id: dealId })
       toast.success('Deal released')
       mutate()
     } catch (error: any) {
@@ -164,77 +186,137 @@ export default function CreatorMarketplaceDeals() {
   if (isLoading && !data) return <GenericPageSkeleton />
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Deals</h1>
+          <p className="text-muted-foreground text-sm mt-1">Fund escrow, track delivery & release payment</p>
+        </div>
+        <div className="shrink-0">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-44 h-10 rounded-md shadow-sm bg-background border-border/60 focus:ring-1 focus:ring-primary/20 transition-all">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent className="rounded-lg shadow-lg border-border/40">
+              {STATUS_OPTIONS.map((s) => (
+                <SelectItem key={s.value} value={s.value} className="rounded-md mx-1 my-0.5 cursor-pointer">
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {deals.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Handshake className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            No deals here yet.
+        <Card className="border-dashed bg-muted/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center mb-4">
+              <Handshake className="h-8 w-8 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No deals here yet</h3>
+            <p className="text-muted-foreground max-w-sm">
+              When creators accept your collab invites, or when you accept their applications, deals will appear here.
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Creator</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deals.map((d) => (
-                <TableRow key={d.name}>
-                  <TableCell className="font-medium">{d.creator}</TableCell>
-                  <TableCell className="capitalize">{d.deal_type}</TableCell>
-                  <TableCell>
-                    {d.deal_type === 'cash'
-                      ? `₹${d.price_inr?.toLocaleString('en-IN')}`
-                      : `₹${d.fair_value_inr?.toLocaleString('en-IN')} (barter)`}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[d.status] || 'outline'}>{d.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{d.deadline || '—'}</TableCell>
-                  <TableCell className="text-right">
-                    {d.status === 'offered' && (
-                      <Button size="sm" disabled={busyDeal === d.name} onClick={() => handleAccept(d)}>
-                        {busyDeal === d.name ? 'Accepting…' : 'Accept'}
-                      </Button>
+        <div className="space-y-4">
+          {deals.map((d) => (
+            <div key={d.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-lg border border-border bg-card hover:border-foreground/20 transition-all">
+
+              {/* Left Side: Avatar & Details. Avatar+name is its own
+                  clickable target (opens the CREATOR's profile) nested
+                  inside the row's own click target (opens the DEAL
+                  detail) — same split Upwork uses: click the person, get
+                  their profile; click anywhere else in the row, get the
+                  contract. The outer wrapper is a div, not a button, so
+                  it can legally contain the real nested button. */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setViewingDealId(d.name)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewingDealId(d.name) }}
+                className="flex items-start gap-4 text-left cursor-pointer"
+              >
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setViewingCreatorId(d.creator) }}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <Avatar className="h-12 w-12 border shadow-sm mt-0.5 hover:ring-2 hover:ring-primary/30 transition-all">
+                    {d.creator_profile_image && <AvatarImage src={d.creator_profile_image} alt={d.creator_name || d.creator} className="object-cover" />}
+                    <AvatarFallback className="text-sm font-medium bg-muted text-muted-foreground">{initials(d.creator_name || d.creator)}</AvatarFallback>
+                  </Avatar>
+                </button>
+
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setViewingCreatorId(d.creator) }}
+                      className="font-semibold text-base leading-tight text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                    >
+                      {d.creator_name || d.creator}
+                    </button>
+                    <Badge variant="secondary" className={`font-medium px-2 py-0.5 capitalize ${STATUS_COLORS[d.status] || ''}`}>
+                      {STATUS_LABELS[d.status] || d.status}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5 font-medium text-foreground">
+                      {d.deal_type === 'cash' ? <Wallet className="h-3.5 w-3.5" /> : <Handshake className="h-3.5 w-3.5" />}
+                      {d.deal_type === 'cash' ? `${d.price_inr?.toLocaleString('en-IN')} cash` : `${d.fair_value_inr?.toLocaleString('en-IN')} barter`}
+                    </span>
+                    {d.deadline && (
+                      <span className="flex items-center gap-1.5 border-l pl-4 border-border/60">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        Due {d.deadline}
+                      </span>
                     )}
-                    {d.status === 'accepted' && d.deal_type === 'cash' && (
-                      <Button size="sm" disabled={busyDeal === d.name} onClick={() => handleFund(d)}>
-                        <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                        {busyDeal === d.name ? 'Opening…' : 'Fund Escrow'}
-                      </Button>
-                    )}
-                    {d.status === 'delivered' && (
-                      <Button size="sm" disabled={busyDeal === d.name} onClick={() => handleApproveRelease(d)}>
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                        {busyDeal === d.name ? 'Releasing…' : 'Approve & Release'}
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side: Actions */}
+              {(d.status === 'offered' || (d.status === 'accepted' && d.deal_type === 'cash') || d.status === 'delivered') && (
+                <div className="shrink-0 sm:ml-auto">
+                  {d.status === 'offered' && (
+                    <Button className="rounded-md px-6 font-medium shadow-sm transition-all w-full sm:w-auto" disabled={busyDeal === d.name} onClick={() => handleAccept(d.name)}>
+                      {busyDeal === d.name ? 'Accepting…' : 'Accept Deal'}
+                    </Button>
+                  )}
+                  {d.status === 'accepted' && d.deal_type === 'cash' && (
+                    <Button className="rounded-md px-6 font-medium shadow-sm transition-all w-full sm:w-auto" disabled={busyDeal === d.name} onClick={() => handleFund(d.name)}>
+                      <Wallet className="h-4 w-4 mr-2" />
+                      {busyDeal === d.name ? 'Opening…' : 'Fund Escrow'}
+                    </Button>
+                  )}
+                  {d.status === 'delivered' && (
+                    <Button className="rounded-md px-6 font-medium shadow-sm transition-all bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto" disabled={busyDeal === d.name} onClick={() => handleApproveRelease(d.name)}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {busyDeal === d.name ? 'Releasing…' : 'Approve & Release'}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
+
+      <DealDetailSheet
+        dealId={viewingDealId}
+        outletId={selectedOutlet || undefined}
+        onClose={() => setViewingDealId(null)}
+        busy={!!viewingDealId && busyDeal === viewingDealId}
+        onAccept={() => viewingDealId && handleAccept(viewingDealId)}
+        onFund={() => viewingDealId && handleFund(viewingDealId)}
+        onRelease={() => viewingDealId && handleApproveRelease(viewingDealId)}
+      />
+
+      <CreatorProfileSheet creatorId={viewingCreatorId} onClose={() => setViewingCreatorId(null)} />
     </div>
   )
 }

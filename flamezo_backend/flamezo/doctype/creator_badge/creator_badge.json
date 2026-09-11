@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "badge_type",
+  "is_current",
+  "column_break_1",
+  "earned_at",
+  "lost_at",
+  "section_break_snapshot",
+  "criteria_snapshot_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "badge_type",
+   "fieldtype": "Select",
+   "label": "Badge Type",
+   "options": "verified_creator\ntop_rated\nelite_creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "New Creator has no row here by design — it's the absence-of-badge state, not an earned tier (blueprint §07)."
+  },
+  {
+   "fieldname": "is_current",
+   "fieldtype": "Check",
+   "label": "Is Current",
+   "default": "1",
+   "in_list_view": 1,
+   "search_index": 1,
+   "description": "At most one current=1 row per creator — enforced in the controller, not just by convention."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "earned_at",
+   "fieldtype": "Datetime",
+   "label": "Earned At",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "lost_at",
+   "fieldtype": "Datetime",
+   "label": "Lost At",
+   "read_only": 1,
+   "description": "Set when superseded by a tier change (up or down) — null while is_current=1"
+  },
+  {
+   "fieldname": "section_break_snapshot",
+   "fieldtype": "Section Break",
+   "label": "Criteria at time of earning",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "criteria_snapshot_json",
+   "fieldtype": "Long Text",
+   "label": "Criteria Snapshot (JSON)",
+   "description": "released_count, avg_rating, on_time_pct, days_since_first_deal, has_disputes_lost — the exact numbers that qualified this badge, for public auditability (blueprint §07's 'reads as earned, not arbitrary' principle)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Badge",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}

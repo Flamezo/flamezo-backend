@@ -13,20 +13,24 @@ Honest about what's real vs. stubbed:
     segregation is a separate product Flamezo hasn't signed the
     tri-party agreement for yet (blueprint §12); this can be swapped in
     without changing anything above the `_create_razorpay_order` call.
-  - Release to the creator's bank account: genuinely NOT built yet,
-    on purpose — it needs a creator KYC/linked-account flow
-    (razorpay_linked_account_id) that doesn't exist. `_transfer_to_creator`
-    is an explicit, loud stub rather than code that pretends to call a
-    Route transfer API against an account that was never created. Every
-    state transition around it (Escrow Transaction -> released, Collab
-    Deal -> released, barter value booking) is real and correct today;
-    only the actual bank transfer is pending that separate build.
+  - Release to the creator's bank account: real now — `_transfer_to_creator`
+    calls utils/creator_payout.execute_route_transfer, a genuine
+    `POST /payments/{id}/transfers` Route call against the linked account
+    created via the creator KYC flow (utils/creator_payout.py,
+    api/creator_kyc.py). Falls back to the same loud, explicit log (never
+    a silent no-op) for any creator who hasn't completed that KYC yet —
+    not every creator will have, so this path still matters.
   - Native delivery verification (Chills / Creator Club Post): real,
     synchronous, works today — zero external dependency.
-  - Instagram delivery verification: genuinely blocked on Meta App
-    Review (not started) — mark_delivered for Instagram deliverable
-    types records the claim and leaves it pending_verification rather
-    than faking a Graph API call that has nowhere real to hit yet.
+  - Instagram delivery verification: mark_delivered for Instagram
+    deliverable types still only records the claim here (real-time
+    verification during the request would mean the API call is on the
+    critical path of a user-facing endpoint) — utils/instagram_verification.py's
+    scheduled poll is what actually confirms it against the real Graph
+    API (venue-tag mention + ASCI disclosure) and advances the deal.
+    Blocked only on a live Meta Developer App / real credentials in
+    site_config.json — the code itself is real, not a stub, same as
+    every other Graph API call in this codebase (creator_onboarding.py).
 """
 
 import json
@@ -342,7 +346,7 @@ def _release_deal(deal):
 	# a mis-set escrow_required on a barter deal must never crash release.
 	if deal.deal_type == "cash" and deal.escrow_required:
 		escrow = frappe.get_doc("Escrow Transaction", {"deal": deal.name})
-		_transfer_to_creator(deal, escrow)  # explicit stub — see module docstring
+		_transfer_to_creator(deal, escrow)  # real Route transfer, falls back to a loud log pre-KYC — see module docstring
 		escrow.state = "released"
 		escrow.save(ignore_permissions=True)
 
@@ -352,24 +356,42 @@ def _release_deal(deal):
 
 
 def _transfer_to_creator(deal, escrow):
-	"""NOT YET IMPLEMENTED — needs a creator Razorpay linked account
-	(razorpay_linked_account_id + KYC), which has no build/onboarding
-	flow yet. Logging loudly rather than pretending this moved real
-	money: a silent no-op here would be a genuinely dangerous bug once
-	real cash deals exist (creator marked 'paid' with no actual transfer
-	sent). Every state transition around this call is correct and tested
-	today; only the actual bank transfer is pending that separate build."""
+	"""Real Route payout via utils/creator_payout.execute_route_transfer —
+	splits the creator's net share out of the already-captured escrow
+	payment into their Linked Account. Falls back to a loud, explicit log
+	(never a silent no-op) when the creator hasn't completed payout KYC
+	yet — a silent no-op here would be a genuinely dangerous bug (creator
+	marked 'paid' with no actual transfer sent)."""
 	if deal.deal_type != "cash":
 		return
-	frappe.log_error(
-		title="collab_deals.transfer_pending_creator_kyc",
-		message=(
-			f"Deal {deal.name}: escrow release reached the payout step, but creator "
-			f"{deal.creator} has no razorpay_linked_account_id yet — no transfer was "
-			f"sent. Build the creator KYC/linked-account flow before any real cash "
-			f"deal reaches this point in production."
-		),
+	from flamezo_backend.flamezo.utils.creator_payout import creator_payout_ready, execute_route_transfer
+
+	if not creator_payout_ready(deal.creator):
+		frappe.log_error(
+			title="collab_deals.transfer_pending_creator_kyc",
+			message=(
+				f"Deal {deal.name}: escrow release reached the payout step, but creator "
+				f"{deal.creator} hasn't completed Razorpay payout KYC yet — no transfer "
+				f"was sent. They need to submit KYC via api/creator_kyc.py before this "
+				f"deal's payout can actually reach their bank account."
+			),
+		)
+		return
+
+	result = execute_route_transfer(
+		deal.creator, escrow.razorpay_payment_id, escrow.creator_net_inr,
+		notes={"type": "collab_deal_payout", "deal_id": deal.name},
 	)
+	if result.get("success"):
+		escrow.razorpay_transfer_id = result["transfer_id"]
+	else:
+		# execute_route_transfer already logged the real error — this is
+		# just making sure a failed transfer never silently looks the same
+		# as a successful one at the call site.
+		frappe.log_error(
+			title="collab_deals.transfer_failed",
+			message=f"Deal {deal.name}: Route transfer to creator {deal.creator} failed: {result.get('error')}",
+		)
 
 
 # ── read ─────────────────────────────────────────────────────────────────
@@ -383,17 +405,34 @@ def _deal_origin(deal_row):
 
 
 def _deal_summary(deal_row):
+	creator = frappe.db.get_value(
+		"Flamezo Creator", deal_row.creator, ["display_name", "profile_image"], as_dict=True
+	) or {}
+	outlet_name = frappe.db.get_value("Outlet", deal_row.outlet, "outlet_name")
 	return {
 		"deal_id": deal_row.name, "status": deal_row.status, "deal_type": deal_row.deal_type,
 		"creator_id": deal_row.creator, "outlet_id": deal_row.outlet,
+		"creator_name": creator.get("display_name"), "creator_profile_image": creator.get("profile_image"),
+		"outlet_name": outlet_name,
 		"price_inr": deal_row.price_inr, "fair_value_inr": deal_row.fair_value_inr,
 		"commission_pct": deal_row.commission_pct, "deadline": deal_row.deadline,
 		"origin": _deal_origin(deal_row),
+		# Real timeline for a status-history view — mirrors what actually
+		# happened, not just the current status.
+		"accepted_at": deal_row.accepted_at, "funded_at": deal_row.funded_at,
+		"delivered_at": deal_row.delivered_at, "released_at": deal_row.released_at,
+		"creation": deal_row.creation,
 	}
 
 
 @frappe.whitelist(allow_guest=True)
-def get_deal(deal_id, phone=None, outlet_id=None):
+def get_deal(deal_id=None, phone=None, outlet_id=None):
+	# useFrappeGetCall fires on component mount regardless of whether a
+	# deal has actually been selected yet (see list_applications's
+	# identical note — no real conditional-fetch support in this SDK) —
+	# degrade to null data instead of a raw TypeError.
+	if not deal_id:
+		return {"success": True, "data": None}
 	deal = _load_deal(deal_id)
 	if phone:
 		_require_deal_creator(deal, phone)
@@ -403,7 +442,9 @@ def get_deal(deal_id, phone=None, outlet_id=None):
 		frappe.throw(_("phone or outlet_id is required."), frappe.ValidationError)
 
 	escrow = frappe.db.get_value(
-		"Escrow Transaction", {"deal": deal.name}, ["state", "amount_inr"], as_dict=True
+		"Escrow Transaction", {"deal": deal.name},
+		["state", "amount_inr", "platform_fee_inr", "creator_net_inr", "held_at", "released_at"],
+		as_dict=True,
 	)
 	delivery = frappe.db.get_all(
 		"Delivery Proof", filters={"deal": deal.name},
@@ -428,16 +469,27 @@ def get_deal(deal_id, phone=None, outlet_id=None):
 @frappe.whitelist(allow_guest=True)
 def list_my_deals(phone, status=None):
 	creator_name = _require_own_creator(phone)
-	filters = {"creator": creator_name}
+	conditions = ["d.creator = %(creator)s"]
+	params = {"creator": creator_name}
 	if status:
-		filters["status"] = status
-	rows = frappe.db.get_all(
-		"Collab Deal", filters=filters,
-		fields=[
-			"name", "status", "deal_type", "outlet", "price_inr", "fair_value_inr", "deadline", "creation",
-			"gig", "direct_invite", "standing_offer",
-		],
-		order_by="creation desc",
+		conditions.append("d.status = %(status)s")
+		params["status"] = status
+	# Joined for the outlet's real name/logo — same reasoning as
+	# list_outlet_deals joining in the creator's name/photo: a creator
+	# shouldn't have to read raw "REST-01234" ids to know who a deal is
+	# with.
+	rows = frappe.db.sql(
+		f"""
+		SELECT d.name, d.status, d.deal_type, d.outlet, d.price_inr, d.fair_value_inr,
+		       d.deadline, d.creation, d.gig, d.direct_invite, d.standing_offer,
+		       r.outlet_name, r.logo AS outlet_logo
+		FROM `tabCollab Deal` d
+		LEFT JOIN `tabOutlet` r ON r.name = d.outlet
+		WHERE {" AND ".join(conditions)}
+		ORDER BY d.creation DESC
+		""",
+		params,
+		as_dict=True,
 	)
 	# `origin` tells the client whether an 'offered' deal is waiting on
 	# the creator (a direct invite — accept_deal is theirs to call) or
@@ -462,15 +514,33 @@ def list_my_deals(phone, status=None):
 
 
 @frappe.whitelist()
-def list_outlet_deals(outlet_id, status=None):
+def list_outlet_deals(outlet_id=None, status=None):
+	# useFrappeGetCall fires on component mount regardless of whether
+	# selectedOutlet has resolved yet — degrade cleanly instead of a raw
+	# TypeError on the missing positional arg.
+	if not outlet_id:
+		return {"success": True, "data": {"deals": []}}
 	outlet = validate_restaurant_for_api(outlet_id, frappe.session.user)
-	filters = {"outlet": outlet}
+	conditions = ["d.outlet = %(outlet)s"]
+	params = {"outlet": outlet}
 	if status:
-		filters["status"] = status
-	rows = frappe.db.get_all(
-		"Collab Deal", filters=filters,
-		fields=["name", "status", "deal_type", "creator", "price_inr", "fair_value_inr", "deadline", "creation"],
-		order_by="creation desc",
+		conditions.append("d.status = %(status)s")
+		params["status"] = status
+	# Joined for the creator's real name/photo — the dashboard shouldn't
+	# make a merchant read raw "CREATOR-01234" IDs to know whose deal
+	# they're looking at (see list_applications, which already does this).
+	rows = frappe.db.sql(
+		f"""
+		SELECT d.name, d.status, d.deal_type, d.creator, d.price_inr, d.fair_value_inr,
+		       d.deadline, d.creation,
+		       c.display_name AS creator_name, c.profile_image AS creator_profile_image
+		FROM `tabCollab Deal` d
+		LEFT JOIN `tabFlamezo Creator` c ON c.name = d.creator
+		WHERE {" AND ".join(conditions)}
+		ORDER BY d.creation DESC
+		""",
+		params,
+		as_dict=True,
 	)
 	return {"success": True, "data": {"deals": rows}}
 

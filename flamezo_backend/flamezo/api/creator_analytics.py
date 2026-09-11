@@ -56,6 +56,24 @@ def get_my_creator_status(phone):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_my_badge_status(phone):
+	"""Live current tier (authoritative — see creator_badges.py's module
+	docstring on why enforcement never reads the stored table) plus the
+	earned-badge history and the exact numbers behind the current tier,
+	for the 'You' tab's badge-progress card (blueprint §19's mobile-app
+	note)."""
+	from flamezo_backend.flamezo.utils.creator_badges import _compute_badge_details, get_creator_badge_history
+
+	creator_name = _require_own_creator(phone)
+	tier, criteria = _compute_badge_details(creator_name)
+	history = get_creator_badge_history(creator_name)
+	return {
+		"success": True,
+		"data": {"current_tier": tier, "criteria": criteria, "history": history},
+	}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_my_chills_analytics(phone):
 	"""Aggregate Chills performance for this creator — identical shape/query
 	pattern to get_chills_outlet_analytics, scoped by `creator` instead of

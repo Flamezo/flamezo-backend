@@ -9,11 +9,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { GenericPageSkeleton } from '@/components/PageSkeletons'
+import GigDetailSheet, { type GigDetail, type Application } from '@/components/GigDetailSheet'
 import { toast } from 'sonner'
 import { getFrappeError } from '@/lib/utils'
-import { Plus, Users, X, Gift, IndianRupee } from 'lucide-react'
+import { Plus, Users, Gift, IndianRupee, CalendarClock } from 'lucide-react'
 
 const DELIVERABLE_TYPES = [
   { value: 'native_chills', label: 'Chills reel' },
@@ -30,35 +30,17 @@ const BADGE_TIERS = [
   { value: 'elite_creator', label: 'Elite Creator only' },
 ]
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  open: 'default',
-  filled: 'secondary',
-  expired: 'outline',
-  cancelled: 'outline',
+const STATUS_COLORS: Record<string, string> = {
+  open: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  filled: 'bg-blue-50 text-blue-700 border-blue-200',
+  expired: 'bg-muted text-muted-foreground border-border',
+  cancelled: 'bg-muted text-muted-foreground border-border',
 }
-
-interface Gig {
-  name: string
-  title: string
-  status: string
-  budget_inr: number
-  barter_allowed: number
-  category: string
-  expires_at: string
-  creation: string
-  applications_count: number
-}
-
-interface Application {
-  deal_id: string
-  creator_id: string
-  creator_name: string
-  follower_count: number
-  deal_type: 'cash' | 'barter'
-  proposed_price_inr: number
-  proposed_fair_value_inr: number
-  status: string
-  creation: string
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  filled: 'Filled',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
 }
 
 export default function CreatorMarketplaceGigs() {
@@ -74,7 +56,7 @@ export default function CreatorMarketplaceGigs() {
   const [minFollowers, setMinFollowers] = useState('')
   const [minBadgeTier, setMinBadgeTier] = useState('')
   const [saving, setSaving] = useState(false)
-  const [viewingGig, setViewingGig] = useState<Gig | null>(null)
+  const [viewingGig, setViewingGig] = useState<GigDetail | null>(null)
 
   const { data, mutate, isLoading } = useFrappeGetCall(
     'flamezo_backend.flamezo.api.collab_gigs.list_my_gigs',
@@ -94,7 +76,7 @@ export default function CreatorMarketplaceGigs() {
   )
 
   const body: any = (data as any)?.message || data
-  const gigs: Gig[] = body?.data?.gigs || []
+  const gigs: GigDetail[] = body?.data?.gigs || []
 
   const appsBody: any = (appsData as any)?.message || appsData
   const applications: Application[] = appsBody?.data?.applications || []
@@ -148,11 +130,12 @@ export default function CreatorMarketplaceGigs() {
     }
   }
 
-  const handleCloseGig = async (gig: Gig) => {
+  const handleCloseGig = async (gigId: string) => {
     if (!selectedOutlet) return
     try {
-      await closeGig({ outlet_id: selectedOutlet, gig_id: gig.name })
+      await closeGig({ outlet_id: selectedOutlet, gig_id: gigId })
       toast.success('Collab closed')
+      setViewingGig(null)
       mutate()
     } catch (error: any) {
       toast.error('Could not close collab', { description: getFrappeError(error) })
@@ -174,76 +157,115 @@ export default function CreatorMarketplaceGigs() {
   if (isLoading && !data) return <GenericPageSkeleton />
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4 mr-1.5" /> Post a Collab
-        </Button>
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">My Collabs</h1>
+          <p className="text-muted-foreground text-sm mt-1">Post a collab, review applications & accept the right creator</p>
+        </div>
+        <div className="shrink-0">
+          <Button onClick={() => setCreating(true)} className="h-10 px-5 rounded-md shadow-sm hover:shadow transition-all font-medium">
+            <Plus className="h-4 w-4 mr-2" /> Post a Collab
+          </Button>
+        </div>
       </div>
 
       {gigs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Gift className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            No collabs posted yet — post one to let creators apply.
+        <Card className="border-dashed bg-muted/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center mb-4">
+              <Gift className="h-8 w-8 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No collabs posted yet</h3>
+            <p className="text-muted-foreground max-w-sm mb-6">
+              Create your first collab to invite creators to apply and start working together.
+            </p>
+            <Button onClick={() => setCreating(true)} className="rounded-md shadow-sm px-6">
+              <Plus className="h-4 w-4 mr-2" /> Post a Collab
+            </Button>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Budget</TableHead>
-                <TableHead>Applications</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {gigs.map((g) => (
-                <TableRow key={g.name}>
-                  <TableCell className="font-medium">{g.title}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[g.status] || 'outline'}>{g.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {g.barter_allowed ? 'Barter' : `₹${g.budget_inr?.toLocaleString('en-IN')}`}
-                  </TableCell>
-                  <TableCell>{g.applications_count}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setViewingGig(g)}>
-                      <Users className="h-3.5 w-3.5 mr-1.5" /> View
-                    </Button>
-                    {g.status === 'open' && (
-                      <Button variant="outline" size="sm" onClick={() => handleCloseGig(g)}>
-                        Close
-                      </Button>
+        <div className="space-y-4">
+          {gigs.map((g) => (
+            <div key={g.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-lg border border-border bg-card hover:border-foreground/20 transition-all">
+              
+              {/* Left Side: Title & Stats */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-base leading-tight">
+                    {g.title}
+                  </h3>
+                  <Badge variant="secondary" className={`font-medium px-2 py-0.5 ${STATUS_COLORS[g.status] || ''}`}>
+                    {STATUS_LABELS[g.status] || g.status}
+                  </Badge>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    {g.barter_allowed ? (
+                      <>
+                        <Gift className="h-3.5 w-3.5" />
+                        Barter
+                      </>
+                    ) : (
+                      <>
+                        <IndianRupee className="h-3.5 w-3.5" />
+                        {g.budget_inr?.toLocaleString('en-IN')}
+                      </>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+                  </span>
+                  
+                  <span className="flex items-center gap-1.5 border-l pl-4 border-border/60">
+                    <Users className="h-3.5 w-3.5" />
+                    {g.applications_count} application{g.applications_count === 1 ? '' : 's'}
+                  </span>
+                  
+                  {g.expires_at && (
+                    <span className="flex items-center gap-1.5 border-l pl-4 border-border/60">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      Expires {g.expires_at.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Side: Actions */}
+              <div className="shrink-0 flex gap-2 sm:ml-auto">
+                <Button variant="outline" className="rounded-md px-6 font-medium shadow-sm transition-all bg-background border border-border hover:bg-muted w-full sm:w-auto" onClick={() => setViewingGig(g)}>
+                  View Applications
+                </Button>
+                {g.status === 'open' && (
+                  <Button variant="ghost" className="rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto" onClick={() => handleCloseGig(g.name)}>
+                    Close
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Create collab dialog */}
       <Dialog open={creating} onOpenChange={(open) => { if (!open) { setCreating(false); resetForm() } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Post a Collab</DialogTitle>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader className="pb-4 border-b border-border/40">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" />
+              Post a Collab
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1.5">Describe what you need and what you're offering.</p>
           </DialogHeader>
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="space-y-1.5">
-              <Label>Title *</Label>
-              <Input placeholder="e.g. 2 Instagram reels" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <div className="space-y-5 py-4 max-h-[60vh] overflow-y-auto px-1">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground/80">Title <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g. 2 Instagram reels" value={title} onChange={(e) => setTitle(e.target.value)} className="h-10 bg-muted/30 focus-visible:bg-background" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Deliverable</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Deliverable</Label>
                 <Select value={deliverableType} onValueChange={setDeliverableType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-muted/30 focus-visible:bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {DELIVERABLE_TYPES.map((d) => (
                       <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
@@ -251,49 +273,54 @@ export default function CreatorMarketplaceGigs() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Count</Label>
-                <Input type="number" min={1} step={1} value={deliverableCount} onChange={(e) => setDeliverableCount(e.target.value)} />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Count</Label>
+                <Input type="number" min={1} step={1} value={deliverableCount} onChange={(e) => setDeliverableCount(e.target.value)} className="h-10 bg-muted/30 focus-visible:bg-background" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Category</Label>
-              <Input placeholder="e.g. dining" value={category} onChange={(e) => setCategory(e.target.value)} />
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground/80">Category</Label>
+              <div className="relative">
+                <Input placeholder="e.g. Dining" value={category} onChange={(e) => setCategory(e.target.value)} className="h-10 pl-9 bg-muted/30 focus-visible:bg-background" />
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">#</span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-4">
               <div>
                 <div className="text-sm font-medium">Barter instead of cash</div>
-                <div className="text-xs text-muted-foreground">Offer a free item/experience instead of a budget</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Offer a free item or experience instead of a fixed budget</div>
               </div>
               <Button
                 type="button"
                 variant={barterAllowed ? 'default' : 'outline'}
                 size="sm"
+                className={`rounded-md px-4 ${barterAllowed ? 'shadow-sm' : 'bg-background'}`}
                 onClick={() => setBarterAllowed((v) => !v)}
               >
-                {barterAllowed ? 'Barter on' : 'Cash budget'}
+                {barterAllowed ? 'Barter On' : 'Cash Budget'}
               </Button>
             </div>
 
             {barterAllowed ? (
-              <div className="space-y-1.5">
-                <Label>Barter details *</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Barter details <span className="text-destructive">*</span></Label>
                 <Textarea
                   placeholder="e.g. Free meal for two, worth ~₹800"
                   value={barterDetails}
                   onChange={(e) => setBarterDetails(e.target.value)}
-                  rows={2}
+                  rows={3}
+                  className="bg-muted/30 focus-visible:bg-background resize-none"
                 />
               </div>
             ) : (
-              <div className="space-y-1.5">
-                <Label>Budget (₹) *</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Budget (₹) <span className="text-destructive">*</span></Label>
                 <div className="relative">
-                  <IndianRupee className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <IndianRupee className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="number"
-                    className="pl-8"
+                    className="h-10 pl-9 bg-muted/30 focus-visible:bg-background"
                     placeholder="1500"
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
@@ -302,15 +329,18 @@ export default function CreatorMarketplaceGigs() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Min. followers</Label>
-                <Input type="number" placeholder="0" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Min. followers</Label>
+                <div className="relative">
+                  <Users className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="number" placeholder="10000" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value)} className="h-10 pl-9 bg-muted/30 focus-visible:bg-background" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Min. badge tier</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground/80">Min. badge tier</Label>
                 <Select value={minBadgeTier} onValueChange={setMinBadgeTier}>
-                  <SelectTrigger><SelectValue placeholder="Any creator" /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-muted/30 focus-visible:bg-background"><SelectValue placeholder="Any creator" /></SelectTrigger>
                   <SelectContent>
                     {BADGE_TIERS.map((t) => (
                       <SelectItem key={t.value || 'any'} value={t.value || 'any'}>{t.label}</SelectItem>
@@ -320,51 +350,25 @@ export default function CreatorMarketplaceGigs() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setCreating(false); resetForm() }} disabled={saving}>
+          <DialogFooter className="pt-4 border-t border-border/40 sm:justify-between">
+            <Button variant="ghost" onClick={() => { setCreating(false); resetForm() }} disabled={saving} className="text-muted-foreground hover:text-foreground">
               Cancel
             </Button>
-            <Button onClick={submitGig} disabled={saving}>
+            <Button onClick={submitGig} disabled={saving} className="rounded-md px-6 shadow-sm">
               {saving ? 'Posting…' : 'Post Collab'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Applications dialog */}
-      <Dialog open={!!viewingGig} onOpenChange={(open) => !open && setViewingGig(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Applications — {viewingGig?.title}</DialogTitle>
-          </DialogHeader>
-          {appsLoading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : applications.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">No applications yet.</div>
-          ) : (
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {applications.map((app) => (
-                <div key={app.deal_id} className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <div className="font-medium text-sm">{app.creator_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {app.follower_count?.toLocaleString('en-IN')} followers
-                      {app.deal_type === 'barter'
-                        ? (app.proposed_fair_value_inr ? ` · ₹${app.proposed_fair_value_inr.toLocaleString('en-IN')} barter value proposed` : ' · barter')
-                        : (app.proposed_price_inr ? ` · ₹${app.proposed_price_inr.toLocaleString('en-IN')} proposed` : '')}
-                    </div>
-                  </div>
-                  {app.status === 'offered' ? (
-                    <Button size="sm" onClick={() => handleAccept(app)}>Accept</Button>
-                  ) : (
-                    <Badge variant="secondary">{app.status}</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <GigDetailSheet
+        gig={viewingGig}
+        applications={applications}
+        loading={appsLoading}
+        onClose={() => setViewingGig(null)}
+        onAccept={handleAccept}
+        onClose_Gig={viewingGig ? () => handleCloseGig(viewingGig.name) : undefined}
+      />
     </div>
   )
 }

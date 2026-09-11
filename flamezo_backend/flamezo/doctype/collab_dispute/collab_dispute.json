@@ -1,0 +1,278 @@
+{
+ "actions": [],
+ "autoname": "DISP-.YYYY.-.#####",
+ "creation": "2026-09-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "deal",
+  "status",
+  "column_break_1",
+  "raised_by_role",
+  "reason",
+  "section_break_reason",
+  "reason_detail",
+  "section_break_evidence",
+  "creator_evidence_json",
+  "merchant_evidence_json",
+  "evidence_due_at",
+  "section_break_resolution",
+  "resolution_outcome",
+  "at_fault",
+  "column_break_resolution",
+  "split_creator_pct",
+  "resolved_creator_amount_inr",
+  "resolved_merchant_refund_inr",
+  "resolution_notes",
+  "resolved_by",
+  "resolution_due_at",
+  "section_break_appeal",
+  "appeal_requested",
+  "appeal_reason",
+  "appeal_requested_at",
+  "column_break_appeal",
+  "appeal_outcome",
+  "appeal_resolution_notes",
+  "appeal_resolved_by",
+  "appeal_resolved_at",
+  "section_break_timestamps",
+  "raised_at",
+  "resolved_at",
+  "closed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "deal",
+   "fieldtype": "Link",
+   "label": "Deal",
+   "options": "Collab Deal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "raised\nevidence\nreview\nresolved\nappealed\nclosed",
+   "default": "raised",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "raised_by_role",
+   "fieldtype": "Select",
+   "label": "Raised By",
+   "options": "creator\nmerchant",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "label": "Reason",
+   "options": "not_delivered\nlow_quality\nterms_mismatch\nnon_payment\nother",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_reason",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "reason_detail",
+   "fieldtype": "Small Text",
+   "label": "Reason Detail"
+  },
+  {
+   "fieldname": "section_break_evidence",
+   "fieldtype": "Section Break",
+   "label": "Evidence — 24h window"
+  },
+  {
+   "fieldname": "creator_evidence_json",
+   "fieldtype": "Long Text",
+   "label": "Creator Evidence (JSON)",
+   "description": "List of {text, attachment_url, submitted_at} — appended, never overwritten"
+  },
+  {
+   "fieldname": "merchant_evidence_json",
+   "fieldtype": "Long Text",
+   "label": "Merchant Evidence (JSON)",
+   "description": "List of {text, attachment_url, submitted_at} — appended, never overwritten"
+  },
+  {
+   "fieldname": "evidence_due_at",
+   "fieldtype": "Datetime",
+   "label": "Evidence Due At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_resolution",
+   "fieldtype": "Section Break",
+   "label": "Resolution — 48h SLA, ops only"
+  },
+  {
+   "fieldname": "resolution_outcome",
+   "fieldtype": "Select",
+   "label": "Resolution Outcome",
+   "options": "\nrelease_full\nrefund_full\nsplit_partial\nno_fault",
+   "read_only": 1
+  },
+  {
+   "fieldname": "at_fault",
+   "fieldtype": "Select",
+   "label": "At Fault",
+   "options": "\ncreator\nmerchant\nnone",
+   "read_only": 1,
+   "description": "Drives badge/reputation consequence (blueprint §08) — a dispute lost by the creator counts against Top Rated/Elite eligibility; lost by the merchant never touches the creator's score."
+  },
+  {
+   "fieldname": "column_break_resolution",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "split_creator_pct",
+   "fieldtype": "Percent",
+   "label": "Split — Creator %",
+   "description": "Only meaningful when resolution_outcome = split_partial"
+  },
+  {
+   "fieldname": "resolved_creator_amount_inr",
+   "fieldtype": "Currency",
+   "label": "Resolved Creator Amount (INR)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolved_merchant_refund_inr",
+   "fieldtype": "Currency",
+   "label": "Resolved Merchant Refund (INR)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Long Text",
+   "label": "Resolution Notes",
+   "description": "Visible to both parties — the reasoning, not just the verdict"
+  },
+  {
+   "fieldname": "resolved_by",
+   "fieldtype": "Link",
+   "label": "Resolved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolution_due_at",
+   "fieldtype": "Datetime",
+   "label": "Resolution Due At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_appeal",
+   "fieldtype": "Section Break",
+   "label": "Appeal — once, final",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "appeal_requested",
+   "fieldtype": "Check",
+   "label": "Appeal Requested",
+   "read_only": 1
+  },
+  {
+   "fieldname": "appeal_reason",
+   "fieldtype": "Small Text",
+   "label": "Appeal Reason"
+  },
+  {
+   "fieldname": "appeal_requested_at",
+   "fieldtype": "Datetime",
+   "label": "Appeal Requested At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_appeal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "appeal_outcome",
+   "fieldtype": "Select",
+   "label": "Appeal Outcome",
+   "options": "\nupheld\noverturned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "appeal_resolution_notes",
+   "fieldtype": "Long Text",
+   "label": "Appeal Resolution Notes"
+  },
+  {
+   "fieldname": "appeal_resolved_by",
+   "fieldtype": "Link",
+   "label": "Appeal Resolved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "appeal_resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Appeal Resolved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_timestamps",
+   "fieldtype": "Section Break",
+   "label": "Timestamps",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "raised_at",
+   "fieldtype": "Datetime",
+   "label": "Raised At",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Resolved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed_at",
+   "fieldtype": "Datetime",
+   "label": "Closed At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Collab Dispute",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}
