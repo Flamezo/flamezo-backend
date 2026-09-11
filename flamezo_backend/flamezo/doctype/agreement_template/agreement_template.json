@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:{agreement_type_code}-{version}",
+ "creation": "2026-09-10 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "agreement_type",
+  "agreement_type_code",
+  "version",
+  "column_break_1",
+  "is_active",
+  "requires_esign",
+  "effective_from",
+  "section_break_doc",
+  "template_file",
+  "template_file_hash",
+  "section_break_esign",
+  "esign_provider",
+  "leegality_profile_id",
+  "review_period_days",
+  "auto_release_enabled",
+  "column_break_esign",
+  "e_stamp_required",
+  "e_stamp_duty_amount",
+  "section_break_notes",
+  "change_summary",
+  "superseded_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "agreement_type",
+   "fieldtype": "Select",
+   "label": "Agreement Type",
+   "options": "Customer Terms of Service\nMerchant Partnership Agreement\nCreator Marketplace Agreement",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "agreement_type_code",
+   "fieldtype": "Select",
+   "label": "Type Code",
+   "options": "CUST-TOS\nMERCH-AGR\nCREATOR-AGR",
+   "reqd": 1,
+   "description": "Short code used in the autoname (e.g. MERCH-AGR-v2.2)."
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "label": "Version",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "e.g. v2.2 — must match the version string printed on the document itself."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Only one Agreement Template per agreement_type may be active at a time — enforced in controller validate()."
+  },
+  {
+   "fieldname": "requires_esign",
+   "fieldtype": "Check",
+   "label": "Requires eSign",
+   "default": "1",
+   "description": "Unchecked for Customer Terms of Service — that tier is accepted by in-app clickwrap only, never routed to an eSign provider."
+  },
+  {
+   "fieldname": "effective_from",
+   "fieldtype": "Datetime",
+   "label": "Effective From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_doc",
+   "fieldtype": "Section Break",
+   "label": "Document"
+  },
+  {
+   "fieldname": "template_file",
+   "fieldtype": "Attach",
+   "label": "Template File",
+   "reqd": 1,
+   "description": "The merge-field PDF/DOCX template (e.g. {{outlet_name}}, {{gst_number}}) rendered per-signer at signing-request time."
+  },
+  {
+   "fieldname": "template_file_hash",
+   "fieldtype": "Data",
+   "label": "Template File Hash (SHA-256)",
+   "read_only": 1,
+   "description": "Computed on save — lets us prove exactly which template text was live for any historical Signed Agreement."
+  },
+  {
+   "fieldname": "section_break_esign",
+   "fieldtype": "Section Break",
+   "label": "eSign Configuration"
+  },
+  {
+   "fieldname": "esign_provider",
+   "fieldtype": "Select",
+   "label": "eSign Provider",
+   "options": "\nclickwrap\nsignyu\nleegality\ndigio",
+   "description": "clickwrap = no external provider call; the app just records an in-app acceptance event."
+  },
+  {
+   "fieldname": "leegality_profile_id",
+   "fieldtype": "Data",
+   "label": "Leegality Workflow ID (profileId)",
+   "depends_on": "eval:doc.esign_provider=='leegality'",
+   "description": "From the Leegality dashboard: create one Workflow per agreement type, set its notification channel to WhatsApp, signature type to Aadhaar eSign, add this app's webhook URL under Webhook Version v2.5, then paste that Workflow's ID here."
+  },
+  {
+   "fieldname": "review_period_days",
+   "fieldtype": "Int",
+   "label": "Review Period (business days)",
+   "default": "5"
+  },
+  {
+   "fieldname": "auto_release_enabled",
+   "fieldtype": "Check",
+   "label": "Auto-release on Silence",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_esign",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "e_stamp_required",
+   "fieldtype": "Check",
+   "label": "e-Stamp Required",
+   "default": "0"
+  },
+  {
+   "fieldname": "e_stamp_duty_amount",
+   "fieldtype": "Currency",
+   "label": "e-Stamp Duty Amount (INR)",
+   "depends_on": "e_stamp_required",
+   "description": "Per the Gujarat Stamp Act, 1958 (as amended 2025) schedule value for this instrument type — confirm with a stamp vendor before setting."
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break",
+   "label": "Version History"
+  },
+  {
+   "fieldname": "change_summary",
+   "fieldtype": "Small Text",
+   "label": "What Changed From Previous Version"
+  },
+  {
+   "fieldname": "superseded_by",
+   "fieldtype": "Link",
+   "label": "Superseded By",
+   "options": "Agreement Template",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "module": "Flamezo",
+ "name": "Agreement Template",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
