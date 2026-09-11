@@ -1,0 +1,133 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-10 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "deal",
+  "state",
+  "column_break_1",
+  "amount_inr",
+  "platform_fee_inr",
+  "creator_net_inr",
+  "section_break_1",
+  "razorpay_order_id",
+  "razorpay_payment_id",
+  "razorpay_transfer_id",
+  "section_break_2",
+  "held_at",
+  "column_break_2",
+  "released_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "deal",
+   "fieldtype": "Link",
+   "label": "Deal",
+   "options": "Collab Deal",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Select",
+   "label": "State",
+   "options": "held\nreleased\nrefunded\ndisputed",
+   "default": "held",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount_inr",
+   "fieldtype": "Currency",
+   "label": "Amount (INR)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "platform_fee_inr",
+   "fieldtype": "Currency",
+   "label": "Platform Fee (INR)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "creator_net_inr",
+   "fieldtype": "Currency",
+   "label": "Creator Net (INR)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Razorpay"
+  },
+  {
+   "fieldname": "razorpay_order_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Order ID",
+   "search_index": 1
+  },
+  {
+   "fieldname": "razorpay_payment_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Payment ID"
+  },
+  {
+   "fieldname": "razorpay_transfer_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Transfer ID"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Timestamps"
+  },
+  {
+   "fieldname": "held_at",
+   "fieldtype": "Datetime",
+   "label": "Held At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "released_at",
+   "fieldtype": "Datetime",
+   "label": "Released At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Escrow Transaction",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}

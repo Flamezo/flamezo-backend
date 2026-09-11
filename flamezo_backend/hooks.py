@@ -288,6 +288,10 @@ scheduler_events = {
 			# Account deletion — hard-anonymise soft-deleted customers past the
 			# 30-day recovery window.
 			"flamezo_backend.flamezo.api.otp.purge_deleted_customers",
+			# Creator Marketplace: cancel (and refund, if a cash deal was
+			# already funded) any deal accepted/funded past its deadline
+			# with no delivery — a no-show, not a dispute.
+			"flamezo_backend.flamezo.api.collab_deals.expire_overdue_deals",
 		],
 		# The 23:59 floor-recovery cron was retired when the ₹399 monthly floor
 		# was removed from the model. `process_daily_subscription_floors` and
@@ -298,6 +302,9 @@ scheduler_events = {
 			"flamezo_backend.flamezo.tasks.marketing_tasks.dispatch_scheduled_campaigns",
 			# Chills: recompute Bayesian engagement + social percentile scores
 			"flamezo_backend.flamezo.api.chills_feed.recompute_global_scores",
+			# Creator Marketplace: release escrow for deals past the 48h
+			# objection window with no open dispute.
+			"flamezo_backend.flamezo.api.collab_deals.auto_release_escrow",
 		],
 		# Marketing Studio: fire event-based triggers every 30 minutes
 		"*/30 * * * *": [
@@ -307,6 +314,9 @@ scheduler_events = {
 			"flamezo_backend.flamezo.tasks.ugc_tasks.retry_stalled_submissions",
 			# Crowd — close Team Ups whose expires_at has passed.
 			"flamezo_backend.flamezo.api.crowd.close_expired_crowd_requests",
+			# eSign — poll the provider directly for any signing request stuck
+			# in Link Sent/Viewed for >60 min with no webhook ever arriving.
+			"flamezo_backend.flamezo.tasks.esign_tasks.reconcile_stalled_esign_requests",
 		],
 		# Chills: decay preference scores + persist Redis state to DB
 		"0 2 * * *": [

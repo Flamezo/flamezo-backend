@@ -34,8 +34,7 @@ export function SubscriptionComparisonModal({
 }: SubscriptionComparisonModalProps) {
   const FEATURES: FeatureRow[] = [
     { name: 'Digital QR Menu (Unlimited HQ photos)', gold: true },
-    { name: 'Online ordering via QR + Web', gold: true },
-    { name: 'WhatsApp ordering', gold: true },
+    { name: 'Pay-bill via QR + Web', gold: true },
     { name: 'Loyalty rewards (earn & redeem across the network)', gold: true },
     { name: 'Listed on the FLAMEZO consumer app', gold: true },
     { name: 'Video menu & stories', gold: true },
@@ -44,13 +43,11 @@ export function SubscriptionComparisonModal({
     { name: 'Advanced analytics dashboard', gold: true },
     { name: 'Customer CRM & insights', gold: true },
     { name: 'Marketing Studio (SMS, WhatsApp, Email)', gold: true },
-    { name: 'Gamification (Spin-the-Wheel)', gold: true },
     { name: 'Table & banquet booking', gold: true },
     { name: 'POS integration (PetPooja, UrbanPiper, RestroWorks)', gold: 'Deep Sync' },
-    { name: 'Self-Managed Delivery (custom rates per km)', gold: true },
     { name: 'Coupons & targeted offers', gold: true },
     { name: 'Data ownership', gold: 'You' },
-    { name: 'Success Share on online orders', gold: `${planDefaults.gold_commission}%` },
+    { name: 'Success Share per bill', gold: `${planDefaults.gold_commission}%` },
   ]
 
   const renderCell = (value: string | boolean) => {
@@ -81,7 +78,7 @@ export function SubscriptionComparisonModal({
               One plan. Every feature unlocked.
             </DialogTitle>
             <DialogDescription className="text-base">
-              Free onboarding. {planDefaults.gold_commission}% Success Share per online order — no monthly floor, no minimums, no tiers to chase.
+              Free onboarding. {planDefaults.gold_commission}% Success Share per bill — no monthly floor, no minimums, no tiers to chase.
             </DialogDescription>
           </DialogHeader>
 
@@ -138,7 +135,7 @@ export function SubscriptionComparisonModal({
             <div className="shrink-0 bg-background p-4 rounded-2xl border border-primary/20 text-center shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Success Share</p>
               <p className="text-3xl font-black tracking-tighter">{planDefaults.gold_commission}%</p>
-              <p className="text-[10px] text-muted-foreground mt-1">per online order</p>
+              <p className="text-[10px] text-muted-foreground mt-1">per bill</p>
             </div>
           </div>
         </div>

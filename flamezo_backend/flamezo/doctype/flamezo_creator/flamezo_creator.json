@@ -26,7 +26,12 @@
   "bio",
   "profile_image",
   "column_break_3",
-  "approved_at"
+  "approved_at",
+  "section_break_marketplace",
+  "razorpay_linked_account_id",
+  "column_break_marketplace",
+  "barter_value_ytd_inr",
+  "barter_value_fy"
  ],
  "fields": [
   {
@@ -143,6 +148,36 @@
    "fieldtype": "Datetime",
    "label": "Approved At",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_break_marketplace",
+   "fieldtype": "Section Break",
+   "label": "Marketplace"
+  },
+  {
+   "fieldname": "razorpay_linked_account_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Linked Account ID",
+   "description": "RazorpayX Route sub-account, created at first cash-deal acceptance. Barter-only creators never need this."
+  },
+  {
+   "fieldname": "column_break_marketplace",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "barter_value_ytd_inr",
+   "fieldtype": "Currency",
+   "label": "Barter Value YTD (INR)",
+   "default": "0",
+   "read_only": 1,
+   "description": "Running total of fair-value barter benefits this financial year — the ₹20,000 194R threshold checks this. Set only by Collab Deal on release, see doctype/collab_deal/collab_deal.py."
+  },
+  {
+   "fieldname": "barter_value_fy",
+   "fieldtype": "Data",
+   "label": "Barter Value Financial Year",
+   "read_only": 1,
+   "description": "e.g. '2026-27' — which FY barter_value_ytd_inr belongs to. Reset lazily: the next barter deal released after the FY rolls over zeroes the counter before adding."
   }
  ],
  "modified": "2026-07-09 10:00:00.000000",

@@ -140,6 +140,7 @@ function growPromoteGroup(): NavItem {
       // Analytics tab — harmless, unlike a boundary-unsafe prefix check.
       { name: 'Loyalty', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
       { name: 'UGC Cashback', href: '/ugc-cashback/config', activeMatch: '/ugc-cashback', icon: Megaphone },
+      { name: 'Creator Marketplace', href: '/creator-marketplace/discover', activeMatch: '/creator-marketplace', icon: Users, beta: true },
       { name: 'Google Growth', href: '/google-growth', icon: Sparkles, feature: 'google_growth', beta: true },
     ],
   }

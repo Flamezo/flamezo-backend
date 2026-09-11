@@ -226,6 +226,18 @@ def handle_payment_captured(payload):
 				frappe.log_error(f"Cash sweep webhook failed: {str(e)}", "razorpay.webhook.cash_sweep")
 				return {"error": str(e)}
 
+		# Handle Collab Deal escrow funding (Creator Marketplace)
+		if request_type == "collab_deal_escrow":
+			try:
+				deal_id = notes.get("deal_id")
+				if deal_id and frappe.db.exists("Collab Deal", deal_id):
+					from flamezo_backend.flamezo.api.collab_deals import mark_deal_funded
+					mark_deal_funded(deal_id, payment_id)
+					return {"success": True, "message": f"Deal {deal_id} funded"}
+			except Exception as e:
+				frappe.log_error(f"Collab deal escrow webhook failed: {str(e)}", "razorpay.webhook.collab_deal_escrow")
+				return {"error": str(e)}
+
 		# Handle Standard Order Payment
 		if order_id:
 			orders = frappe.get_all(

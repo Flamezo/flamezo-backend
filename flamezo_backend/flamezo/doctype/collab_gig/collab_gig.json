@@ -1,0 +1,171 @@
+{
+ "actions": [],
+ "autoname": "GIG-.YYYY.-.#####",
+ "creation": "2026-09-10 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "outlet",
+  "title",
+  "status",
+  "column_break_1",
+  "category",
+  "city",
+  "expires_at",
+  "section_break_1",
+  "deliverables_json",
+  "section_break_2",
+  "budget_inr",
+  "column_break_3",
+  "barter_allowed",
+  "barter_details",
+  "merchant_covers_tds",
+  "section_break_eligibility",
+  "min_followers",
+  "column_break_eligibility",
+  "min_badge_tier"
+ ],
+ "fields": [
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Outlet",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "open\nfilled\nexpired\ncancelled",
+   "default": "open",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "Category",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "search_index": 1,
+   "description": "Auto-filled from the outlet at creation — kept as its own column so list_gigs can filter without joining Outlet on every request"
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires At",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Deliverables"
+  },
+  {
+   "fieldname": "deliverables_json",
+   "fieldtype": "Long Text",
+   "label": "Deliverables (JSON)",
+   "reqd": 1,
+   "description": "[{\"type\": \"native_chills\", \"count\": 2}]"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Reward"
+  },
+  {
+   "fieldname": "budget_inr",
+   "fieldtype": "Currency",
+   "label": "Budget (INR)",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "barter_allowed",
+   "fieldtype": "Check",
+   "label": "Barter Allowed"
+  },
+  {
+   "fieldname": "barter_details",
+   "fieldtype": "Small Text",
+   "label": "Barter Details"
+  },
+  {
+   "fieldname": "merchant_covers_tds",
+   "fieldtype": "Check",
+   "label": "Merchant Covers TDS",
+   "description": "If this barter deal crosses the creator's ₹20,000/year 194R threshold, the merchant's listed budget is grossed up automatically instead of the creator paying the incremental TDS in cash"
+  },
+  {
+   "fieldname": "section_break_eligibility",
+   "fieldtype": "Section Break",
+   "label": "Eligibility (optional)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "min_followers",
+   "fieldtype": "Int",
+   "label": "Minimum Followers",
+   "default": "0",
+   "description": "0 = open to everyone. Filters out irrelevant applications before they happen, rather than the merchant sifting through them."
+  },
+  {
+   "fieldname": "column_break_eligibility",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "min_badge_tier",
+   "fieldtype": "Select",
+   "label": "Minimum Badge Tier",
+   "options": "\nnew_creator\nverified_creator\ntop_rated\nelite_creator",
+   "description": "Blank = open to everyone"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Collab Gig",
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}

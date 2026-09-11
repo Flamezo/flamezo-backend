@@ -1,0 +1,281 @@
+{
+ "actions": [],
+ "autoname": "DEAL-.YYYY.-.#####",
+ "creation": "2026-09-10 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "outlet",
+  "status",
+  "column_break_1",
+  "deal_type",
+  "deadline",
+  "section_break_origin",
+  "gig",
+  "direct_invite",
+  "standing_offer",
+  "section_break_terms",
+  "terms_json",
+  "section_break_money",
+  "price_inr",
+  "fair_value_inr",
+  "column_break_money",
+  "commission_pct",
+  "flamezo_mention_verified",
+  "section_break_escrow",
+  "escrow_required",
+  "escrow_payment_id",
+  "section_break_offer",
+  "min_bill_inr",
+  "free_item_ref",
+  "column_break_offer",
+  "extra_discount_pct",
+  "redemption_cap",
+  "redemption_count",
+  "code_expires_at",
+  "section_break_timestamps",
+  "accepted_at",
+  "funded_at",
+  "column_break_timestamps",
+  "delivered_at",
+  "released_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Outlet",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "offered\naccepted\nfunded\ndelivered\nreleased\ndisputed\nrefunded\ncancelled",
+   "default": "offered",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "deal_type",
+   "fieldtype": "Select",
+   "label": "Deal Type",
+   "options": "cash\nbarter",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "deadline",
+   "fieldtype": "Date",
+   "label": "Deadline",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_origin",
+   "fieldtype": "Section Break",
+   "label": "Origin — exactly one of these three"
+  },
+  {
+   "fieldname": "gig",
+   "fieldtype": "Link",
+   "label": "Gig",
+   "options": "Collab Gig"
+  },
+  {
+   "fieldname": "direct_invite",
+   "fieldtype": "Link",
+   "label": "Direct Invite",
+   "options": "Creator Collab Invite"
+  },
+  {
+   "fieldname": "standing_offer",
+   "fieldtype": "Link",
+   "label": "Standing Offer",
+   "options": "Merchant Standing Offer"
+  },
+  {
+   "fieldname": "section_break_terms",
+   "fieldtype": "Section Break",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "terms_json",
+   "fieldtype": "Long Text",
+   "label": "Terms (JSON)",
+   "reqd": 1,
+   "description": "Deliverables, usage rights — written once at offer time, immutable after acceptance"
+  },
+  {
+   "fieldname": "section_break_money",
+   "fieldtype": "Section Break",
+   "label": "Money"
+  },
+  {
+   "fieldname": "price_inr",
+   "fieldtype": "Currency",
+   "label": "Price (INR)",
+   "default": "0",
+   "description": "0 for barter"
+  },
+  {
+   "fieldname": "fair_value_inr",
+   "fieldtype": "Currency",
+   "label": "Fair Value (INR)",
+   "default": "0",
+   "description": "Barter only — the merchant's own listed value of what's given, required for 194R TDS tracking (feeds Flamezo Creator.barter_value_ytd_inr)"
+  },
+  {
+   "fieldname": "column_break_money",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "commission_pct",
+   "fieldtype": "Percent",
+   "label": "Commission %",
+   "default": "10",
+   "description": "10 by default, 5 if flamezo_mention_verified, 0 if barter"
+  },
+  {
+   "fieldname": "flamezo_mention_verified",
+   "fieldtype": "Check",
+   "label": "Flamezo Mention Verified"
+  },
+  {
+   "fieldname": "section_break_escrow",
+   "fieldtype": "Section Break",
+   "label": "Escrow"
+  },
+  {
+   "fieldname": "escrow_required",
+   "fieldtype": "Check",
+   "label": "Escrow Required",
+   "default": "1",
+   "description": "False for barter deals — nothing is held, so no Escrow Transaction is created"
+  },
+  {
+   "fieldname": "escrow_payment_id",
+   "fieldtype": "Data",
+   "label": "Escrow Payment ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_offer",
+   "fieldtype": "Section Break",
+   "label": "Customer-facing offer (optional)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "min_bill_inr",
+   "fieldtype": "Currency",
+   "label": "Minimum Bill (INR)"
+  },
+  {
+   "fieldname": "free_item_ref",
+   "fieldtype": "Link",
+   "label": "Free Item",
+   "options": "Menu Product"
+  },
+  {
+   "fieldname": "column_break_offer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "extra_discount_pct",
+   "fieldtype": "Percent",
+   "label": "Extra Discount %"
+  },
+  {
+   "fieldname": "redemption_cap",
+   "fieldtype": "Int",
+   "label": "Redemption Cap"
+  },
+  {
+   "fieldname": "redemption_count",
+   "fieldtype": "Int",
+   "label": "Redemption Count",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "code_expires_at",
+   "fieldtype": "Date",
+   "label": "Code Expires At"
+  },
+  {
+   "fieldname": "section_break_timestamps",
+   "fieldtype": "Section Break",
+   "label": "Timestamps",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "accepted_at",
+   "fieldtype": "Datetime",
+   "label": "Accepted At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "funded_at",
+   "fieldtype": "Datetime",
+   "label": "Funded At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_timestamps",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "delivered_at",
+   "fieldtype": "Datetime",
+   "label": "Delivered At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "released_at",
+   "fieldtype": "Datetime",
+   "label": "Released At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Collab Deal",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}
