@@ -140,8 +140,33 @@ function growPromoteGroup(): NavItem {
       // Analytics tab — harmless, unlike a boundary-unsafe prefix check.
       { name: 'Loyalty', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
       { name: 'UGC Cashback', href: '/ugc-cashback/config', activeMatch: '/ugc-cashback', icon: Megaphone },
-      { name: 'Creator Marketplace', href: '/creator-marketplace/discover', activeMatch: '/creator-marketplace', icon: Users, beta: true },
       { name: 'Google Growth', href: '/google-growth', icon: Sparkles, feature: 'google_growth', beta: true },
+    ],
+  }
+}
+
+// "Creator & Collab" — promoted to its own top-level destination (not
+// nested under Grow & Promote) since it's a standalone workflow with its
+// own multi-step lifecycle (discover -> start a collab -> track deals to
+// payout), not a one-off growth tool. "Collabs" over "Gigs" deliberately —
+// matches Instagram's own "Collab" terminology, which Indian merchants
+// already recognise, and matches the backend's own naming (Collab Deal,
+// Collab Gig, Creator Collab Invite) — only the user-facing label changed,
+// not the underlying doctypes/API/routes. The three rows here are separate
+// real routes into CreatorMarketplaceHub's own Discover/Gigs/Deals tabs
+// (see src/pages/hubs/CreatorMarketplaceHub.tsx) — same hub page, distinct
+// entry points, matching how a merchant actually uses each of the three.
+function creatorCollabsGroup(): NavItem {
+  return {
+    type: 'group',
+    id: 'creator-collabs',
+    name: 'Creator & Collab',
+    description: 'Find creators, start collabs & track deals to payout',
+    icon: Users,
+    children: [
+      { name: 'Explore Creators', href: '/creator-marketplace/discover', icon: Users, beta: true },
+      { name: 'My Collabs', href: '/creator-marketplace/gigs', icon: Megaphone, beta: true },
+      { name: 'Deals', href: '/creator-marketplace/deals', icon: Tag, beta: true },
     ],
   }
 }
@@ -190,6 +215,7 @@ function sharedBottomItems(outletType: string, isAdmin: boolean): NavItem[] {
   return [
     { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
     growPromoteGroup(),
+    creatorCollabsGroup(),
     contentStudioGroup(outletType),
     {
       type: 'group',

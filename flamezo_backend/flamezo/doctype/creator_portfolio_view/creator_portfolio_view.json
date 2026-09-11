@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "view_date",
+  "column_break_1",
+  "source",
+  "viewer_outlet",
+  "city"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "view_date",
+   "fieldtype": "Date",
+   "label": "View Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "\nlink\nqr\ndirectory\nbill_signal\ndirect",
+   "default": "direct",
+   "in_list_view": 1,
+   "description": "Where the viewer came from — drives the analytics breakdown in creator insights."
+  },
+  {
+   "fieldname": "viewer_outlet",
+   "fieldtype": "Link",
+   "label": "Viewer Outlet",
+   "options": "Outlet",
+   "search_index": 1,
+   "description": "Set if the viewer is a logged-in merchant — never exposes the viewer's identity to the creator beyond city+outlet."
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Portfolio View",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}

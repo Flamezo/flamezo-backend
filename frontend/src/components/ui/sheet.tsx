@@ -63,7 +63,13 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+      {/* Always has its own opaque background — a bare icon here inherits
+          whatever text color is set by content behind it (e.g. a dark
+          custom header), which can render it invisible. A solid chip
+          keeps it visible and clickable no matter what's underneath, and
+          sits above any header content (z-20) instead of competing with
+          a status badge for the same corner. */}
+      <SheetPrimitive.Close className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-background text-foreground border border-border shadow-sm opacity-90 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>

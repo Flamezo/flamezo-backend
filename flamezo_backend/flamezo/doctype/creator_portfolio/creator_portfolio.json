@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "creator",
+  "slug",
+  "column_break_1",
+  "visibility",
+  "section_break_content",
+  "headline",
+  "featured_posts_json",
+  "section_break_stats",
+  "report_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "creator",
+   "fieldtype": "Link",
+   "label": "Creator",
+   "options": "Flamezo Creator",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "label": "Slug",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "search_index": 1,
+   "description": "URL-safe identifier — flamezo.in/c/<slug>. Auto-generated from display_name. Immutable from the creator side (slug stability = link stability). Ops can rename via direct DB write."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "visibility",
+   "fieldtype": "Select",
+   "label": "Visibility",
+   "options": "public\nunlisted\nprivate",
+   "default": "unlisted",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "public = indexed, in directory. unlisted = /c/<slug> works, not in directory. private = 404 for everyone."
+  },
+  {
+   "fieldname": "section_break_content",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "fieldname": "headline",
+   "fieldtype": "Small Text",
+   "label": "Headline",
+   "description": "Creator's own short bio headline — the one text field they control. Max 200 chars."
+  },
+  {
+   "fieldname": "featured_posts_json",
+   "fieldtype": "Long Text",
+   "label": "Featured Posts (JSON)",
+   "description": "[{\"type\": \"native_chills\", \"id\": \"CH-00001\"}, ...] — up to 6. Creator-curated; view counts are pulled live, never stored here."
+  },
+  {
+   "fieldname": "section_break_stats",
+   "fieldtype": "Section Break",
+   "label": "Moderation"
+  },
+  {
+   "fieldname": "report_count",
+   "fieldtype": "Int",
+   "label": "Report Count",
+   "default": "0",
+   "read_only": 1,
+   "description": "Incremented by report_portfolio (allow_guest). Manual review triggered at threshold."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Creator Portfolio",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}

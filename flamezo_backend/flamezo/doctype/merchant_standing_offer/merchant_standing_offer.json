@@ -1,0 +1,216 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "outlet",
+  "active",
+  "suspended",
+  "column_break_1",
+  "deliverable",
+  "reward_type",
+  "reward_item",
+  "reward_value_inr",
+  "section_break_eligibility",
+  "min_followers",
+  "min_rating",
+  "min_score_percentile",
+  "section_break_availability",
+  "valid_days_of_week",
+  "column_break_availability",
+  "valid_time_start",
+  "valid_time_end",
+  "section_break_caps",
+  "daily_cap",
+  "monthly_cap",
+  "column_break_caps",
+  "redeemed_count",
+  "auto_approve",
+  "section_break_accountability",
+  "renege_strikes"
+ ],
+ "fields": [
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Outlet",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "suspended",
+   "fieldtype": "Check",
+   "label": "Suspended",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Set automatically at 2 renege_strikes (blueprint §17) — stays suspended until an ops review, not auto-reinstated"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "deliverable",
+   "fieldtype": "Select",
+   "label": "Deliverable",
+   "options": "instagram_story\ninstagram_reel\nnative_chills\nnative_club_post",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reward_type",
+   "fieldtype": "Select",
+   "label": "Reward Type",
+   "options": "free_item\ndiscount_pct\nboth",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reward_item",
+   "fieldtype": "Link",
+   "label": "Reward Item",
+   "options": "Menu Product",
+   "description": "Required when reward_type includes a free item"
+  },
+  {
+   "fieldname": "reward_value_inr",
+   "fieldtype": "Currency",
+   "label": "Reward Value (INR)",
+   "reqd": 1,
+   "description": "Flat fair-value estimate covering the free item + discount combined — this is what feeds Collab Deal.fair_value_inr / barter_value_ytd_inr on redemption (194R tracking, §09)"
+  },
+  {
+   "fieldname": "section_break_eligibility",
+   "fieldtype": "Section Break",
+   "label": "Eligibility — matching keys (blueprint §16)"
+  },
+  {
+   "fieldname": "min_followers",
+   "fieldtype": "Int",
+   "label": "Minimum Followers",
+   "default": "0"
+  },
+  {
+   "fieldname": "min_rating",
+   "fieldtype": "Float",
+   "label": "Minimum Rating",
+   "default": "0"
+  },
+  {
+   "fieldname": "min_score_percentile",
+   "fieldtype": "Float",
+   "label": "Minimum Weekly Score Percentile",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_break_availability",
+   "fieldtype": "Section Break",
+   "label": "Availability window"
+  },
+  {
+   "fieldname": "valid_days_of_week",
+   "fieldtype": "Small Text",
+   "label": "Valid Days Of Week",
+   "description": "Comma-separated: Mon,Tue,Wed,Thu,Fri,Sat,Sun — blank means every day"
+  },
+  {
+   "fieldname": "column_break_availability",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valid_time_start",
+   "fieldtype": "Data",
+   "label": "Valid Time Start",
+   "description": "\"HH:MM\" 24h, blank means no start restriction — plain Data on purpose, Frappe's native Time fieldtype silently defaults an unset field to \"now\" rather than blank"
+  },
+  {
+   "fieldname": "valid_time_end",
+   "fieldtype": "Data",
+   "label": "Valid Time End",
+   "description": "\"HH:MM\" 24h, blank means no end restriction"
+  },
+  {
+   "fieldname": "section_break_caps",
+   "fieldtype": "Section Break",
+   "label": "Redemption caps"
+  },
+  {
+   "fieldname": "daily_cap",
+   "fieldtype": "Int",
+   "label": "Daily Cap",
+   "default": "0",
+   "description": "0 = unlimited"
+  },
+  {
+   "fieldname": "monthly_cap",
+   "fieldtype": "Int",
+   "label": "Monthly Cap",
+   "default": "0",
+   "description": "0 = unlimited"
+  },
+  {
+   "fieldname": "column_break_caps",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "redeemed_count",
+   "fieldtype": "Int",
+   "label": "Redeemed Count",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "auto_approve",
+   "fieldtype": "Check",
+   "label": "Auto Approve",
+   "default": "1",
+   "description": "Standing offers are pull-not-push by design (§17) — this stays 1 in practice, kept as a field rather than hardcoded so an outlet can pause instant redemption without deactivating the whole offer"
+  },
+  {
+   "fieldname": "section_break_accountability",
+   "fieldtype": "Section Break",
+   "label": "Merchant accountability"
+  },
+  {
+   "fieldname": "renege_strikes",
+   "fieldtype": "Int",
+   "label": "Renege Strikes",
+   "default": "0",
+   "read_only": 1,
+   "description": "A creator-flagged reneged redemption increments this — 2 strikes auto-suspends (blueprint §17)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Merchant Standing Offer",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}
