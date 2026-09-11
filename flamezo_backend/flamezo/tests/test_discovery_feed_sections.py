@@ -10,6 +10,9 @@ Tests for the Discover Near home-feed sections — flamezo.get_discovery_feed:
   popular        — rated outlets near the viewer, highest rating first;
                    widens 10 km -> 25 km when short; city-wide without GPS
   sections never share an outlet
+  city / category / Signatures-tab / radius filters and is_active apply to
+  every section
+  outlets past the old 300-row pool cap still reach their sections
 
 Every fixture lives in its own made-up city so the site's real outlets never
 leak into a section.
@@ -62,6 +65,35 @@ def _make(suffix, rating=4.0, review_count=10, km=1, added_days_ago=30, **fields
     )
     frappe.db.commit()
     return name
+
+
+def _clone(template, count, tag):
+    """`count` SQL copies of `template` (fast — no doc hooks), unique fields
+    reset; each copy inherits the template's city, rating, pin and creation."""
+    unique_null = {"subdomain", "slug", "referral_code"}
+    select = []
+    for col in frappe.db.get_table_columns("Outlet"):
+        if col in ("name", "outlet_id"):
+            select.append("%s")
+        elif col in unique_null:
+            select.append("NULL")
+        else:
+            select.append(f"`{col}`")
+    cols = ", ".join(f"`{c}`" for c in frappe.db.get_table_columns("Outlet"))
+    names = []
+    for i in range(count):
+        name = f"{_PREFIX}-{tag}-{i:03d}"
+        frappe.db.sql(
+            f"INSERT INTO `tabOutlet` ({cols}) SELECT {', '.join(select)} FROM `tabOutlet` WHERE name = %s",
+            (name, name, template),
+        )
+        names.append(name)
+    frappe.db.commit()
+    return names
+
+
+def _all_ids(data):
+    return [c["id"] for key in ("limelight", "signature", "new_to_flamezo", "popular") for c in data[key]]
 
 
 def _cleanup():
@@ -136,6 +168,29 @@ class TestLimelight(_FeedTestCase):
 
         self.assertEqual(limelight, list(reversed(names))[:6])
 
+    def test_window_starting_and_ending_today_is_live(self):
+        today_only = _make("TODAY", is_featured=1, limelight_start_date=today(),
+                           limelight_end_date=today())
+
+        self.assertEqual(_ids(_feed()["limelight"]), [today_only])
+
+    def test_toggled_on_but_inactive_outlet_excluded(self):
+        _make("OFF", is_featured=1, is_active=0)
+
+        self.assertEqual(_feed()["limelight"], [])
+
+    def test_not_limited_by_distance(self):
+        far = _make("FAR", is_featured=1, km=80)
+
+        self.assertEqual(_ids(_feed()["limelight"]), [far])
+
+    def test_cards_are_marked_featured(self):
+        _make("F1", is_featured=1)
+
+        card = _feed()["limelight"][0]
+
+        self.assertTrue(card["is_featured"])
+
 
 class TestNewToFlamezo(_FeedTestCase):
     def test_most_recently_added_first(self):
@@ -154,6 +209,23 @@ class TestNewToFlamezo(_FeedTestCase):
         far = _make("FAR", km=100, added_days_ago=1)
 
         self.assertEqual(_ids(_feed()["new_to_flamezo"])[0], far)
+
+    def test_ignores_hand_entered_onboarding_date(self):
+        # Onboarding date says "today" but the outlet was added long ago.
+        stale = _make("STALE", added_days_ago=200, onboarding_date=today())
+        recent = _make("RECENT", added_days_ago=2, onboarding_date=add_days(today(), -400))
+
+        self.assertEqual(_ids(_feed()["new_to_flamezo"]), [recent, stale])
+
+    def test_newest_featured_outlet_stays_in_limelight_only(self):
+        featured_newest = _make("FNEW", is_featured=1, added_days_ago=0)
+        next_newest = _make("NEXT", added_days_ago=1)
+
+        data = _feed()
+
+        self.assertEqual(_ids(data["limelight"]), [featured_newest])
+        self.assertEqual(_ids(data["new_to_flamezo"])[0], next_newest)
+        self.assertNotIn(featured_newest, _ids(data["new_to_flamezo"]))
 
 
 class TestPopularPicks(_FeedTestCase):
@@ -221,6 +293,27 @@ class TestPopularPicks(_FeedTestCase):
 
         self.assertAlmostEqual(card["distance_km"], 5, delta=0.2)
 
+    def test_equal_rating_and_reviews_nearest_first(self):
+        farther = _make("FARTHER", rating=4.4, review_count=50, km=7)
+        nearer = _make("NEARER", rating=4.4, review_count=50, km=2)
+
+        self.assertEqual(_ids(_feed()["popular"]), [nearer, farther])
+
+    def test_explicit_radius_is_a_hard_limit(self):
+        inside = _make("INSIDE", rating=4.0, km=3)
+        outside = _make("OUTSIDE", rating=4.9, km=8)
+
+        popular = _ids(_feed(radius_km=5)["popular"])
+
+        # Short of 5 results, but an app-sent radius is never widened.
+        self.assertEqual(popular, [inside])
+        self.assertNotIn(outside, popular)
+
+    def test_inactive_outlet_excluded(self):
+        _make("CLOSED", rating=5.0, is_active=0)
+
+        self.assertEqual(_feed()["popular"], [])
+
 
 class TestSectionsDoNotOverlap(_FeedTestCase):
     def test_no_outlet_in_two_sections(self):
@@ -238,3 +331,90 @@ class TestSectionsDoNotOverlap(_FeedTestCase):
 
         self.assertEqual(len(seen), len(set(seen)))
         self.assertEqual(len(data["popular"]), 5)
+
+    def test_sections_respect_their_caps(self):
+        for i in range(8):
+            _make(f"F{i}", is_featured=1)
+        for i in range(12):
+            _make(f"S{i}", is_signature=1)
+        for i in range(12):
+            _make(f"X{i}", added_days_ago=i)
+
+        data = _feed()
+
+        self.assertEqual(len(data["limelight"]), 6)
+        self.assertEqual(len(data["signature"]), 10)
+        self.assertEqual(len(data["new_to_flamezo"]), 5)
+        self.assertEqual(len(data["popular"]), 5)
+
+
+class TestFiltersApplyToEverySection(_FeedTestCase):
+    """An outlet that would win every section — featured, newest, best rated,
+    nearest — must still stay out of all of them when a filter excludes it."""
+
+    def _star(self, suffix, **fields):
+        return _make(suffix, is_featured=1, is_signature=1, rating=5.0,
+                     review_count=9999, km=0.5, added_days_ago=0, **fields)
+
+    def test_other_city_excluded(self):
+        elsewhere = self._star("ELSEWHERE", city="Othertown")
+        _make("LOCAL", rating=4.0)
+
+        self.assertNotIn(elsewhere, _all_ids(_feed()))
+
+    def test_category_tab_excluded(self):
+        dining = self._star("DINING", outlet_type="dining")
+        cafe = _make("CAFE", is_featured=1, rating=4.0)
+
+        data = _feed(outlet_type="cafe")
+
+        self.assertNotIn(dining, _all_ids(data))
+        self.assertEqual(_ids(data["limelight"]), [cafe])
+
+    def test_signatures_tab_shows_only_signature_outlets(self):
+        plain = _make("PLAIN", is_featured=1, rating=5.0, added_days_ago=0)
+        sig = [_make(f"SIG{i}", is_signature=1, rating=4.0) for i in range(3)]
+
+        ids = _all_ids(_feed(is_signature=1))
+
+        self.assertNotIn(plain, ids)
+        self.assertCountEqual(ids, sig)
+
+    def test_inactive_excluded(self):
+        closed = self._star("CLOSED", is_active=0)
+
+        self.assertNotIn(closed, _all_ids(_feed()))
+
+    def test_radius_limits_every_section(self):
+        far = self._star("FAR", latitude=_km_north(30))
+        near = _make("NEAR", is_featured=1, rating=4.0, km=2)
+
+        data = _feed(radius_km=10)
+
+        self.assertNotIn(far, _all_ids(data))
+        self.assertEqual(_ids(data["limelight"]), [near])
+
+
+class TestBeyondOldPoolCap(_FeedTestCase):
+    """The old feed read one arbitrary 300-row pool, so with more outlets than
+    that, the featured / newest / best-rated ones could never be picked. The
+    winners here sort AFTER 310 filler rows by primary key, i.e. outside what
+    an un-ordered LIMIT 300 scan returns."""
+
+    def setUp(self):
+        super().setUp()
+        filler = _make("BULK-TEMPLATE", rating=3.0, km=1, added_days_ago=60)
+        _clone(filler, 310, "BULK")
+        self.featured = _make("ZZZ-FEATURED", is_featured=1, rating=3.0, added_days_ago=60)
+        self.newest = _make("ZZZ-NEWEST", rating=3.0, added_days_ago=0)
+        # Older than the filler, so New to Flamezo doesn't claim it first.
+        self.top_rated = _make("ZZZ-TOPRATED", rating=4.9, km=2, added_days_ago=90)
+
+    def test_featured_outlet_reaches_limelight(self):
+        self.assertEqual(_ids(_feed()["limelight"]), [self.featured])
+
+    def test_newest_outlet_reaches_new_to_flamezo(self):
+        self.assertEqual(_ids(_feed()["new_to_flamezo"])[0], self.newest)
+
+    def test_top_rated_nearby_outlet_reaches_popular(self):
+        self.assertEqual(_ids(_feed()["popular"])[0], self.top_rated)
