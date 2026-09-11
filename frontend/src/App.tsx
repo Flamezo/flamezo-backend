@@ -66,6 +66,7 @@ const AddonGroupManagement = lazy(() => import('./pages/AddonGroupManagement'))
 
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
 const UGCCashbackHub = lazy(() => import('./pages/hubs/UGCCashbackHub'))
+const CreatorMarketplaceHub = lazy(() => import('./pages/hubs/CreatorMarketplaceHub'))
 
 const ClubTalksHub = lazy(() => import('./pages/hubs/ClubTalksHub'))
 const ChillsHub = lazy(() => import('./pages/hubs/ChillsHub'))
@@ -123,6 +124,12 @@ function AppContent() {
 									<Route path="/loyalty-analytics" element={<LoyaltyHub />} />
 								</Route>
 								<Route path="/loyalty-insights" element={<Navigate to="/loyalty-analytics" replace />} />
+
+								{/* Creator Marketplace — discover creators, post gigs, track deals to payout */}
+								<Route path="/creator-marketplace" element={<Navigate to="/creator-marketplace/discover" replace />} />
+								<Route path="/creator-marketplace/discover" element={<CreatorMarketplaceHub />} />
+								<Route path="/creator-marketplace/gigs" element={<CreatorMarketplaceHub />} />
+								<Route path="/creator-marketplace/deals" element={<CreatorMarketplaceHub />} />
 
 								{/* UGC Cashback — story-for-cashback growth loop */}
 								<Route path="/ugc-cashback/config" element={<UGCCashbackHub />} />
