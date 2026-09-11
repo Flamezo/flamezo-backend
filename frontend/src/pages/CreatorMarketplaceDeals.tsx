@@ -113,8 +113,8 @@ export default function CreatorMarketplaceDeals() {
         key: funding.key_id,
         amount: Math.round(funding.amount_inr * 100),
         currency: 'INR',
-        name: 'Flamezo Creator Marketplace',
-        description: `Escrow funding for deal ${deal.name}`,
+        name: 'Flamezo Creator & Collab',
+        description: `Escrow funding for collab ${deal.name}`,
         order_id: funding.razorpay_order_id,
         theme: { color: '#B7410E' },
         handler: async (paymentResponse: any) => {

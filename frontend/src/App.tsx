@@ -125,7 +125,7 @@ function AppContent() {
 								</Route>
 								<Route path="/loyalty-insights" element={<Navigate to="/loyalty-analytics" replace />} />
 
-								{/* Creator Marketplace — discover creators, post gigs, track deals to payout */}
+								{/* Creator & Collab — discover creators, start collabs, track deals to payout */}
 								<Route path="/creator-marketplace" element={<Navigate to="/creator-marketplace/discover" replace />} />
 								<Route path="/creator-marketplace/discover" element={<CreatorMarketplaceHub />} />
 								<Route path="/creator-marketplace/gigs" element={<CreatorMarketplaceHub />} />

@@ -113,7 +113,7 @@ export default function CreatorMarketplaceGigs() {
 
   const submitGig = async () => {
     if (!selectedOutlet || !title.trim()) {
-      toast.error('Give the gig a title first.')
+      toast.error('Give the collab a title first.')
       return
     }
     if (!barterAllowed && (!budget || Number(budget) <= 0)) {
@@ -137,12 +137,12 @@ export default function CreatorMarketplaceGigs() {
         min_followers: Number(minFollowers) || 0,
         min_badge_tier: minBadgeTier && minBadgeTier !== 'any' ? minBadgeTier : undefined,
       })
-      toast.success('Gig posted')
+      toast.success('Collab posted')
       setCreating(false)
       resetForm()
       mutate()
     } catch (error: any) {
-      toast.error('Could not post gig', { description: getFrappeError(error) })
+      toast.error('Could not post collab', { description: getFrappeError(error) })
     } finally {
       setSaving(false)
     }
@@ -152,10 +152,10 @@ export default function CreatorMarketplaceGigs() {
     if (!selectedOutlet) return
     try {
       await closeGig({ outlet_id: selectedOutlet, gig_id: gig.name })
-      toast.success('Gig closed')
+      toast.success('Collab closed')
       mutate()
     } catch (error: any) {
-      toast.error('Could not close gig', { description: getFrappeError(error) })
+      toast.error('Could not close collab', { description: getFrappeError(error) })
     }
   }
 
@@ -177,7 +177,7 @@ export default function CreatorMarketplaceGigs() {
     <div className="space-y-4">
       <div className="flex justify-end">
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4 mr-1.5" /> Post a Gig
+          <Plus className="h-4 w-4 mr-1.5" /> Post a Collab
         </Button>
       </div>
 
@@ -185,7 +185,7 @@ export default function CreatorMarketplaceGigs() {
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <Gift className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            No gigs posted yet — post one to let creators apply.
+            No collabs posted yet — post one to let creators apply.
           </CardContent>
         </Card>
       ) : (
@@ -228,11 +228,11 @@ export default function CreatorMarketplaceGigs() {
         </Card>
       )}
 
-      {/* Create gig dialog */}
+      {/* Create collab dialog */}
       <Dialog open={creating} onOpenChange={(open) => { if (!open) { setCreating(false); resetForm() } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Post a Gig</DialogTitle>
+            <DialogTitle>Post a Collab</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-1.5">
@@ -325,7 +325,7 @@ export default function CreatorMarketplaceGigs() {
               Cancel
             </Button>
             <Button onClick={submitGig} disabled={saving}>
-              {saving ? 'Posting…' : 'Post Gig'}
+              {saving ? 'Posting…' : 'Post Collab'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -51,6 +51,9 @@ export default function Breadcrumb() {
       'categories': 'Categories',
       'Outlet': 'Restaurants',
       'qr-codes': 'QR Codes',
+      'creator-marketplace': 'Creator & Collab',
+      'discover': 'Explore Creators',
+      'gigs': 'My Collabs',
     }
 
     // Special handling for Setup Wizard page - add restaurant name if available

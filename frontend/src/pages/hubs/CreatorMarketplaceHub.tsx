@@ -19,11 +19,11 @@ export default function CreatorMarketplaceHub() {
   return (
     <div className="space-y-4">
       <HubHeader
-        title="Creator Marketplace"
-        subtitle="Find creators, post gigs & track every deal from offer to payout"
+        title="Creator & Collab"
+        subtitle="Find creators, start collabs & track every deal from offer to payout"
         tabs={[
-          { value: 'discover', label: 'Discover Creators' },
-          { value: 'gigs', label: 'My Gigs' },
+          { value: 'discover', label: 'Explore Creators' },
+          { value: 'gigs', label: 'My Collabs' },
           { value: 'deals', label: 'Deals' },
         ]}
         activeTab={activeTab}
