@@ -85,7 +85,7 @@ import unittest
 from unittest.mock import patch
 
 import frappe
-from frappe.utils import today
+from frappe.utils import add_days, now_datetime, today
 
 from flamezo_backend.flamezo.api import clubs
 from flamezo_backend.flamezo.tests.utils import make_restaurant
@@ -672,6 +672,68 @@ class TestCreatorFeed(unittest.TestCase):
         result = clubs.get_creator_feed()["data"]
         contents = [p["content"] for p in result["posts"]]
         self.assertNotIn("test inactive club feed post", contents)
+
+    # ── nearest-first (latitude/longitude given) ──
+    # Other posts in the test DB may interleave, so these compare the
+    # relative order of this test's own posts.
+
+    _LAT, _LNG = 21.1702, 72.8311
+
+    def _pin(self, post, lat, lng):
+        frappe.db.set_value("Creator Club Post", post.name, {"latitude": lat, "longitude": lng})
+
+    def _all_geo_pages(self, limit=2):
+        ids, cursor = [], None
+        while True:
+            page = clubs.get_creator_feed(limit=limit, cursor=cursor,
+                                          latitude=self._LAT, longitude=self._LNG)["data"]
+            ids += [p["id"] for p in page["posts"]]
+            if not page["has_more"]:
+                return ids
+            cursor = page["next_cursor"]
+
+    def test_geo_nearest_first_ignores_age_and_engagement(self):
+        far_viral = _make_post(self.club_a.name, "text", "test geo far viral")
+        near_quiet = _make_post(self.club_b.name, "text", "test geo near quiet")
+        self._pin(far_viral, 21.9000, 72.8311)   # ~81 km
+        self._pin(near_quiet, 21.1710, 72.8311)  # ~0.1 km
+        frappe.db.set_value("Creator Club Post", far_viral.name, "likes_count", 5000)
+        frappe.db.set_value("Creator Club Post", near_quiet.name, "creation", add_days(now_datetime(), -200))
+        ids = self._all_geo_pages(limit=50)
+        self.assertLess(ids.index(near_quiet.name), ids.index(far_viral.name))
+
+    def test_geo_unpinned_post_comes_last(self):
+        unpinned = _make_post(self.club_a.name, "text", "test geo unpinned")
+        pinned = _make_post(self.club_a.name, "text", "test geo pinned far")
+        self._pin(pinned, 21.9000, 72.8311)
+        ids = self._all_geo_pages(limit=50)
+        self.assertLess(ids.index(pinned.name), ids.index(unpinned.name))
+
+    def test_geo_cursor_pages_have_no_overlap_or_gaps(self):
+        posts = [_make_post(self.club_a.name, "text", f"test geo page {i}") for i in range(5)]
+        self._pin(posts[0], 21.2600, 72.8311)
+        self._pin(posts[1], 21.2600, 72.8311)  # same distance — tie broken by name
+        self._pin(posts[2], 21.1800, 72.8311)
+        self._pin(posts[4], 21.4400, 72.8311)  # posts[3] stays unpinned
+        ids = self._all_geo_pages(limit=2)
+        self.assertEqual(len(ids), len(set(ids)))
+        for p in posts:
+            self.assertIn(p.name, ids)
+
+    def test_geo_cursor_format(self):
+        for i in range(3):
+            self._pin(_make_post(self.club_a.name, "text", f"test geo cursor {i}"), 21.2, 72.83)
+        page1 = clubs.get_creator_feed(limit=1, latitude=self._LAT, longitude=self._LNG)["data"]
+        self.assertTrue(page1["next_cursor"].startswith("geo:"))
+
+    def test_time_cursor_keeps_time_order_when_location_arrives_late(self):
+        for i in range(4):
+            _make_post(self.club_a.name, "text", f"test late location {i}")
+        page1 = clubs.get_creator_feed(limit=2)["data"]
+        page2 = clubs.get_creator_feed(limit=2, cursor=page1["next_cursor"],
+                                       latitude=self._LAT, longitude=self._LNG)["data"]
+        self.assertFalse(page2["next_cursor"].startswith("geo:"))
+        self.assertEqual({p["id"] for p in page1["posts"]} & {p["id"] for p in page2["posts"]}, set())
 
 
 class TestCreateClubPost(unittest.TestCase):

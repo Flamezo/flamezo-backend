@@ -80,7 +80,7 @@ Covers:
 import time
 import unittest
 from unittest.mock import patch
-from frappe.utils import add_days, today, get_datetime, now_datetime
+from frappe.utils import add_days, add_to_date, today, get_datetime, now_datetime
 
 import frappe
 
@@ -1661,6 +1661,100 @@ class TestFilterCrowdRequests(unittest.TestCase):
         req_data = next((r for r in _data(result)["requests"] if r["id"] == req.name), None)
         if req_data:
             self.assertIn("tier", req_data)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestNearestFirstCrowds — get_crowd_requests ordered purely by distance
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Caller location for these tests (Surat). Other open crowds in the test DB
+# may interleave, so assertions compare the relative order of our own ids.
+_USER_LAT, _USER_LNG = 21.1702, 72.8311
+
+
+def _place(req, lat, lng):
+    frappe.db.set_value("Crowd Request", req.name, {"latitude": lat, "longitude": lng})
+    frappe.db.commit()
+
+
+class TestNearestFirstCrowds(unittest.TestCase):
+
+    def setUp(self):
+        self._session_patch = _verified_session()
+        self._session_patch.start()
+        _cleanup_crowd()
+
+    def tearDown(self):
+        self._session_patch.stop()
+        _cleanup_crowd()
+
+    def _ordered_ids(self, **kw):
+        result = _data(crowd.get_crowd_requests(phone=_PHONE_B, latitude=_USER_LAT,
+                                                longitude=_USER_LNG, limit=50, **kw))
+        return [r["id"] for r in result["requests"]], result["requests"]
+
+    def test_nearest_first_beats_date_and_closing_soon(self):
+        # Far crowd is today and closing within the hour; near one is days out.
+        far = _make_request(phone=_PHONE_A, title="Far closing soon", date=today(),
+                            expires_at=str(add_to_date(now_datetime(), minutes=45)))
+        near = _make_request(phone=_PHONE_A, title="Near but later", date=add_days(today(), 4))
+        _place(far, 21.5300, 72.8311)   # ~40 km
+        _place(near, 21.1750, 72.8311)  # ~0.5 km
+        ids, _ = self._ordered_ids()
+        self.assertLess(ids.index(near.name), ids.index(far.name))
+
+    def test_unlocated_crowd_sorts_after_located(self):
+        unlocated = _make_request(phone=_PHONE_A, title="No place picked")
+        located = _make_request(phone=_PHONE_A, title="Has a place")
+        _place(located, 21.9000, 72.8311)  # ~81 km — still before "no location"
+        ids, _ = self._ordered_ids()
+        self.assertLess(ids.index(located.name), ids.index(unlocated.name))
+
+    def test_distance_km_returned(self):
+        req = _make_request(phone=_PHONE_A, title="Two km away")
+        _place(req, 21.1882, 72.8311)
+        _, rows = self._ordered_ids()
+        row = next(r for r in rows if r["id"] == req.name)
+        self.assertAlmostEqual(row["distance_km"], 2.0, delta=0.1)
+
+    def test_pages_do_not_overlap(self):
+        reqs = [_make_request(phone=_PHONE_A, title=f"Paged crowd {i}") for i in range(3)]
+        for i, r in enumerate(reqs):
+            _place(r, 21.1702 + 0.01 * (i + 1), 72.8311)
+        seen, page = [], 1
+        while True:
+            result = _data(crowd.get_crowd_requests(phone=_PHONE_B, latitude=_USER_LAT,
+                                                    longitude=_USER_LNG, limit=2, page=page))
+            seen += [r["id"] for r in result["requests"]]
+            if not result["has_more"]:
+                break
+            page += 1
+        self.assertEqual(len(seen), len(set(seen)))
+        for r in reqs:
+            self.assertIn(r.name, seen)
+
+    def test_create_spontaneous_stores_place(self):
+        res = _data(crowd.create_crowd_request(
+            phone=_PHONE_A, title="Spontaneous at the lake", date=today(),
+            latitude="21.1882", longitude="72.8311", venue_name="Lake Garden",
+        ))
+        lat, lng, venue = frappe.db.get_value("Crowd Request", res["request_id"],
+                                              ["latitude", "longitude", "venue_name"])
+        self.assertAlmostEqual(float(lat), 21.1882, places=4)
+        self.assertAlmostEqual(float(lng), 72.8311, places=4)
+        self.assertEqual(venue, "Lake Garden")
+
+    def test_create_rejects_invalid_location(self):
+        with self.assertRaises(frappe.ValidationError):
+            crowd.create_crowd_request(phone=_PHONE_A, title="Bad location crowd",
+                                       date=today(), latitude="123", longitude="72.8")
+
+    def test_edit_moves_spontaneous_place(self):
+        req = _make_request(phone=_PHONE_A, title="Movable crowd")
+        crowd.edit_crowd_request(req.name, _PHONE_A, latitude="21.2000", longitude="72.8400")
+        lat, lng = frappe.db.get_value("Crowd Request", req.name, ["latitude", "longitude"])
+        self.assertAlmostEqual(float(lat), 21.2, places=4)
+        self.assertAlmostEqual(float(lng), 72.84, places=4)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
