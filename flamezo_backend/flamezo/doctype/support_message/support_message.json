@@ -1,0 +1,153 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "UUID",
+ "creation": "2026-09-10 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "thread",
+  "sender_type",
+  "sender_name",
+  "sender_phone",
+  "sender_user",
+  "column_break_msg",
+  "message_type",
+  "created_at",
+  "is_read",
+  "read_at",
+  "section_break_body",
+  "message",
+  "image_url",
+  "payload_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "thread",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Thread",
+   "options": "Support Thread",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "sender_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Sender Type",
+   "options": "customer\nagent\nsystem\nbot",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sender_name",
+   "fieldtype": "Data",
+   "label": "Sender Name"
+  },
+  {
+   "description": "Set for customer messages.",
+   "fieldname": "sender_phone",
+   "fieldtype": "Data",
+   "label": "Sender Phone"
+  },
+  {
+   "description": "Set for agent and merchant messages.",
+   "fieldname": "sender_user",
+   "fieldtype": "Link",
+   "label": "Sender User",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_msg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "text",
+   "fieldname": "message_type",
+   "fieldtype": "Select",
+   "label": "Message Type",
+   "options": "text\nimage\nvideo\nsystem\nquick_reply\ncard"
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Created At",
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_read",
+   "fieldtype": "Check",
+   "label": "Is Read"
+  },
+  {
+   "fieldname": "read_at",
+   "fieldtype": "Datetime",
+   "label": "Read At"
+  },
+  {
+   "fieldname": "section_break_body",
+   "fieldtype": "Section Break",
+   "label": "Body"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Text",
+   "in_list_view": 1,
+   "label": "Message"
+  },
+  {
+   "fieldname": "image_url",
+   "fieldtype": "Data",
+   "label": "Image URL"
+  },
+  {
+   "description": "Quick-reply buttons or an attached card, as JSON.",
+   "fieldname": "payload_json",
+   "fieldtype": "Long Text",
+   "label": "Payload"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-10 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Support Message",
+ "naming_rule": "By \"Autoname\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Support Agent",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "search_fields": "thread,sender_name",
+ "sort_field": "created_at",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

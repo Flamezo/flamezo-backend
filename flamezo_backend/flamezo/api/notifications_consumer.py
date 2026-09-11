@@ -19,7 +19,7 @@ from frappe.utils import now_datetime
 # ── internal helper (not an HTTP endpoint) ────────────────────────────────────
 
 VALID_NOTIFICATION_TYPES = {
-    "order", "booking", "promotion", "loyalty", "crowd", "club", "chat", "general",
+    "order", "booking", "promotion", "loyalty", "crowd", "club", "chat", "support", "general",
 }
 
 

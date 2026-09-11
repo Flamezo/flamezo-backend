@@ -37,6 +37,7 @@ const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AdminEventDetail = lazy(() => import('./pages/AdminEventDetail'))
+const AdminSupport = lazy(() => import('./pages/AdminSupport'))
 const MyOutletEvent = lazy(() => import('./pages/MyOutletEvent'))
 const MyOutletEventDetail = lazy(() => import('./pages/MyOutletEventDetail'))
 // AI Enhancements / AI Gallery — hidden for now (not ready to offer yet).
@@ -69,6 +70,7 @@ const UGCCashbackHub = lazy(() => import('./pages/hubs/UGCCashbackHub'))
 const CreatorMarketplaceHub = lazy(() => import('./pages/hubs/CreatorMarketplaceHub'))
 
 const ClubTalksHub = lazy(() => import('./pages/hubs/ClubTalksHub'))
+const HelpSupport = lazy(() => import('./pages/HelpSupport'))
 const ChillsHub = lazy(() => import('./pages/hubs/ChillsHub'))
 
 // Non-dining industry pages
@@ -110,6 +112,8 @@ function AppContent() {
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 								<Route path="/admin/events" element={<Events />} />
 								<Route path="/admin/events/:id" element={<AdminEventDetail />} />
+								<Route path="/admin/support" element={<AdminSupport />} />
+								<Route path="/admin/support/:id" element={<AdminSupport />} />
 
 
 								<Route element={<FeatureProtectedRoute feature="coupons" />}>
@@ -137,6 +141,7 @@ function AppContent() {
 								<Route path="/ugc-cashback/analytics" element={<UGCCashbackHub />} />
 
 								{/* Club Talks — merchant broadcast feed (Chills-style: posts / upload / analytics) */}
+								<Route path="/help-support" element={<HelpSupport />} />
 								<Route path="/club-talks" element={<Navigate to="/club-talks/posts" replace />} />
 								<Route path="/club-talks/posts" element={<ClubTalksHub />} />
 								<Route path="/club-talks/upload" element={<ClubTalksHub />} />

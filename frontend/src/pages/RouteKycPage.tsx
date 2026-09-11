@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { GetHelpButton } from '@/components/GetHelpButton'
 import { cn } from '@/lib/utils'
 import {
   ShieldCheck,
@@ -370,6 +371,9 @@ export default function RouteKycPage() {
           <p className="text-sm text-muted-foreground font-medium mt-1 max-w-2xl">
             Connect your bank account so customer payments settle to you directly — no more waiting for our weekly transfer.
           </p>
+          <div className="mt-3">
+            <GetHelpButton category="kyc" area="route_kyc" label="Stuck on verification? Get help" />
+          </div>
         </div>
         <Button
           variant="outline"

@@ -18,6 +18,7 @@ import { MenuCategoryItem } from '@/components/MenuCategoryItem'
 import { MenuProductCard } from '@/components/MenuProductCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { GetHelpButton } from '@/components/GetHelpButton'
 import { useConfirm } from '@/hooks/useConfirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import DynamicForm from '@/components/DynamicForm'
@@ -424,6 +425,7 @@ export default function MenuManagement() {
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
             Live
           </Badge>
+          <GetHelpButton category="menu" area="menu_management" />
           {isPOSManaged && (
             <Badge variant="outline" className="bg-blue-900/40 border-blue-600/50 text-blue-300 gap-1.5 px-2 py-0.5">
               <Info className="h-3 w-3" />
