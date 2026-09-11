@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-10 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "deal",
+  "deliverable_type",
+  "column_break_1",
+  "verification_method",
+  "section_break_1",
+  "native_post_id",
+  "instagram_media_id",
+  "screenshot_backup",
+  "section_break_2",
+  "disclosure_verified",
+  "column_break_2",
+  "verified_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "deal",
+   "fieldtype": "Link",
+   "label": "Deal",
+   "options": "Collab Deal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "deliverable_type",
+   "fieldtype": "Select",
+   "label": "Deliverable Type",
+   "options": "native_chills\nnative_club_post\ninstagram_reel\ninstagram_story\nbundle",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "verification_method",
+   "fieldtype": "Select",
+   "label": "Verification Method",
+   "options": "native_first_party\ngraph_api\nmanual",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Evidence"
+  },
+  {
+   "fieldname": "native_post_id",
+   "fieldtype": "Data",
+   "label": "Native Post ID",
+   "description": "Chills item or Creator Club Post name — native deliverables only"
+  },
+  {
+   "fieldname": "instagram_media_id",
+   "fieldtype": "Data",
+   "label": "Instagram Media ID",
+   "description": "Instagram deliverables only, via Graph API /tags"
+  },
+  {
+   "fieldname": "screenshot_backup",
+   "fieldtype": "Attach",
+   "label": "Screenshot Backup",
+   "description": "Required for story deliverables — expire in 24h, not always API-visible after the fact"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "disclosure_verified",
+   "fieldtype": "Check",
+   "label": "Disclosure Verified",
+   "description": "Required paid-partnership label present — ASCI compliance, see blueprint §06"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "verified_at",
+   "fieldtype": "Datetime",
+   "label": "Verified At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Delivery Proof",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ]
+}
