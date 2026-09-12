@@ -8,7 +8,7 @@ All endpoints are read-heavy and aggressively cached.
 """
 
 import frappe
-from frappe.utils import flt, cint, getdate, today, add_days
+from frappe.utils import flt, cint, getdate, today, add_days, now_datetime
 from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
 	get_or_create_customer,
@@ -511,6 +511,31 @@ _POPULAR_RADIUS_KM = 10.0
 # before the Python-side rating + rotation sort picks the section's winners.
 _FLAGGED_SECTION_FETCH_LIMIT = 300
 
+# Most outlet ids read from the app's `seen` list (the newest ones are kept).
+_SEEN_MAX_IDS = 200
+
+# "New to Flamezo" rotates through outlets added in this many days; older
+# outlets only top the section up, newest first, when the window runs short.
+_NEW_TO_FLAMEZO_WINDOW_DAYS = 60
+
+
+def _parse_seen_ids(seen):
+	"""The app's `seen` list — outlet ids already seen in these sections,
+	oldest first — as a clean list: blanks dropped, a repeated id kept at its
+	latest position, only the newest _SEEN_MAX_IDS kept. Accepts the
+	comma-separated query string or a list."""
+	if not seen:
+		return []
+	parts = seen.split(",") if isinstance(seen, str) else seen
+	ordered = {}
+	for part in parts:
+		outlet_id = str(part).strip()
+		if not outlet_id or len(outlet_id) > 140:
+			continue
+		ordered.pop(outlet_id, None)
+		ordered[outlet_id] = True
+	return list(ordered)[-_SEEN_MAX_IDS:]
+
 
 def _seeded_tiebreak_key(seed, outlet_id):
 	"""Deterministic per-(seed, outlet) pseudo-random float in [0, 1).
@@ -528,7 +553,7 @@ def _seeded_tiebreak_key(seed, outlet_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None, outlet_type=None, is_signature=None, rotation_seed=None):
+def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None, outlet_type=None, is_signature=None, rotation_seed=None, seen=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_discovery_feed
 
@@ -560,6 +585,16 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 	signature outlet. A section that runs short returns fewer outlets rather
 	than borrowing from another section.
 
+	Fresh outlets on every app open: the app sends `seen`, the outlets the
+	viewer actually looked at in these sections before (cards that were on
+	screen, oldest first). Every section shows unseen outlets first, in its
+	own order, and only then tops up with seen ones, longest-ago seen first —
+	so a section never empties, and once everything has been seen the oldest
+	come round again. New to Flamezo rotates only through outlets added in
+	the last _NEW_TO_FLAMEZO_WINDOW_DAYS (older ones top it up, newest first,
+	without rotating). Popular fills from unseen outlets through its whole
+	radius widening before any seen one. Without `seen` nothing changes.
+
 	Parameters:
 	  latitude, longitude, radius_km — viewer location; radius_km (optional)
 	                                    hard-limits every section to that
@@ -570,16 +605,21 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 	                                    Everyday/Signatures tab toggle)
 	  rotation_seed                  — override the default (today's date) rotation
 	                                    window; mainly for testing determinism/rotation
+	  seen                           — comma-separated outlet ids the viewer has
+	                                    already seen here, oldest first (see above)
 	"""
 	try:
 		user_lat = flt(latitude) if latitude else None
 		user_lon = flt(longitude) if longitude else None
 		seed = rotation_seed or today()
+		seen_ids = _parse_seen_ids(seen)
 
 		lat_b = round(user_lat, 2) if user_lat else None
 		lon_b = round(user_lon, 2) if user_lon else None
 		cache_key = f"flamezo:feed:{lat_b}:{lon_b}:{radius_km or ''}:{city or ''}:{outlet_type or ''}:{cint(is_signature)}:{seed}"
-		if frappe.session.user == "Guest":
+		# A `seen` list makes the answer specific to one phone — never share it.
+		use_cache = frappe.session.user == "Guest" and not seen_ids
+		if use_cache:
 			cached = frappe.cache().get_value(cache_key)
 			if cached:
 				return json.loads(cached)
@@ -608,7 +648,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		used = set()
 
 		def _fetch(extra_filters=(), extra_params=(), order_by=None, limit=None,
-				   select_extra="", select_params=(), having="", having_params=()):
+				   select_extra="", select_params=(), having="", having_params=(), order_params=()):
 			"""One section query: the shared filters plus the section's own,
 			minus every outlet an earlier section already claimed."""
 			filters = sql_filters + list(extra_filters)
@@ -623,16 +663,29 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 				sql += f" ORDER BY {order_by}"
 			if limit:
 				sql += f" LIMIT {cint(limit)}"
-			return frappe.db.sql(sql, list(select_params) + filter_params + list(having_params), as_dict=True)
+			return frappe.db.sql(
+				sql,
+				list(select_params) + filter_params + list(having_params) + list(order_params),
+				as_dict=True,
+			)
 
 		def _claim(rows):
 			used.update(r["name"] for r in rows)
 			return rows
 
+		# Unseen outlets rank 0, seen ones 1.. in the order they were seen, so
+		# sorting ascending puts unseen first, then the longest-ago seen.
+		# FIELD() is the same ranking in SQL (0 when the id isn't listed).
+		seen_rank = {outlet_id: i + 1 for i, outlet_id in enumerate(seen_ids)}
+		seen_phs = ",".join(["%s"] * len(seen_ids))
+		seen_order = f"FIELD(r.name, {seen_phs}) ASC, " if seen_ids else ""
+
 		def _best_rated(rows, n):
-			"""Flag-driven sections: best rating, then most reviews, then the
-			seeded rotation — so a flat set of ratings still rotates daily."""
+			"""Flag-driven sections: unseen first, then best rating, most
+			reviews, and the seeded rotation — so a flat set of ratings still
+			rotates daily."""
 			rows = sorted(rows, key=lambda r: (
+				seen_rank.get(r["name"], 0),
 				-flt(r.get("rating")), -cint(r.get("review_count")), _seeded_tiebreak_key(seed, r["name"]),
 			))
 			return _claim(rows[:n])
@@ -660,10 +713,21 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		#    onboarding_date: that one is hand-entered in the setup wizard and
 		#    often blank or shared by many outlets; creation is always set and
 		#    carries the time of day. `name` keeps equal timestamps stable.
+		#    Unseen-first rotation only among outlets added inside the window;
+		#    if that's too few, the next-newest older outlets top it up.
+		new_target = _FEED_SECTION_TARGETS["new_to_flamezo"]
 		new_rows = _claim(_fetch(
-			order_by="r.creation DESC, r.name DESC",
-			limit=_FEED_SECTION_TARGETS["new_to_flamezo"],
+			["r.creation >= %s"],
+			[add_days(now_datetime(), -_NEW_TO_FLAMEZO_WINDOW_DAYS)],
+			order_by=f"{seen_order}r.creation DESC, r.name DESC",
+			order_params=seen_ids,
+			limit=new_target,
 		))
+		if len(new_rows) < new_target:
+			new_rows += _claim(_fetch(
+				order_by="r.creation DESC, r.name DESC",
+				limit=new_target - len(new_rows),
+			))
 
 		# 4. Popular — top-rated near the viewer. Unrated outlets (no Google
 		#    rating synced yet) are left out: there's nothing to rank them by.
@@ -672,30 +736,50 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 		if user_lat and user_lon:
 			dist_sql, dist_params = geo.haversine_sql("r.latitude", "r.longitude", user_lat, user_lon)
 
-			def _popular_within(r_km):
+		def _popular(extra_filters=(), extra_params=(), order_prefix="", order_params=(), n=popular_target):
+			"""Popular's ranking over the outlets matching `extra_filters`:
+			within _POPULAR_RADIUS_KM, re-asked within geo.MAX_RADIUS_KM when
+			that's short of `n` (an app-sent radius is never widened)."""
+			if not (user_lat and user_lon):
 				return _fetch(
-					rated + ["r.latitude != 0", "r.longitude != 0"],
+					rated + list(extra_filters), extra_params,
+					order_by=f"{order_prefix}r.rating DESC, r.review_count DESC, r.name ASC",
+					order_params=order_params,
+					limit=n,
+				)
+
+			def _within(r_km):
+				return _fetch(
+					rated + ["r.latitude != 0", "r.longitude != 0"] + list(extra_filters),
+					extra_params,
 					select_extra=f", {dist_sql} AS distance_km",
 					select_params=dist_params,
 					having="distance_km <= %s",
 					having_params=[r_km],
-					order_by="r.rating DESC, r.review_count DESC, distance_km ASC",
-					limit=popular_target,
+					order_by=f"{order_prefix}r.rating DESC, r.review_count DESC, distance_km ASC",
+					order_params=order_params,
+					limit=n,
 				)
 
 			if radius_km:
-				popular_rows = _popular_within(flt(radius_km))
-			else:
-				popular_rows = _popular_within(_POPULAR_RADIUS_KM)
-				if len(popular_rows) < popular_target:
-					popular_rows = _popular_within(geo.MAX_RADIUS_KM)
+				return _within(flt(radius_km))
+			rows = _within(_POPULAR_RADIUS_KM)
+			if len(rows) < n:
+				rows = _within(geo.MAX_RADIUS_KM)
+			return rows
+
+		if seen_ids:
+			# Every unseen outlet in reach (widening included) before any seen
+			# one; seen ones then go longest-ago seen first.
+			popular_rows = _claim(_popular([f"r.name NOT IN ({seen_phs})"], seen_ids))
+			if len(popular_rows) < popular_target:
+				popular_rows += _claim(_popular(
+					[f"r.name IN ({seen_phs})"], seen_ids,
+					order_prefix=seen_order, order_params=seen_ids,
+					n=popular_target - len(popular_rows),
+				))
 		else:
-			popular_rows = _fetch(
-				rated,
-				order_by="r.rating DESC, r.review_count DESC, r.name ASC",
-				limit=popular_target,
-			)
-		_claim(popular_rows)
+			popular_rows = _claim(_popular())
 
 		all_rows = limelight_rows + signature_rows + new_rows + popular_rows
 		rest_names = [r["name"] for r in all_rows]
@@ -719,7 +803,7 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 			},
 		}
 
-		if frappe.session.user == "Guest":
+		if use_cache:
 			frappe.cache().set_value(cache_key, json.dumps(response), expires_in_sec=120)
 
 		return response

@@ -13,6 +13,8 @@ Tests for the Discover Near home-feed sections — flamezo.get_discovery_feed:
   city / category / Signatures-tab / radius filters and is_active apply to
   every section
   outlets past the old 300-row pool cap still reach their sections
+  `seen` (what the app saw last time) — unseen outlets first in every
+  section, seen ones only fill, longest-ago seen first; no guest caching
 
 Every fixture lives in its own made-up city so the site's real outlets never
 leak into a section.
@@ -418,3 +420,294 @@ class TestBeyondOldPoolCap(_FeedTestCase):
 
     def test_top_rated_nearby_outlet_reaches_popular(self):
         self.assertEqual(_ids(_feed()["popular"])[0], self.top_rated)
+
+
+class TestParseSeenIds(unittest.TestCase):
+    def test_drops_blanks_and_keeps_a_repeat_at_its_latest_position(self):
+        self.assertEqual(flamezo_api._parse_seen_ids(" a, ,b,a ,c"), ["b", "a", "c"])
+
+    def test_accepts_a_list(self):
+        self.assertEqual(flamezo_api._parse_seen_ids(["x", " y "]), ["x", "y"])
+
+    def test_keeps_only_the_newest_ids(self):
+        ids = [f"o{i}" for i in range(250)]
+
+        self.assertEqual(flamezo_api._parse_seen_ids(",".join(ids)), ids[-200:])
+
+    def test_empty(self):
+        self.assertEqual(flamezo_api._parse_seen_ids(None), [])
+        self.assertEqual(flamezo_api._parse_seen_ids(""), [])
+
+    def test_drops_ids_longer_than_an_outlet_name_can_be(self):
+        self.assertEqual(flamezo_api._parse_seen_ids(f"ok,{'x' * 141}"), ["ok"])
+
+
+class TestSeenRotation(_FeedTestCase):
+    """The app sends `seen` — outlets already looked at in these sections,
+    oldest first — and every section shows unseen outlets before them."""
+
+    def test_limelight_unseen_first(self):
+        names = [_make(f"F{i}", is_featured=1, rating=3.0 + i * 0.2) for i in range(8)]
+
+        limelight = _ids(_feed(seen=f"{names[7]},{names[6]}")["limelight"])
+
+        # The two best were seen last time; the other six take the section.
+        self.assertEqual(limelight, list(reversed(names[:6])))
+
+    def test_seen_ones_fill_longest_ago_seen_first(self):
+        top = _make("TOP", is_featured=1, rating=4.9)
+        mid = _make("MID", is_featured=1, rating=4.5)
+        low = _make("LOW", is_featured=1, rating=4.0)
+
+        # MID was seen longest ago, TOP most recently.
+        limelight = _ids(_feed(seen=f"{mid},{top}")["limelight"])
+
+        self.assertEqual(limelight, [low, mid, top])
+
+    def test_signature_unseen_first(self):
+        best = _make("SBEST", is_signature=1, rating=4.9)
+        other = _make("SOTHER", is_signature=1, rating=4.0)
+
+        self.assertEqual(_ids(_feed(seen=best)["signature"]), [other, best])
+
+    def test_new_to_flamezo_unseen_first(self):
+        names = [_make(f"N{i}", added_days_ago=i + 1) for i in range(7)]
+
+        new = _ids(_feed(seen=f"{names[0]},{names[1]}")["new_to_flamezo"])
+
+        self.assertEqual(new, names[2:7])
+
+    def test_new_to_flamezo_seen_fill(self):
+        names = [_make(f"N{i}", added_days_ago=i + 1) for i in range(5)]
+
+        new = _ids(_feed(seen=names[0])["new_to_flamezo"])
+
+        self.assertEqual(new, names[1:] + [names[0]])
+
+    def test_new_to_flamezo_rotates_only_inside_its_window(self):
+        recent = _make("RECENT", added_days_ago=5)
+        old = _make("OLD", added_days_ago=120)
+
+        # RECENT was seen, but a four-month-old outlet still isn't "new".
+        self.assertEqual(_ids(_feed(seen=recent)["new_to_flamezo"]), [recent, old])
+
+    def test_unknown_and_messy_ids_are_ignored(self):
+        best = _make("BEST", is_featured=1, rating=4.9)
+        other = _make("OTHER", is_featured=1, rating=4.0)
+
+        limelight = _ids(_feed(seen=f" , nope ,{best}, ,")["limelight"])
+
+        self.assertEqual(limelight, [other, best])
+
+    def test_sections_stay_full_and_separate_when_everything_was_seen(self):
+        names = [_make(f"F{i}", is_featured=1) for i in range(8)]
+        names += [_make(f"S{i}", is_signature=1) for i in range(12)]
+        names += [_make(f"X{i}", added_days_ago=i) for i in range(12)]
+
+        data = _feed(seen=",".join(names))
+        ids = _all_ids(data)
+
+        self.assertEqual(len(data["limelight"]), 6)
+        self.assertEqual(len(data["signature"]), 10)
+        self.assertEqual(len(data["new_to_flamezo"]), 5)
+        self.assertEqual(len(data["popular"]), 5)
+        self.assertEqual(len(ids), len(set(ids)))
+
+
+class TestSeenRotationPopular(_FeedTestCase):
+    def setUp(self):
+        super().setUp()
+        # Unrated, so New to Flamezo claims them and they never compete here.
+        self.newest = [_make(f"NEW{i}", rating=0, added_days_ago=i) for i in range(5)]
+
+    def test_unseen_farther_away_before_seen_nearby(self):
+        near = _make("NEAR", rating=4.9, km=2)
+        far = _make("FAR", rating=4.0, km=20)
+
+        self.assertEqual(_ids(_feed(seen=near)["popular"]), [far, near])
+
+    def test_unseen_still_prefer_ten_km(self):
+        near = [_make(f"NEAR{i}", rating=4.0, km=3) for i in range(5)]
+        _make("FARSTAR", rating=5.0, km=20)
+        seen_one = _make("SEEN", rating=4.5, km=1)
+
+        popular = _ids(_feed(seen=seen_one)["popular"])
+
+        self.assertCountEqual(popular, near)
+
+    def test_seen_fill_longest_ago_seen_first(self):
+        best = _make("BEST", rating=4.9, km=1)
+        other = _make("OTHER", rating=4.2, km=1)
+
+        self.assertEqual(_ids(_feed(seen=f"{other},{best}")["popular"]), [other, best])
+
+    def test_without_location_unseen_first(self):
+        high = _make("HIGH", rating=4.7, km=300)
+        low = _make("LOW", rating=3.5, km=100)
+
+        popular = _ids(_feed(with_location=False, seen=high)["popular"])
+
+        self.assertEqual(popular, [low, high])
+
+
+class TestSeenSkipsGuestCache(_FeedTestCase):
+    def tearDown(self):
+        frappe.set_user("Administrator")
+        super().tearDown()
+
+    def test_guest_request_with_seen_is_not_cached(self):
+        featured = _make("F1", is_featured=1)
+        frappe.set_user("Guest")
+
+        _feed(seen=featured)
+
+        self.assertFalse(frappe.cache().get_keys("flamezo:feed:*"))
+
+    def test_guest_request_without_seen_is_still_cached(self):
+        _make("F1", is_featured=1)
+        frappe.set_user("Guest")
+
+        _feed()
+
+        self.assertTrue(frappe.cache().get_keys("flamezo:feed:*"))
+
+
+class TestSeenWithFilters(_FeedTestCase):
+    def test_signatures_tab_unseen_first(self):
+        top = _make("STOP", is_signature=1, rating=4.9)
+        mid = _make("SMID", is_signature=1, rating=4.5)
+        low = _make("SLOW", is_signature=1, rating=4.0)
+        plain = _make("PLAIN", rating=5.0, added_days_ago=0)
+
+        data = _feed(is_signature=1, seen=top)
+
+        self.assertEqual(_ids(data["signature"]), [mid, low, top])
+        self.assertNotIn(plain, _all_ids(data))
+
+    def test_explicit_radius_stays_a_hard_limit(self):
+        for i in range(5):
+            _make(f"NEW{i}", rating=0, added_days_ago=i)
+        seen_near = _make("SEENNEAR", rating=4.9, km=3)
+        unseen_near = _make("UNSEENNEAR", rating=4.0, km=4)
+        _make("OUTSIDE", rating=5.0, km=8)
+
+        popular = _ids(_feed(radius_km=5, seen=seen_near)["popular"])
+
+        self.assertEqual(popular, [unseen_near, seen_near])
+
+    def test_seen_ids_from_another_city_change_nothing(self):
+        elsewhere = _make("ELSEWHERE", is_featured=1, city="Othertown")
+        best = _make("BEST", is_featured=1, rating=4.9)
+        other = _make("OTHER", is_featured=1, rating=4.0)
+
+        self.assertEqual(_ids(_feed(seen=elsewhere)["limelight"]), [best, other])
+
+    def test_new_to_flamezo_window_edge(self):
+        inside = _make("DAY59", added_days_ago=59)
+        outside = _make("DAY61", added_days_ago=61)
+
+        # DAY59 was seen but is still "new"; DAY61 isn't, so it only tops up.
+        self.assertEqual(_ids(_feed(seen=inside)["new_to_flamezo"]), [inside, outside])
+
+
+class TestRotationAcrossOpens(_FeedTestCase):
+    """Open after open, the way the app does it: what the viewer saw goes
+    back as `seen` — here every card shown, the most the app could send."""
+
+    def _open(self, history, **kwargs):
+        data = _feed(seen=",".join(history), **kwargs)
+        for outlet_id in _all_ids(data):
+            if outlet_id in history:
+                history.remove(outlet_id)
+            history.append(outlet_id)
+        return data
+
+    def _fresh_five(self):
+        # Newest and unrated: New to Flamezo takes them every time, Popular
+        # never does — so the other sections' outlets stay where they are.
+        for i in range(5):
+            _make(f"NEW{i}", rating=0, added_days_ago=i)
+
+    def test_limelight_new_outlets_each_open_then_starts_over(self):
+        # Older than New to Flamezo's window and unrated: Limelight only.
+        featured = [_make(f"F{i:02d}", is_featured=1, rating=0, added_days_ago=90) for i in range(12)]
+        self._fresh_five()
+        history = []
+
+        first = _ids(self._open(history)["limelight"])
+        second = _ids(self._open(history)["limelight"])
+        third = _ids(self._open(history)["limelight"])
+
+        self.assertEqual(len(first), 6)
+        self.assertEqual(len(second), 6)
+        self.assertCountEqual(first + second, featured)
+        # All twelve seen: the ones seen longest ago come back first.
+        self.assertCountEqual(third, first)
+
+    def test_signature_new_outlets_each_open(self):
+        signature = [_make(f"S{i:02d}", is_signature=1, rating=0, added_days_ago=90) for i in range(20)]
+        self._fresh_five()
+        history = []
+
+        first = _ids(self._open(history)["signature"])
+        second = _ids(self._open(history)["signature"])
+
+        self.assertEqual(len(first), 10)
+        self.assertCountEqual(first + second, signature)
+
+    def test_new_to_flamezo_new_outlets_each_open(self):
+        new = [_make(f"N{i:02d}", rating=0, added_days_ago=i + 1) for i in range(10)]
+        history = []
+
+        self.assertEqual(_ids(self._open(history)["new_to_flamezo"]), new[:5])
+        self.assertEqual(_ids(self._open(history)["new_to_flamezo"]), new[5:])
+        self.assertEqual(_ids(self._open(history)["new_to_flamezo"]), new[:5])
+
+    def test_popular_new_nearby_outlets_each_open(self):
+        self._fresh_five()
+        # Ratings are stored to one decimal, so step by 0.1 to avoid ties.
+        near = [_make(f"P{i:02d}", rating=round(4.0 + i * 0.1, 1), km=2, added_days_ago=90) for i in range(10)]
+        best_first = list(reversed(near))
+        history = []
+
+        first = _ids(self._open(history)["popular"])
+        second = _ids(self._open(history)["popular"])
+        third = _ids(self._open(history)["popular"])
+
+        self.assertEqual(first, best_first[:5])
+        self.assertEqual(second, best_first[5:])
+        self.assertCountEqual(third, first)
+
+    def test_all_four_sections_change_between_opens(self):
+        for i in range(12):
+            _make(f"F{i:02d}", is_featured=1, rating=0, added_days_ago=90)
+        for i in range(20):
+            _make(f"S{i:02d}", is_signature=1, rating=0, added_days_ago=90)
+        for i in range(10):
+            _make(f"N{i:02d}", rating=0, added_days_ago=i + 1)
+        for i in range(10):
+            _make(f"P{i:02d}", rating=4.0, km=2, added_days_ago=90)
+        history = []
+
+        first = self._open(history)
+        second = self._open(history)
+
+        for key, size in (("limelight", 6), ("signature", 10), ("new_to_flamezo", 5), ("popular", 5)):
+            with self.subTest(section=key):
+                self.assertEqual(len(first[key]), size)
+                self.assertEqual(len(second[key]), size)
+                self.assertFalse(set(_ids(first[key])) & set(_ids(second[key])))
+        for data in (first, second):
+            ids = _all_ids(data)
+            self.assertEqual(len(ids), len(set(ids)))
+
+    def test_only_cards_really_seen_are_pushed_back(self):
+        # The app reports just the cards that were on screen; loaded-but-
+        # unseen ones keep their place at the front next time.
+        featured = [_make(f"F{i}", is_featured=1, rating=4.9 - i * 0.1) for i in range(8)]
+
+        first = _ids(_feed()["limelight"])
+        second = _ids(_feed(seen=",".join(first[:2]))["limelight"])
+
+        self.assertEqual(first, featured[:6])
+        self.assertEqual(second, featured[2:8])
