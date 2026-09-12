@@ -8,7 +8,7 @@ All endpoints are read-heavy and aggressively cached.
 """
 
 import frappe
-from frappe.utils import flt, cint, getdate, today, add_days
+from frappe.utils import flt, cint, getdate, today, add_days, now_datetime
 from flamezo_backend.flamezo.utils.customer_helpers import (
 	normalize_phone,
 	get_or_create_customer,
@@ -112,36 +112,6 @@ def _batch_offer_texts(outlet_ids, per_outlet_limit=4):
 			continue
 		bucket.append(_coupon_display_text(r))
 	return out
-
-
-def _batch_engagement_count(outlet_ids, days=30):
-	"""
-	Single SQL query — {outlet_id: count} of recent `Analytics Event` rows
-	(qr_scan / menu_view / item_view) per outlet, last `days` days.
-
-	This is the real "how popular is this outlet right now" signal post the
-	Aug 2026 pivot away from cart/ordering — `Restaurant.total_orders` is
-	dead (nothing writes to it anymore; analytics.py's own order-stats query
-	is stubbed to an always-empty dummy table). Menu/item views and QR scans
-	are what's actually live-tracked per outlet today.
-	"""
-	if not outlet_ids:
-		return {}
-	cutoff = add_days(today(), -days)
-	placeholders = ",".join(["%s"] * len(outlet_ids))
-	rows = frappe.db.sql(
-		f"""
-		SELECT outlet, COUNT(*) AS cnt
-		FROM `tabAnalytics Event`
-		WHERE event_type IN ('qr_scan', 'menu_view', 'item_view')
-		  AND outlet IN ({placeholders})
-		  AND creation >= %s
-		GROUP BY outlet
-		""",
-		outlet_ids + [cutoff],
-		as_dict=True,
-	)
-	return {r.outlet: r.cnt for r in rows}
 
 
 def _is_open_now(hours_json_str):
@@ -533,17 +503,49 @@ _FEED_SECTION_TARGETS = {
 	"popular": 5,
 }
 
+# "Popular picks" looks this far around the viewer first, then widens once to
+# geo.MAX_RADIUS_KM if that didn't fill the section (sparse areas).
+_POPULAR_RADIUS_KM = 10.0
+
+# Upper bound on rows pulled for a flag-driven section (limelight/signature)
+# before the Python-side rating + rotation sort picks the section's winners.
+_FLAGGED_SECTION_FETCH_LIMIT = 300
+
+# Most outlet ids read from the app's `seen` list (the newest ones are kept).
+_SEEN_MAX_IDS = 200
+
+# "New to Flamezo" rotates through outlets added in this many days; older
+# outlets only top the section up, newest first, when the window runs short.
+_NEW_TO_FLAMEZO_WINDOW_DAYS = 60
+
+
+def _parse_seen_ids(seen):
+	"""The app's `seen` list — outlet ids already seen in these sections,
+	oldest first — as a clean list: blanks dropped, a repeated id kept at its
+	latest position, only the newest _SEEN_MAX_IDS kept. Accepts the
+	comma-separated query string or a list."""
+	if not seen:
+		return []
+	parts = seen.split(",") if isinstance(seen, str) else seen
+	ordered = {}
+	for part in parts:
+		outlet_id = str(part).strip()
+		if not outlet_id or len(outlet_id) > 140:
+			continue
+		ordered.pop(outlet_id, None)
+		ordered[outlet_id] = True
+	return list(ordered)[-_SEEN_MAX_IDS:]
+
 
 def _seeded_tiebreak_key(seed, outlet_id):
 	"""Deterministic per-(seed, outlet) pseudo-random float in [0, 1).
 
 	Used as a tiebreaker whenever a section's real ranking signal has no
-	variance yet (e.g. every outlet sharing the same onboarding_date, or
-	rating/engagement all zero on freshly seeded data) — sorting on a
-	constant would otherwise freeze a section on whichever rows happen to
-	come back first from SQL forever. Same seed -> same order every call
-	(cache-friendly, no flicker on refresh); a new seed reshuffles who wins
-	the tiebreak, so exposure rotates fairly across the merchant base
+	variance yet (e.g. every featured outlet sharing the same rating) —
+	sorting on a constant would otherwise freeze a section on whichever rows
+	happen to come back first from SQL forever. Same seed -> same order every
+	call (cache-friendly, no flicker on refresh); a new seed reshuffles who
+	wins the tiebreak, so exposure rotates fairly across the merchant base
 	instead of a handful of outlets permanently owning the top slots.
 	"""
 	h = hashlib.md5(f"{seed}:{outlet_id}".encode()).hexdigest()
@@ -551,58 +553,73 @@ def _seeded_tiebreak_key(seed, outlet_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None, outlet_type=None, is_signature=None, rotation_seed=None):
+def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None, outlet_type=None, is_signature=None, rotation_seed=None, seen=None):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_discovery_feed
 
 	Composite home-feed endpoint — returns several pre-curated, MUTUALLY
 	EXCLUSIVE sections ("signature", "limelight", "new_to_flamezo",
-	"popular") in one call.
+	"popular") in one call, so the same outlet never repeats across sections.
 
-	Why this exists: get_all_outlets returns one ordered list, and the app
-	was slicing that SAME list five different ways (outlets.take(5) for
-	limelight, outlets.take(3) for new-to-flamezo, outlets.take(3).reversed
-	for popular picks) — so the top few outlets by the *one* server-side
-	sort order appeared in every section simultaneously. This endpoint moves
-	section composition server-side: each section ranks by its own real
-	signal, and every outlet already claimed is excluded from the rest, so
-	sections never overlap. Allocation order is signal-strength, not display
-	order — see the comment above the allocation code for why.
+	Each section is its own SQL query over every matching outlet (not a slice
+	of one shared, arbitrarily-ordered pool — with more outlets than the pool
+	cap, a featured/newest/nearest outlet could silently never be fetched):
 
-	Graceful fallback for flat/sparse data: when a section's real signal has
-	no variance (dev/seed data — every onboarding_date identical, ratings
-	all 0, no recorded engagement events, nobody flagged is_featured/is_signature)
-	it falls back to `_seeded_tiebreak_key`, a stable-but-rotating shuffle keyed
-	on the day (by default) — see that function's docstring. This is also
-	the fairness mechanism in production: it's what keeps "In the limelight"
-	from being monopolized by the same 5-6 merchants forever once real
-	signals exist too, since anything short of an outright ranking win still
-	rotates through the tiebreak over time.
+	  limelight      — ONLY outlets whose Limelight toggle is on (is_featured=1,
+	                   set from the admin dashboard) and whose optional
+	                   limelight_start_date/limelight_end_date window covers
+	                   today. Never topped up with un-featured outlets; if none
+	                   are live the section is empty and the app hides it.
+	                   Best-rated first, seeded rotation breaks ties.
+	  signature      — is_signature outlets, best-rated first, seeded rotation.
+	  new_to_flamezo — most recently added to Flamezo first (`creation`).
+	  popular        — rated outlets near the viewer (within
+	                   _POPULAR_RADIUS_KM, widened once to geo.MAX_RADIUS_KM
+	                   if that's too few), highest rating first, then most
+	                   reviews, then nearest. Without a viewer location: the
+	                   highest-rated outlets matching the other filters.
 
-	If a section's eligible pool (after exclusions) is smaller than its
-	target count, it just returns fewer — never backfilled with duplicates
-	from another section.
+	Allocation order is limelight, signature, new_to_flamezo, popular — each
+	section excludes outlets an earlier one already claimed. Limelight goes
+	first so a toggled-on outlet always shows there, even if it's also a
+	signature outlet. A section that runs short returns fewer outlets rather
+	than borrowing from another section.
+
+	Fresh outlets on every app open: the app sends `seen`, the outlets the
+	viewer actually looked at in these sections before (cards that were on
+	screen, oldest first). Every section shows unseen outlets first, in its
+	own order, and only then tops up with seen ones, longest-ago seen first —
+	so a section never empties, and once everything has been seen the oldest
+	come round again. New to Flamezo rotates only through outlets added in
+	the last _NEW_TO_FLAMEZO_WINDOW_DAYS (older ones top it up, newest first,
+	without rotating). Popular fills from unseen outlets through its whole
+	radius widening before any seen one. Without `seen` nothing changes.
 
 	Parameters:
-	  latitude, longitude, radius_km — optional geo filter/sort, same as get_all_outlets
+	  latitude, longitude, radius_km — viewer location; radius_km (optional)
+	                                    hard-limits every section to that
+	                                    box and replaces popular's default radius
 	  city, outlet_type              — optional filters, same as get_all_outlets
-	  is_signature                   — when truthy, restricts the ENTIRE pool to
-	                                    is_signature=1 first (mirrors the app's
-	                                    Everyday/Signatures tab toggle — on the
-	                                    Signatures tab every section should only
-	                                    ever surface signature merchants)
+	  is_signature                   — when truthy, restricts EVERY section to
+	                                    is_signature=1 (mirrors the app's
+	                                    Everyday/Signatures tab toggle)
 	  rotation_seed                  — override the default (today's date) rotation
 	                                    window; mainly for testing determinism/rotation
+	  seen                           — comma-separated outlet ids the viewer has
+	                                    already seen here, oldest first (see above)
 	"""
 	try:
 		user_lat = flt(latitude) if latitude else None
 		user_lon = flt(longitude) if longitude else None
 		seed = rotation_seed or today()
+		seen_ids = _parse_seen_ids(seen)
 
 		lat_b = round(user_lat, 2) if user_lat else None
 		lon_b = round(user_lon, 2) if user_lon else None
-		cache_key = f"flamezo:feed:{lat_b}:{lon_b}:{city or ''}:{outlet_type or ''}:{cint(is_signature)}:{seed}"
-		if frappe.session.user == "Guest":
+		cache_key = f"flamezo:feed:{lat_b}:{lon_b}:{radius_km or ''}:{city or ''}:{outlet_type or ''}:{cint(is_signature)}:{seed}"
+		# A `seen` list makes the answer specific to one phone — never share it.
+		use_cache = frappe.session.user == "Guest" and not seen_ids
+		if use_cache:
 			cached = frappe.cache().get_value(cache_key)
 			if cached:
 				return json.loads(cached)
@@ -621,141 +638,172 @@ def get_discovery_feed(latitude=None, longitude=None, radius_km=None, city=None,
 				sql_filters.append(f"r.outlet_type IN ({phs})")
 				params.extend(types)
 		if user_lat and user_lon and radius_km:
-			r_km = flt(radius_km)
-			lat_delta = r_km / 111.0
-			lon_delta = r_km / (111.0 * math.cos(math.radians(user_lat)))
+			lat_delta, lon_delta = geo.bbox_deltas(user_lat, flt(radius_km))
 			sql_filters.append("r.latitude  BETWEEN %s AND %s")
 			sql_filters.append("r.longitude BETWEEN %s AND %s")
 			params += [user_lat - lat_delta, user_lat + lat_delta,
 					   user_lon - lon_delta, user_lon + lon_delta]
 
-		where_clause = " AND ".join(sql_filters)
 		fields_csv = ", ".join(f"r.`{f}`" for f in _DISCOVERY_FIELDS)
-		# One wide pool feeds every section — capped generously so rotation
-		# actually has room to rotate through the merchant base rather than
-		# always drawing from the same first-30 rows.
-		pool_limit = 300
-		sql = f"""
-			SELECT {fields_csv}
-			FROM `tabOutlet` r
-			WHERE {where_clause}
-			LIMIT {pool_limit}
-		"""
-		rows = frappe.db.sql(sql, params, as_dict=True)
-
-		rest_names = [r["name"] for r in rows]
-		offers_map = _batch_active_offers_count(rest_names)
-		offers_text_map = _batch_offer_texts(rest_names)
-		logos_map = {r["name"]: r.get("logo") or "" for r in rows}
-		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
-		pool = [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in rows]
-		if user_lat and user_lon:
-			pool.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99999)
-
-		onboard_map = {r["name"]: str(r.get("onboarding_date") or "") for r in rows}
-		# NOT total_orders — that field is dead post-pivot (see
-		# _batch_engagement_count's docstring). Real menu/item-view + QR-scan
-		# activity is the live "popular" signal now.
-		engagement_map = _batch_engagement_count(rest_names)
-
 		used = set()
 
-		def _rot(card):
-			return _seeded_tiebreak_key(seed, card["id"])
+		def _fetch(extra_filters=(), extra_params=(), order_by=None, limit=None,
+				   select_extra="", select_params=(), having="", having_params=(), order_params=()):
+			"""One section query: the shared filters plus the section's own,
+			minus every outlet an earlier section already claimed."""
+			filters = sql_filters + list(extra_filters)
+			filter_params = params + list(extra_params)
+			if used:
+				filters.append(f"r.name NOT IN ({','.join(['%s'] * len(used))})")
+				filter_params += sorted(used)
+			sql = f"SELECT {fields_csv}{select_extra} FROM `tabOutlet` r WHERE {' AND '.join(filters)}"
+			if having:
+				sql += f" HAVING {having}"
+			if order_by:
+				sql += f" ORDER BY {order_by}"
+			if limit:
+				sql += f" LIMIT {cint(limit)}"
+			return frappe.db.sql(
+				sql,
+				list(select_params) + filter_params + list(having_params) + list(order_params),
+				as_dict=True,
+			)
 
-		def _take(candidates, sort_key, n, reverse=False):
-			avail = [c for c in candidates if c["id"] not in used]
-			avail.sort(key=sort_key, reverse=reverse)
-			picked = avail[:n]
-			used.update(c["id"] for c in picked)
-			return picked
+		def _claim(rows):
+			used.update(r["name"] for r in rows)
+			return rows
 
-		# Allocation ORDER matters here, and it's deliberately not just
-		# "signature, limelight, new, popular" top to bottom. Sections with a
-		# strong, specific real signal (an explicit is_signature/is_featured
-		# flag, a genuine onboarding_date, a genuine order count) should claim
-		# their standout candidates BEFORE any section that has to fall back
-		# to a generic/tied ranking. Caught by a mock-data test: with
-		# limelight's fallback (plain rating, which ties constantly on sparse
-		# data) allocated 2nd, it was grabbing outlets that were the clear,
-		# correct winners for "new_to_flamezo"/"popular" purely because its
-		# tiebreak got first pick of the pool — an editorially-weak section
-		# was starving editorially-strong ones of their obvious picks.
-		#
-		# Fixed order: 1) signature (explicit flag) 2) limelight's FEATURED
-		# claims only (explicit flag — real editorial intent, so it still
-		# gets first pick among featured outlets specifically) 3) new_to_flamezo
-		# (strong specific signal) 4) popular (strong specific signal)
-		# 5) limelight's fallback fill, LAST, from whatever's left — this is
-		# the weak/tie-prone ranking, so it only ever mops up leftovers
-		# instead of pre-empting a stronger section's true winner.
+		# Unseen outlets rank 0, seen ones 1.. in the order they were seen, so
+		# sorting ascending puts unseen first, then the longest-ago seen.
+		# FIELD() is the same ranking in SQL (0 when the id isn't listed).
+		seen_rank = {outlet_id: i + 1 for i, outlet_id in enumerate(seen_ids)}
+		seen_phs = ",".join(["%s"] * len(seen_ids))
+		seen_order = f"FIELD(r.name, {seen_phs}) ASC, " if seen_ids else ""
 
-		# 1. Signature — flagged merchants, best-rated first, seeded tiebreak.
-		signature = _take(
-			[c for c in pool if c["is_signature"]],
-			lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
-			_FEED_SECTION_TARGETS["signature"],
-		)
+		def _best_rated(rows, n):
+			"""Flag-driven sections: unseen first, then best rating, most
+			reviews, and the seeded rotation — so a flat set of ratings still
+			rotates daily."""
+			rows = sorted(rows, key=lambda r: (
+				seen_rank.get(r["name"], 0),
+				-flt(r.get("rating")), -cint(r.get("review_count")), _seeded_tiebreak_key(seed, r["name"]),
+			))
+			return _claim(rows[:n])
 
-		# 2a. Limelight, featured claims — explicit is_featured=1 flag, so
-		#     these outlets are claimed for limelight up front regardless of
-		#     what other sections might also want them.
-		limelight_featured = _take(
-			[c for c in pool if c["is_featured"]],
-			lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
+		# 1. Limelight — the admin Limelight toggle, live inside its date window.
+		today_str = today()
+		limelight_rows = _best_rated(
+			_fetch(
+				["r.is_featured = 1",
+				 "(r.limelight_start_date IS NULL OR r.limelight_start_date <= %s)",
+				 "(r.limelight_end_date IS NULL OR r.limelight_end_date >= %s)"],
+				[today_str, today_str],
+				limit=_FLAGGED_SECTION_FETCH_LIMIT,
+			),
 			_FEED_SECTION_TARGETS["limelight"],
 		)
 
-		# 3. New to Flamezo — most-recently-onboarded; seeded tiebreak covers
-		#    the (current, real) case where every row shares one onboarding_date.
-		#    reverse=True so `_take` actually keeps the NEWEST n (sorting
-		#    ascending and slicing [:n] — the original approach here — silently
-		#    picked the OLDEST n instead; caught by a mock-data test where the
-		#    genuinely-newest outlet was missing from the result entirely).
-		new_to_flamezo = _take(
-			pool,
-			lambda c: (onboard_map.get(c["id"], ""), _rot(c)),
-			_FEED_SECTION_TARGETS["new_to_flamezo"],
-			reverse=True,
+		# 2. Signature — flagged merchants, best-rated first.
+		signature_rows = _best_rated(
+			_fetch(["r.is_signature = 1"], limit=_FLAGGED_SECTION_FETCH_LIMIT),
+			_FEED_SECTION_TARGETS["signature"],
 		)
 
-		# 4. Popular — recent (30d) menu/item-view + QR-scan activity desc;
-		#    falls back to rating×review_count, then seeded tiebreak, when an
-		#    outlet has no recorded engagement yet.
-		popular = _take(
-			pool,
-			lambda c: (-engagement_map.get(c["id"], 0), -((c["rating"] or 0) * c["review_count"]), _rot(c)),
-			_FEED_SECTION_TARGETS["popular"],
-		)
+		# 3. New to Flamezo — most recently added first. `creation` rather than
+		#    onboarding_date: that one is hand-entered in the setup wizard and
+		#    often blank or shared by many outlets; creation is always set and
+		#    carries the time of day. `name` keeps equal timestamps stable.
+		#    Unseen-first rotation only among outlets added inside the window;
+		#    if that's too few, the next-newest older outlets top it up.
+		new_target = _FEED_SECTION_TARGETS["new_to_flamezo"]
+		new_rows = _claim(_fetch(
+			["r.creation >= %s"],
+			[add_days(now_datetime(), -_NEW_TO_FLAMEZO_WINDOW_DAYS)],
+			order_by=f"{seen_order}r.creation DESC, r.name DESC",
+			order_params=seen_ids,
+			limit=new_target,
+		))
+		if len(new_rows) < new_target:
+			new_rows += _claim(_fetch(
+				order_by="r.creation DESC, r.name DESC",
+				limit=new_target - len(new_rows),
+			))
 
-		# 2b. Limelight, fallback fill — only runs if the featured claims
-		#     above didn't fill the section; draws from whatever's left
-		#     AFTER the strong-signal sections have taken their picks.
-		limelight_remaining = _FEED_SECTION_TARGETS["limelight"] - len(limelight_featured)
-		limelight_fallback = (
-			_take(
-				pool,
-				lambda c: (-(c["rating"] or 0), -c["review_count"], _rot(c)),
-				limelight_remaining,
-			)
-			if limelight_remaining > 0
-			else []
-		)
-		limelight = limelight_featured + limelight_fallback
+		# 4. Popular — top-rated near the viewer. Unrated outlets (no Google
+		#    rating synced yet) are left out: there's nothing to rank them by.
+		popular_target = _FEED_SECTION_TARGETS["popular"]
+		rated = ["r.rating > 0"]
+		if user_lat and user_lon:
+			dist_sql, dist_params = geo.haversine_sql("r.latitude", "r.longitude", user_lat, user_lon)
+
+		def _popular(extra_filters=(), extra_params=(), order_prefix="", order_params=(), n=popular_target):
+			"""Popular's ranking over the outlets matching `extra_filters`:
+			within _POPULAR_RADIUS_KM, re-asked within geo.MAX_RADIUS_KM when
+			that's short of `n` (an app-sent radius is never widened)."""
+			if not (user_lat and user_lon):
+				return _fetch(
+					rated + list(extra_filters), extra_params,
+					order_by=f"{order_prefix}r.rating DESC, r.review_count DESC, r.name ASC",
+					order_params=order_params,
+					limit=n,
+				)
+
+			def _within(r_km):
+				return _fetch(
+					rated + ["r.latitude != 0", "r.longitude != 0"] + list(extra_filters),
+					extra_params,
+					select_extra=f", {dist_sql} AS distance_km",
+					select_params=dist_params,
+					having="distance_km <= %s",
+					having_params=[r_km],
+					order_by=f"{order_prefix}r.rating DESC, r.review_count DESC, distance_km ASC",
+					order_params=order_params,
+					limit=n,
+				)
+
+			if radius_km:
+				return _within(flt(radius_km))
+			rows = _within(_POPULAR_RADIUS_KM)
+			if len(rows) < n:
+				rows = _within(geo.MAX_RADIUS_KM)
+			return rows
+
+		if seen_ids:
+			# Every unseen outlet in reach (widening included) before any seen
+			# one; seen ones then go longest-ago seen first.
+			popular_rows = _claim(_popular([f"r.name NOT IN ({seen_phs})"], seen_ids))
+			if len(popular_rows) < popular_target:
+				popular_rows += _claim(_popular(
+					[f"r.name IN ({seen_phs})"], seen_ids,
+					order_prefix=seen_order, order_params=seen_ids,
+					n=popular_target - len(popular_rows),
+				))
+		else:
+			popular_rows = _claim(_popular())
+
+		all_rows = limelight_rows + signature_rows + new_rows + popular_rows
+		rest_names = [r["name"] for r in all_rows]
+		offers_map = _batch_active_offers_count(rest_names)
+		offers_text_map = _batch_offer_texts(rest_names)
+		logos_map = {r["name"]: r.get("logo") or "" for r in all_rows}
+		media_map = batch_resolve_outlet_media(rest_names, limit_per_outlet=4, logos=logos_map, include_food_fallback=False)
+
+		def _cards(rows):
+			return [_format_outlet_card(r, user_lat, user_lon, offers_map, media_map, offers_text_map) for r in rows]
 
 		response = {
 			"success": True,
 			"data": {
-				"signature": signature,
-				"limelight": limelight,
-				"new_to_flamezo": new_to_flamezo,
-				"popular": popular,
+				"signature": _cards(signature_rows),
+				"limelight": _cards(limelight_rows),
+				"new_to_flamezo": _cards(new_rows),
+				"popular": _cards(popular_rows),
 				"rotation_seed": seed,
-				"pool_size": len(pool),
+				"pool_size": len(all_rows),
 			},
 		}
 
-		if frappe.session.user == "Guest":
+		if use_cache:
 			frappe.cache().set_value(cache_key, json.dumps(response), expires_in_sec=120)
 
 		return response

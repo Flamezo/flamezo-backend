@@ -17,6 +17,9 @@ Tests:
   8. new_content_injection — Chills < 48h appear at reserved slots
   9. exhaustion_fallback  — user who watched everything still gets a queue
   10. performance         — 10 users × queue build in < 20s total
+  11. nearest_first       — nearby chills (any age) come before farther ones
+  12. rewatch_order       — once everything's watched, least-recently-watched first
+  13. served_not_repeated — consecutive feed batches never overlap
 
 Run with:
   cd frappe-bench
@@ -72,7 +75,7 @@ def _clear_redis_for_phones():
     from flamezo_backend.flamezo.api.chills_feed import _rk
     for i in range(1, 11):
         phone = _phone(i)
-        for key_suffix in ["queue", "prefs", "thompson", "watched", "suppress"]:
+        for key_suffix in ["queue", "prefs", "thompson", "watched", "suppress", "served", "empty_backoff"]:
             frappe.cache().delete_value(_rk(key_suffix, phone))
     # Also clear global snapshots
     for key_suffix in ["candidates_snapshot", "global_scores", "new_content"]:
@@ -85,7 +88,8 @@ def _make_outlet(n):
     return name
 
 
-def _make_chills(outlet, tags, age_hours=24, views=100, likes=10, saves=5, shares=2):
+def _make_chills(outlet, tags, age_hours=24, views=100, likes=10, saves=5, shares=2,
+                 lat=12.9716, lng=77.5946):
     """Insert a test Chills row directly via SQL for speed."""
     import datetime
     published_at = frappe.utils.add_to_date(now_datetime(), hours=-age_hours)
@@ -113,7 +117,7 @@ def _make_chills(outlet, tags, age_hours=24, views=100, likes=10, saves=5, share
             f"https://cdn.test/{name}.jpg",
             f"Test chills {name}",
             json.dumps(tags), "[]",
-            12.9716, 77.5946,  # Bengaluru coords for all test outlets
+            lat, lng,  # Bengaluru by default
             views, likes, saves, shares,
             str(published_at),
         ],
@@ -688,6 +692,120 @@ class TestChillsFeedAlgorithm(unittest.TestCase):
                 len(unique), 1,
                 f"Consecutive outlet cap violated: {window} at pos {i}"
             )
+
+    # ── 18. nearest first ─────────────────────────────────────────────────────
+
+    def test_26_nearest_first(self):
+        """A user in Pune sees every Pune chill — even a 200-day-old, zero-engagement
+        one outside the 90-day snapshot — before any Bengaluru chill."""
+        from flamezo_backend.flamezo.api.chills_feed import _build_and_cache_queue, _rk
+
+        pune_lat, pune_lng = 18.5204, 73.8567
+        pune = [
+            _make_chills(self._outlets[0], _TAG_DINING[:1], age_hours=72, lat=pune_lat, lng=pune_lng),
+            _make_chills(self._outlets[1], _TAG_FASHION[:1], age_hours=100, lat=pune_lat + 0.01, lng=pune_lng),
+            _make_chills(self._outlets[2], _TAG_SPORTS[:1], age_hours=24 * 200,
+                         views=0, likes=0, saves=0, shares=0, lat=pune_lat, lng=pune_lng + 0.01),
+        ]
+        try:
+            phone = _phone(3)
+            _simulate_watches(phone, self._chills[:15])
+            frappe.cache().delete_value(_rk("nearby", round(pune_lat, 2), round(pune_lng, 2)))
+
+            queue = _build_and_cache_queue(phone, pune_lat, pune_lng)
+            self.assertEqual(
+                set(queue[:len(pune)]), set(pune),
+                f"Nearby chills not first: {queue[:len(pune)]} vs {pune}",
+            )
+        finally:
+            frappe.db.sql(
+                "DELETE FROM `tabChills` WHERE name IN ({})".format(",".join(["%s"] * len(pune))),
+                pune,
+            )
+            frappe.db.commit()
+            frappe.cache().delete_value(_rk("nearby", round(pune_lat, 2), round(pune_lng, 2)))
+
+    def test_27_distance_band_ordering(self):
+        """_order_nearest_first never lets a farther band outrank a nearer one."""
+        from flamezo_backend.flamezo.api.chills_feed import _order_nearest_first
+
+        user_lat, user_lng = 12.9716, 77.5946
+        scored = [
+            {"id": "far-high",  "outlet": "o1", "lat": 28.6139, "lng": 77.2090, "score": 0.99},
+            {"id": "mid",       "outlet": "o2", "lat": 13.0500, "lng": 77.5946, "score": 0.80},
+            {"id": "no-gps",    "outlet": "o3", "lat": 0.0,     "lng": 0.0,     "score": 0.70},
+            {"id": "near-low",  "outlet": "o4", "lat": 12.9720, "lng": 77.5950, "score": 0.10},
+        ]
+        ordered = [c["id"] for c in _order_nearest_first(scored, user_lat, user_lng)]
+        self.assertEqual(ordered[:2], ["near-low", "mid"])
+        self.assertEqual(set(ordered[2:]), {"far-high", "no-gps"})
+
+    def test_27b_run_cap_holds_across_batches(self):
+        """If the previous batch ended with two chills from outlet A, the next batch
+        must not open with a third — and nothing is dropped to achieve it."""
+        from flamezo_backend.flamezo.api.chills_feed import _order_nearest_first
+
+        here = {"lat": 12.9716, "lng": 77.5946}
+        scored = [
+            {"id": "a1", "outlet": "A", "score": 0.9, **here},
+            {"id": "a2", "outlet": "A", "score": 0.8, **here},
+            {"id": "b1", "outlet": "B", "score": 0.5, **here},
+        ]
+        ordered = [c["id"] for c in _order_nearest_first(scored, here["lat"], here["lng"], ["A", "A"])]
+        self.assertEqual(ordered[0], "b1")
+        self.assertEqual(sorted(ordered), ["a1", "a2", "b1"])
+
+    # ── 19. watched chills go to the back of the line ─────────────────────────
+
+    def test_28_rewatch_moves_to_back(self):
+        """Watching an already-watched chill moves it to the end of the watched list."""
+        from flamezo_backend.flamezo.api.chills_feed import _add_to_watched, _get_watched_state, _rk
+
+        phone = _phone(8)
+        frappe.cache().delete_value(_rk("watched", phone))
+        a, b, c = self._chills[:3]
+        for cid in (a, b, c, a):
+            _add_to_watched(phone, cid)
+
+        watched_list, _ = _get_watched_state(phone)
+        self.assertEqual(watched_list, [b, c, a])
+
+    def test_29_rewatch_least_recent_first(self):
+        """Once everything is watched, the queue replays least-recently-watched first."""
+        from flamezo_backend.flamezo.api.chills_feed import _build_and_cache_queue
+
+        phone = _phone(9)
+        watched = list(reversed(self._chills))
+        _simulate_watches(phone, watched)
+
+        queue = _build_and_cache_queue(phone, 12.9716, 77.5946)
+        replayed = [cid for cid in queue if cid in set(watched)]
+        self.assertGreater(len(replayed), 0, "No rewatches once catalogue exhausted")
+        self.assertEqual(replayed, watched[:len(replayed)])
+
+    # ── 20. no overlap between batches ────────────────────────────────────────
+
+    def test_30_served_batches_never_overlap(self):
+        """A chill already sent to the app is not sent again before it's watched."""
+        from flamezo_backend.flamezo.api.chills_feed import get_personalised_feed, _rk
+
+        phone = _phone(10)
+        _simulate_watches(phone, self._chills[:5])
+
+        first = get_personalised_feed(phone=phone, lat=12.9716, lng=77.5946, batch_size=10, fresh=1)
+        # A watch event on another chill drops the cached queue → next call rebuilds.
+        frappe.cache().delete_value(_rk("queue", phone))
+        second = get_personalised_feed(phone=phone, lat=12.9716, lng=77.5946, batch_size=10)
+
+        ids1 = {r["id"] for r in first["data"]["reels"]}
+        ids2 = {r["id"] for r in second["data"]["reels"]}
+        self.assertGreater(len(ids1), 0)
+        self.assertEqual(ids1 & ids2, set(), "Second batch repeated chills from the first")
+
+        # fresh=1 starts a new session: last session's unwatched chills are eligible again.
+        third = get_personalised_feed(phone=phone, lat=12.9716, lng=77.5946, batch_size=10, fresh=1)
+        ids3 = {r["id"] for r in third["data"]["reels"]}
+        self.assertTrue(ids3 & (ids1 | ids2), "fresh=1 did not release served chills")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

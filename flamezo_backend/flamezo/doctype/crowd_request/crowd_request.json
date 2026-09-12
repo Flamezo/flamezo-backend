@@ -18,6 +18,8 @@
   "description",
   "outlet",
   "venue_name",
+  "latitude",
+  "longitude",
   "section_break_schedule",
   "date",
   "time",
@@ -104,6 +106,19 @@
    "label": "Venue Name (free text)"
   },
   {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "6",
+   "description": "Where a spontaneous crowd is happening — picked by the creator. Venue crowds leave this 0 and use the linked Outlet's coordinates."
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "6"
+  },
+  {
    "fieldname": "section_break_schedule",
    "fieldtype": "Section Break",
    "label": "Schedule"
@@ -170,7 +185,7 @@
    "options": "budget\nmid\npremium\nluxury"
   }
  ],
- "modified": "2026-07-09 10:00:00.000000",
+ "modified": "2026-09-11 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Flamezo",
  "name": "Crowd Request",

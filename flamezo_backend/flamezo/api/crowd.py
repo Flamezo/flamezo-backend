@@ -76,6 +76,19 @@ def _format_request(r, phone=None, requested_set=None, member_status_map=None):
     }
 
 
+def _parse_crowd_location(latitude, longitude):
+    """(lat, lon) for a spontaneous crowd's picked place, or (None, None)
+    when not sent. Not required here: app builds from before this field
+    existed still create spontaneous crowds without one (they just sort
+    last in the nearest-first feed). Current builds require a place."""
+    if latitude in (None, "") or longitude in (None, ""):
+        return None, None
+    lat, lon = flt(latitude), flt(longitude)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        frappe.throw(_("Invalid location"))
+    return lat, lon
+
+
 def _get_requested_set(phone, request_ids):
     if not phone or not request_ids:
         return set(), {}
@@ -132,11 +145,26 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
 
     where = " AND ".join(conditions)
     has_geo = bool(user_lat and user_lon)
-    # With location, pull a wider pool (same as every other feed) and
-    # re-rank within each urgency bucket by distance — "closing soon" still
-    # jumps the queue, but among equally-urgent Team Ups the nearest wins.
-    fetch_limit = (limit * 4 if has_geo else limit) + 1
-    fetch_offset = 0 if has_geo else offset
+    select_extra, select_params, having, having_params = "", [], "", []
+    if has_geo:
+        # Nearest first, nothing else. Distance is computed in SQL so the
+        # sort and LIMIT/OFFSET cover every matching crowd, not a pre-cut
+        # window. A venue crowd sits at its Outlet; a spontaneous one at the
+        # place its creator picked. 0 is "unset" on both (Frappe Float
+        # default), so an un-located crowd gets NULL distance and sorts last.
+        lat_col = ("(CASE WHEN r.latitude != 0 AND r.longitude != 0 THEN r.latitude"
+                   " WHEN cr.latitude != 0 AND cr.longitude != 0 THEN cr.latitude END)")
+        lng_col = ("(CASE WHEN r.latitude != 0 AND r.longitude != 0 THEN r.longitude"
+                   " WHEN cr.latitude != 0 AND cr.longitude != 0 THEN cr.longitude END)")
+        dist_sql, select_params = geo.haversine_sql(lat_col, lng_col, user_lat, user_lon)
+        select_extra = f", {dist_sql} AS distance_km"
+        order_by = "distance_km IS NULL, distance_km ASC, cr.date ASC, cr.creation ASC, cr.name ASC"
+        if r_km:
+            having = "HAVING distance_km IS NULL OR distance_km <= %s"
+            having_params = [r_km]
+    else:
+        order_by = "urgency_bucket ASC, cr.date ASC, cr.creation ASC"
+
     rows = frappe.db.sql(
         f"""
         SELECT cr.name, cr.creator_phone, cr.creator_name, cr.creator_image,
@@ -145,33 +173,25 @@ def get_crowd_requests(phone=None, category=None, page=1, limit=20, timing=None,
                cr.gender_preference, cr.age_range_min, cr.age_range_max,
                cr.interests, cr.status, cr.expires_at,
                r.outlet_name AS outlet_restaurant_name,
-               r.latitude AS outlet_lat, r.longitude AS outlet_lng,
                CASE WHEN cr.expires_at IS NOT NULL AND TIMESTAMPDIFF(MINUTE, NOW(), cr.expires_at) <= 120
                     THEN 0 ELSE 1 END AS urgency_bucket
+               {select_extra}
         FROM `tabCrowd Request` cr
         LEFT JOIN `tabOutlet` r ON r.name = cr.outlet
         WHERE {where}
-        ORDER BY urgency_bucket ASC, cr.date ASC, cr.creation ASC
+        {having}
+        ORDER BY {order_by}
         LIMIT %s OFFSET %s
         """,
-        params + [fetch_limit, fetch_offset],
+        select_params + params + having_params + [limit + 1, offset],
         as_dict=True,
     )
 
-    for r in rows:
-        r["distance_km"] = None
-        if has_geo and r.outlet_lat and r.outlet_lng:
-            r["distance_km"] = round(geo.haversine_km(user_lat, user_lon, flt(r.outlet_lat), flt(r.outlet_lng)), 1)
-
-    if has_geo:
-        if r_km:
-            rows = [r for r in rows if geo.within_radius(r["distance_km"], r_km)]
-        has_more = len(rows) > offset + limit
-        rows.sort(key=lambda r: (r.urgency_bucket, -geo.location_score(r["distance_km"])))
-        requests = rows[offset:offset + limit]
-    else:
-        has_more = len(rows) > limit
-        requests = rows[:limit]
+    has_more = len(rows) > limit
+    requests = rows[:limit]
+    for r in requests:
+        d = r.get("distance_km")
+        r["distance_km"] = round(flt(d), 1) if d is not None else None
 
     req_ids = [r.name for r in requests]
     requested_set, status_map = _get_requested_set(phone, req_ids)
@@ -246,7 +266,7 @@ def create_crowd_request(phone, title, date, category=None, description=None,
                          max_members=4, gender_preference="any",
                          age_range_min=None, age_range_max=None, interests=None,
                          creator_name=None, creator_image=None, expires_at=None,
-                         tier=None):
+                         tier=None, latitude=None, longitude=None):
     phone = _require_phone(phone)
     _require_session(phone)
     if not title:
@@ -256,6 +276,10 @@ def create_crowd_request(phone, title, date, category=None, description=None,
 
     if outlet_id and not frappe.db.exists("Outlet", outlet_id):
         frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
+
+    # A venue crowd is located by its Outlet; only a spontaneous one keeps
+    # its own coordinates (the place the creator picked).
+    crowd_lat, crowd_lon = (None, None) if outlet_id else _parse_crowd_location(latitude, longitude)
 
     # Use caller-supplied expires_at (spontaneous Team Up) or default to 48h after event date
     if not expires_at:
@@ -272,6 +296,8 @@ def create_crowd_request(phone, title, date, category=None, description=None,
         "category": category or "",
         "outlet": outlet_id or None,
         "venue_name": venue_name or "",
+        "latitude": crowd_lat or 0,
+        "longitude": crowd_lon or 0,
         "date": date,
         "time": time or None,
         "max_members": int(max_members),
@@ -1138,8 +1164,12 @@ def _check_join_eligibility(phone, customer_name=None):
 @frappe.whitelist(allow_guest=True)
 def edit_crowd_request(request_id, phone, title=None, description=None, max_members=None,
                         category=None, outlet_id=None, venue_name=None, date=None, time=None,
-                        gender_preference=None, interests=None, tier=None):
+                        gender_preference=None, interests=None, tier=None,
+                        latitude=None, longitude=None):
     """Creator can edit a Team Up only if no external members have joined (current_members == 1).
+
+    latitude/longitude move a spontaneous crowd's picked place. Linking a
+    venue clears them — the Outlet's coordinates locate a venue crowd.
 
     Deliberately NOT editable here, even for the creator: creator identity
     (creator_phone/name/image), status/current_members (system-managed), and
@@ -1183,11 +1213,17 @@ def edit_crowd_request(request_id, phone, title=None, description=None, max_memb
             if not frappe.db.exists("Outlet", outlet_id):
                 frappe.throw(_("Outlet not found"), frappe.DoesNotExistError)
             updates["outlet"] = outlet_id
+            updates["latitude"] = 0
+            updates["longitude"] = 0
         else:
             # Empty string explicitly clears the linked venue (spontaneous-
             # style invite) — the app only sends this when the creator
             # actually removed their venue selection, never as a default.
             updates["outlet"] = None
+    crowd_lat, crowd_lon = _parse_crowd_location(latitude, longitude)
+    if crowd_lat is not None and not updates.get("outlet"):
+        updates["latitude"] = crowd_lat
+        updates["longitude"] = crowd_lon
     if venue_name is not None:
         updates["venue_name"] = venue_name.strip()
     if date is not None:
