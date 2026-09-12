@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-09-12 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "chills",
+  "customer_phone",
+  "reason",
+  "details",
+  "column_break_1",
+  "status",
+  "reviewed_by",
+  "reviewed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "chills",
+   "fieldtype": "Link",
+   "label": "Chills",
+   "options": "Chills",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "label": "Reason",
+   "options": "Spam or misleading\nNudity or sexual content\nViolence or dangerous content\nHarassment or bullying\nHate speech\nMisinformation\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Small Text",
+   "label": "Additional details"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nReviewed\nActioned\nDismissed",
+   "default": "Pending",
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Data",
+   "label": "Reviewed By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed_at",
+   "fieldtype": "Datetime",
+   "label": "Reviewed At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-09-12 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Chills Report",
+ "no_copy": 1,
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Flamezo Supervisor",
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "track_changes": 1
+}

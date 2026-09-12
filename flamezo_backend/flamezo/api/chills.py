@@ -552,6 +552,59 @@ def save_chills(chills_id, phone):
     return {"success": True, "data": {"saved": saved, "id": chills_id}}
 
 
+_REPORT_REASONS = {
+    "Spam or misleading",
+    "Nudity or sexual content",
+    "Violence or dangerous content",
+    "Harassment or bullying",
+    "Hate speech",
+    "Misinformation",
+    "Other",
+}
+
+
+@frappe.whitelist(allow_guest=True)
+def report_chills(chills_id, phone, reason, details=None):
+    """File a content report against a Chills video. Requires a real verified
+    session (same gate as get_saved_chills) — this is a moderation signal
+    with real consequences (see admin.admin_update_chills_report_status), so
+    it can't be a bare client-supplied phone.
+    """
+    phone = _require_phone(phone)
+    _require_session(phone)
+    if not chills_id:
+        frappe.throw(_("chills_id is required"))
+    if not frappe.db.exists("Chills", chills_id):
+        frappe.throw(_("Chills not found"), frappe.DoesNotExistError)
+    if reason not in _REPORT_REASONS:
+        frappe.throw(_("Invalid report reason"))
+
+    # One open report per (chills, reporter) — resubmitting just refreshes it
+    # instead of piling up duplicates in the moderation queue.
+    existing = frappe.db.exists(
+        "Chills Report", {"chills": chills_id, "customer_phone": phone, "status": "Pending"}
+    )
+    if existing:
+        frappe.db.set_value("Chills Report", existing, {
+            "reason": reason,
+            "details": (details or "")[:500],
+        })
+        frappe.db.commit()
+        return {"success": True, "data": {"id": existing}}
+
+    doc = frappe.get_doc({
+        "doctype": "Chills Report",
+        "chills": chills_id,
+        "customer_phone": phone,
+        "reason": reason,
+        "details": (details or "")[:500],
+        "status": "Pending",
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "data": {"id": doc.name}}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_saved_chills(phone, cursor=None, limit=20):
     """Paginated list of a customer's saved Chills, most-recently-saved

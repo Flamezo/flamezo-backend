@@ -2334,3 +2334,108 @@ def admin_update_creator_status(creator_id, status, reason=None):
     frappe.db.commit()
 
     return {"success": True, "data": {"id": creator.name, "status": creator.status}}
+
+
+# ── Content moderation (Chills reports) ──────────────────────────────────────
+# Platform-wide, not outlet-scoped — gated by is_supervisor() like the rest of
+# this module, not get_restaurant_permission_query_conditions.
+
+@frappe.whitelist()
+def admin_get_chills_reports(status=None, page=1, page_size=20):
+    """Paginated moderation queue for Chills content reports."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    page = max(1, int(page))
+    page_size = max(1, min(100, int(page_size)))
+    offset = (page - 1) * page_size
+
+    filters = {}
+    if status:
+        filters["status"] = status
+
+    rows = frappe.get_all(
+        "Chills Report",
+        filters=filters,
+        fields=[
+            "name", "chills", "customer_phone", "reason", "details",
+            "status", "reviewed_by", "reviewed_at", "creation",
+        ],
+        order_by="creation desc",
+        limit_start=offset,
+        limit_page_length=page_size,
+    )
+
+    chills_ids = list({r.chills for r in rows if r.chills})
+    chills_map = {}
+    if chills_ids:
+        for c in frappe.get_all(
+            "Chills",
+            filters={"name": ["in", chills_ids]},
+            fields=["name", "outlet", "status", "video_url", "thumbnail_url"],
+        ):
+            chills_map[c.name] = c
+
+    total = frappe.db.count("Chills Report", filters=filters)
+
+    data = []
+    for r in rows:
+        chills = chills_map.get(r.chills, {})
+        data.append({
+            "id": r.name,
+            "chills_id": r.chills,
+            "chills_status": chills.get("status"),
+            "outlet": chills.get("outlet"),
+            "video_url": chills.get("video_url"),
+            "thumbnail_url": chills.get("thumbnail_url"),
+            "reporter_phone": r.customer_phone,
+            "reason": r.reason,
+            "details": r.details,
+            "status": r.status,
+            "reviewed_by": r.reviewed_by,
+            "reviewed_at": str(r.reviewed_at) if r.reviewed_at else None,
+            "reported_at": str(r.creation),
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "reports": data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        },
+    }
+
+
+@frappe.whitelist()
+def admin_update_chills_report_status(report_id, status, take_down=False):
+    """Mark a Chills report Reviewed/Actioned/Dismissed.
+
+    take_down=True (only meaningful with status='Actioned') also flips the
+    underlying Chills doc to 'removed' — the actual moderation action, not
+    just a paperwork status on the report row.
+    """
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    if status not in ("Pending", "Reviewed", "Actioned", "Dismissed"):
+        frappe.throw("Invalid status")
+
+    if not frappe.db.exists("Chills Report", report_id):
+        return {"success": False, "error": "Report not found"}
+
+    report = frappe.get_doc("Chills Report", report_id)
+    report.status = status
+    report.reviewed_by = frappe.session.user
+    report.reviewed_at = now_datetime()
+    report.save(ignore_permissions=True)
+
+    took_down = False
+    if status == "Actioned" and frappe.parse_json(take_down) and report.chills:
+        if frappe.db.exists("Chills", report.chills):
+            frappe.db.set_value("Chills", report.chills, "status", "removed")
+            took_down = True
+
+    frappe.db.commit()
+    return {"success": True, "data": {"id": report.name, "status": report.status, "took_down": took_down}}

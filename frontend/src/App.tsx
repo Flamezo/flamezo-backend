@@ -37,6 +37,7 @@ const AdminMerchantDetailsPage = lazy(() => import('./pages/AdminMerchantDetails
 const AdminCustomerManagement = lazy(() => import('./pages/AdminCustomerManagement'))
 const AdminCustomerDetail = lazy(() => import('./pages/AdminCustomerDetail'))
 const AdminCreatorManagement = lazy(() => import('./pages/AdminCreatorManagement'))
+const AdminContentModeration = lazy(() => import('./pages/AdminContentModeration'))
 const AdminCreatorDetail = lazy(() => import('./pages/AdminCreatorDetail'))
 const AdminEventDetail = lazy(() => import('./pages/AdminEventDetail'))
 const MyOutletEvent = lazy(() => import('./pages/MyOutletEvent'))
@@ -112,6 +113,7 @@ function AppContent() {
 								<Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
 								<Route path="/admin/creators" element={<AdminCreatorManagement />} />
 								<Route path="/admin/creators/:id" element={<AdminCreatorDetail />} />
+								<Route path="/admin/content-moderation" element={<AdminContentModeration />} />
 								<Route path="/admin/events" element={<Events />} />
 								<Route path="/admin/events/:id" element={<AdminEventDetail />} />
 
