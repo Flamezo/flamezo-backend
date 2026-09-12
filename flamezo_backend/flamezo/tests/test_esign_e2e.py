@@ -499,24 +499,28 @@ class TestEsignWebhook(unittest.TestCase):
 	def tearDown(self):
 		_cleanup()
 
-	def _post_webhook(self, body: dict):
+	def _post_webhook(self, body: dict, provider: str = "signyu"):
 		from flamezo_backend.flamezo.api import esign as esign_api
 
 		class _FakeRequest:
-			def __init__(self, data):
+			def __init__(self, data, provider):
 				self._data = data
 				self.headers = {}
+				# provider must come from the query string (request.args),
+				# not a whitelisted-function kwarg — see esign_webhook's
+				# docstring for why (JSON POST bodies shadow form_dict).
+				self.args = {"provider": provider} if provider else {}
 
 			def get_data(self):
 				return self._data
 
-		fake_request = _FakeRequest(json.dumps(body).encode())
+		fake_request = _FakeRequest(json.dumps(body).encode(), provider)
 		with patch.object(frappe.local, "request", fake_request, create=True):
 			with patch(
 				"flamezo_backend.flamezo.api.esign.get_adapter",
 				return_value=FakeSignedWebhookAdapter(),
 			):
-				return esign_api.esign_webhook(provider="signyu")
+				return esign_api.esign_webhook()
 
 	@patch("flamezo_backend.flamezo.media.storage.upload_bytes")
 	def test_signed_event_uploads_pdf_and_marks_signed(self, mock_upload):
@@ -560,6 +564,32 @@ class TestEsignWebhook(unittest.TestCase):
 			"event_type": "signed",
 			"bad_signature": True,
 		})
+		self.assertTrue(result["success"])
+		self.assertEqual(
+			frappe.db.get_value("Signed Agreement", self.row.name, "status"), "Link Sent"
+		)
+
+	def test_provider_read_from_query_string_not_json_body(self):
+		# Regression test for a real bug found against the live Leegality
+		# webhook: esign_webhook(provider) as a whitelisted-function param
+		# reads from frappe's form_dict, which is populated from the JSON
+		# body (not the query string) on a real Content-Type: application/
+		# json POST — exactly what every real eSign webhook sends. That
+		# shape 500'd on every single delivery attempt with "missing 1
+		# required positional argument: 'provider'". provider must come
+		# from request.args, confirmed here by a body that deliberately
+		# has no "provider" key at all — matching the real payload shape.
+		result = self._post_webhook(
+			{"provider_request_id": "prov-webhook-1", "event_type": "signed"},
+			provider="signyu",
+		)
+		self.assertTrue(result["success"])
+
+	def test_missing_provider_in_query_string_acked_not_crashed(self):
+		result = self._post_webhook(
+			{"provider_request_id": "prov-webhook-1", "event_type": "signed"},
+			provider=None,
+		)
 		self.assertTrue(result["success"])
 		self.assertEqual(
 			frappe.db.get_value("Signed Agreement", self.row.name, "status"), "Link Sent"

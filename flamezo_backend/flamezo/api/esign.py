@@ -384,12 +384,27 @@ def record_clickwrap_acceptance(phone):
 # ── webhook ──────────────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def esign_webhook(provider):
+def esign_webhook():
 	"""One URL per provider: /api/method/flamezo_backend.flamezo.api.esign.esign_webhook?provider=signyu
+
+	provider MUST be read from request.args (the query string) directly,
+	never as a whitelisted-function parameter sourced from frappe's
+	form_dict — a real eSign webhook POST arrives with
+	Content-Type: application/json, and Frappe populates form_dict from
+	the JSON body in that case, silently dropping query-string params.
+	Confirmed live against the real Leegality webhook delivery, not a
+	theoretical concern: a provider=... kwarg here 500s on every real
+	webhook with "esign_webhook() missing 1 required positional
+	argument: 'provider'", and Leegality does not retry on 5xx forever.
+
 	Idempotent on (provider_request_id, event_type) — a redelivered webhook
 	for an event already applied is a silent no-op, matching the
 	Razorpay Webhook Log pattern already used elsewhere in this codebase."""
 	request = frappe.local.request
+	provider = request.args.get("provider")
+	if not provider:
+		frappe.log_error(title="esign.webhook", message="eSign webhook called with no provider in query string")
+		return {"success": True}
 	raw_body = request.get_data()
 	headers = dict(request.headers)
 
