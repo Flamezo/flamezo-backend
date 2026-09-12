@@ -96,10 +96,13 @@ def _build_schedule_snapshot(party_doctype, party_name):
 	Section 4.4 / 24.5 of the Agreement, but this snapshot must remain
 	provable as exactly what this party agreed to."""
 	if party_doctype == "Outlet":
+		from flamezo_backend.flamezo.utils.ifsc_lookup import format_bank_name_branch
+
 		row = frappe.db.get_value(
 			"Outlet",
 			party_name,
-			["legal_name", "gst_number", "pan_number", "bank_account_number", "bank_ifsc"],
+			["legal_name", "outlet_name", "address", "gst_number", "pan_number",
+				"bank_account_number", "bank_ifsc"],
 			as_dict=True,
 		) or {}
 		return {
@@ -107,6 +110,14 @@ def _build_schedule_snapshot(party_doctype, party_name):
 			"success_share_app_pct": 7,
 			"tcs_pct": 0.5,
 			**row,
+			# Merge-field names used in the Schedule A template — mapped from
+			# the Outlet fields actually captured today. bank_name_branch is
+			# auto-derived from the IFSC the merchant already gave during
+			# Route KYC (see utils/ifsc_lookup.py) rather than asking for a
+			# second input — blank only if the lookup genuinely fails.
+			"trade_name": row.get("outlet_name"),
+			"registered_address": row.get("address"),
+			"bank_name_branch": format_bank_name_branch(row.get("bank_ifsc")),
 		}
 	if party_doctype == "Flamezo Creator":
 		return {"marketplace_fee_pct": 10, "review_period_days": 5, "auto_release": True}
@@ -115,38 +126,66 @@ def _build_schedule_snapshot(party_doctype, party_name):
 
 def _render_agreement_pdf(template_doc, party_doctype, party_name):
 	"""Merges party-specific fields into the active Agreement Template's
-	source file. Returns (pdf_bytes, sha256_hex).
+	source and renders a fresh PDF. Returns (pdf_bytes, sha256_hex).
 
-	Implementation note: the template_file stored on Agreement Template is
-	the source (PDF/DOCX) with {{merge_field}} placeholders. Actual
-	merge-and-render-to-PDF should reuse whatever document-generation
-	utility already exists in this codebase for merchant-facing PDFs (e.g.
-	an invoice/statement generator) rather than adding a second PDF engine
-	as a dependency — wire that call in here once that utility is
-	confirmed. For now this reads the template bytes as-is (no merge) so
-	the rest of the pipeline (hashing, upload, signing request, webhook,
-	immutability) is fully exercised and testable end-to-end.
+	template_file is Markdown source with {{merge_field}} placeholders (the
+	same source FlameZO_Merchant_Agreement_v2.2.pdf was hand-built from) —
+	not a pre-rendered PDF/DOCX. Pipeline: merge -> Markdown -> HTML ->
+	wkhtmltopdf, via utils/agreement_pdf.py (wkhtmltopdf is a core Frappe
+	dependency already present on every bench, no extra install needed).
 	"""
+	from flamezo_backend.flamezo.utils.agreement_pdf import (
+		embed_static_stamps,
+		merge_fields,
+		render_markdown_to_pdf,
+	)
+
 	file_doc = frappe.get_doc("File", {"file_url": template_doc.template_file})
 	content = file_doc.get_content()
-	if isinstance(content, str):
-		content = content.encode("utf-8")
-	# TODO: merge _build_schedule_snapshot()'s values into `content` via the
-	# project's PDF/DOCX templating utility before hashing — tracked above.
-	digest = hashlib.sha256(content).hexdigest()
-	return content, digest
+	if isinstance(content, bytes):
+		content = content.decode("utf-8")
+	content = embed_static_stamps(content)
+
+	values = _build_schedule_snapshot(party_doctype, party_name)
+	values.setdefault("signer_name", _signer_display_name(party_doctype, party_name))
+	merged_text, unresolved = merge_fields(content, values)
+	if unresolved:
+		# Not fatal — a genuinely unregistered dealer has no GST number,
+		# for instance — but worth a visible trail per document rather than
+		# silently shipping blanks. title= is capped at 140 chars and comes
+		# FIRST in this Frappe version's log_error(title, message) — the
+		# unbounded dynamic text must go in message=, not title=.
+		frappe.log_error(
+			title="esign.render: unresolved merge fields",
+			message=f"Agreement merge for {party_doctype} {party_name}: unresolved "
+			f"fields left blank: {sorted(set(unresolved))}",
+		)
+
+	pdf_bytes = render_markdown_to_pdf(merged_text)
+	digest = hashlib.sha256(pdf_bytes).hexdigest()
+	return pdf_bytes, digest
 
 
 # ── initiate signing ─────────────────────────────────────────────────────
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def initiate_agreement_signing(party_doctype, party_name, agreement_type, phone=None):
-	"""Entry point for both the merchant dashboard (Outlet) and the app
-	(Flamezo Creator). Renders the active Agreement Template, sends it to
-	the configured eSign provider for WhatsApp-delivered Aadhaar signing,
-	and returns the new Signed Agreement's name for the caller to poll."""
+	"""Entry point for the app (Flamezo Creator) or a future merchant
+	self-service flow. Merchant-side signing today is admin-triggered from
+	Merchant Management (see admin_initiate_agreement_signing) — the
+	Outlet auth branch of _authorize_party stays in place below since a
+	future merchant-facing "Sign Agreement" screen would need it, but
+	nothing calls this for Outlet yet."""
 	_authorize_party(party_doctype, party_name, phone)
+	return _initiate_agreement_signing_core(party_doctype, party_name, agreement_type)
 
+
+def _initiate_agreement_signing_core(party_doctype, party_name, agreement_type):
+	"""Shared by the (future) self-service entry point above and the
+	admin-triggered one below — renders the active Agreement Template,
+	sends it to the configured eSign provider, and returns the new Signed
+	Agreement's name for the caller to poll. Caller is responsible for
+	authorization before calling this."""
 	template_doc = frappe.db.get_value(
 		"Agreement Template",
 		{"agreement_type": agreement_type, "is_active": 1},
@@ -211,7 +250,7 @@ def initiate_agreement_signing(party_doctype, party_name, agreement_type, phone=
 	except EsignProviderError as e:
 		row.status = "Failed"
 		row.save(ignore_permissions=True)
-		frappe.log_error(f"eSign initiate failed for {row.name}: {e}", "esign.initiate")
+		frappe.log_error(title="esign.initiate", message=f"eSign initiate failed for {row.name}: {e}")
 		frappe.throw(_("Could not start the signing process. Please try again shortly."))
 
 	row.provider_request_id = result.provider_request_id
@@ -241,6 +280,41 @@ def get_agreement_status(signed_agreement):
 	)
 	if not doc:
 		frappe.throw(_("Not found"), frappe.DoesNotExistError)
+	return {"success": True, "data": doc}
+
+
+def _require_system_manager():
+	if "System Manager" not in frappe.get_roles(frappe.session.user):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+
+# ── admin-triggered signing (Merchant Management) ────────────────────────
+
+@frappe.whitelist(methods=["POST"])
+def admin_initiate_agreement_signing(outlet_id, agreement_type="Merchant Partnership Agreement"):
+	"""Merchant Management's "Send for Signing" action. FlameZO staff, not
+	the merchant, triggers this — the merchant only ever sees the Leegality
+	Aadhaar eSign link that arrives by SMS. Requires System Manager, same
+	gate as the other admin-only actions in api/commission.py."""
+	_require_system_manager()
+	if not frappe.db.exists("Outlet", outlet_id):
+		frappe.throw(_("Outlet {0} not found").format(outlet_id))
+	return _initiate_agreement_signing_core("Outlet", outlet_id, agreement_type)
+
+
+@frappe.whitelist()
+def admin_get_agreement_status(outlet_id, agreement_type="Merchant Partnership Agreement"):
+	"""Latest Signed Agreement (if any) for this Outlet + agreement type —
+	lets Merchant Management show current status without the frontend
+	needing to already know a specific Signed Agreement name."""
+	_require_system_manager()
+	doc = frappe.db.get_value(
+		"Signed Agreement",
+		{"party_doctype": "Outlet", "party": outlet_id, "agreement_type": agreement_type},
+		["name", "status", "agreement_version", "signing_url", "initiated_at", "signed_at", "expires_at"],
+		as_dict=True,
+		order_by="creation desc",
+	)
 	return {"success": True, "data": doc}
 
 
@@ -322,7 +396,7 @@ def esign_webhook(provider):
 	try:
 		adapter = get_adapter(provider)
 	except ValueError:
-		frappe.log_error(f"eSign webhook for unknown provider: {provider}", "esign.webhook")
+		frappe.log_error(title="esign.webhook", message=f"eSign webhook for unknown provider: {provider}")
 		# 200 regardless — never give an unauthenticated caller a signal
 		# about which provider keys are/aren't configured.
 		return {"success": True}
@@ -336,8 +410,8 @@ def esign_webhook(provider):
 	)
 	if not row_name:
 		frappe.log_error(
-			f"eSign webhook for unknown provider_request_id: {event.provider_request_id}",
-			"esign.webhook",
+			title="esign.webhook",
+			message=f"eSign webhook for unknown provider_request_id: {event.provider_request_id}",
 		)
 		return {"success": True}
 
@@ -358,7 +432,7 @@ def esign_webhook(provider):
 			signed_pdf_bytes = adapter.download_signed_document(event.provider_request_id)
 		except EsignProviderError as e:
 			frappe.log_error(
-				f"Could not download signed PDF for {row.name}: {e}", "esign.webhook"
+				title="esign.webhook", message=f"Could not download signed PDF for {row.name}: {e}"
 			)
 			# Don't flip to Signed without the durable copy in hand — leave
 			# status as-is; the reconciliation job will retry the download.

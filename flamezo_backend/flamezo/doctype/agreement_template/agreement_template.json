@@ -90,7 +90,7 @@
    "fieldtype": "Attach",
    "label": "Template File",
    "reqd": 1,
-   "description": "The merge-field PDF/DOCX template (e.g. {{outlet_name}}, {{gst_number}}) rendered per-signer at signing-request time."
+   "description": "The Markdown source (.md) with {{merge_field}} placeholders (e.g. {{legal_name}}, {{gst_number}}) — merged and rendered to a fresh PDF per signer at signing-request time via utils/agreement_pdf.py. Not a pre-rendered PDF/DOCX."
   },
   {
    "fieldname": "template_file_hash",

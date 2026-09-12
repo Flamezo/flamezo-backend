@@ -7,7 +7,10 @@ Every endpoint/field name below is taken directly from Leegality's own
 docs (knowledge.leegality.com), not guessed:
   - Create request:   POST /v3.0/sign/request
   - Status check:      GET /v3.3/document/details
-  - Download signed:   GET /v3.1/document/fetchDocument
+  - Download signed:   GET /v3.3/document/fetchDocument -- returns JSON with
+    data.file = a temporary CDN URL that expires in 15 seconds, NOT the PDF
+    bytes directly. Must be fetched immediately, with no auth header (it's a
+    signed CDN link, not a Leegality API call).
   - Webhook verify:    mac = HMAC-SHA1(documentId, privateSalt)  -- SHA1,
     not SHA256; that's genuinely what Leegality documents, not a typo.
 
@@ -72,17 +75,28 @@ def _get_config() -> dict:
 class LeegalityAdapter(EsignAdapter):
 	provider_key = "leegality"
 
-	def _headers(self) -> dict:
+	def _headers(self, has_json_body: bool) -> dict:
 		cfg = _get_config()
-		return {"X-Auth-Token": cfg["auth_token"], "Content-Type": "application/json"}
+		headers = {"X-Auth-Token": cfg["auth_token"]}
+		if has_json_body:
+			# Confirmed against the live production API: sending
+			# Content-Type: application/json on a GET request with no body
+			# breaks Leegality's server-side query-param parsing entirely
+			# (every query param comes back as if it were never sent — e.g.
+			# "Property documentId cannot be null" even though it's plainly
+			# in the URL). Only ever send this header on requests that
+			# actually carry a JSON body.
+			headers["Content-Type"] = "application/json"
+		return headers
 
 	def _request(self, method: str, path: str, base_url: str, **kwargs):
 		url = f"{base_url}{path}"
 		last_exc = None
+		headers = self._headers(has_json_body="json" in kwargs)
 		for attempt in range(_MAX_RETRIES + 1):
 			try:
 				resp = requests.request(
-					method, url, headers=self._headers(), timeout=_REQUEST_TIMEOUT_SECONDS, **kwargs
+					method, url, headers=headers, timeout=_REQUEST_TIMEOUT_SECONDS, **kwargs
 				)
 				if resp.status_code >= 500 and attempt < _MAX_RETRIES:
 					continue
@@ -148,7 +162,11 @@ class LeegalityAdapter(EsignAdapter):
 		cfg = _get_config()
 		resp = self._request(
 			"GET",
-			"/v3.3/document/details",
+			# Trailing slash before the query string is required — Leegality's
+			# router silently drops all query params without it, returning
+			# "Property documentId cannot be null" even though it's plainly
+			# present. Confirmed against the live production API, not a typo.
+			"/v3.3/document/details/",
 			cfg["base_url"],
 			params={"documentId": provider_request_id},
 		)
@@ -159,29 +177,44 @@ class LeegalityAdapter(EsignAdapter):
 
 	def download_signed_document(self, provider_request_id: str) -> bytes:
 		cfg = _get_config()
+		# fetchDocument itself never returns the PDF bytes — it returns a
+		# JSON body with a temporary CDN URL (data.file) that expires in
+		# 15 seconds, so it must be fetched immediately, in the same call.
 		resp = self._request(
 			"GET",
-			"/v3.1/document/fetchDocument",
+			# Same trailing-slash-before-query-string quirk as document/details.
+			"/v3.3/document/fetchDocument/",
 			cfg["base_url"],
 			params={"documentId": provider_request_id, "documentDownloadType": "DOCUMENT"},
 		)
-		content_type = resp.headers.get("Content-Type", "")
-		if "application/pdf" not in content_type:
-			# Leegality returns HTTP 200 with a JSON error body on failure
-			# instead of a real error status — never treat a 200 as success
-			# without checking the content type first.
+		payload = resp.json()
+		if payload.get("status") != 1:
+			# Leegality returns HTTP 200 with a JSON error body (status: 0)
+			# on failure instead of a real error status code — e.g.
+			# "no.document.found" if signing isn't complete yet.
 			raise EsignProviderError(
-				f"Leegality fetchDocument did not return a PDF for {provider_request_id}: "
-				f"{resp.text[:500]}"
+				f"Leegality fetchDocument rejected for {provider_request_id}: {payload}"
 			)
-		return resp.content
+		cdn_url = (payload.get("data") or {}).get("file")
+		if not cdn_url:
+			raise EsignProviderError(
+				f"Leegality fetchDocument response missing data.file for {provider_request_id}: {payload}"
+			)
+		# The CDN URL is itself pre-signed — no X-Auth-Token needed/wanted here.
+		cdn_resp = requests.get(cdn_url, timeout=_REQUEST_TIMEOUT_SECONDS)
+		if cdn_resp.status_code >= 400:
+			raise EsignProviderError(
+				f"Leegality CDN download failed for {provider_request_id} "
+				f"(likely expired 15s URL): {cdn_resp.status_code}"
+			)
+		return cdn_resp.content
 
 	def verify_and_parse_webhook(self, headers: dict, raw_body: bytes) -> WebhookEvent | None:
 		cfg = _get_config()
 		try:
 			payload = json.loads(raw_body.decode("utf-8"))
 		except (ValueError, UnicodeDecodeError):
-			frappe.log_error("Leegality webhook body not valid JSON", "leegality.webhook")
+			frappe.log_error(title="leegality.webhook", message="Leegality webhook body not valid JSON")
 			return None
 
 		# documentId can be top-level (older/error-webhook shape) or nested
@@ -192,7 +225,7 @@ class LeegalityAdapter(EsignAdapter):
 		mac = payload.get("mac")
 		if not doc_id or not mac:
 			frappe.log_error(
-				"Leegality webhook missing documentId or mac", "leegality.webhook"
+				title="leegality.webhook", message="Leegality webhook missing documentId or mac"
 			)
 			return None
 
@@ -200,14 +233,14 @@ class LeegalityAdapter(EsignAdapter):
 			cfg["private_salt"].encode("utf-8"), doc_id.encode("utf-8"), hashlib.sha1
 		).hexdigest()
 		if not hmac.compare_digest(expected_mac, mac):
-			frappe.log_error("Leegality webhook mac mismatch", "leegality.webhook")
+			frappe.log_error(title="leegality.webhook", message="Leegality webhook mac mismatch")
 			return None
 
 		event_type = self._normalize_event(payload)
 		if not event_type:
 			frappe.log_error(
-				f"Leegality webhook unrecognized shape: {json.dumps(payload)[:300]}",
-				"leegality.webhook",
+				title="leegality.webhook",
+				message=f"Leegality webhook unrecognized shape: {json.dumps(payload)[:300]}",
 			)
 			return None
 

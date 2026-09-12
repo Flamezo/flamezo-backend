@@ -131,30 +131,112 @@ class TestLeegalityStatusCheck(unittest.TestCase):
 				result = LeegalityAdapter().get_request_status("doc-1")
 			self.assertEqual(result.status, expected, f"raw status {raw} should map to {expected}")
 
-
-class TestLeegalityDownload(unittest.TestCase):
 	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.request")
-	def test_download_success(self, mock_request):
+	def test_no_content_type_header_on_get_request(self, mock_request):
+		# Confirmed against the live production API: sending
+		# Content-Type: application/json on a GET request with no body
+		# makes Leegality's server silently drop every query param (a real
+		# document lookup came back "Property documentId cannot be null"
+		# even though documentId was plainly in the URL). Regression test
+		# for that — GET calls must never carry this header.
 		mock_response = MagicMock()
 		mock_response.status_code = 200
-		mock_response.headers = {"Content-Type": "application/pdf"}
-		mock_response.content = b"%PDF-1.4 real signed content"
+		mock_response.json.return_value = {"data": {"document": {"status": "COMPLETED"}}}
 		mock_request.return_value = mock_response
 
 		with _configured():
+			LeegalityAdapter().get_request_status("doc-1")
+
+		self.assertNotIn("Content-Type", mock_request.call_args.kwargs["headers"])
+
+	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.request")
+	def test_content_type_header_present_on_post_request(self, mock_request):
+		# The create-request call does carry a JSON body, so it needs the
+		# header — only GET-without-body should omit it.
+		mock_response = MagicMock()
+		mock_response.status_code = 200
+		mock_response.json.return_value = {
+			"status": 1,
+			"data": {"documentId": "doc-1", "invitees": [{"name": "A"}]},
+		}
+		mock_request.return_value = mock_response
+
+		with _configured():
+			LeegalityAdapter().create_signing_request(
+				document_bytes=b"pdf", filename="a.pdf", signer_name="A",
+				signer_phone="9000000000", profile_id="wf-1",
+			)
+
+		self.assertEqual(
+			mock_request.call_args.kwargs["headers"]["Content-Type"], "application/json"
+		)
+
+
+class TestLeegalityDownload(unittest.TestCase):
+	# fetchDocument itself returns JSON with a temporary CDN URL (data.file,
+	# expires in 15s) — never the PDF bytes directly. requests.request is
+	# used for the Leegality API call; requests.get for the CDN fetch.
+	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.get")
+	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.request")
+	def test_download_success_follows_cdn_url(self, mock_request, mock_get):
+		mock_api_response = MagicMock()
+		mock_api_response.status_code = 200
+		mock_api_response.json.return_value = {
+			"status": 1,
+			"data": {"file": "https://cdn.leegality.com/tmp/signed-doc.pdf?sig=abc"},
+		}
+		mock_request.return_value = mock_api_response
+
+		mock_cdn_response = MagicMock()
+		mock_cdn_response.status_code = 200
+		mock_cdn_response.content = b"%PDF-1.4 real signed content"
+		mock_get.return_value = mock_cdn_response
+
+		with _configured():
 			content = LeegalityAdapter().download_signed_document("doc-1")
+
 		self.assertEqual(content, b"%PDF-1.4 real signed content")
+		# fetchDocument call itself uses the documented v3.3 path + uppercase type
+		self.assertTrue(mock_request.call_args.args[1].endswith("/v3.3/document/fetchDocument/"))
+		self.assertEqual(mock_request.call_args.kwargs["params"]["documentDownloadType"], "DOCUMENT")
+		# CDN URL is pre-signed — fetched with no Leegality auth header
+		mock_get.assert_called_once_with(
+			"https://cdn.leegality.com/tmp/signed-doc.pdf?sig=abc", timeout=20
+		)
 
 	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.request")
 	def test_download_200_with_json_error_body_is_not_treated_as_success(self, mock_request):
 		# Leegality's docs explicitly warn: errors come back as HTTP 200
-		# with a JSON body, not a 4xx/5xx — this must not be swallowed as
-		# if it were the real PDF.
+		# with a JSON body (status: 0, e.g. "no.document.found"), not a
+		# 4xx/5xx — this must not be swallowed as if it were the real file.
 		mock_response = MagicMock()
 		mock_response.status_code = 200
-		mock_response.headers = {"Content-Type": "application/json"}
-		mock_response.text = '{"status": 0, "messages": [{"message": "document not found"}]}'
+		mock_response.json.return_value = {
+			"status": 0,
+			"messages": [{"code": "no.document.found", "message": "document not found"}],
+		}
 		mock_request.return_value = mock_response
+
+		with _configured():
+			with self.assertRaises(EsignProviderError):
+				LeegalityAdapter().download_signed_document("doc-1")
+
+	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.get")
+	@patch("flamezo_backend.flamezo.esign.leegality_adapter.requests.request")
+	def test_expired_cdn_url_raises_clearly(self, mock_request, mock_get):
+		# The CDN URL expires in 15 seconds — if anything delays the follow-up
+		# fetch past that, it must fail loudly, not silently return garbage.
+		mock_api_response = MagicMock()
+		mock_api_response.status_code = 200
+		mock_api_response.json.return_value = {
+			"status": 1,
+			"data": {"file": "https://cdn.leegality.com/tmp/signed-doc.pdf?sig=abc"},
+		}
+		mock_request.return_value = mock_api_response
+
+		mock_cdn_response = MagicMock()
+		mock_cdn_response.status_code = 403
+		mock_get.return_value = mock_cdn_response
 
 		with _configured():
 			with self.assertRaises(EsignProviderError):

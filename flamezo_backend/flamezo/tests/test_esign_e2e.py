@@ -289,6 +289,133 @@ class TestInitiateAgreementSigning(unittest.TestCase):
 				)
 
 
+class TestAdminInitiateAgreementSigning(unittest.TestCase):
+	"""Merchant Management's admin-triggered path — a FlameZO staff member
+	(System Manager), not the merchant, sends the agreement for signing."""
+
+	def setUp(self):
+		_cleanup()
+		self.template = _make_template("Merchant Partnership Agreement")
+		self.outlet = _make_test_outlet("AdminInitiate")
+
+	def tearDown(self):
+		_cleanup()
+
+	@patch("flamezo_backend.flamezo.api.esign.get_adapter")
+	def test_system_manager_can_trigger(self, mock_get_adapter):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		fake_adapter = mock_get_adapter.return_value
+		fake_adapter.create_signing_request.return_value = SigningRequestResult(
+			provider_request_id="prov-admin-1", signing_url="https://app1.leegality.com/sign/abc", raw={}
+		)
+
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			result = esign_api.admin_initiate_agreement_signing(
+				outlet_id=self.outlet.name, agreement_type=self.template.agreement_type
+			)
+
+		self.assertTrue(result["success"])
+		row = frappe.get_doc("Signed Agreement", result["data"]["signed_agreement"])
+		self.assertEqual(row.status, "Link Sent")
+		self.assertEqual(row.party_doctype, "Outlet")
+		self.assertEqual(row.party, self.outlet.name)
+
+	def test_non_admin_rejected(self):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		with patch("frappe.get_roles", return_value=["Outlet User"]):
+			with self.assertRaises(frappe.exceptions.PermissionError):
+				esign_api.admin_initiate_agreement_signing(
+					outlet_id=self.outlet.name, agreement_type=self.template.agreement_type
+				)
+
+	def test_unknown_outlet_rejected_clearly(self):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			with self.assertRaises(frappe.exceptions.ValidationError):
+				esign_api.admin_initiate_agreement_signing(
+					outlet_id="no-such-outlet", agreement_type=self.template.agreement_type
+				)
+
+	@patch("flamezo_backend.flamezo.api.esign.get_adapter")
+	def test_idempotent_same_as_self_service_path(self, mock_get_adapter):
+		# Admin re-clicking "Send for Signing" on an already-pending request
+		# must not fire a second signing request to Leegality.
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		fake_adapter = mock_get_adapter.return_value
+		fake_adapter.create_signing_request.return_value = SigningRequestResult(
+			provider_request_id="prov-admin-2", signing_url=None, raw={}
+		)
+
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			first = esign_api.admin_initiate_agreement_signing(
+				outlet_id=self.outlet.name, agreement_type=self.template.agreement_type
+			)
+			second = esign_api.admin_initiate_agreement_signing(
+				outlet_id=self.outlet.name, agreement_type=self.template.agreement_type
+			)
+
+		self.assertEqual(first["data"]["signed_agreement"], second["data"]["signed_agreement"])
+		self.assertTrue(second["data"].get("already_exists"))
+		fake_adapter.create_signing_request.assert_called_once()
+
+
+class TestAdminGetAgreementStatus(unittest.TestCase):
+	def setUp(self):
+		_cleanup()
+		self.template = _make_template("Merchant Partnership Agreement")
+		self.outlet = _make_test_outlet("AdminStatus")
+
+	def tearDown(self):
+		_cleanup()
+
+	def test_no_agreement_yet_returns_none_not_error(self):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			result = esign_api.admin_get_agreement_status(outlet_id=self.outlet.name)
+
+		self.assertTrue(result["success"])
+		self.assertIsNone(result["data"])
+
+	def test_returns_latest_status_for_this_outlet_and_type(self):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		row = frappe.get_doc({
+			"doctype": "Signed Agreement",
+			"agreement_template": self.template.name,
+			"agreement_type": self.template.agreement_type,
+			"agreement_version": self.template.version,
+			"party_doctype": "Outlet",
+			"party": self.outlet.name,
+			"status": "Link Sent",
+			"agreement_document_hash": "deadbeef",
+			"esign_provider": "leegality",
+			"provider_request_id": "prov-status-1",
+			"signing_url": "https://app1.leegality.com/sign/xyz",
+		})
+		row.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			result = esign_api.admin_get_agreement_status(outlet_id=self.outlet.name)
+
+		self.assertTrue(result["success"])
+		self.assertEqual(result["data"]["name"], row.name)
+		self.assertEqual(result["data"]["status"], "Link Sent")
+		self.assertEqual(result["data"]["signing_url"], "https://app1.leegality.com/sign/xyz")
+
+	def test_non_admin_rejected(self):
+		from flamezo_backend.flamezo.api import esign as esign_api
+
+		with patch("frappe.get_roles", return_value=["Outlet User"]):
+			with self.assertRaises(frappe.exceptions.PermissionError):
+				esign_api.admin_get_agreement_status(outlet_id=self.outlet.name)
+
+
 class TestClickwrapAcceptance(unittest.TestCase):
 	def setUp(self):
 		_cleanup()

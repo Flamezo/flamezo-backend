@@ -171,19 +171,19 @@ class SignYuAdapter(EsignAdapter):
 		# existing verify_razorpay_signature() shape exactly.
 		signature = headers.get("X-Signyu-Signature", "")
 		if not signature:
-			frappe.log_error("SignYu webhook missing signature header", "signyu.webhook")
+			frappe.log_error(title="signyu.webhook", message="SignYu webhook missing signature header")
 			return None
 		expected = hmac.new(
 			cfg["webhook_secret"].encode("utf-8"), raw_body, hashlib.sha256
 		).hexdigest()
 		if not hmac.compare_digest(expected, signature):
-			frappe.log_error("SignYu webhook signature mismatch", "signyu.webhook")
+			frappe.log_error(title="signyu.webhook", message="SignYu webhook signature mismatch")
 			return None
 
 		try:
 			payload = json.loads(raw_body.decode("utf-8"))
 		except (ValueError, UnicodeDecodeError):
-			frappe.log_error("SignYu webhook body not valid JSON", "signyu.webhook")
+			frappe.log_error(title="signyu.webhook", message="SignYu webhook body not valid JSON")
 			return None
 
 		# CONFIRM FROM SIGNYU DOCS: exact payload field names for all of
@@ -199,13 +199,13 @@ class SignYuAdapter(EsignAdapter):
 		}.get(raw_event)
 		if not event_type:
 			frappe.log_error(
-				f"SignYu webhook unrecognized event type: {raw_event}", "signyu.webhook"
+				title="signyu.webhook", message=f"SignYu webhook unrecognized event type: {raw_event}"
 			)
 			return None
 
 		doc_id = payload.get("document_id") or payload.get("id")
 		if not doc_id:
-			frappe.log_error("SignYu webhook missing document id", "signyu.webhook")
+			frappe.log_error(title="signyu.webhook", message="SignYu webhook missing document id")
 			return None
 
 		signer = payload.get("signer") or {}

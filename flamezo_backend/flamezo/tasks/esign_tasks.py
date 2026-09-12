@@ -44,8 +44,8 @@ def reconcile_stalled_esign_requests():
 			result = adapter.get_request_status(row.provider_request_id)
 		except (EsignProviderError, ValueError) as e:
 			frappe.log_error(
-				f"esign reconcile: status check failed for {row.name}: {e}",
-				"esign.reconcile",
+				title="esign.reconcile",
+				message=f"esign reconcile: status check failed for {row.name}: {e}",
 			)
 			continue
 
@@ -75,8 +75,8 @@ def _apply_signed_via_status_poll(signed_agreement_name, adapter, provider_reque
 		signed_pdf_bytes = adapter.download_signed_document(provider_request_id)
 	except EsignProviderError as e:
 		frappe.log_error(
-			f"esign reconcile: signed doc download failed for {signed_agreement_name}: {e}",
-			"esign.reconcile",
+			title="esign.reconcile",
+			message=f"esign reconcile: signed doc download failed for {signed_agreement_name}: {e}",
 		)
 		return
 
