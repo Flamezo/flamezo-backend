@@ -39,6 +39,27 @@ def haversine_km(lat1, lon1, lat2, lon2):
 	return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def haversine_sql(lat_col, lng_col, lat, lon):
+	"""SQL expression for the great-circle km from (lat, lon) to a row's
+	(lat_col, lng_col) — same formula as haversine_km, evaluated in the DB
+	so a feed can ORDER BY and paginate on true distance over every
+	matching row instead of re-sorting a pre-fetched window in Python.
+
+	lat_col / lng_col are trusted SQL (column names or CASE expressions),
+	never user input. Returns (sql, params) — params belong wherever the
+	expression is placed in the query. A NULL coordinate yields NULL.
+	LEAST() guards float rounding pushing ASIN's argument past 1.
+	"""
+	sql = (
+		"(6371 * 2 * ASIN(LEAST(1, SQRT("
+		f"POW(SIN(RADIANS({lat_col} - %s) / 2), 2)"
+		f" + COS(RADIANS(%s)) * COS(RADIANS({lat_col}))"
+		f" * POW(SIN(RADIANS({lng_col} - %s) / 2), 2)"
+		"))))"
+	)
+	return sql, [lat, lat, lon]
+
+
 def location_score(distance_km, max_km=MAX_RADIUS_KM):
 	"""Linear decay 1.0 (right here) -> 0.0 (at max_km or beyond).
 

@@ -204,8 +204,11 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20, 
     where = " AND ".join(conditions)
 
     if user_lat and user_lon:
-        # Location changes ranking, not the result set — pull a wider pool,
-        # re-sort by proximity + weight, then paginate the sorted pool.
+        # Location changes ranking, not the result set — nearest talk first,
+        # nothing else weighed in. Every matching club is ranked (not a
+        # followers-ordered pool) so a small club talking next door isn't
+        # cut before the sort; clubs with no located talk go last, and
+        # followers only break ties.
         pool_rows = frappe.db.sql(
             f"""
             SELECT cc.name, cc.club_name, cc.niche, cc.description, cc.cover_image,
@@ -217,20 +220,17 @@ def get_creator_clubs(phone=None, category=None, search=None, page=1, limit=20, 
             LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
             WHERE {where}
             ORDER BY cc.followers_count DESC, cc.creation DESC
-            LIMIT %s
             """,
-            params + [max(limit * 4, 200)],
+            params,
             as_dict=True,
         )
         distance_map = _nearest_post_distance_map([r.name for r in pool_rows], user_lat, user_lon)
-        max_followers = max((r.followers_count or 0) for r in pool_rows) or 1
 
         def _rank(r):
             dist = distance_map.get(r.name)  # None = club has no located talks yet
-            pop = min((r.followers_count or 0) / max_followers, 1.0)
-            return geo.blended_score(dist, preference_score=pop, engagement_score=pop)
+            return (dist is None, dist or 0, -(r.followers_count or 0))
 
-        pool_rows.sort(key=_rank, reverse=True)
+        pool_rows.sort(key=_rank)
         has_more = len(pool_rows) > offset + limit
         clubs = pool_rows[offset:offset + limit]
         for c in clubs:
@@ -619,6 +619,24 @@ def get_club_posts(club_id, phone=None, page=1, limit=20, post_type=None, latitu
     }}
 
 
+# Distance given to a talk with no pin in the nearest-first feed — farther
+# than any real point on Earth, so un-pinned talks always sort last.
+_NO_PIN_DISTANCE_M = 100_000_000
+
+
+def _parse_geo_cursor(cursor):
+    """(metres, post name) from a "geo:<metres>:<post name>" cursor, else None."""
+    if not cursor or not cursor.startswith("geo:"):
+        return None
+    parts = cursor.split(":", 2)
+    if len(parts) != 3 or not parts[2]:
+        return None
+    try:
+        return int(parts[1]), parts[2]
+    except ValueError:
+        return None
+
+
 @frappe.whitelist(allow_guest=True)
 def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude=None):
     """"Latest from Creators" home feed — real posts aggregated across
@@ -629,16 +647,21 @@ def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude
     would skip/duplicate rows as new posts land across many clubs at once,
     same reasoning as get_club_post_comments' cursor.
 
-    When latitude/longitude are given, each fetched window is re-ranked by
-    the shared location score before being returned (same "wider pool, sort,
-    cut" pattern as flamezo.get_all_outlets) — nearby talks surface first
-    without breaking the underlying keyset cursor, since the cursor still
-    walks the raw creation-ordered rows underneath."""
+    When latitude/longitude are given the feed is ordered purely by the
+    distance from the caller to each talk's pin — nearest first, nothing
+    else weighed in; talks with no pin come last. Distance is computed in
+    SQL and the cursor is keyset on (distance in metres, name) instead of
+    (creation, name), so every page continues exactly where the last one
+    ended. A geo cursor looks like "geo:<metres>:<post name>"; a plain post
+    name is the time-ordered cursor."""
     phone = _optional_verified_phone(phone)
     limit = min(int(limit), 50)
     user_lat = flt(latitude) if latitude else None
     user_lon = flt(longitude) if longitude else None
-    fetch_limit = (limit * 4 if (user_lat and user_lon) else limit) + 1
+    geo_cursor = _parse_geo_cursor(cursor)
+    # A plain (time) cursor from before location was known keeps paging in
+    # time order, so a location arriving mid-scroll can't re-show page 1.
+    geo_mode = bool(user_lat and user_lon) and (not cursor or geo_cursor is not None)
 
     conditions = ["cc.is_active=1"]
     params = []
@@ -660,55 +683,62 @@ def get_creator_feed(phone=None, limit=20, cursor=None, latitude=None, longitude
             conditions.append(f"cp.club NOT IN ({placeholders})")
             params += list(blocked)
 
-    if cursor:
+    if cursor and not geo_mode:
         cursor_row = frappe.db.get_value("Creator Club Post", cursor, "creation")
         if cursor_row:
             conditions.append("(cp.creation < %s OR (cp.creation = %s AND cp.name < %s))")
             params += [cursor_row, cursor_row, cursor]
 
     where = " AND ".join(conditions)
-    rows = frappe.db.sql(
-        f"""
-        SELECT cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.video_url, cp.content,
+    select_cols = """cp.name, cp.club, cp.post_type, cp.reel, cp.image_url, cp.video_url, cp.content,
                cp.likes_count, cp.comments_count, cp.views_count, cp.creation,
                cp.latitude, cp.longitude, cp.location_area, cp.location_city,
                cc.club_name, cc.cover_image AS club_cover_image, cc.followers_count,
-               fc.display_name AS creator_display_name, fc.profile_image AS creator_profile_image
-        FROM `tabCreator Club Post` cp
+               fc.display_name AS creator_display_name, fc.profile_image AS creator_profile_image"""
+    joins = """FROM `tabCreator Club Post` cp
         JOIN `tabCreator Club` cc ON cc.name = cp.club
-        LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator
-        WHERE {where}
-        ORDER BY cp.creation DESC, cp.name DESC
-        LIMIT %s
-        """,
-        params + [fetch_limit],
-        as_dict=True,
-    )
+        LEFT JOIN `tabFlamezo Creator` fc ON fc.name = cc.creator"""
 
-    if user_lat and user_lon:
-        # Re-rank this window by location + engagement; the cursor for the
-        # *next* page is still taken from the raw (unsorted) tail below, so
-        # pagination keeps walking forward through real time correctly.
-        raw_has_more = len(rows) > fetch_limit - 1
-        window = rows[: fetch_limit - 1]
-        next_cursor_row = window[-1] if window else None
-
-        max_engagement = max((r.likes_count or 0) + (r.comments_count or 0) for r in window) or 1
-
-        def _rank(r):
-            dist = None
-            if r.latitude and r.longitude:
-                dist = geo.haversine_km(user_lat, user_lon, flt(r.latitude), flt(r.longitude))
-            eng = min(((r.likes_count or 0) + (r.comments_count or 0)) / max_engagement, 1.0)
-            return geo.blended_score(dist, engagement_score=eng)
-
-        window.sort(key=_rank, reverse=True)
-        posts = window[:limit]
-        has_more = raw_has_more or len(window) > limit
-        # Cursor must stay tied to real creation order, not the re-ranked
-        # order, or a later page could re-show/re-skip rows.
-        next_cursor_name = next_cursor_row.name if next_cursor_row else None
+    if geo_mode:
+        # Whole metres keep the keyset comparison exact (no float equality).
+        # 0 is "unset" (Frappe Float default), so an un-pinned talk gets the
+        # sentinel distance and sorts after every pinned one.
+        dist_sql, dist_params = geo.haversine_sql("cp.latitude", "cp.longitude", user_lat, user_lon)
+        dist_m_sql = (f"IF(cp.latitude != 0 AND cp.longitude != 0,"
+                      f" CAST(ROUND({dist_sql} * 1000) AS SIGNED), {_NO_PIN_DISTANCE_M})")
+        after, after_params = "", []
+        if geo_cursor:
+            after = "WHERE t.dist_m > %s OR (t.dist_m = %s AND t.name > %s)"
+            after_params = [geo_cursor[0], geo_cursor[0], geo_cursor[1]]
+        rows = frappe.db.sql(
+            f"""
+            SELECT * FROM (
+                SELECT {select_cols}, {dist_m_sql} AS dist_m
+                {joins}
+                WHERE {where}
+            ) t
+            {after}
+            ORDER BY t.dist_m ASC, t.name ASC
+            LIMIT %s
+            """,
+            dist_params + params + after_params + [limit + 1],
+            as_dict=True,
+        )
+        has_more = len(rows) > limit
+        posts = rows[:limit]
+        next_cursor_name = f"geo:{posts[-1].dist_m}:{posts[-1].name}" if posts else None
     else:
+        rows = frappe.db.sql(
+            f"""
+            SELECT {select_cols}
+            {joins}
+            WHERE {where}
+            ORDER BY cp.creation DESC, cp.name DESC
+            LIMIT %s
+            """,
+            params + [limit + 1],
+            as_dict=True,
+        )
         has_more = len(rows) > limit
         posts = rows[:limit]
         next_cursor_name = posts[-1].name if posts else None
