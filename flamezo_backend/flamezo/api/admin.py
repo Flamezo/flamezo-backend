@@ -2089,3 +2089,248 @@ def process_bulk_food_photos(outlet_id):
             )
     except Exception as e:
         frappe.log_error("Bulk Photo Gen Background Error", str(e))
+
+
+# ── Creator Management (admin) ───────────────────────────────────────────
+# Platform-wide oversight of the creator side of the marketplace — mirrors
+# admin_get_all_customers/admin_get_all_events. Fills a real gap: creator
+# approval today is fully automatic (creator_onboarding.py's follower-count
+# check on Instagram connect) with no manual review, and no admin surface
+# existed anywhere to suspend/reinstate a creator or see their disputes/
+# earnings/KYC status across the whole platform.
+
+CREATOR_STATUS_VALUES = ("pending", "approved", "rejected", "suspended")
+
+
+@frappe.whitelist()
+def admin_get_all_creators(search=None, page=1, page_size=20, sort_by='modified', sort_order='desc', status=None):
+    """Platform-wide creator list for admin/supervisor."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+
+    page      = max(1, int(page))
+    page_size = max(1, min(500, int(page_size)))
+    offset    = (page - 1) * page_size
+
+    conditions = []
+    params: list = []
+    if search:
+        conditions.append("(c.display_name LIKE %s OR c.customer_phone LIKE %s OR c.instagram_handle LIKE %s)")
+        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
+    if status and status in CREATOR_STATUS_VALUES:
+        conditions.append("c.status = %s")
+        params.append(status)
+    where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    _sort_map = {
+        "name":       "c.display_name",
+        "followers":  "c.meta_followers",
+        "created":    "c.creation",
+        "last_seen":  "c.modified",
+        "status":     "c.status",
+    }
+    sort_col  = _sort_map.get(sort_by, "c.modified")
+    order_dir = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+
+    rows = frappe.db.sql(f"""
+        SELECT c.name, c.display_name, c.customer_phone, c.instagram_handle, c.meta_followers,
+               c.status, c.razorpay_kyc_status, c.city, c.creation, c.modified, c.barter_value_ytd_inr
+        FROM `tabFlamezo Creator` c
+        {where_sql}
+        ORDER BY {sort_col} {order_dir}
+        LIMIT %s OFFSET %s
+    """, params + [page_size, offset], as_dict=True)
+
+    total = frappe.db.sql(f"""
+        SELECT COUNT(*) AS cnt FROM `tabFlamezo Creator` c {where_sql}
+    """, params, as_dict=True)[0].cnt
+
+    creator_ids = [r.name for r in rows]
+    earnings, disputes, collabs = _admin_creator_bulk_stats(creator_ids)
+
+    from flamezo_backend.flamezo.utils.creator_badges import get_creator_badge_tier
+
+    return {
+        "success": True,
+        "data": {
+            "creators": [
+                {
+                    "id":               r.name,
+                    "name":             r.display_name or r.name,
+                    "phone":            r.customer_phone or "",
+                    "instagram_handle": r.instagram_handle or "",
+                    "followers":        int(r.meta_followers or 0),
+                    "status":           r.status,
+                    "kyc_status":       r.razorpay_kyc_status or "not_started",
+                    "city":             r.city or "",
+                    "badge_tier":       get_creator_badge_tier(r.name),
+                    "collabs_done":     collabs.get(r.name, 0),
+                    "total_earned_inr": earnings.get(r.name, 0),
+                    "open_disputes":    disputes.get(r.name, 0),
+                    "created":          str(r.creation),
+                    "last_seen":        str(r.modified),
+                }
+                for r in rows
+            ],
+            "total": int(total),
+            "page": page,
+            "page_size": page_size,
+        }
+    }
+
+
+def _admin_creator_bulk_stats(creator_ids):
+    """One bulk query per stat for a page of creators — same shape as
+    creator_collabs.py's _attach_track_record, reused here rather than
+    imported since this needs open-dispute counts too, which that helper
+    doesn't compute (merchant-facing discovery has no reason to)."""
+    if not creator_ids:
+        return {}, {}, {}
+
+    earnings_rows = frappe.db.sql("""
+        SELECT d.creator AS creator, SUM(et.creator_net_inr) AS total
+        FROM `tabEscrow Transaction` et
+        JOIN `tabCollab Deal` d ON d.name = et.deal
+        WHERE d.creator IN %(ids)s AND et.state = 'released'
+        GROUP BY d.creator
+    """, {"ids": creator_ids}, as_dict=True)
+    earnings = {r.creator: int(r.total or 0) for r in earnings_rows}
+
+    open_dispute_rows = []
+    if frappe.db.exists("DocType", "Collab Dispute"):
+        open_dispute_rows = frappe.db.sql("""
+            SELECT d.creator AS creator, COUNT(*) AS cnt
+            FROM `tabCollab Dispute` disp
+            JOIN `tabCollab Deal` d ON d.name = disp.deal
+            WHERE d.creator IN %(ids)s AND disp.status NOT IN ('resolved', 'closed')
+            GROUP BY d.creator
+        """, {"ids": creator_ids}, as_dict=True)
+    disputes = {r.creator: int(r.cnt) for r in open_dispute_rows}
+
+    collab_rows = frappe.db.get_all(
+        "Collab Deal", filters={"creator": ["in", creator_ids], "status": "released"},
+        group_by="creator", fields=["creator", "count(*) as cnt"],
+    )
+    collabs = {r.creator: int(r.cnt) for r in collab_rows}
+
+    return earnings, disputes, collabs
+
+
+@frappe.whitelist()
+def admin_get_creator_full_profile(creator_id):
+    """Full single-creator profile for the admin detail page — identity,
+    KYC/bank (masked), rate cards, recent deals, open disputes."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+    if not frappe.db.exists("Flamezo Creator", creator_id):
+        return {"success": False, "error": "Creator not found"}
+
+    creator = frappe.get_doc("Flamezo Creator", creator_id)
+
+    from flamezo_backend.flamezo.utils.creator_badges import get_creator_badge_tier
+
+    earnings, disputes, collabs = _admin_creator_bulk_stats([creator_id])
+
+    rate_cards = frappe.db.get_all(
+        "Creator Rate Card",
+        filters={"creator": creator_id, "is_active": 1},
+        fields=["deliverable_type", "price_inr", "accepts_barter", "barter_min_value_inr"],
+    )
+
+    recent_deals = frappe.db.sql("""
+        SELECT d.name, d.status, d.deal_type, d.price_inr, d.fair_value_inr,
+               d.creation, r.outlet_name
+        FROM `tabCollab Deal` d
+        LEFT JOIN `tabOutlet` r ON r.name = d.outlet
+        WHERE d.creator = %(creator)s
+        ORDER BY d.creation DESC LIMIT 20
+    """, {"creator": creator_id}, as_dict=True)
+
+    open_disputes = []
+    if frappe.db.exists("DocType", "Collab Dispute"):
+        open_disputes = frappe.db.sql("""
+            SELECT disp.name, disp.status, disp.reason, disp.raised_by_role, disp.creation,
+                   d.name AS deal_id
+            FROM `tabCollab Dispute` disp
+            JOIN `tabCollab Deal` d ON d.name = disp.deal
+            WHERE d.creator = %(creator)s
+            ORDER BY disp.creation DESC LIMIT 20
+        """, {"creator": creator_id}, as_dict=True)
+
+    # Bank details are sensitive — mask the account number to last 4 digits
+    # for an admin oversight view; full details stay in Frappe desk (role-
+    # gated) for whoever actually needs to action a payout dispute.
+    bank_account_masked = None
+    if creator.bank_account_number:
+        acct = str(creator.bank_account_number)
+        bank_account_masked = f"••••{acct[-4:]}" if len(acct) > 4 else "••••"
+
+    return {
+        "success": True,
+        "data": {
+            "id": creator.name,
+            "name": creator.display_name,
+            "phone": creator.customer_phone,
+            "status": creator.status,
+            "city": creator.city,
+            "bio": creator.bio,
+            "profile_image": creator.profile_image,
+            "instagram_handle": creator.instagram_handle,
+            "meta_followers": int(creator.meta_followers or 0),
+            "meta_avg_views": float(creator.meta_avg_views or 0),
+            "follower_count_last_synced": str(creator.follower_count_last_synced) if creator.follower_count_last_synced else None,
+            "approved_at": str(creator.approved_at) if creator.approved_at else None,
+            "badge_tier": get_creator_badge_tier(creator.name),
+            "collabs_done": collabs.get(creator.name, 0),
+            "total_earned_inr": earnings.get(creator.name, 0),
+            "open_disputes": disputes.get(creator.name, 0),
+            "barter_value_ytd_inr": float(creator.barter_value_ytd_inr or 0),
+            "kyc": {
+                "status": creator.razorpay_kyc_status or "not_started",
+                "legal_name": creator.legal_name,
+                "pan_number": creator.pan_number,
+                "bank_holder_name": creator.bank_holder_name,
+                "bank_account_masked": bank_account_masked,
+                "bank_ifsc": creator.bank_ifsc,
+                "linked_account_id": creator.razorpay_linked_account_id,
+            },
+            "rate_cards": rate_cards,
+            "recent_deals": recent_deals,
+            "open_disputes_list": open_disputes,
+            "created": str(creator.creation),
+            "last_seen": str(creator.modified),
+        }
+    }
+
+
+@frappe.whitelist()
+def admin_update_creator_status(creator_id, status, reason=None):
+    """Manual approve/reject/suspend/reinstate — the one lever that didn't
+    exist anywhere before this page. Every transition is logged as a
+    comment on the Flamezo Creator doc so there's a real audit trail of
+    who changed what and why, not just a silently overwritten field."""
+    if not is_supervisor():
+        frappe.throw("Permission denied", frappe.PermissionError)
+    if status not in CREATOR_STATUS_VALUES:
+        frappe.throw(f"Invalid status — must be one of {CREATOR_STATUS_VALUES}", frappe.ValidationError)
+    if not frappe.db.exists("Flamezo Creator", creator_id):
+        return {"success": False, "error": "Creator not found"}
+
+    creator = frappe.get_doc("Flamezo Creator", creator_id)
+    previous_status = creator.status
+    if previous_status == status:
+        return {"success": False, "error": f"Creator is already {status}"}
+
+    creator.status = status
+    if status == "approved" and not creator.approved_at:
+        creator.approved_at = now_datetime()
+    creator.save(ignore_permissions=True)
+
+    creator.add_comment(
+        "Info",
+        f"Status changed {previous_status} → {status} by {frappe.session.user}"
+        + (f": {reason}" if reason else ""),
+    )
+    frappe.db.commit()
+
+    return {"success": True, "data": {"id": creator.name, "status": creator.status}}

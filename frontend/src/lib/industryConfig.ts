@@ -27,6 +27,7 @@ import {
   Film,
   Play,
   Flame,
+  Video,
 } from 'lucide-react'
 
 export type OutletType =
@@ -242,6 +243,7 @@ function sharedBottomItems(outletType: string, isAdmin: boolean): NavItem[] {
     { type: 'link', name: 'Merchant Management', href: '/admin/merchants', icon: Shield, adminOnly: true },
     { type: 'link', name: 'Event Management', href: '/admin/events', icon: PartyPopper, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
+    { type: 'link', name: 'Creator Management', href: '/admin/creators', icon: Video, adminOnly: true },
     marketingManagementGroup(),
   ]
 }
