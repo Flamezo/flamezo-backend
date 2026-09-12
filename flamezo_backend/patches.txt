@@ -25,5 +25,4 @@ flamezo_backend.flamezo.patches.consolidate_logo_to_restaurant
 flamezo_backend.flamezo.patches.remove_has_no_media_and_backfill_media
 flamezo_backend.flamezo.patches.remove_boost_feature
 flamezo_backend.flamezo.patches.fix_billing_page_stale_data
-
-
+flamezo_backend.flamezo.patches.create_support_agent_role

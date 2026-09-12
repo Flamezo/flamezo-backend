@@ -58,11 +58,11 @@ def send_whatsapp_message(phone, message, settings=None):
             return True, None
         
         error_info = res.text[:200]
-        frappe.log_error(f"Evolution API HTTP {res.status_code}: {error_info}", "WhatsApp Send Failed")
+        frappe.log_error(title="WhatsApp Send Failed", message=f"Evolution API HTTP {res.status_code}: {error_info}")
         return False, f"Evolution API Error: {res.status_code}"
     
     except Exception as e:
-        frappe.log_error(f"WhatsApp send exception: {str(e)}", "WhatsApp Send Exception")
+        frappe.log_error(title="WhatsApp Send Exception", message=f"WhatsApp send exception: {str(e)}")
         return False, str(e)
 
 
@@ -136,8 +136,8 @@ def send_whatsapp_cloud_message(to_phone, template_name, body_params, settings=N
             data = res.json()
             msg_id = (data.get("messages") or [{}])[0].get("id")
             return True, msg_id
-        frappe.log_error(f"Meta Cloud API HTTP {res.status_code}: {res.text[:300]}", "WhatsApp Cloud Send Failed")
+        frappe.log_error(title="WhatsApp Cloud Send Failed", message=f"Meta Cloud API HTTP {res.status_code}: {res.text[:300]}")
         return False, f"Meta Cloud API Error {res.status_code}: {res.text[:150]}"
     except Exception as e:
-        frappe.log_error(f"WhatsApp Cloud send exception: {str(e)}", "WhatsApp Cloud Send Exception")
+        frappe.log_error(title="WhatsApp Cloud Send Exception", message=f"WhatsApp Cloud send exception: {str(e)}")
         return False, str(e)

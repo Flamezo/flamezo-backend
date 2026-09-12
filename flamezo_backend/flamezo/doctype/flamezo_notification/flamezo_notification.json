@@ -33,7 +33,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Type",
-   "options": "order\nbooking\npromotion\nloyalty\ncrowd\nclub\nchat\ngeneral",
+   "options": "order\nbooking\npromotion\nloyalty\ncrowd\nclub\nchat\nsupport\ngeneral",
    "reqd": 1
   },
   {

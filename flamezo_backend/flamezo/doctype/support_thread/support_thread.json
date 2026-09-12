@@ -1,0 +1,299 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "SUP-.#####",
+ "creation": "2026-09-10 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "customer_phone",
+  "requester_user",
+  "customer_name",
+  "outlet",
+  "column_break_who",
+  "status",
+  "priority",
+  "source",
+  "callback_requested",
+  "callback_time",
+  "section_break_topic",
+  "category",
+  "app_area",
+  "subject",
+  "column_break_topic",
+  "assigned_to",
+  "context_doctype",
+  "context_name",
+  "section_break_timing",
+  "last_message_at",
+  "first_response_at",
+  "reply_due_at",
+  "escalated_at",
+  "last_update_request_at",
+  "resolved_at",
+  "closed_at",
+  "column_break_timing",
+  "unread_for_customer",
+  "unread_for_agent",
+  "section_break_feedback",
+  "csat_rating",
+  "csat_comment",
+  "diagnostics_json"
+ ],
+ "fields": [
+  {
+   "description": "Customer identity (app). Set for customer threads; merchant threads use requester_user instead.",
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer Phone",
+   "search_index": 1
+  },
+  {
+   "description": "Frappe user who raised it (merchant dashboard threads).",
+   "fieldname": "requester_user",
+   "fieldtype": "Link",
+   "label": "Requester User",
+   "options": "User"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name"
+  },
+  {
+   "description": "Set when a merchant raises a ticket about a specific outlet.",
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Outlet",
+   "options": "Outlet"
+  },
+  {
+   "fieldname": "column_break_who",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "open\nawaiting_agent\nawaiting_customer\nresolved\nclosed",
+   "search_index": 1
+  },
+  {
+   "default": "normal",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Priority",
+   "options": "low\nnormal\nhigh\nurgent"
+  },
+  {
+   "default": "app",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "app\nweb\ndashboard"
+  },
+  {
+   "fieldname": "callback_requested",
+   "fieldtype": "Check",
+   "label": "Call Back Requested",
+   "default": "0",
+   "description": "The merchant asked the team to call them."
+  },
+  {
+   "fieldname": "callback_time",
+   "fieldtype": "Data",
+   "label": "Preferred Call Time",
+   "depends_on": "callback_requested"
+  },
+  {
+   "fieldname": "section_break_topic",
+   "fieldtype": "Section Break",
+   "label": "Topic"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "payment\nbooking\noffers\naccount\ncreator\ncrowd\ntechnical\nfeedback\ngrievance\nsettlement\nkyc\ncommission\nmenu\nprofile\nother\ncallback",
+   "reqd": 1
+  },
+  {
+   "description": "The screen or part of the app the problem is in, e.g. pay_bill. Pre-filled when raised from a specific screen.",
+   "fieldname": "app_area",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "App Area"
+  },
+  {
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject"
+  },
+  {
+   "fieldname": "column_break_topic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Assigned To",
+   "options": "User"
+  },
+  {
+   "description": "The Order, Booking, Offer Claim or deal this ticket is about.",
+   "fieldname": "context_doctype",
+   "fieldtype": "Data",
+   "label": "Context Doctype"
+  },
+  {
+   "fieldname": "context_name",
+   "fieldtype": "Data",
+   "label": "Context Name"
+  },
+  {
+   "fieldname": "section_break_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "last_message_at",
+   "fieldtype": "Datetime",
+   "label": "Last Message At",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "description": "First agent reply. Drives the response-time target.",
+   "fieldname": "first_response_at",
+   "fieldtype": "Datetime",
+   "label": "First Response At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reply_due_at",
+   "fieldtype": "Datetime",
+   "label": "Reply Due At",
+   "read_only": 1,
+   "description": "Promised reply time shown to the requester (set when a new wait starts, by priority)."
+  },
+  {
+   "fieldname": "escalated_at",
+   "fieldtype": "Datetime",
+   "label": "Escalated At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_update_request_at",
+   "fieldtype": "Datetime",
+   "label": "Last Update Request At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Resolved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed_at",
+   "fieldtype": "Datetime",
+   "label": "Closed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "unread_for_customer",
+   "fieldtype": "Int",
+   "label": "Unread For Customer",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "unread_for_agent",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Unread For Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_feedback",
+   "fieldtype": "Section Break",
+   "label": "Feedback & Diagnostics"
+  },
+  {
+   "description": "1-5, set by the customer at resolution.",
+   "fieldname": "csat_rating",
+   "fieldtype": "Int",
+   "label": "CSAT Rating"
+  },
+  {
+   "fieldname": "csat_comment",
+   "fieldtype": "Small Text",
+   "label": "CSAT Comment"
+  },
+  {
+   "description": "App version, platform, OS. Captured silently at creation; for agents only.",
+   "fieldname": "diagnostics_json",
+   "fieldtype": "Long Text",
+   "label": "Diagnostics",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-11 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Flamezo",
+ "name": "Support Thread",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Support Agent",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "search_fields": "customer_name,customer_phone,subject",
+ "sort_field": "last_message_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "subject",
+ "track_changes": 1
+}

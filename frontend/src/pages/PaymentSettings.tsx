@@ -26,6 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { toast } from 'sonner'
+import { GetHelpButton } from '@/components/GetHelpButton'
 import { format, subDays } from 'date-fns'
 import {
   CreditCard,
@@ -310,6 +311,7 @@ export default function PaymentSettings() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <GetHelpButton category="settlement" area="payments" label="Payout issue?" />
           <Button
             variant="outline"
             className="rounded-full shadow-sm hover:bg-muted transition-all gap-2"

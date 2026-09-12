@@ -1009,7 +1009,7 @@ def get_claimable_orders(outlet_id, phone):
 			return _ok({"orders": [], "outletName": outlet_name})
 
 		# Fetch completed orders within the claim window (covers delayed claims)
-		from frappe.utils import add_days, today
+		from frappe.utils import add_days, today, get_datetime, now_datetime
 		since = add_days(today(), -CLAIM_WINDOW_DAYS)
 		rows = frappe.db.sql(
 			"""
@@ -1046,6 +1046,10 @@ def get_claimable_orders(outlet_id, phone):
 					"submissionId": existing.name,
 					"submissionStatus": existing.status,
 				})
+				continue
+			# Strict time expiry: an unclaimed order past its claim window is no
+			# longer claimable — drop it here so it surfaces in the Expired tab.
+			if get_datetime(expires_on) <= now_datetime():
 				continue
 			if flt(row["total"]) < PLATFORM_MIN_ORDER:
 				continue
@@ -1105,7 +1109,7 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 			for doc_id in set(resolved.values())
 		}
 
-		from frappe.utils import add_days, today
+		from frappe.utils import add_days, today, get_datetime, now_datetime
 		since = add_days(today(), -CLAIM_WINDOW_DAYS)
 		doc_ids = list(set(resolved.values()))
 		placeholders = ", ".join(["%s"] * len(doc_ids))
@@ -1153,6 +1157,9 @@ def get_claimable_orders_bulk(outlet_ids, phone):
 			if existing:
 				item.update({"alreadyClaimed": True, "submissionId": existing.name, "submissionStatus": existing.status})
 			else:
+				# Strict time expiry — unclaimed + window passed → not claimable.
+				if get_datetime(expires_on) <= now_datetime():
+					continue
 				if flt(row["total"]) < PLATFORM_MIN_ORDER:
 					continue
 				item["alreadyClaimed"] = False

@@ -27,6 +27,8 @@ import {
   Film,
   Play,
   Flame,
+  LifeBuoy,
+  Inbox,
   Video,
 } from 'lucide-react'
 
@@ -240,7 +242,11 @@ function sharedBottomItems(outletType: string, isAdmin: boolean): NavItem[] {
         { name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
       ],
     },
+    // Every merchant, not admin-only: the dashboard previously told deactivated
+    // merchants to "contact support" with no way to do so.
+    { type: 'link', name: 'Help & Support', description: 'Talk to the Flamezo team', href: '/help-support', icon: LifeBuoy },
     { type: 'link', name: 'Merchant Management', href: '/admin/merchants', icon: Shield, adminOnly: true },
+    { type: 'link', name: 'Support Requests', description: 'Customer & merchant requests', href: '/admin/support', icon: Inbox, adminOnly: true },
     { type: 'link', name: 'Event Management', href: '/admin/events', icon: PartyPopper, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
     { type: 'link', name: 'Creator Management', href: '/admin/creators', icon: Video, adminOnly: true },

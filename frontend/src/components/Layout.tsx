@@ -1563,7 +1563,11 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             ) : (
               <>
-                {location.pathname !== '/account' && location.pathname !== '/menu' && <Breadcrumb />}
+                {/* No breadcrumb on the support workspaces — they fill the screen. */}
+                {location.pathname !== '/account' &&
+                  location.pathname !== '/menu' &&
+                  location.pathname !== '/help-support' &&
+                  !location.pathname.startsWith('/admin/support') && <Breadcrumb />}
                 {children || <Outlet />}
               </>
             )}
