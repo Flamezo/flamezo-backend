@@ -38,7 +38,14 @@ import {
   Loader2,
   ImagePlus,
   Eye,
-  EyeOff
+  EyeOff,
+  FileSignature,
+  Send,
+  CheckCircle2,
+  Clock3,
+  XCircle,
+  Timer,
+  Lock
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
@@ -239,6 +246,58 @@ function AdminMerchantDetailsPage() {
     {},
     'platform-settings-details'
   )
+
+  // Merchant Partnership Agreement — admin-triggered eSign (staff sends the
+  // Aadhaar eSign link; the merchant only ever sees the Leegality SMS).
+  const {
+    data: agreementStatusData,
+    mutate: reloadAgreementStatus,
+    isLoading: agreementStatusLoading,
+  } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.esign.admin_get_agreement_status',
+    { outlet_id: id },
+    id ? `agreement-status-${id}` : null
+  )
+  const agreement = agreementStatusData?.message?.data as
+    | {
+        name: string
+        status: string
+        agreement_version: string
+        signing_url?: string
+        initiated_at?: string
+        signed_at?: string
+        expires_at?: string
+      }
+    | null
+    | undefined
+  const { call: sendForSigning } = useFrappePostCall<{
+    success: boolean
+    data?: { signed_agreement: string; status: string; signing_url?: string; already_exists?: boolean }
+  }>('flamezo_backend.flamezo.api.esign.admin_initiate_agreement_signing')
+  const [sendingAgreement, setSendingAgreement] = useState(false)
+
+  const handleSendAgreement = async () => {
+    if (!id || sendingAgreement) return
+    setSendingAgreement(true)
+    try {
+      const res: any = await sendForSigning({ outlet_id: id })
+      const data = res?.message ?? res
+      if (data?.success) {
+        toast.success(
+          data.data?.already_exists
+            ? 'Already sent — the merchant has a pending signing link.'
+            : 'Agreement sent — the merchant will receive an SMS with the Aadhaar eSign link.'
+        )
+        await reloadAgreementStatus()
+      } else {
+        toast.error(getFrappeError(res) || 'Could not send the agreement. Please try again.')
+      }
+    } catch (e: any) {
+      toast.error(getFrappeError(e) || 'Could not send the agreement. Please try again.')
+    } finally {
+      setSendingAgreement(false)
+    }
+  }
   
   const platformSettings = platformSettingsData?.message?.data || {
     charge_gst: false,
@@ -651,6 +710,9 @@ function AdminMerchantDetailsPage() {
 
             <TabsTrigger value="operational" className="rounded-lg px-4 py-2 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Settings className="h-4 w-4" /> Ops Settings
+            </TabsTrigger>
+            <TabsTrigger value="agreement" className="rounded-lg px-4 py-2 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <FileSignature className="h-4 w-4" /> Agreement
             </TabsTrigger>
           </TabsList>
 
@@ -1388,6 +1450,16 @@ function AdminMerchantDetailsPage() {
                </Card>
             </div>
           </TabsContent>
+
+          {/* Agreement Tab — admin-triggered Merchant Partnership Agreement eSign */}
+          <TabsContent value="agreement">
+            <AgreementStatusCard
+              loading={agreementStatusLoading}
+              agreement={agreement}
+              sending={sendingAgreement}
+              onSend={handleSendAgreement}
+            />
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -1549,6 +1621,135 @@ function maskPan(pan: string): string {
 function maskAccount(acct: string): string {
   if (!acct || acct.length <= 4) return acct
   return `••••${acct.slice(-4)}`
+}
+
+type AgreementRow = {
+  name: string
+  status: string
+  agreement_version: string
+  signing_url?: string
+  initiated_at?: string
+  signed_at?: string
+  expires_at?: string
+}
+
+function AgreementStatusCard({
+  loading,
+  agreement,
+  sending,
+  onSend,
+}: {
+  loading: boolean
+  agreement: AgreementRow | null | undefined
+  sending: boolean
+  onSend: () => void
+}) {
+  const status = agreement?.status
+
+  const variant = (() => {
+    if (status === 'Signed') {
+      return {
+        icon: CheckCircle2,
+        iconBg: 'bg-emerald-500 text-white',
+        title: 'Agreement signed',
+        body: 'The merchant has completed Aadhaar eSign on the Merchant Partnership Agreement.',
+        badge: { text: 'Signed', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+      }
+    }
+    if (status === 'Link Sent' || status === 'Viewed') {
+      return {
+        icon: Clock3,
+        iconBg: 'bg-blue-500 text-white',
+        title: status === 'Viewed' ? 'Merchant opened the signing link' : 'Signing link sent',
+        body: 'The merchant received an SMS from Leegality with the Aadhaar eSign link and has not completed signing yet.',
+        badge: { text: status === 'Viewed' ? 'Viewed' : 'Link Sent', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+      }
+    }
+    if (status === 'Failed') {
+      return {
+        icon: XCircle,
+        iconBg: 'bg-rose-500 text-white',
+        title: 'Sending failed',
+        body: 'The signing request could not be created with the eSign provider. You can try sending it again.',
+        badge: { text: 'Failed', cls: 'bg-rose-100 text-rose-700 border-rose-200' },
+      }
+    }
+    if (status === 'Expired') {
+      return {
+        icon: Timer,
+        iconBg: 'bg-amber-500 text-white',
+        title: 'Signing link expired',
+        body: 'The merchant did not complete signing before the link expired. Send a fresh one.',
+        badge: { text: 'Expired', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+      }
+    }
+    return {
+      icon: FileSignature,
+      iconBg: 'bg-stone-400 text-white',
+      title: 'Agreement not sent yet',
+      body: 'Send the Merchant Partnership Agreement for Aadhaar eSign — the merchant receives the signing link by SMS directly from Leegality.',
+      badge: { text: 'Not Sent', cls: 'bg-stone-100 text-stone-700 border-stone-200' },
+    }
+  })()
+
+  const StatusIcon = variant.icon
+  const canSend = !loading && !sending && (!status || status === 'Failed' || status === 'Expired')
+
+  return (
+    <Card className="shadow-sm border-none bg-card overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 p-5 border-b border-border/40 bg-muted/20">
+          <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm', variant.iconBg)}>
+            <StatusIcon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <h3 className="text-base font-black tracking-tight">{variant.title}</h3>
+              <Badge variant="outline" className={cn('px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4', variant.badge.cls)}>
+                {variant.badge.text}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium max-w-prose">{variant.body}</p>
+          </div>
+          <Button
+            onClick={onSend}
+            disabled={!canSend}
+            className="gap-2 font-bold shrink-0"
+            title={
+              status === 'Link Sent' || status === 'Viewed'
+                ? 'Already sent — waiting on the merchant to complete signing'
+                : status === 'Signed'
+                ? 'Already signed'
+                : undefined
+            }
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {sending ? 'Sending…' : status === 'Failed' || status === 'Expired' ? 'Resend Agreement' : 'Send for Signing'}
+          </Button>
+        </div>
+
+        {agreement && (
+          <div className="divide-y divide-border/40 text-xs">
+            <KycRow label="Agreement Version" value={agreement.agreement_version} mono={false} />
+            <KycRow label="Signed Agreement ID" value={agreement.name} />
+            {agreement.initiated_at && <KycRow label="Sent On" value={agreement.initiated_at} mono={false} />}
+            {agreement.signed_at && <KycRow label="Signed On" value={agreement.signed_at} mono={false} />}
+            {agreement.expires_at && !agreement.signed_at && (
+              <KycRow label="Link Expires" value={agreement.expires_at} mono={false} />
+            )}
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 p-5 text-[11px] text-muted-foreground border-t border-border/40">
+          <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <p>
+            Sending goes directly to Leegality (Aadhaar eSign, live account) — the merchant gets an SMS with the
+            signing link. Nothing here substitutes for the merchant actually completing the OTP-verified signature.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export default AdminMerchantDetailsPage

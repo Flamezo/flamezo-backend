@@ -1,0 +1,325 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-09-10 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "agreement_template",
+  "agreement_type",
+  "agreement_version",
+  "column_break_1",
+  "party_doctype",
+  "party",
+  "status",
+  "section_break_doc",
+  "agreement_document_hash",
+  "schedule_snapshot",
+  "section_break_provider",
+  "esign_provider",
+  "provider_request_id",
+  "signing_url",
+  "column_break_provider",
+  "initiated_at",
+  "viewed_at",
+  "signed_at",
+  "expires_at",
+  "section_break_signer",
+  "signer_phone_masked",
+  "signer_ip",
+  "signer_device",
+  "aadhaar_last4",
+  "section_break_output",
+  "signed_pdf",
+  "signed_pdf_hash",
+  "column_break_output",
+  "e_stamp_certificate_number",
+  "e_stamp_duty_amount",
+  "section_break_webhook",
+  "last_webhook_event",
+  "last_webhook_at",
+  "webhook_raw_payload",
+  "section_break_chain",
+  "superseded_by",
+  "supersedes"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "SIGN-AGR-.YYYY.-.MM.-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "agreement_template",
+   "fieldtype": "Link",
+   "label": "Agreement Template",
+   "options": "Agreement Template",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "agreement_type",
+   "fieldtype": "Select",
+   "label": "Agreement Type",
+   "options": "Customer Terms of Service\nMerchant Partnership Agreement\nCreator Marketplace Agreement",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "agreement_version",
+   "fieldtype": "Data",
+   "label": "Agreement Version",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "party_doctype",
+   "fieldtype": "Select",
+   "label": "Party DocType",
+   "options": "Customer\nOutlet\nFlamezo Creator",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_doctype",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nLink Sent\nViewed\nSigned\nFailed\nExpired\nSuperseded",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "section_break_doc",
+   "fieldtype": "Section Break",
+   "label": "Document Integrity"
+  },
+  {
+   "fieldname": "agreement_document_hash",
+   "fieldtype": "Data",
+   "label": "Rendered Document Hash (SHA-256)",
+   "read_only": 1,
+   "description": "Hash of the EXACT PDF shown to the signer, computed before sending — proves what was actually presented, independent of any later Agreement Template edits."
+  },
+  {
+   "fieldname": "schedule_snapshot",
+   "fieldtype": "JSON",
+   "label": "Commercial Terms Snapshot",
+   "read_only": 1,
+   "description": "Frozen copy of the Schedule A/B values (Success Share %, Marketplace Fee %, Settlement Cycle, etc.) at the moment this document was rendered — Schedule values can change later under Section 4.4/24.5, but this row must remain provable as exactly what was agreed at signing."
+  },
+  {
+   "fieldname": "section_break_provider",
+   "fieldtype": "Section Break",
+   "label": "eSign Provider"
+  },
+  {
+   "fieldname": "esign_provider",
+   "fieldtype": "Select",
+   "label": "eSign Provider",
+   "options": "clickwrap\nsignyu\nleegality\ndigio",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider_request_id",
+   "fieldtype": "Data",
+   "label": "Provider Request ID",
+   "in_list_view": 1,
+   "description": "External signing-request ID at the provider — empty for clickwrap."
+  },
+  {
+   "fieldname": "signing_url",
+   "fieldtype": "Data",
+   "label": "Signing URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_provider",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "initiated_at",
+   "fieldtype": "Datetime",
+   "label": "Initiated At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "viewed_at",
+   "fieldtype": "Datetime",
+   "label": "Viewed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_at",
+   "fieldtype": "Datetime",
+   "label": "Signed At",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Link Expires At",
+   "read_only": 1,
+   "description": "Used by the reconciliation job to distinguish a stalled request from one that's simply still pending."
+  },
+  {
+   "fieldname": "section_break_signer",
+   "fieldtype": "Section Break",
+   "label": "Signer (Privacy-Sensitive — Minimal Retention)"
+  },
+  {
+   "fieldname": "signer_phone_masked",
+   "fieldtype": "Data",
+   "label": "Signer Phone (Masked)",
+   "read_only": 1,
+   "description": "e.g. 98******21 — full phone lives on the Customer/Outlet/Flamezo Creator record, never duplicated here."
+  },
+  {
+   "fieldname": "signer_ip",
+   "fieldtype": "Data",
+   "label": "Signer IP",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signer_device",
+   "fieldtype": "Data",
+   "label": "Signer Device / User-Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "aadhaar_last4",
+   "fieldtype": "Data",
+   "label": "Aadhaar (Last 4 Digits Only)",
+   "read_only": 1,
+   "description": "DPDP Act minimisation — the full Aadhaar number is never received or stored by FlameZO; it is handled entirely within the eSign provider's UIDAI-compliant flow. Only the last 4 digits (for the signer to visually confirm which identity signed) are persisted here."
+  },
+  {
+   "fieldname": "section_break_output",
+   "fieldtype": "Section Break",
+   "label": "Signed Output"
+  },
+  {
+   "fieldname": "signed_pdf",
+   "fieldtype": "Attach",
+   "label": "Signed PDF",
+   "read_only": 1,
+   "description": "Stored via the R2 media pipeline (media/storage.py), same as every other Platform document — not left sitting only on the provider's servers."
+  },
+  {
+   "fieldname": "signed_pdf_hash",
+   "fieldtype": "Data",
+   "label": "Signed PDF Hash (SHA-256)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_output",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "e_stamp_certificate_number",
+   "fieldtype": "Data",
+   "label": "e-Stamp Certificate Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "e_stamp_duty_amount",
+   "fieldtype": "Currency",
+   "label": "e-Stamp Duty Paid (INR)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_webhook",
+   "fieldtype": "Section Break",
+   "label": "Provider Webhook Audit Trail",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "last_webhook_event",
+   "fieldtype": "Data",
+   "label": "Last Webhook Event Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_webhook_at",
+   "fieldtype": "Datetime",
+   "label": "Last Webhook At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "webhook_raw_payload",
+   "fieldtype": "JSON",
+   "label": "Last Webhook Payload (Redacted)",
+   "read_only": 1,
+   "description": "Stored for debugging/dispute evidence — any PII beyond what this doctype already models (e.g. a raw Aadhaar number, if a provider ever mistakenly included one) MUST be stripped by the webhook handler before this field is written. Never trust a provider payload to be pre-redacted."
+  },
+  {
+   "fieldname": "section_break_chain",
+   "fieldtype": "Section Break",
+   "label": "Version Chain",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "superseded_by",
+   "fieldtype": "Link",
+   "label": "Superseded By",
+   "options": "Signed Agreement",
+   "read_only": 1,
+   "description": "Set when the party re-signs a newer Agreement Template version. This row is never edited or deleted after signing — only superseded."
+  },
+  {
+   "fieldname": "supersedes",
+   "fieldtype": "Link",
+   "label": "Supersedes",
+   "options": "Signed Agreement",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "module": "Flamezo",
+ "name": "Signed Agreement",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 0
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
