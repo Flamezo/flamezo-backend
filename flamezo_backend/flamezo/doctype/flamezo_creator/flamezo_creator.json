@@ -29,9 +29,24 @@
   "approved_at",
   "section_break_marketplace",
   "razorpay_linked_account_id",
+  "razorpay_kyc_status",
   "column_break_marketplace",
   "barter_value_ytd_inr",
-  "barter_value_fy"
+  "barter_value_fy",
+  "section_break_kyc",
+  "legal_name",
+  "pan_number",
+  "owner_email",
+  "column_break_kyc_1",
+  "address",
+  "kyc_city",
+  "state",
+  "zip_code",
+  "section_break_bank",
+  "bank_account_number",
+  "column_break_kyc_2",
+  "bank_ifsc",
+  "bank_holder_name"
  ],
  "fields": [
   {
@@ -161,6 +176,14 @@
    "description": "RazorpayX Route sub-account, created at first cash-deal acceptance. Barter-only creators never need this."
   },
   {
+   "fieldname": "razorpay_kyc_status",
+   "fieldtype": "Select",
+   "label": "Razorpay KYC Status",
+   "options": "\nunder_review\nactivated\nneeds_clarification\nrejected\nsuspended",
+   "read_only": 1,
+   "description": "Mirrors the same enum/mapping convention as Outlet.razorpay_kyc_status — see utils/creator_payout.py"
+  },
+  {
    "fieldname": "column_break_marketplace",
    "fieldtype": "Column Break"
   },
@@ -178,6 +201,78 @@
    "label": "Barter Value Financial Year",
    "read_only": 1,
    "description": "e.g. '2026-27' — which FY barter_value_ytd_inr belongs to. Reset lazily: the next barter deal released after the FY rolls over zeroes the counter before adding."
+  },
+  {
+   "fieldname": "section_break_kyc",
+   "fieldtype": "Section Break",
+   "label": "Payout KYC — collected at first cash-deal acceptance",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "legal_name",
+   "fieldtype": "Data",
+   "label": "Legal Name (as per PAN)",
+   "description": "Falls back to display_name if unset — but required before ensure_creator_linked_account will actually create the Razorpay account"
+  },
+  {
+   "fieldname": "pan_number",
+   "fieldtype": "Data",
+   "label": "PAN Number",
+   "description": "Individual's own PAN — goes on Razorpay stakeholder KYC, not legal_info (that's for incorporated entities only, see utils/creator_payout.py)"
+  },
+  {
+   "fieldname": "owner_email",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "fieldname": "column_break_kyc_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "kyc_city",
+   "fieldtype": "Data",
+   "label": "KYC City",
+   "description": "The creator's registered-address city for Razorpay KYC — deliberately separate from the top-level `city` field, which drives the score engine's collab-location IG/App blend weight and can differ from where the creator actually lives"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "zip_code",
+   "fieldtype": "Data",
+   "label": "PIN Code"
+  },
+  {
+   "fieldname": "section_break_bank",
+   "fieldtype": "Section Break",
+   "label": "Bank details"
+  },
+  {
+   "fieldname": "bank_account_number",
+   "fieldtype": "Data",
+   "label": "Bank Account Number"
+  },
+  {
+   "fieldname": "column_break_kyc_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bank_ifsc",
+   "fieldtype": "Data",
+   "label": "Bank IFSC"
+  },
+  {
+   "fieldname": "bank_holder_name",
+   "fieldtype": "Data",
+   "label": "Bank Account Holder Name"
   }
  ],
  "modified": "2026-07-09 10:00:00.000000",

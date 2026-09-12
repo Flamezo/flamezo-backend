@@ -409,6 +409,21 @@ class TestCollabDeals(unittest.TestCase):
 		result = deals.get_deal(deal.name, phone=_PHONE)
 		self.assertEqual(result["data"]["origin"], "direct_invite")
 
+	def test_get_deal_includes_creator_identity_and_timeline(self):
+		"""Regression for the deal-detail sheet: it needs the creator's
+		name/photo (not just the raw ID) and real transition timestamps
+		to render a status timeline, not just the current status."""
+		deal = self._cash_deal(status="accepted")
+		result = deals.get_deal(deal.name, outlet_id=self.outlet)
+		data = result["data"]
+		self.assertEqual(data["creator_name"], self.creator.display_name)
+		self.assertIn("creator_profile_image", data)
+		self.assertEqual(data["outlet_name"], "Test Restaurant " + self.outlet)
+		self.assertIsNotNone(data["accepted_at"])
+		self.assertIsNone(data["funded_at"])
+		self.assertIsNone(data["delivered_at"])
+		self.assertIsNone(data["released_at"])
+
 	def test_list_outlet_deals(self):
 		self._cash_deal()
 		result = deals.list_outlet_deals(self.outlet)
@@ -419,6 +434,23 @@ class TestCollabDeals(unittest.TestCase):
 		self._cash_deal()  # offered
 		result = deals.list_outlet_deals(self.outlet, status="accepted")
 		self.assertEqual(len(result["data"]["deals"]), 1)
+
+	def test_list_outlet_deals_no_outlet_returns_empty(self):
+		"""Regression: useFrappeGetCall fires on mount even before
+		selectedOutlet resolves — must degrade cleanly, not 500."""
+		result = deals.list_outlet_deals()
+		self.assertEqual(result["data"]["deals"], [])
+
+	def test_list_outlet_deals_includes_creator_identity(self):
+		"""Regression for a real UX gap: the dashboard used to show a raw
+		creator ID with no name/photo — list_outlet_deals must join
+		through to Flamezo Creator for creator_name/creator_profile_image."""
+		self._cash_deal()
+		result = deals.list_outlet_deals(self.outlet)
+		row = result["data"]["deals"][0]
+		self.assertIn("creator_name", row)
+		self.assertIn("creator_profile_image", row)
+		self.assertEqual(row["creator_name"], self.creator.display_name)
 
 	# ── auto_release_escrow job ──────────────────────────────────────────
 
@@ -508,6 +540,12 @@ class TestCollabDeals(unittest.TestCase):
 	def test_get_deal_nonexistent_deal_throws(self):
 		with self.assertRaises(frappe.exceptions.DoesNotExistError):
 			deals.get_deal("DEAL-DOES-NOT-EXIST", phone=_PHONE)
+
+	def test_get_deal_no_deal_id_returns_null_data(self):
+		"""Regression: useFrappeGetCall fires on mount even before a deal
+		is selected — must degrade cleanly, not 500."""
+		result = deals.get_deal()
+		self.assertIsNone(result["data"])
 
 	@patch("flamezo_backend.flamezo.api.collab_deals.get_razorpay_client")
 	def test_fund_deal_wrong_outlet_throws(self, mock_client_factory):

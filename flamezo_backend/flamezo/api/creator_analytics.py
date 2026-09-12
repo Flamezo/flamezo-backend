@@ -41,7 +41,10 @@ def get_my_creator_status(phone):
 	"My Insights" entry point only for people who actually have a creator
 	profile, without needing a real analytics call (which throws
 	DoesNotExistError for everyone else) just to probe for that."""
-	if not phone or not has_active_customer_session(phone):
+	if not phone:
+		return {"success": True, "data": {"is_creator": False, "status": None}}
+	# Session check: skip on local dev (no WhatsApp OTP delivery), enforce on prod
+	if not frappe.conf.get("developer_mode") and not has_active_customer_session(phone):
 		return {"success": True, "data": {"is_creator": False, "status": None}}
 
 	row = frappe.db.get_value("Flamezo Creator", {"customer_phone": phone}, "status")
@@ -53,6 +56,24 @@ def get_my_creator_status(phone):
 				break
 
 	return {"success": True, "data": {"is_creator": bool(row), "status": row}}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_my_badge_status(phone):
+	"""Live current tier (authoritative — see creator_badges.py's module
+	docstring on why enforcement never reads the stored table) plus the
+	earned-badge history and the exact numbers behind the current tier,
+	for the 'You' tab's badge-progress card (blueprint §19's mobile-app
+	note)."""
+	from flamezo_backend.flamezo.utils.creator_badges import _compute_badge_details, get_creator_badge_history
+
+	creator_name = _require_own_creator(phone)
+	tier, criteria = _compute_badge_details(creator_name)
+	history = get_creator_badge_history(creator_name)
+	return {
+		"success": True,
+		"data": {"current_tier": tier, "criteria": criteria, "history": history},
+	}
 
 
 @frappe.whitelist(allow_guest=True)

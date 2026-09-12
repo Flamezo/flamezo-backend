@@ -10,12 +10,13 @@ overflow instead of confirming it).
 
 import unittest
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import frappe
-from frappe.utils import add_days, now_datetime
+from frappe.utils import add_days, now_datetime, today
 
 from flamezo_backend.flamezo.api import creator_collabs as collabs
+from flamezo_backend.flamezo.api import collab_deals as deals
 from flamezo_backend.flamezo.tests.utils import make_restaurant
 
 _PREFIX = "TEST-COLLAB"
@@ -275,3 +276,144 @@ class TestCreatorCollabs(unittest.TestCase):
 		result = collabs.discover_creators(city="Surat")
 		match = next(c for c in result["data"]["creators"] if c["creator_id"] == self.creator.name)
 		self.assertTrue(match["available_this_week"])
+
+	# ── track record (collabs_done / rating / earnings / badge) ─────────
+
+	def test_discover_creators_track_record_defaults_for_new_creator(self):
+		result = collabs.discover_creators(city="Surat")
+		match = next(c for c in result["data"]["creators"] if c["creator_id"] == self.creator.name)
+		self.assertEqual(match["collabs_done"], 0)
+		self.assertIsNone(match["avg_rating"])
+		self.assertEqual(match["rating_count"], 0)
+		self.assertEqual(match["total_earned_inr"], 0)
+		self.assertEqual(match["badge_tier"], "new_creator")
+
+	def test_discover_creators_counts_completed_invites_and_rating(self):
+		for rating in (5, 4):
+			inv = frappe.get_doc({
+				"doctype": "Creator Collab Invite", "outlet": self.outlet, "creator": self.creator.name,
+				"status": "completed", "merchant_rating": rating,
+			})
+			inv.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+		result = collabs.discover_creators(city="Surat")
+		match = next(c for c in result["data"]["creators"] if c["creator_id"] == self.creator.name)
+		self.assertEqual(match["collabs_done"], 2)
+		self.assertEqual(match["avg_rating"], 4.5)
+		self.assertEqual(match["rating_count"], 2)
+
+		frappe.db.sql("DELETE FROM `tabCreator Collab Invite` WHERE creator=%s AND status='completed'", self.creator.name)
+		frappe.db.commit()
+
+	def test_discover_creators_earnings_is_net_not_gross(self):
+		"""total_earned_inr must reflect creator_net_inr (post-commission),
+		not price_inr — the same figure a creator would see as their own
+		payout, not the merchant's gross spend."""
+		invite = frappe.get_doc({"doctype": "Creator Collab Invite", "outlet": self.outlet, "creator": self.creator.name})
+		invite.insert(ignore_permissions=True)
+		deal = frappe.get_doc({
+			"doctype": "Collab Deal", "creator": self.creator.name, "outlet": self.outlet, "direct_invite": invite.name,
+			"deal_type": "cash", "price_inr": 1000, "terms_json": "{}", "deadline": add_days(today(), 7),
+		})
+		deal.insert(ignore_permissions=True)
+		deal.status = "accepted"
+		deal.save(ignore_permissions=True)
+
+		with patch("flamezo_backend.flamezo.api.collab_deals.has_active_customer_session", return_value=True), \
+			patch("flamezo_backend.flamezo.api.collab_deals.get_razorpay_client") as mock_client_factory:
+			fake_client = MagicMock()
+			fake_client.order.create.return_value = {"id": "order_TESTTRACK"}
+			fake_client.utility.verify_payment_signature.return_value = True
+			mock_client_factory.return_value = fake_client
+			deals.fund_deal(self.outlet, deal.name)
+			deals.mark_deal_funded(deal.name, "pay_TESTTRACK")
+			deal.reload()
+			deal.status = "delivered"
+			deal.save(ignore_permissions=True)
+			deals.approve_release(self.outlet, deal.name)
+
+		result = collabs.discover_creators(city="Surat")
+		match = next(c for c in result["data"]["creators"] if c["creator_id"] == self.creator.name)
+		self.assertEqual(match["total_earned_inr"], 900)  # 1000 - 10% commission
+		self.assertEqual(match["collabs_done"], 1)
+
+		frappe.db.sql("DELETE FROM `tabEscrow Transaction` WHERE deal=%s", deal.name)
+		frappe.db.sql("DELETE FROM `tabCollab Deal` WHERE name=%s", deal.name)
+		frappe.db.sql("DELETE FROM `tabCreator Collab Invite` WHERE name=%s", invite.name)
+		frappe.db.commit()
+
+	# ── get_creator_profile ──────────────────────────────────────────────
+
+	def test_get_creator_profile_basic_fields(self):
+		frappe.db.set_value("Flamezo Creator", self.creator.name, {
+			"bio": "I make food content.", "instagram_handle": "collabtest_ig",
+		})
+		result = collabs.get_creator_profile(self.creator.name)
+		data = result["data"]
+		self.assertEqual(data["display_name"], "CollabTestCreator")
+		self.assertEqual(data["bio"], "I make food content.")
+		self.assertEqual(data["instagram_handle"], "collabtest_ig")
+		self.assertEqual(data["city"], "Surat")
+		self.assertIn("club", data)
+		self.assertEqual(data["club"]["club_name"], "Collab Test Club")
+		self.assertEqual(data["badge_tier"], "new_creator")
+		self.assertEqual(data["collabs_done"], 0)
+		self.assertEqual(data["rate_cards"], [])
+		self.assertEqual(data["recent_collabs"], [])
+		self.assertIn("available_this_week", data)
+
+	def test_get_creator_profile_includes_rate_cards(self):
+		card = frappe.get_doc({
+			"doctype": "Creator Rate Card", "creator": self.creator.name,
+			"deliverable_type": "native_chills", "price_inr": 900, "accepts_barter": 1, "barter_min_value_inr": 300,
+		})
+		card.insert(ignore_permissions=True)
+		result = collabs.get_creator_profile(self.creator.name)
+		self.assertEqual(len(result["data"]["rate_cards"]), 1)
+		self.assertEqual(result["data"]["rate_cards"][0]["price_inr"], 900)
+		self.assertEqual(result["data"]["starting_rate_inr"], 900)
+		frappe.db.sql("DELETE FROM `tabCreator Rate Card` WHERE name=%s", card.name)
+		frappe.db.commit()
+
+	def test_get_creator_profile_recent_collabs_sorted_newest_first(self):
+		"""Regression for a real bug: mixing a None-completed_at invite row
+		with a real-datetime deal row crashed sorted() with a TypeError
+		(comparing str to datetime) before this was fixed."""
+		older = frappe.get_doc({
+			"doctype": "Creator Collab Invite", "outlet": self.outlet, "creator": self.creator.name,
+			"status": "completed", "merchant_rating": 4,
+			"completed_at": frappe.utils.add_days(now_datetime(), -10),
+		})
+		older.insert(ignore_permissions=True)
+		newer = frappe.get_doc({
+			"doctype": "Creator Collab Invite", "outlet": self.outlet, "creator": self.creator.name,
+			"status": "completed", "merchant_rating": 5,
+			"completed_at": now_datetime(),
+		})
+		newer.insert(ignore_permissions=True)
+
+		result = collabs.get_creator_profile(self.creator.name)
+		history = result["data"]["recent_collabs"]
+		self.assertEqual(len(history), 2)
+		self.assertEqual(history[0]["rating"], 5)  # newer first
+		self.assertEqual(history[1]["rating"], 4)
+
+		frappe.db.sql("DELETE FROM `tabCreator Collab Invite` WHERE name IN (%s, %s)", (older.name, newer.name))
+		frappe.db.commit()
+
+	def test_get_creator_profile_unapproved_creator_throws(self):
+		frappe.db.set_value("Flamezo Creator", self.creator.name, "status", "pending")
+		with self.assertRaises(frappe.exceptions.DoesNotExistError):
+			collabs.get_creator_profile(self.creator.name)
+		frappe.db.set_value("Flamezo Creator", self.creator.name, "status", "approved")
+
+	def test_get_creator_profile_nonexistent_creator_throws(self):
+		with self.assertRaises(frappe.exceptions.DoesNotExistError):
+			collabs.get_creator_profile("CREATOR-DOES-NOT-EXIST")
+
+	def test_get_creator_profile_no_creator_id_returns_null_data(self):
+		"""Regression: useFrappeGetCall fires on mount even before a
+		creator is selected — must degrade cleanly, not 500."""
+		result = collabs.get_creator_profile()
+		self.assertIsNone(result["data"])
