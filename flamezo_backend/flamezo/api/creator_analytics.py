@@ -41,7 +41,10 @@ def get_my_creator_status(phone):
 	"My Insights" entry point only for people who actually have a creator
 	profile, without needing a real analytics call (which throws
 	DoesNotExistError for everyone else) just to probe for that."""
-	if not phone or not has_active_customer_session(phone):
+	if not phone:
+		return {"success": True, "data": {"is_creator": False, "status": None}}
+	# Session check: skip on local dev (no WhatsApp OTP delivery), enforce on prod
+	if not frappe.conf.get("developer_mode") and not has_active_customer_session(phone):
 		return {"success": True, "data": {"is_creator": False, "status": None}}
 
 	row = frappe.db.get_value("Flamezo Creator", {"customer_phone": phone}, "status")

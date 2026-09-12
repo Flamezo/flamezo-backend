@@ -29,6 +29,7 @@ import {
   Flame,
   LifeBuoy,
   Inbox,
+  Video,
 } from 'lucide-react'
 
 export type OutletType =
@@ -248,6 +249,7 @@ function sharedBottomItems(outletType: string, isAdmin: boolean): NavItem[] {
     { type: 'link', name: 'Support Requests', description: 'Customer & merchant requests', href: '/admin/support', icon: Inbox, adminOnly: true },
     { type: 'link', name: 'Event Management', href: '/admin/events', icon: PartyPopper, adminOnly: true },
     { type: 'link', name: 'Customer Management', href: '/admin/customers', icon: Users, adminOnly: true },
+    { type: 'link', name: 'Creator Management', href: '/admin/creators', icon: Video, adminOnly: true },
     marketingManagementGroup(),
   ]
 }

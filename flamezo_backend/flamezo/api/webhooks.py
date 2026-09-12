@@ -11,6 +11,7 @@ from datetime import datetime
 from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config, get_razorpay_client
 from flamezo_backend.flamezo.utils import commission_engine
 from flamezo_backend.flamezo.utils import razorpay_route as route_adapter
+from flamezo_backend.flamezo.utils import creator_payout
 
 
 def verify_razorpay_signature(body, signature, webhook_secret):
@@ -416,9 +417,13 @@ def handle_account_status(payload):
 	Statuses we care about: `under_review`, `needs_clarification`,
 	`activated`, `rejected`, `suspended`.
 
-	The Route adapter owns the status mapping + side effects (e.g. promoting
-	the restaurant from flamezo_hold → direct_split on activation). We just
-	dispatch.
+	Two account owners share this one event type: Outlet (merchant order
+	commission) and Flamezo Creator (marketplace cash-deal payouts,
+	creator-marketplace-blueprint.html §05). Try the Outlet adapter first
+	(the older, higher-volume path), then the Creator one — each does its
+	own lookup and is a clean no-op if the account_id isn't theirs, so
+	trying both is safe and correct regardless of which owner this event
+	is actually for.
 	"""
 	try:
 		event = payload.get("event") or ""
@@ -438,6 +443,7 @@ def handle_account_status(payload):
 			return {"success": False, "error": "no_account_id"}
 
 		route_adapter.update_kyc_status(account_id, status, raw_event=payload)
+		creator_payout.update_creator_kyc_status(account_id, status)
 		return {"success": True, "account_id": account_id, "status": status}
 	except Exception as e:
 		frappe.log_error(f"Account status handler failed: {str(e)}", "razorpay.webhook.account")

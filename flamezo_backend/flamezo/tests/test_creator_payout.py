@@ -16,6 +16,7 @@ from frappe.utils import add_days, today
 
 from flamezo_backend.flamezo.api import collab_deals as deals
 from flamezo_backend.flamezo.api import creator_kyc
+from flamezo_backend.flamezo.api import webhooks
 from flamezo_backend.flamezo.tests.utils import make_restaurant
 from flamezo_backend.flamezo.utils import creator_payout
 
@@ -282,6 +283,44 @@ class TestCreatorPayout(unittest.TestCase):
 		self.assertEqual(transfer_call[0][0], "pay_PAYOUTTEST")
 		self.assertEqual(transfer_call[0][1]["transfers"][0]["account"], "acc_LIVE")
 		self.assertEqual(transfer_call[0][1]["transfers"][0]["amount"], 90000)  # 900 = 1000 - 10% commission
+
+	# ── webhooks.py dispatch (real gap found + fixed: account.* events for a
+	#    creator's linked account were never reaching Flamezo Creator at all) ──
+
+	def test_account_webhook_updates_creator_kyc_status(self):
+		frappe.db.set_value("Flamezo Creator", self.creator.name, "razorpay_linked_account_id", "acc_WEBHOOK1")
+		payload = {
+			"event": "account.activated",
+			"payload": {"account": {"entity": {"id": "acc_WEBHOOK1", "status": "activated"}}},
+		}
+		result = webhooks.handle_account_status(payload)
+		self.assertTrue(result["success"])
+		self.assertEqual(
+			frappe.db.get_value("Flamezo Creator", self.creator.name, "razorpay_kyc_status"), "activated"
+		)
+
+	def test_account_webhook_for_unknown_account_is_a_clean_noop(self):
+		"""Neither an Outlet nor a Flamezo Creator owns this account_id —
+		must not throw, must not touch any record."""
+		payload = {
+			"event": "account.activated",
+			"payload": {"account": {"entity": {"id": "acc_BELONGS_TO_NOBODY", "status": "activated"}}},
+		}
+		result = webhooks.handle_account_status(payload)
+		self.assertTrue(result["success"])
+
+	def test_account_webhook_status_derived_from_event_suffix_for_creator(self):
+		"""Some account.* events carry status only in the event name, not
+		the entity body — same fallback the Outlet path already relies on."""
+		frappe.db.set_value("Flamezo Creator", self.creator.name, "razorpay_linked_account_id", "acc_WEBHOOK2")
+		payload = {
+			"event": "account.suspended",
+			"payload": {"account": {"entity": {"id": "acc_WEBHOOK2"}}},
+		}
+		webhooks.handle_account_status(payload)
+		self.assertEqual(
+			frappe.db.get_value("Flamezo Creator", self.creator.name, "razorpay_kyc_status"), "suspended"
+		)
 
 
 if __name__ == "__main__":
