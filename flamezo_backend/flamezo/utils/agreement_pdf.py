@@ -20,6 +20,24 @@ _MERGE_FIELD_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "agreement_stamps")
 
+# Confirmed live: the CSS previously named "Georgia"/"Times New Roman" as the
+# font, which wkhtmltopdf silently substitutes with whatever serif font
+# happens to be installed on the machine actually running the render — a Mac
+# has Georgia, a bare Linux server typically doesn't, and got DejaVu Serif
+# instead. Different fonts have different character widths, which reflows
+# the whole document to a DIFFERENT PAGE COUNT — and since Leegality's
+# Aadhaar-signature field position is calibrated in absolute (page, x, y)
+# coordinates against one specific rendered PDF, a repaginated document sent
+# via a later API call puts the signer's field on the wrong page entirely,
+# silently failing to render the visible signature mark even though the
+# Aadhaar OTP itself completes successfully. Embedding the font file via
+# @font-face was tried and rejected — wkhtmltopdf's WebKit engine parses it
+# without error but then renders every glyph blank. The fix instead: name
+# "DejaVu Serif" explicitly (see _CSS below) and make sure it's actually
+# installed identically everywhere this pipeline runs (`brew install --cask
+# font-dejavu` on macOS dev machines; already present by default on the
+# Linux bench servers — confirmed via fc-list).
+
 # Onomatrix Labs' own side of the SIGNATURES block never changes per party —
 # it's baked into every document as real images, not a Leegality
 # organisational-countersign step (that's a separate paid "Doc Signer"
@@ -59,11 +77,21 @@ def embed_static_stamps(markdown_text: str) -> str:
 			)
 	return markdown_text
 
+# Embedding the font via @font-face (base64 data: URI) was tried first and
+# rejected: wkhtmltopdf's WebKit engine loads it without a parse error once
+# the format() hint is dropped, but then silently renders every glyph blank
+# (confirmed directly — headings/rules show, all text is invisible). Naming
+# a real, identically-installed system font is the reliable path instead —
+# "DejaVu Serif" is installed via `brew install --cask font-dejavu` on this
+# Mac and already present by default on the Linux bench servers (confirmed
+# via fc-list on dev.flamezo.in). Both environments now resolve the same
+# font file family, so pagination is consistent without relying on a
+# fragile embedding path.
 _CSS = """
 @page { size: A4; margin: 20mm 18mm; }
 * { box-sizing: border-box; }
 body {
-  font-family: "Georgia", "Times New Roman", serif;
+  font-family: "DejaVu Serif", serif;
   font-size: 10.5pt;
   line-height: 1.5;
   color: #1a1a1a;
