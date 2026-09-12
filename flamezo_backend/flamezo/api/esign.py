@@ -311,7 +311,8 @@ def admin_get_agreement_status(outlet_id, agreement_type="Merchant Partnership A
 	doc = frappe.db.get_value(
 		"Signed Agreement",
 		{"party_doctype": "Outlet", "party": outlet_id, "agreement_type": agreement_type},
-		["name", "status", "agreement_version", "signing_url", "initiated_at", "signed_at", "expires_at"],
+		["name", "status", "agreement_version", "signing_url", "initiated_at", "signed_at",
+			"expires_at", "signed_pdf"],
 		as_dict=True,
 		order_by="creation desc",
 	)

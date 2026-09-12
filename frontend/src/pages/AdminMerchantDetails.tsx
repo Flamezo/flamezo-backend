@@ -45,7 +45,8 @@ import {
   Clock3,
   XCircle,
   Timer,
-  Lock
+  Lock,
+  FileText
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
@@ -267,6 +268,7 @@ function AdminMerchantDetailsPage() {
         initiated_at?: string
         signed_at?: string
         expires_at?: string
+        signed_pdf?: string
       }
     | null
     | undefined
@@ -1631,6 +1633,7 @@ type AgreementRow = {
   initiated_at?: string
   signed_at?: string
   expires_at?: string
+  signed_pdf?: string
 }
 
 function AgreementStatusCard({
@@ -1711,21 +1714,34 @@ function AgreementStatusCard({
             </div>
             <p className="text-xs text-muted-foreground font-medium max-w-prose">{variant.body}</p>
           </div>
-          <Button
-            onClick={onSend}
-            disabled={!canSend}
-            className="gap-2 font-bold shrink-0"
-            title={
-              status === 'Link Sent' || status === 'Viewed'
-                ? 'Already sent — waiting on the merchant to complete signing'
-                : status === 'Signed'
-                ? 'Already signed'
-                : undefined
-            }
-          >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {sending ? 'Sending…' : status === 'Failed' || status === 'Expired' ? 'Resend Agreement' : 'Send for Signing'}
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            {agreement?.signed_pdf && (
+              <Button
+                variant="outline"
+                className="gap-2 font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                onClick={() => window.open(agreement.signed_pdf, '_blank')}
+                title="Open the actual signed PDF (Aadhaar eSign + Onomatrix Labs stamp)"
+              >
+                <FileText className="h-4 w-4" />
+                View Signed PDF
+              </Button>
+            )}
+            <Button
+              onClick={onSend}
+              disabled={!canSend}
+              className="gap-2 font-bold"
+              title={
+                status === 'Link Sent' || status === 'Viewed'
+                  ? 'Already sent — waiting on the merchant to complete signing'
+                  : status === 'Signed'
+                  ? 'Already signed'
+                  : undefined
+              }
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {sending ? 'Sending…' : status === 'Failed' || status === 'Expired' ? 'Resend Agreement' : 'Send for Signing'}
+            </Button>
+          </div>
         </div>
 
         {agreement && (

@@ -396,6 +396,7 @@ class TestAdminGetAgreementStatus(unittest.TestCase):
 			"esign_provider": "leegality",
 			"provider_request_id": "prov-status-1",
 			"signing_url": "https://app1.leegality.com/sign/xyz",
+			"signed_pdf": "https://cdn.example.com/agreements/Outlet/test/SIGN-AGR-1.pdf",
 		})
 		row.insert(ignore_permissions=True)
 		frappe.db.commit()
@@ -407,6 +408,9 @@ class TestAdminGetAgreementStatus(unittest.TestCase):
 		self.assertEqual(result["data"]["name"], row.name)
 		self.assertEqual(result["data"]["status"], "Link Sent")
 		self.assertEqual(result["data"]["signing_url"], "https://app1.leegality.com/sign/xyz")
+		self.assertEqual(
+			result["data"]["signed_pdf"], "https://cdn.example.com/agreements/Outlet/test/SIGN-AGR-1.pdf"
+		)
 
 	def test_non_admin_rejected(self):
 		from flamezo_backend.flamezo.api import esign as esign_api
