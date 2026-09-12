@@ -238,9 +238,12 @@ class LeegalityAdapter(EsignAdapter):
 
 		event_type = self._normalize_event(payload)
 		if not event_type:
+			# 300 chars previously truncated a real unrecognized shape mid-way,
+			# during a live signature, before it could be diagnosed — this
+			# genuinely cost a wasted signing fee. message has no length cap.
 			frappe.log_error(
 				title="leegality.webhook",
-				message=f"Leegality webhook unrecognized shape: {json.dumps(payload)[:300]}",
+				message=f"Leegality webhook unrecognized shape: {json.dumps(payload)[:3000]}",
 			)
 			return None
 
@@ -268,6 +271,20 @@ class LeegalityAdapter(EsignAdapter):
 			if request.get("expired"):
 				return "expired"
 			return "failed"
+
+		# Third real shape, confirmed live against an actual completed
+		# Aadhaar eSign on this Workflow (not in Leegality's own example
+		# docs — their examples don't cover every shape they actually
+		# send): no top-level eventType/webhookType at all, just
+		# request.action as a capitalized human-readable string.
+		request = payload.get("request") or {}
+		action = (request.get("action") or "").strip().lower()
+		if action == "signed":
+			return "signed"
+		if action in ("rejected", "declined"):
+			return "failed"
+		if request.get("expired") or action == "expired":
+			return "expired"
 
 		return None
 

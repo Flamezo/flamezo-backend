@@ -327,6 +327,48 @@ class TestLeegalityWebhookVerification(unittest.TestCase):
 			event = LeegalityAdapter().verify_and_parse_webhook({}, json.dumps(payload).encode())
 		self.assertEqual(event.event_type, "failed")
 
+	def test_request_action_signed_shape_confirmed_live(self):
+		# A THIRD real webhook shape — captured live from an actual
+		# completed Aadhaar eSign, not documented in Leegality's own
+		# example payloads (their docs don't cover every shape they
+		# actually send). No top-level eventType/webhookType at all, just
+		# request.action as a capitalized human string. Missing this cost
+		# a real wasted signature (webhook arrived, mac verified fine, but
+		# fell through to "unrecognized shape" and never updated status).
+		doc_id = "01M2AMWN3BT7C9FQ66P990J9WZ"
+		payload = {
+			"documentId": doc_id,
+			"mac": self._sign(doc_id),
+			"request": {
+				"action": "Signed",
+				"active": True,
+				"email": None,
+				"error": None,
+				"expired": False,
+				"expiryDate": "22-09-2026 23:59:59",
+				"invitationUrl": "https://app1.leegality.com/sign/b7c2950b-cdd6-4258-b153-e7106b7e7496",
+				"inviteeType": "Signer",
+				"name": "Aura Wellness Studio Private Limited",
+				"phone": "7487871213",
+			},
+		}
+		with _configured():
+			event = LeegalityAdapter().verify_and_parse_webhook({}, json.dumps(payload).encode())
+		self.assertIsNotNone(event)
+		self.assertEqual(event.event_type, "signed")
+		self.assertEqual(event.provider_request_id, doc_id)
+
+	def test_request_action_rejected_maps_to_failed(self):
+		doc_id = "doc-request-action-rejected"
+		payload = {
+			"documentId": doc_id,
+			"mac": self._sign(doc_id),
+			"request": {"action": "Rejected", "expired": False},
+		}
+		with _configured():
+			event = LeegalityAdapter().verify_and_parse_webhook({}, json.dumps(payload).encode())
+		self.assertEqual(event.event_type, "failed")
+
 	def test_missing_mac_is_rejected_not_crashed(self):
 		payload = {"eventType": "SIGNED", "document": {"documentId": "doc-1"}}
 		with _configured():
